@@ -1,0 +1,30 @@
+bin/
+obj/
+.vs/
+.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Build output
+Debug/
+Release/
+x64/
+x86/
+
+# ASP.NET Core
+appsettings.Local.json
+secrets.json
+.env
+
+# Local opencode tooling
+.opencode/
+opencode.json
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
