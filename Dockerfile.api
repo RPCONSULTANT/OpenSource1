@@ -13,12 +13,11 @@ COPY ["src/OpenSource1.Infrastructure/OpenSource1.Infrastructure.csproj", "src/O
 COPY ["src/OpenSource1.Api/OpenSource1.Api.csproj",             "src/OpenSource1.Api/"]
 RUN dotnet restore "src/OpenSource1.Api/OpenSource1.Api.csproj"
 
-# ── Compilar y publicar (--no-incremental: sin reutilizar artefactos parciales) ──
+# ── Compilar y publicar ──────────────────────────────────────────────────────
 COPY . .
 RUN dotnet publish "src/OpenSource1.Api/OpenSource1.Api.csproj" \
     -c Release \
     -o /app/publish \
-    --no-incremental \
     /p:UseAppHost=false
 
 FROM runtime AS final

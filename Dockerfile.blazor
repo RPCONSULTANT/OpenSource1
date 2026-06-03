@@ -12,12 +12,11 @@ COPY ["src/OpenSource1.Application/OpenSource1.Application.csproj", "src/OpenSou
 COPY ["src/OpenSource1.Blazor/OpenSource1.Blazor.csproj",       "src/OpenSource1.Blazor/"]
 RUN dotnet restore "src/OpenSource1.Blazor/OpenSource1.Blazor.csproj"
 
-# ── Compilar y publicar (--no-incremental: sin reutilizar artefactos parciales) ──
+# ── Compilar y publicar ──────────────────────────────────────────────────────
 COPY . .
 RUN dotnet publish "src/OpenSource1.Blazor/OpenSource1.Blazor.csproj" \
     -c Release \
     -o /app/publish \
-    --no-incremental \
     /p:UseAppHost=false
 
 FROM runtime AS final
