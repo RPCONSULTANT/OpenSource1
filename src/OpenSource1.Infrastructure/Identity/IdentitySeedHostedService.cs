@@ -36,9 +36,18 @@ public sealed class IdentitySeedHostedService(
             }
         }
 
-        await EnsureUserAsync(userManager, "admin", "admin@opensource1.local", "Administrador", ApplicationRoles.Administrator, seedOptions.Value.DefaultPassword);
-        await EnsureUserAsync(userManager, "supervisor", "supervisor@opensource1.local", "Supervisor", ApplicationRoles.Supervisor, seedOptions.Value.DefaultPassword);
-        await EnsureUserAsync(userManager, "ejecutor", "ejecutor@opensource1.local", "Ejecutor", ApplicationRoles.Executor, seedOptions.Value.DefaultPassword);
+        // Usuarios base del sistema
+        await EnsureUserAsync(userManager, "admin",      "admin@opensource1.local",      "Administrador",    ApplicationRoles.Administrator, seedOptions.Value.DefaultPassword);
+        await EnsureUserAsync(userManager, "supervisor", "supervisor@opensource1.local",  "Supervisor",       ApplicationRoles.Supervisor,    seedOptions.Value.DefaultPassword);
+        await EnsureUserAsync(userManager, "ejecutor",   "ejecutor@opensource1.local",    "Ejecutor",         ApplicationRoles.Executor,      seedOptions.Value.DefaultPassword);
+
+        // Equipo realista adicional
+        await EnsureUserAsync(userManager, "cmendes",    "carlos.mendes@opensource1.local",  "Carlos Méndez",       ApplicationRoles.Administrator, seedOptions.Value.DefaultPassword);
+        await EnsureUserAsync(userManager, "agarcia",    "ana.garcia@opensource1.local",      "Ana García",          ApplicationRoles.Supervisor,    seedOptions.Value.DefaultPassword);
+        await EnsureUserAsync(userManager, "ltorres",    "luis.torres@opensource1.local",     "Luis Torres",         ApplicationRoles.Supervisor,    seedOptions.Value.DefaultPassword);
+        await EnsureUserAsync(userManager, "mrodriguez", "maria.rodriguez@opensource1.local", "María Rodríguez",     ApplicationRoles.Executor,      seedOptions.Value.DefaultPassword);
+        await EnsureUserAsync(userManager, "jperez",     "juan.perez@opensource1.local",      "Juan Pérez",          ApplicationRoles.Executor,      seedOptions.Value.DefaultPassword);
+        await EnsureUserAsync(userManager, "svargas",    "sofia.vargas@opensource1.local",    "Sofía Vargas",        ApplicationRoles.Executor,      seedOptions.Value.DefaultPassword, isActive: false);
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
@@ -49,7 +58,8 @@ public sealed class IdentitySeedHostedService(
         string email,
         string fullName,
         string role,
-        string password)
+        string password,
+        bool isActive = true)
     {
         var user = await userManager.FindByNameAsync(userName);
 
@@ -61,7 +71,7 @@ public sealed class IdentitySeedHostedService(
                 Email = email,
                 FullName = fullName,
                 EmailConfirmed = true,
-                IsActive = true
+                IsActive = isActive
             };
 
             var result = await userManager.CreateAsync(user, password);
@@ -70,7 +80,7 @@ public sealed class IdentitySeedHostedService(
                 throw new InvalidOperationException($"Failed to seed user '{userName}': {string.Join(", ", result.Errors.Select(error => error.Description))}");
             }
 
-            logger.LogInformation("Seeded local user {UserName}.", userName);
+            logger.LogInformation("Seeded user {UserName} (active={IsActive}).", userName, isActive);
         }
 
         if (!await userManager.IsInRoleAsync(user, role))
