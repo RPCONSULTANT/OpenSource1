@@ -5,11 +5,11 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-using OpenSource1.Application.Data;
+using OpenSource1.Infrastructure.Data;
 
 #nullable disable
 
-namespace OpenSource1.Application.Data.Migrations.Application
+namespace OpenSource1.Infrastructure.Data.Migrations.Application
 {
     [DbContext(typeof(ApplicationDbContext))]
     [Migration("20260602162704_InitialApplicationDb")]
@@ -25,7 +25,7 @@ namespace OpenSource1.Application.Data.Migrations.Application
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
-            modelBuilder.Entity("OpenSource1.Domain.Entities.AppSetting", b =>
+            modelBuilder.Entity("OpenSource1.Core.Entities.AppSetting", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()

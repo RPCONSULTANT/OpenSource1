@@ -1,4 +1,4 @@
-using OpenSource1.Domain.Abstractions;
+using OpenSource1.Core.Abstractions;
 using OpenSource1.Application.Data.Repositories;
 
 namespace OpenSource1.Application.Data.UnitOfWork;

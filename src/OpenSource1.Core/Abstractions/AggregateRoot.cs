@@ -1,4 +1,4 @@
-namespace OpenSource1.Domain.Abstractions;
+namespace OpenSource1.Core.Abstractions;
 
 public abstract class AggregateRoot<TKey> : IEntity<TKey>, IAggregateRoot
     where TKey : notnull

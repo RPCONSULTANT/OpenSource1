@@ -6,9 +6,10 @@ using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using OpenSource1.Infrastructure.Identity;
 using OpenSource1.Application.Security;
+using OpenSource1.Application.Services.Auth;
 using OpenSource1.Application.Services.Auth.Dtos;
 
-namespace OpenSource1.Application.Services.Auth;
+namespace OpenSource1.Infrastructure.Services.Auth;
 
 public sealed class AuthService(
     UserManager<Usuario> userManager,

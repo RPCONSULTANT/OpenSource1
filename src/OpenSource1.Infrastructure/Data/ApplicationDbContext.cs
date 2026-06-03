@@ -1,5 +1,5 @@
 using Microsoft.EntityFrameworkCore;
-using OpenSource1.Domain.Entities;
+using OpenSource1.Core.Entities;
 
 namespace OpenSource1.Infrastructure.Data;
 

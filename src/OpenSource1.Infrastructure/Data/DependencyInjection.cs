@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using OpenSource1.Application.Data.Repositories;
 using OpenSource1.Application.Data.UnitOfWork;
 using OpenSource1.Application.Services.Auth;
@@ -30,7 +32,7 @@ public static class DependencyInjection
             options.UseSqlServer(identityConnectionString));
 
         services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
-        services.AddScoped<IUnitOfWork, UnitOfWork>();
+        services.AddScoped<IUnitOfWork, OpenSource1.Infrastructure.Data.UnitOfWork.UnitOfWork>();
         services.AddScoped<IAppSettingService, AppSettingService>();
         services.AddScoped<IAuthService, AuthService>();
         services.AddHostedService<DatabaseMigrationHostedService>();

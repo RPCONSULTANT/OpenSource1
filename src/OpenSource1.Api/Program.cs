@@ -1,11 +1,10 @@
-using OpenSource1.Infrastructure.Data;
-using OpenSource1.Infrastructure.Identity;
 using OpenSource1.Application.Security;
 using OpenSource1.Application.Services;
+using OpenSource1.Infrastructure.Data;
+using OpenSource1.Infrastructure.Identity;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
 builder.Services.AddApplicationData(builder.Configuration);
 builder.Services.AddApplicationIdentity(builder.Configuration);
 builder.Services.AddApplicationServices();
@@ -30,32 +29,21 @@ builder.Services.AddCors(options =>
         }
     });
 });
-builder.Services.AddControllersWithViews();
+builder.Services.AddControllers();
+builder.Services.AddOpenApi();
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
-if (!app.Environment.IsDevelopment())
+if (app.Environment.IsDevelopment())
 {
-    app.UseExceptionHandler("/Home/Error");
-    // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
-    app.UseHsts();
+    app.MapOpenApi();
 }
 
 app.UseHttpsRedirection();
 app.UseRouting();
 app.UseCors(CorsOptions.PolicyName);
-
 app.UseAuthentication();
 app.UseAuthorization();
-
-app.MapStaticAssets();
 app.MapControllers();
-
-app.MapControllerRoute(
-    name: "default",
-    pattern: "{controller=Home}/{action=Index}/{id?}")
-    .WithStaticAssets();
-
 
 app.Run();

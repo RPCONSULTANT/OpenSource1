@@ -1,4 +1,4 @@
-namespace OpenSource1.Domain.Entities;
+namespace OpenSource1.Core.Entities;
 
 public sealed class AppSetting : BaseEntity
 {

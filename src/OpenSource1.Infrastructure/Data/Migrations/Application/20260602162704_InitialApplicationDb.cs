@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace OpenSource1.Application.Data.Migrations.Application
+namespace OpenSource1.Infrastructure.Data.Migrations.Application
 {
     /// <inheritdoc />
     public partial class InitialApplicationDb : Migration

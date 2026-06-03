@@ -1,8 +1,10 @@
 using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
-using OpenSource1.Domain.Abstractions;
+using OpenSource1.Application.Data.Repositories;
+using OpenSource1.Core.Abstractions;
+using OpenSource1.Infrastructure.Data;
 
-namespace OpenSource1.Application.Data.Repositories;
+namespace OpenSource1.Infrastructure.Data.Repositories;
 
 public sealed class GenericRepository<TEntity>(ApplicationDbContext dbContext) : IGenericRepository<TEntity>
     where TEntity : class, IAggregateRoot

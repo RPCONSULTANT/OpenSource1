@@ -8,6 +8,6 @@ obj/
 *.user
 *.suo
 *.log
-Dockerfile
+Dockerfile*
 docker-compose*.yml
 README.md

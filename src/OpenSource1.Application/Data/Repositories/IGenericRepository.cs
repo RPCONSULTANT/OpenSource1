@@ -1,5 +1,5 @@
 using System.Linq.Expressions;
-using OpenSource1.Domain.Abstractions;
+using OpenSource1.Core.Abstractions;
 
 namespace OpenSource1.Application.Data.Repositories;
 

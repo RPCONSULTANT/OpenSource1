@@ -1,8 +1,9 @@
 using Microsoft.EntityFrameworkCore;
-using OpenSource1.Domain.Entities;
+using OpenSource1.Core.Entities;
 using OpenSource1.Application.Data.UnitOfWork;
+using OpenSource1.Application.Services.Settings;
 
-namespace OpenSource1.Application.Services.Settings;
+namespace OpenSource1.Infrastructure.Services.Settings;
 
 public sealed class AppSettingService(IUnitOfWork unitOfWork) : IAppSettingService
 {

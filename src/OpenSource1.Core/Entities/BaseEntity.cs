@@ -1,6 +1,6 @@
-using OpenSource1.Domain.Abstractions;
+using OpenSource1.Core.Abstractions;
 
-namespace OpenSource1.Domain.Entities;
+namespace OpenSource1.Core.Entities;
 
 public abstract class BaseEntity : AggregateRoot<Guid>
 {

@@ -1,4 +1,4 @@
-namespace OpenSource1.Domain.Abstractions;
+namespace OpenSource1.Core.Abstractions;
 
 public interface IEntity<out TKey>
 {

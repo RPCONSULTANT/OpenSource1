@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowMissingPrunePackageData>true</AllowMissingPrunePackageData>
+    <UserSecretsId>a51750cc-7a05-4223-8694-a1dc30a84e2d</UserSecretsId>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.8" />
+    <ProjectReference Include="..\OpenSource1.Application\OpenSource1.Application.csproj" />
+    <ProjectReference Include="..\OpenSource1.Infrastructure\OpenSource1.Infrastructure.csproj" />
+  </ItemGroup>
+</Project>

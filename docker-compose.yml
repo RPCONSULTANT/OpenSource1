@@ -1,10 +1,10 @@
 services:
-  web:
+  mvc:
     build:
       context: .
-      dockerfile: Dockerfile
-    image: opensource1-web:local
-    container_name: opensource1-web
+      dockerfile: Dockerfile.mvc
+    image: opensource1-mvc:local
+    container_name: opensource1-mvc
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:8080
@@ -15,9 +15,35 @@ services:
       Jwt__SigningKey: "${JWT_SIGNING_KEY:-LocalDevelopmentSigningKey_ChangeMe_1234567890}"
       Jwt__ExpirationMinutes: 120
       Cors__AllowedOrigins__0: http://localhost:8080
-      Database__ApplyMigrationsOnStartup: "true"
+      Database__ApplyMigrationsOnStartup: "false"
     ports:
       - "8080:8080"
+    volumes:
+      - dataprotection-keys:/root/.aspnet/DataProtection-Keys
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    image: opensource1-api:local
+    container_name: opensource1-api
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__DefaultConnection: "Server=sqlserver,1433;Database=TestAppDb;User Id=sa;Password=${MSSQL_SA_PASSWORD:?Set MSSQL_SA_PASSWORD in a local .env file};TrustServerCertificate=True;MultipleActiveResultSets=True"
+      ConnectionStrings__IdentityConnection: "Server=sqlserver,1433;Database=TestIdentityDb;User Id=sa;Password=${MSSQL_SA_PASSWORD:?Set MSSQL_SA_PASSWORD in a local .env file};TrustServerCertificate=True;MultipleActiveResultSets=True"
+      Jwt__Issuer: OpenSource1.Local
+      Jwt__Audience: OpenSource1.Local
+      Jwt__SigningKey: "${JWT_SIGNING_KEY:-LocalDevelopmentSigningKey_ChangeMe_1234567890}"
+      Jwt__ExpirationMinutes: 120
+      Cors__AllowedOrigins__0: http://localhost:8080
+      Cors__AllowedOrigins__1: http://localhost:8081
+      Database__ApplyMigrationsOnStartup: "true"
+    ports:
+      - "8081:8080"
     volumes:
       - dataprotection-keys:/root/.aspnet/DataProtection-Keys
     depends_on:
