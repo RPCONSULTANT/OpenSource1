@@ -9,6 +9,8 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddApplicationData(this IServiceCollection services, IConfiguration configuration)
     {
+        services.Configure<DatabaseOptions>(configuration.GetSection(DatabaseOptions.SectionName));
+
         var applicationConnectionString = configuration.GetConnectionString("DefaultConnection")
             ?? throw new InvalidOperationException("Connection string 'DefaultConnection' was not found.");
 
@@ -23,6 +25,7 @@ public static class DependencyInjection
 
         services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
         services.AddScoped<IUnitOfWork, UnitOfWork.UnitOfWork>();
+        services.AddHostedService<DatabaseMigrationHostedService>();
 
         return services;
     }

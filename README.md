@@ -12,6 +12,34 @@ dotnet build
 dotnet run
 ```
 
+## Run with Docker Compose
+
+The project includes a multi-stage `Dockerfile` and a `docker-compose.yml` that runs:
+
+- ASP.NET Core MVC app on `http://localhost:8080`
+- SQL Server 2022 Developer on `localhost:1433`
+
+Create a local `.env` file and start the full stack:
+
+```bash
+cp .env.example .env
+docker compose up --build -d
+```
+
+The web container uses the SQL Server service name `sqlserver` internally and applies EF Core migrations automatically when `Database__ApplyMigrationsOnStartup=true` is set in `docker-compose.yml`.
+
+Stop the stack:
+
+```bash
+docker compose down
+```
+
+Remove SQL Server data too:
+
+```bash
+docker compose down -v
+```
+
 ## Local SQL Server
 
 Create a local `.env` file from the example and set a strong SA password:
