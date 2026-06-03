@@ -4,15 +4,24 @@ EXPOSE 8080
 
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
+
+# ── Restaurar dependencias (capa cacheada solo si cambian los .csproj) ──────
 COPY ["test.slnx", "./"]
-COPY ["src/OpenSource1.Core/OpenSource1.Core.csproj", "src/OpenSource1.Core/"]
+COPY ["src/OpenSource1.Core/OpenSource1.Core.csproj",           "src/OpenSource1.Core/"]
 COPY ["src/OpenSource1.Application/OpenSource1.Application.csproj", "src/OpenSource1.Application/"]
-COPY ["src/OpenSource1.Blazor/OpenSource1.Blazor.csproj", "src/OpenSource1.Blazor/"]
+COPY ["src/OpenSource1.Blazor/OpenSource1.Blazor.csproj",       "src/OpenSource1.Blazor/"]
 RUN dotnet restore "src/OpenSource1.Blazor/OpenSource1.Blazor.csproj"
+
+# ── Compilar y publicar (--no-incremental: sin reutilizar artefactos parciales) ──
 COPY . .
-RUN dotnet publish "src/OpenSource1.Blazor/OpenSource1.Blazor.csproj" -c Release -o /app/publish /p:UseAppHost=false
+RUN dotnet publish "src/OpenSource1.Blazor/OpenSource1.Blazor.csproj" \
+    -c Release \
+    -o /app/publish \
+    --no-incremental \
+    /p:UseAppHost=false
 
 FROM runtime AS final
 WORKDIR /app
 COPY --from=build /app/publish .
 ENTRYPOINT ["dotnet", "OpenSource1.Blazor.dll"]
+
