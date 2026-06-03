@@ -2,6 +2,6 @@
   <Project Path="src/OpenSource1.Core/OpenSource1.Core.csproj" />
   <Project Path="src/OpenSource1.Application/OpenSource1.Application.csproj" />
   <Project Path="src/OpenSource1.Infrastructure/OpenSource1.Infrastructure.csproj" />
-  <Project Path="src/OpenSource1.Mvc/OpenSource1.Mvc.csproj" />
+  <Project Path="src/OpenSource1.Blazor/OpenSource1.Blazor.csproj" />
   <Project Path="src/OpenSource1.Api/OpenSource1.Api.csproj" />
 </Solution>

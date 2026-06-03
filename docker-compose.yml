@@ -1,10 +1,10 @@
 services:
-  mvc:
+  blazor:
     build:
       context: .
-      dockerfile: Dockerfile.mvc
-    image: opensource1-mvc:local
-    container_name: opensource1-mvc
+      dockerfile: Dockerfile.blazor
+    image: opensource1-blazor:local
+    container_name: opensource1-blazor
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:8080
@@ -15,12 +15,15 @@ services:
       Jwt__SigningKey: "${JWT_SIGNING_KEY:-LocalDevelopmentSigningKey_ChangeMe_1234567890}"
       Jwt__ExpirationMinutes: 120
       Cors__AllowedOrigins__0: http://localhost:8080
+      Api__BaseAddress: http://api:8080/
       Database__ApplyMigrationsOnStartup: "false"
     ports:
       - "8080:8080"
     volumes:
       - dataprotection-keys:/root/.aspnet/DataProtection-Keys
     depends_on:
+      api:
+        condition: service_started
       sqlserver:
         condition: service_healthy
 

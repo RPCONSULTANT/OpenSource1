@@ -1,0 +1,19 @@
+@if (!string.IsNullOrWhiteSpace(Message))
+{
+    <div class="notification @CssClass" role="alert">
+        @Message
+    </div>
+}
+
+@code {
+    [Parameter] public string Type { get; set; } = "info";
+    [Parameter] public string? Message { get; set; }
+
+    private string CssClass => Type?.ToLowerInvariant() switch
+    {
+        "success" => "is-success is-light",
+        "danger" => "is-danger is-light",
+        "warning" => "is-warning is-light",
+        _ => "is-info is-light"
+    };
+}

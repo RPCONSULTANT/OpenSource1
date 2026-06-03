@@ -1,0 +1,132 @@
+@page "/account/login"
+@attribute [AllowAnonymous]
+@using System.ComponentModel.DataAnnotations
+@using System.Security.Claims
+@using OpenSource1.Application.Services.Auth.Dtos
+@using OpenSource1.Blazor.Security
+@using OpenSource1.Blazor.Services
+@inject IAuthApiClient AuthApiClient
+@inject IHttpContextAccessor HttpContextAccessor
+@inject NavigationManager Navigation
+
+<PageTitle>Iniciar sesión</PageTitle>
+
+<section class="login-page" aria-labelledby="login-title">
+    <div class="login-card card">
+        <div class="card-content">
+            <p class="eyebrow">Acceso seguro</p>
+            <h1 id="login-title" class="title is-3">Iniciar sesión</h1>
+            <p class="subtitle is-6">Ingrese sus credenciales para acceder al sistema.</p>
+
+            @if (LoggedOut)
+            {
+                <MessageBox Type="info" Message="La sesión fue cerrada correctamente." />
+            }
+
+            @if (!string.IsNullOrWhiteSpace(message))
+            {
+                <MessageBox Type="danger" Message="@message" />
+            }
+
+            <EditForm Model="Input" FormName="login" OnValidSubmit="LoginAsync" autocomplete="off">
+                <DataAnnotationsValidator />
+
+                <div class="field">
+                    <label class="label" for="userNameOrEmail">Usuario</label>
+                    <div class="control">
+                    <InputText id="userNameOrEmail" class="input" @bind-Value="Input!.UserNameOrEmail" autocomplete="username" placeholder="admin, supervisor o ejecutor" />
+                    </div>
+                    <ValidationMessage For="() => Input!.UserNameOrEmail" />
+                </div>
+
+                <div class="field">
+                    <label class="label" for="password">Contraseña</label>
+                    <div class="control">
+                        <InputText id="password" type="password" class="input" @bind-Value="Input!.Password" autocomplete="current-password" placeholder="••••••••" />
+                    </div>
+                    <ValidationMessage For="() => Input!.Password" />
+                </div>
+
+                <div class="login-actions">
+                    <button type="submit" class="button is-primary is-fullwidth-mobile">Iniciar Sesión</button>
+                    <a class="button is-light is-fullwidth-mobile" href="/">Salir</a>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+</section>
+
+@code {
+    [SupplyParameterFromForm(FormName = "login")]
+    private LoginInput? Input { get; set; }
+
+    [SupplyParameterFromQuery(Name = "returnUrl")]
+    private string? ReturnUrl { get; set; }
+
+    [SupplyParameterFromQuery(Name = "loggedOut")]
+    private bool LoggedOut { get; set; }
+
+    private string? message;
+
+    protected override void OnInitialized()
+    {
+        Input ??= new();
+    }
+
+    private async Task LoginAsync()
+    {
+        var result = await AuthApiClient.LoginAsync(new LoginRequest
+        {
+            UserNameOrEmail = Input!.UserNameOrEmail.Trim(),
+            Password = Input.Password
+        });
+
+        if (!result.Succeeded || result.Response is null)
+        {
+            message = result.Errors.Count > 0
+                ? string.Join(" ", result.Errors)
+                : "Usuario o contraseña inválidos.";
+            return;
+        }
+
+        var httpContext = HttpContextAccessor.HttpContext
+            ?? throw new InvalidOperationException("No hay HttpContext disponible para iniciar sesión.");
+
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, result.Response.UserId),
+            new(ClaimTypes.Name, result.Response.FullName),
+            new(ClaimTypes.Email, result.Response.Email)
+        };
+
+        claims.AddRange(result.Response.Roles.Select(role => new Claim(ClaimTypes.Role, role)));
+        claims.AddRange(result.Response.Permissions.Select(permission => new Claim("permission", permission)));
+
+        var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+        var principal = new ClaimsPrincipal(identity);
+
+        await httpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal, new AuthenticationProperties
+        {
+            IsPersistent = false,
+            ExpiresUtc = result.Response.ExpiresAtUtc,
+            AllowRefresh = true
+        });
+
+        httpContext.Session.SetString(AuthSessionKeys.AccessToken, result.Response.AccessToken);
+        httpContext.Session.SetString(AuthSessionKeys.ExpiresAtUtc, result.Response.ExpiresAtUtc.ToString("O"));
+
+        var target = string.IsNullOrWhiteSpace(ReturnUrl) ? "/" : $"/{ReturnUrl.TrimStart('/')}";
+        Navigation.NavigateTo(target, forceLoad: true);
+    }
+
+    private sealed class LoginInput
+    {
+        [Required(ErrorMessage = "Debe indicar el usuario.")]
+        [MaxLength(256, ErrorMessage = "El usuario no puede superar 256 caracteres.")]
+        public string UserNameOrEmail { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Debe indicar la contraseña.")]
+        [MaxLength(100, ErrorMessage = "La contraseña no puede superar 100 caracteres.")]
+        public string Password { get; set; } = string.Empty;
+    }
+}

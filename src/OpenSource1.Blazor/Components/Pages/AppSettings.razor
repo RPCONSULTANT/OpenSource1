@@ -1,0 +1,191 @@
+@page "/app-settings"
+@attribute [Authorize(Policy = ApplicationPolicies.CanConsult)]
+@using System.ComponentModel.DataAnnotations
+@using OpenSource1.Application.Features.AppSettings.Dtos
+@using OpenSource1.Blazor.Services
+@inject IAppSettingsApiClient AppSettingsApiClient
+@inject ILogger<AppSettings> Logger
+
+<PageTitle>Configuraciones</PageTitle>
+
+<section class="section compact-section" aria-labelledby="settings-title">
+    <p class="eyebrow">Operaciones protegidas</p>
+    <h1 id="settings-title" class="title is-3">Configuraciones de aplicación</h1>
+    <p class="subtitle is-6">Las acciones se habilitan por política y se envían al API con el JWT recibido en el login.</p>
+
+    @if (!string.IsNullOrWhiteSpace(message))
+    {
+        <MessageBox Type="@messageType" Message="@message" />
+    }
+
+    <div class="table-container">
+        <table class="table is-fullwidth is-striped">
+            <thead>
+                <tr>
+                    <th>Clave</th>
+                    <th>Valor</th>
+                    <th>Descripción</th>
+                    <th>Actualizado</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (settings.Count == 0)
+                {
+                    <tr><td colspan="4">No hay configuraciones registradas.</td></tr>
+                }
+                else
+                {
+                    @foreach (var setting in settings)
+                    {
+                        <tr @key="setting.Id">
+                            <td>@setting.Key</td>
+                            <td>@setting.Value</td>
+                            <td>@setting.Description</td>
+                            <td>@(setting.UpdatedAtUtc?.ToLocalTime().ToString("g") ?? setting.CreatedAtUtc.ToLocalTime().ToString("g"))</td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<section class="section form-grid">
+    <AuthorizeView Policy="@ApplicationPolicies.CanAdd">
+        <Authorized Context="addAuth">
+            <div id="agregar" class="card action-card">
+                <div class="card-content">
+                    <h2 class="title is-5">Agregar</h2>
+                    <EditForm Model="SaveInput" FormName="save-setting" OnValidSubmit="CreateAsync">
+                        <DataAnnotationsValidator />
+                        <SettingFields Model="SaveInput!" />
+                        <button type="submit" class="button is-primary">Agregar</button>
+                    </EditForm>
+                </div>
+            </div>
+        </Authorized>
+    </AuthorizeView>
+
+    <AuthorizeView Policy="@ApplicationPolicies.CanModify">
+        <Authorized Context="modifyAuth">
+            <div id="modificar" class="card action-card">
+                <div class="card-content">
+                    <h2 class="title is-5">Modificar</h2>
+                    <EditForm Model="UpdateInput" FormName="update-setting" OnValidSubmit="UpdateAsync">
+                        <DataAnnotationsValidator />
+                        <SettingFields Model="UpdateInput!" />
+                        <button type="submit" class="button is-link">Modificar</button>
+                    </EditForm>
+                </div>
+            </div>
+        </Authorized>
+    </AuthorizeView>
+
+    <AuthorizeView Policy="@ApplicationPolicies.CanDelete">
+        <Authorized Context="deleteAuth">
+            <div id="eliminar" class="card action-card">
+                <div class="card-content">
+                    <h2 class="title is-5">Eliminar</h2>
+                    <EditForm Model="DeleteInput" FormName="delete-setting" OnValidSubmit="DeleteAsync">
+                        <DataAnnotationsValidator />
+                        <div class="field">
+                            <label class="label" for="deleteKey">Clave</label>
+                            <InputText id="deleteKey" class="input" @bind-Value="DeleteInput!.Key" />
+                            <ValidationMessage For="() => DeleteInput!.Key" />
+                        </div>
+                        <button type="submit" class="button is-danger">Eliminar</button>
+                    </EditForm>
+                </div>
+            </div>
+        </Authorized>
+    </AuthorizeView>
+</section>
+
+@code {
+    [SupplyParameterFromForm(FormName = "save-setting")]
+    private SettingForm? SaveInput { get; set; }
+
+    [SupplyParameterFromForm(FormName = "update-setting")]
+    private SettingForm? UpdateInput { get; set; }
+
+    [SupplyParameterFromForm(FormName = "delete-setting")]
+    private DeleteForm? DeleteInput { get; set; }
+
+    private IReadOnlyList<AppSettingResponse> settings = [];
+    private string? message;
+    private string messageType = "info";
+
+    protected override async Task OnInitializedAsync()
+    {
+        SaveInput ??= new();
+        UpdateInput ??= new();
+        DeleteInput ??= new();
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            settings = await AppSettingsApiClient.ListAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not load app settings from API.");
+            Show("danger", "No fue posible cargar las configuraciones.");
+        }
+    }
+
+    private async Task CreateAsync() => await ExecuteAsync(() => AppSettingsApiClient.CreateAsync(ToInput(SaveInput!)));
+
+    private async Task UpdateAsync() => await ExecuteAsync(() => AppSettingsApiClient.UpdateAsync(ToInput(UpdateInput!)));
+
+    private async Task DeleteAsync() => await ExecuteAsync(() => AppSettingsApiClient.DeleteAsync(DeleteInput!.Key.Trim()));
+
+    private async Task ExecuteAsync(Func<Task<AppSettingOperationResult>> operation)
+    {
+        try
+        {
+            var result = await operation();
+            Show(result.Succeeded ? "success" : "warning", result.Message);
+            if (result.Succeeded)
+            {
+                await LoadAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not complete app setting operation.");
+            Show("danger", "No fue posible completar la operación.");
+        }
+    }
+
+    private void Show(string type, string text)
+    {
+        messageType = type;
+        message = text;
+    }
+
+    private static AppSettingInput ToInput(SettingForm form) => new(form.Key.Trim(), form.Value.Trim(), form.Description);
+
+    public sealed class SettingForm
+    {
+        [Required(ErrorMessage = "La clave es obligatoria.")]
+        [MaxLength(100)]
+        public string Key { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "El valor es obligatorio.")]
+        [MaxLength(512)]
+        public string Value { get; set; } = string.Empty;
+
+        [MaxLength(512)]
+        public string? Description { get; set; }
+    }
+
+    public sealed class DeleteForm
+    {
+        [Required(ErrorMessage = "La clave es obligatoria.")]
+        [MaxLength(100)]
+        public string Key { get; set; } = string.Empty;
+    }
+}

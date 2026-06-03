@@ -1,0 +1,23 @@
+@using OpenSource1.Blazor.Components.Pages
+
+<div class="field">
+    <label class="label" for="settingKey">Clave</label>
+    <InputText id="settingKey" class="input" @bind-Value="Model.Key" />
+    <ValidationMessage For="() => Model.Key" />
+</div>
+
+<div class="field">
+    <label class="label" for="settingValue">Valor</label>
+    <InputText id="settingValue" class="input" @bind-Value="Model.Value" />
+    <ValidationMessage For="() => Model.Value" />
+</div>
+
+<div class="field">
+    <label class="label" for="settingDescription">Descripción</label>
+    <InputText id="settingDescription" class="input" @bind-Value="Model.Description" />
+    <ValidationMessage For="() => Model.Description" />
+</div>
+
+@code {
+    [Parameter, EditorRequired] public AppSettings.SettingForm Model { get; set; } = default!;
+}

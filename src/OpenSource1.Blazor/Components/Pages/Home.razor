@@ -1,0 +1,39 @@
+@page "/"
+
+<PageTitle>Inicio</PageTitle>
+
+<section class="hero app-hero">
+    <div class="hero-body">
+        <p class="eyebrow">OpenSource1</p>
+        <h1 class="title is-2">Panel principal</h1>
+        <p class="subtitle is-5">Cliente Blazor conectado al API mediante autenticación JWT y cookie segura del lado web.</p>
+
+        <AuthorizeView>
+            <Authorized Context="auth">
+                <MessageBox Type="success" Message="@($"Bienvenido, {auth.User.Identity?.Name}.")" />
+                <div class="permission-grid">
+                    <AuthorizeView Policy="@ApplicationPolicies.CanConsult"><Authorized><article class="permission-card">Consultar</article></Authorized></AuthorizeView>
+                    <AuthorizeView Policy="@ApplicationPolicies.CanAdd"><Authorized><article class="permission-card">Agregar</article></Authorized></AuthorizeView>
+                    <AuthorizeView Policy="@ApplicationPolicies.CanModify"><Authorized><article class="permission-card">Modificar</article></Authorized></AuthorizeView>
+                    <AuthorizeView Policy="@ApplicationPolicies.CanDelete"><Authorized><article class="permission-card">Eliminar</article></Authorized></AuthorizeView>
+                </div>
+                <a class="button is-primary" href="/app-settings">Gestionar configuraciones</a>
+            </Authorized>
+            <NotAuthorized>
+                <div class="guest-card">
+                    <p>Inicie sesión para habilitar el menú principal según su rol.</p>
+                    <a class="button is-primary" href="/account/login">Iniciar Sesión</a>
+                </div>
+            </NotAuthorized>
+        </AuthorizeView>
+    </div>
+</section>
+
+<section class="section compact-section">
+    <h2 class="title is-4">Roles configurados</h2>
+    <div class="columns">
+        <div class="column"><strong>Administrador</strong><p>Agregar, modificar, eliminar y consultar.</p></div>
+        <div class="column"><strong>Supervisor</strong><p>Consultar y modificar.</p></div>
+        <div class="column"><strong>Ejecutor</strong><p>Consultar y agregar.</p></div>
+    </div>
+</section>

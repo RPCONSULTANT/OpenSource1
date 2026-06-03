@@ -1,0 +1,68 @@
+@inherits LayoutComponentBase
+
+<header>
+    <nav class="navbar app-navbar" role="navigation" aria-label="Menú principal">
+        <div class="navbar-brand">
+            <NavLink class="navbar-item brand-mark" href="" Match="NavLinkMatch.All">OpenSource1</NavLink>
+        </div>
+
+        <div class="navbar-menu is-active">
+            <div class="navbar-start">
+                <NavLink class="navbar-item" href="" Match="NavLinkMatch.All">Inicio</NavLink>
+
+                <AuthorizeView Policy="@ApplicationPolicies.CanConsult">
+                    <Authorized><NavLink class="navbar-item" href="app-settings">Consultar</NavLink></Authorized>
+                </AuthorizeView>
+                <AuthorizeView Policy="@ApplicationPolicies.CanAdd">
+                    <Authorized><NavLink class="navbar-item" href="app-settings#agregar">Agregar</NavLink></Authorized>
+                </AuthorizeView>
+                <AuthorizeView Policy="@ApplicationPolicies.CanModify">
+                    <Authorized><NavLink class="navbar-item" href="app-settings#modificar">Modificar</NavLink></Authorized>
+                </AuthorizeView>
+                <AuthorizeView Policy="@ApplicationPolicies.CanDelete">
+                    <Authorized><NavLink class="navbar-item" href="app-settings#eliminar">Eliminar</NavLink></Authorized>
+                </AuthorizeView>
+            </div>
+
+            <div class="navbar-end">
+                <AuthorizeView>
+                    <Authorized Context="auth">
+                        <div class="navbar-item user-chip">
+                            <span>@auth.User.Identity?.Name</span>
+                            <small>@string.Join(", ", auth.User.FindAll(System.Security.Claims.ClaimTypes.Role).Select(c => c.Value))</small>
+                        </div>
+                        <div class="navbar-item">
+                            <form action="/account/logout" method="post">
+                                <AntiforgeryToken />
+                                <button type="submit" class="button is-light">Salir</button>
+                            </form>
+                        </div>
+                    </Authorized>
+                    <NotAuthorized>
+                        <div class="navbar-item">
+                            <NavLink class="button is-primary" href="account/login">Iniciar Sesión</NavLink>
+                        </div>
+                    </NotAuthorized>
+                </AuthorizeView>
+            </div>
+        </div>
+    </nav>
+</header>
+
+<main class="container page-shell">
+    <ErrorBoundary>
+        <ChildContent>@Body</ChildContent>
+        <ErrorContent>
+            <div class="notification is-danger is-light">
+                Ocurrió un error inesperado. Actualice la página e intente nuevamente.
+            </div>
+        </ErrorContent>
+    </ErrorBoundary>
+</main>
+
+<footer class="footer app-footer">
+    <div class="container">
+        <span>&copy; 2026 - OpenSource1</span>
+        <span>Blazor Web App + API JWT</span>
+    </div>
+</footer>

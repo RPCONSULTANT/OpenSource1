@@ -1,0 +1,9 @@
+@page "/access-denied"
+@attribute [Authorize]
+
+<PageTitle>Acceso denegado</PageTitle>
+
+<section class="section compact-section">
+    <MessageBox Type="warning" Message="No tiene permisos para realizar esta operación." />
+    <a class="button is-light" href="/">Volver al inicio</a>
+</section>

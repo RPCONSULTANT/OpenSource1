@@ -1,0 +1,18 @@
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+WORKDIR /app
+EXPOSE 8080
+
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+COPY ["test.slnx", "./"]
+COPY ["src/OpenSource1.Core/OpenSource1.Core.csproj", "src/OpenSource1.Core/"]
+COPY ["src/OpenSource1.Application/OpenSource1.Application.csproj", "src/OpenSource1.Application/"]
+COPY ["src/OpenSource1.Blazor/OpenSource1.Blazor.csproj", "src/OpenSource1.Blazor/"]
+RUN dotnet restore "src/OpenSource1.Blazor/OpenSource1.Blazor.csproj"
+COPY . .
+RUN dotnet publish "src/OpenSource1.Blazor/OpenSource1.Blazor.csproj" -c Release -o /app/publish /p:UseAppHost=false
+
+FROM runtime AS final
+WORKDIR /app
+COPY --from=build /app/publish .
+ENTRYPOINT ["dotnet", "OpenSource1.Blazor.dll"]
