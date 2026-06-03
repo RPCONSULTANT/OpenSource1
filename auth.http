@@ -1,0 +1,20 @@
+@baseUrl = http://localhost:5110
+
+### Register local user
+POST {{baseUrl}}/api/auth/register
+Content-Type: application/json
+
+{
+  "email": "local.user@example.com",
+  "password": "Password123",
+  "fullName": "Local User"
+}
+
+### Login local user
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "local.user@example.com",
+  "password": "Password123"
+}

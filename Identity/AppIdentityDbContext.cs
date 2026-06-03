@@ -4,15 +4,17 @@ using Microsoft.EntityFrameworkCore;
 namespace test.Identity;
 
 public sealed class AppIdentityDbContext(DbContextOptions<AppIdentityDbContext> options)
-    : IdentityDbContext<ApplicationUser>(options)
+    : IdentityDbContext<Usuario>(options)
 {
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
 
-        builder.Entity<ApplicationUser>(entity =>
+        builder.Entity<Usuario>(entity =>
         {
             entity.Property(user => user.FullName).HasMaxLength(200);
+            entity.Property(user => user.CreatedAtUtc).HasDefaultValueSql("SYSDATETIMEOFFSET()").IsRequired();
+            entity.Property(user => user.IsActive).HasDefaultValue(true).IsRequired();
         });
     }
 }

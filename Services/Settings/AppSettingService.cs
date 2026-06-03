@@ -1,17 +1,17 @@
 using Microsoft.EntityFrameworkCore;
-using test.Data;
 using test.Data.Entities;
+using test.Data.UnitOfWork;
 
 namespace test.Services.Settings;
 
-public sealed class AppSettingService(ApplicationDbContext dbContext) : IAppSettingService
+public sealed class AppSettingService(IUnitOfWork unitOfWork) : IAppSettingService
 {
     public async Task<string?> GetValueAsync(string key, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
 
-        return await dbContext.AppSettings
-            .AsNoTracking()
+        return await unitOfWork.Repository<AppSetting>()
+            .Query()
             .Where(setting => setting.Key == key)
             .Select(setting => setting.Value)
             .FirstOrDefaultAsync(cancellationToken);
@@ -26,7 +26,10 @@ public sealed class AppSettingService(ApplicationDbContext dbContext) : IAppSett
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
 
-        var setting = await dbContext.AppSettings
+        var repository = unitOfWork.Repository<AppSetting>();
+
+        var setting = await repository
+            .Query(asTracking: true)
             .FirstOrDefaultAsync(item => item.Key == key, cancellationToken);
 
         if (setting is null)
@@ -38,15 +41,16 @@ public sealed class AppSettingService(ApplicationDbContext dbContext) : IAppSett
                 Description = description
             };
 
-            dbContext.AppSettings.Add(setting);
+            await repository.AddAsync(setting, cancellationToken);
         }
         else
         {
             setting.Value = value;
             setting.Description = description;
             setting.UpdatedAtUtc = DateTimeOffset.UtcNow;
+            repository.Update(setting);
         }
 
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
     }
 }

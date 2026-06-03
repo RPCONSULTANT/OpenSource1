@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using test.Data.Repositories;
+using test.Data.UnitOfWork;
 using test.Identity;
 
 namespace test.Data;
@@ -18,6 +20,9 @@ public static class DependencyInjection
 
         services.AddDbContext<AppIdentityDbContext>(options =>
             options.UseSqlServer(identityConnectionString));
+
+        services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
+        services.AddScoped<IUnitOfWork, UnitOfWork.UnitOfWork>();
 
         return services;
     }

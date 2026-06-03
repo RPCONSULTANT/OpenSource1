@@ -1,8 +1,6 @@
-using Microsoft.AspNetCore.Identity;
-
 namespace test.Identity;
 
-public sealed class ApplicationUser : IdentityUser
+[Obsolete("Use Usuario instead.")]
+public sealed class ApplicationUser : Usuario
 {
-    public string? FullName { get; set; }
 }

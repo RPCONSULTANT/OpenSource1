@@ -36,6 +36,24 @@ dotnet dotnet-ef database update --context ApplicationDbContext
 dotnet dotnet-ef database update --context AppIdentityDbContext
 ```
 
+## Data Access Patterns
+
+The data layer uses Entity Framework Core with DDD-friendly abstractions:
+
+- `AggregateRoot<TKey>` / `IAggregateRoot` for aggregate boundaries.
+- `IGenericRepository<TEntity>` constrained to aggregate roots.
+- `IUnitOfWork` for transaction persistence through `SaveChangesAsync`.
+
+## Local JWT Auth
+
+JWT settings are configured for local development in `appsettings*.json`.
+Authentication endpoints are available at:
+
+- `POST /api/auth/register`
+- `POST /api/auth/login`
+
+Example requests are included in `auth.http`.
+
 The development profiles are configured in `Properties/launchSettings.json`.
 
 ## Git Flow

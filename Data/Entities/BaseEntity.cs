@@ -1,8 +1,14 @@
+using test.Data.Abstractions;
+
 namespace test.Data.Entities;
 
-public abstract class BaseEntity
+public abstract class BaseEntity : AggregateRoot<Guid>
 {
-    public Guid Id { get; set; } = Guid.NewGuid();
+    protected BaseEntity()
+    {
+        Id = Guid.NewGuid();
+    }
+
     public DateTimeOffset CreatedAtUtc { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? UpdatedAtUtc { get; set; }
 }
