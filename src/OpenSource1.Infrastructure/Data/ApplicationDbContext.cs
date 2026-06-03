@@ -18,6 +18,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.Property(setting => setting.Key).HasMaxLength(150).IsRequired();
             entity.Property(setting => setting.Value).HasMaxLength(1_000).IsRequired();
             entity.Property(setting => setting.Description).HasMaxLength(500);
+            entity.Property(setting => setting.CreatedBy).HasMaxLength(100).IsRequired();
+            entity.Property(setting => setting.UpdatedBy).HasMaxLength(100);
             entity.HasIndex(setting => setting.Key).IsUnique();
         });
     }

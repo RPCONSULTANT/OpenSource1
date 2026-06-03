@@ -5,5 +5,7 @@ public sealed record AuthResponse(
     string UserId,
     string Email,
     string FullName,
+    IReadOnlyList<string> Roles,
+    IReadOnlyList<string> Permissions,
     string AccessToken,
     DateTimeOffset ExpiresAtUtc);

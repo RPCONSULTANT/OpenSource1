@@ -89,6 +89,26 @@ CQRS is implemented with MediatR for `AppSetting`:
 
 This keeps LINQ/EF for aggregate persistence, Dapper for optimized reads, and Identity for user/auth concerns.
 
+## Security, users and permissions
+
+Local seeding creates three users when `UserSeed__Enabled=true` and `UserSeed__DefaultPassword` is supplied through environment variables:
+
+| User | Role |
+| --- | --- |
+| `admin` | `Administrador` |
+| `supervisor` | `Supervisor` |
+| `ejecutor` | `Ejecutor` |
+
+Role permissions:
+
+| Role | Add | Modify | Delete | Consult |
+| --- | --- | --- | --- | --- |
+| Administrador | yes | yes | yes | yes |
+| Supervisor | no | yes | no | yes |
+| Ejecutor | yes | no | no | yes |
+
+Auth uses ASP.NET Core Identity lockout with 3 failed attempts and JWT Bearer tokens. The `/api/auth/me` endpoint returns the current user's roles and permissions so clients can show/hide UI options by role. Unauthorized operations return `401` or `403` with a safe message.
+
 ## dotnet skills guidance
 
 This repository includes `.opencode/skills` from `https://github.com/dotnet/skills.git`. The agent workflow should keep using those official skills for templates, Web API, EF Core, MSBuild, testing, diagnostics and .NET best practices before making architectural or code changes.

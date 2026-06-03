@@ -42,6 +42,8 @@ services:
       Cors__AllowedOrigins__0: http://localhost:8080
       Cors__AllowedOrigins__1: http://localhost:8081
       Database__ApplyMigrationsOnStartup: "true"
+      UserSeed__Enabled: "true"
+      UserSeed__DefaultPassword: "${AUTH_SEED_DEFAULT_PASSWORD:?Set AUTH_SEED_DEFAULT_PASSWORD in a local .env file}"
     ports:
       - "8081:8080"
     volumes:

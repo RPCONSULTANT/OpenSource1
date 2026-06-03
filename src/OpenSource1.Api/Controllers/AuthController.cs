@@ -1,16 +1,18 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using OpenSource1.Application.Security;
 using OpenSource1.Application.Services.Auth;
 using OpenSource1.Application.Services.Auth.Dtos;
+using System.Security.Claims;
 
 namespace OpenSource1.Api.Controllers;
 
 [ApiController]
 [Route("api/auth")]
-[AllowAnonymous]
 public sealed class AuthController(IAuthService authService) : ControllerBase
 {
     [HttpPost("register")]
+    [AllowAnonymous]
     [ProducesResponseType<AuthResponse>(StatusCodes.Status201Created)]
     [ProducesResponseType<AuthErrorResponse>(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<AuthResponse>> Register(
@@ -28,16 +30,33 @@ public sealed class AuthController(IAuthService authService) : ControllerBase
     }
 
     [HttpPost("login")]
+    [AllowAnonymous]
     [ProducesResponseType<AuthResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<AuthErrorResponse>(StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<AuthResponse>> Login(
         LoginRequest request,
         CancellationToken cancellationToken)
     {
-        var response = await authService.LoginAsync(request, cancellationToken);
+        var (response, errors) = await authService.LoginAsync(request, cancellationToken);
 
         return response is null
-            ? Unauthorized(new AuthErrorResponse("Invalid credentials.", []))
+            ? Unauthorized(new AuthErrorResponse("Login failed.", errors))
             : Ok(response);
+    }
+
+    [Authorize]
+    [HttpGet("me")]
+    [ProducesResponseType<CurrentUserResponse>(StatusCodes.Status200OK)]
+    public ActionResult<CurrentUserResponse> Me()
+    {
+        var roles = User.FindAll(ClaimTypes.Role).Select(claim => claim.Value).ToArray();
+        var permissions = User.FindAll("permission").Select(claim => claim.Value).ToArray();
+
+        return Ok(new CurrentUserResponse(
+            User.FindFirstValue(ClaimTypes.NameIdentifier) ?? string.Empty,
+            User.Identity?.Name ?? string.Empty,
+            User.FindFirstValue(ClaimTypes.Email) ?? User.FindFirstValue("email") ?? string.Empty,
+            roles,
+            permissions));
     }
 }

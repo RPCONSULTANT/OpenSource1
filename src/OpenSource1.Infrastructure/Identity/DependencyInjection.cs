@@ -13,6 +13,7 @@ public static class DependencyInjection
     public static IServiceCollection AddApplicationIdentity(this IServiceCollection services, IConfiguration configuration)
     {
         services.Configure<JwtOptions>(configuration.GetSection(JwtOptions.SectionName));
+        services.Configure<UserSeedOptions>(configuration.GetSection(UserSeedOptions.SectionName));
 
         var jwtOptions = configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>()
             ?? throw new InvalidOperationException("JWT configuration section was not found.");
@@ -35,6 +36,9 @@ public static class DependencyInjection
 
                 options.User.RequireUniqueEmail = true;
                 options.SignIn.RequireConfirmedAccount = false;
+                options.Lockout.AllowedForNewUsers = true;
+                options.Lockout.MaxFailedAccessAttempts = 3;
+                options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(5);
             })
             .AddEntityFrameworkStores<AppIdentityDbContext>()
             .AddDefaultTokenProviders();
@@ -63,7 +67,19 @@ public static class DependencyInjection
                 };
             });
 
-        services.AddAuthorization();
+        services.AddAuthorization(options =>
+        {
+            options.AddPolicy(ApplicationPolicies.CanConsult, policy =>
+                policy.RequireRole(ApplicationRoles.Administrator, ApplicationRoles.Supervisor, ApplicationRoles.Executor));
+            options.AddPolicy(ApplicationPolicies.CanAdd, policy =>
+                policy.RequireRole(ApplicationRoles.Administrator, ApplicationRoles.Executor));
+            options.AddPolicy(ApplicationPolicies.CanModify, policy =>
+                policy.RequireRole(ApplicationRoles.Administrator, ApplicationRoles.Supervisor));
+            options.AddPolicy(ApplicationPolicies.CanDelete, policy =>
+                policy.RequireRole(ApplicationRoles.Administrator));
+        });
+
+        services.AddHostedService<IdentitySeedHostedService>();
 
         return services;
     }

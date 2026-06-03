@@ -31,6 +31,7 @@ builder.Services.AddCors(options =>
 });
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
+builder.Services.AddProblemDetails();
 
 var app = builder.Build();
 
@@ -40,6 +41,23 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseStatusCodePages(async statusCodeContext =>
+{
+    var response = statusCodeContext.HttpContext.Response;
+
+    if (response.HasStarted || response.StatusCode is not (StatusCodes.Status401Unauthorized or StatusCodes.Status403Forbidden))
+    {
+        return;
+    }
+
+    await response.WriteAsJsonAsync(new
+    {
+        status = response.StatusCode,
+        message = response.StatusCode == StatusCodes.Status403Forbidden
+            ? "Permisos insuficientes para realizar esta operación."
+            : "Debe autenticarse para acceder a este recurso."
+    });
+});
 app.UseRouting();
 app.UseCors(CorsOptions.PolicyName);
 app.UseAuthentication();

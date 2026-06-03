@@ -10,15 +10,39 @@ Content-Type: application/json
   "fullName": "Local User"
 }
 
-### List app settings with JWT
-GET {{baseUrl}}/api/app-settings
-Authorization: Bearer {{accessToken}}
-
 ### Login local user
 POST {{baseUrl}}/api/auth/login
 Content-Type: application/json
 
 {
-  "email": "local.user@example.com",
+  "userNameOrEmail": "local.user@example.com",
   "password": "Password123"
+}
+
+### Login seeded admin
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "userNameOrEmail": "admin",
+  "password": "Password123"
+}
+
+### Current user
+GET {{baseUrl}}/api/auth/me
+Authorization: Bearer {{accessToken}}
+
+### List app settings with JWT
+GET {{baseUrl}}/api/app-settings
+Authorization: Bearer {{accessToken}}
+
+### Create app setting with JWT
+POST {{baseUrl}}/api/app-settings
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "key": "Demo",
+  "value": "Enabled",
+  "description": "Demo setting"
 }

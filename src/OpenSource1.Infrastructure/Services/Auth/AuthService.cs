@@ -13,6 +13,7 @@ namespace OpenSource1.Infrastructure.Services.Auth;
 
 public sealed class AuthService(
     UserManager<Usuario> userManager,
+    SignInManager<Usuario> signInManager,
     IOptions<JwtOptions> jwtOptions) : IAuthService
 {
     private readonly JwtOptions _jwtOptions = jwtOptions.Value;
@@ -42,26 +43,45 @@ public sealed class AuthService(
         return (await CreateAuthResponseAsync(user), []);
     }
 
-    public async Task<AuthResponse?> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default)
+    public async Task<(AuthResponse? Response, IReadOnlyList<string> Errors)> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.UserNameOrEmail);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.Password);
 
-        var user = await userManager.FindByEmailAsync(request.Email);
+        var user = request.UserNameOrEmail.Contains('@', StringComparison.Ordinal)
+            ? await userManager.FindByEmailAsync(request.UserNameOrEmail)
+            : await userManager.FindByNameAsync(request.UserNameOrEmail);
 
         if (user is null || !user.IsActive)
         {
-            return null;
+            return (null, ["Usuario o contraseña inválidos."]);
         }
 
-        var passwordIsValid = await userManager.CheckPasswordAsync(user, request.Password);
+        if (await userManager.IsLockedOutAsync(user))
+        {
+            return (null, ["Usuario bloqueado temporalmente por intentos fallidos."]);
+        }
 
-        return passwordIsValid ? await CreateAuthResponseAsync(user) : null;
+        var result = await signInManager.CheckPasswordSignInAsync(user, request.Password, lockoutOnFailure: true);
+
+        if (result.IsLockedOut)
+        {
+            return (null, ["Usuario bloqueado temporalmente por intentos fallidos."]);
+        }
+
+        if (!result.Succeeded)
+        {
+            return (null, ["Usuario o contraseña inválidos."]);
+        }
+
+        return (await CreateAuthResponseAsync(user), []);
     }
 
     private async Task<AuthResponse> CreateAuthResponseAsync(Usuario user)
     {
         var expiresAtUtc = DateTimeOffset.UtcNow.AddMinutes(_jwtOptions.ExpirationMinutes);
-        var roles = await userManager.GetRolesAsync(user);
+        var roles = (await userManager.GetRolesAsync(user)).ToArray();
 
         var claims = new List<Claim>
         {
@@ -73,6 +93,8 @@ public sealed class AuthService(
         };
 
         claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
+        var permissions = GetPermissions(roles);
+        claims.AddRange(permissions.Select(permission => new Claim("permission", permission)));
 
         var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtOptions.SigningKey));
         var credentials = new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256);
@@ -90,7 +112,32 @@ public sealed class AuthService(
             user.Id,
             user.Email ?? string.Empty,
             user.FullName ?? string.Empty,
+            roles,
+            permissions,
             accessToken,
             expiresAtUtc);
+    }
+
+    private static string[] GetPermissions(IEnumerable<string> roles)
+    {
+        var roleSet = roles.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var permissions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        if (roleSet.Contains(ApplicationRoles.Administrator))
+        {
+            permissions.UnionWith([ApplicationPolicies.CanAdd, ApplicationPolicies.CanModify, ApplicationPolicies.CanDelete, ApplicationPolicies.CanConsult]);
+        }
+
+        if (roleSet.Contains(ApplicationRoles.Supervisor))
+        {
+            permissions.UnionWith([ApplicationPolicies.CanModify, ApplicationPolicies.CanConsult]);
+        }
+
+        if (roleSet.Contains(ApplicationRoles.Executor))
+        {
+            permissions.UnionWith([ApplicationPolicies.CanAdd, ApplicationPolicies.CanConsult]);
+        }
+
+        return permissions.Order().ToArray();
     }
 }

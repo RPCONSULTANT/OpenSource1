@@ -5,9 +5,9 @@ namespace OpenSource1.Application.Services.Auth.Dtos;
 /// <summary>Payload used to authenticate a local user account.</summary>
 public sealed record LoginRequest
 {
-    [Required, EmailAddress, MaxLength(256)]
-    public required string Email { get; init; }
+    [Required, MaxLength(256)]
+    public required string UserNameOrEmail { get; init; }
 
-    [Required, MaxLength(100)]
+    [Required, DataType(DataType.Password), MaxLength(100)]
     public required string Password { get; init; }
 }
