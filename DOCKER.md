@@ -106,8 +106,9 @@ test-sqlserver-1      running         0.0.0.0:1433->1433/tcp
 | URL | Descripción |
 |-----|-------------|
 | http://localhost:8080 | **Blazor Web App** (interfaz de usuario) |
-| http://localhost:8081/swagger | **Swagger UI** del API |
-| http://localhost:8081/health | Health check del API |
+| http://localhost:8081/scalar/v1 | **Scalar API Explorer** (explorador visual del API) |
+| http://localhost:8081/openapi/v1.json | Especificación OpenAPI en JSON |
+| http://localhost:8081/api/auth/login | Endpoint de autenticación (POST) |
 
 ### Usuarios semilla disponibles
 

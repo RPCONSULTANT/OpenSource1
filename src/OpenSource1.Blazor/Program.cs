@@ -34,6 +34,11 @@ builder.Services.AddHttpClient<IAppSettingsApiClient, AppSettingsApiClient>((ser
     var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<ApiClientOptions>>().Value;
     client.BaseAddress = options.BaseAddress;
 }).AddHttpMessageHandler<BearerTokenHandler>();
+builder.Services.AddHttpClient<IUserAdminApiClient, UserAdminApiClient>((serviceProvider, client) =>
+{
+    var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<ApiClientOptions>>().Value;
+    client.BaseAddress = options.BaseAddress;
+}).AddHttpMessageHandler<BearerTokenHandler>();
 
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>

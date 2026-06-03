@@ -1,0 +1,222 @@
+@page "/account/register"
+@attribute [AllowAnonymous]
+@using System.ComponentModel.DataAnnotations
+@using OpenSource1.Application.Services.Auth.Dtos
+@using OpenSource1.Blazor.Services
+@inject IAuthApiClient AuthApiClient
+@inject NavigationManager Navigation
+
+<PageTitle>Registrarse – AxionERP</PageTitle>
+
+<div class="min-h-screen bg-gradient-to-br from-slate-100 via-brand-50 to-white flex items-center justify-center px-4 py-12">
+    <div class="w-full max-w-md animate-fade-in">
+
+        <!-- ── Marca ── -->
+        <div class="text-center mb-8 animate-slide-up">
+            <div class="inline-flex items-center justify-center size-16 rounded-2xl bg-brand-600 shadow-lg mb-4 animate-float">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="white" class="size-8">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3.75h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Z" />
+                </svg>
+            </div>
+            <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">AxionERP</h1>
+            <p class="mt-1 text-sm text-slate-500">Crear nueva cuenta de usuario</p>
+        </div>
+
+        <!-- ── Tarjeta ── -->
+        <div class="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden animate-pop">
+            <div class="h-1 w-full bg-gradient-to-r from-green-400 to-brand-600"></div>
+
+            <div class="px-8 py-8">
+                <p class="text-xs font-bold tracking-widest uppercase text-brand-600 mb-5">Registro de usuario</p>
+
+                @* MessageBox: registro exitoso *@
+                @if (registered)
+                {
+                    <div class="mb-5">
+                        <MessageBox Type="success" Message="¡Cuenta creada exitosamente! Redirigiendo al inicio de sesión..." />
+                    </div>
+                }
+
+                @* MessageBox: errores de validación o del servidor *@
+                @if (errors.Count > 0)
+                {
+                    <div class="mb-5">
+                        <MessageBox Type="danger" Errors="errors" />
+                    </div>
+                }
+
+                <EditForm Model="Input" FormName="register" OnValidSubmit="RegisterAsync" autocomplete="off" novalidate>
+                    <DataAnnotationsValidator />
+
+                    <!-- Campo: Nombre completo -->
+                    <div class="mb-4">
+                        <label class="block text-sm font-semibold text-slate-700 mb-1.5" for="fullName">
+                            <span class="flex items-center gap-1.5">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4 text-slate-400">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
+                                </svg>
+                                Nombre completo <span class="text-red-500">*</span>
+                            </span>
+                        </label>
+                        <InputText id="fullName"
+                                   class="block w-full rounded-lg border border-slate-300 bg-slate-50 py-2.5 px-3 text-sm text-slate-800 placeholder-slate-400 shadow-sm transition focus:border-brand-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500/25"
+                                   @bind-Value="Input!.FullName"
+                                   autocomplete="name"
+                                   placeholder="Juan Pérez" />
+                        <ValidationMessage For="() => Input!.FullName" />
+                    </div>
+
+                    <!-- Campo: Correo electrónico -->
+                    <div class="mb-4">
+                        <label class="block text-sm font-semibold text-slate-700 mb-1.5" for="email">
+                            <span class="flex items-center gap-1.5">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4 text-slate-400">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" />
+                                </svg>
+                                Correo electrónico <span class="text-red-500">*</span>
+                            </span>
+                        </label>
+                        <InputText id="email"
+                                   type="email"
+                                   class="block w-full rounded-lg border border-slate-300 bg-slate-50 py-2.5 px-3 text-sm text-slate-800 placeholder-slate-400 shadow-sm transition focus:border-brand-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500/25"
+                                   @bind-Value="Input!.Email"
+                                   autocomplete="email"
+                                   placeholder="usuario@empresa.com" />
+                        <ValidationMessage For="() => Input!.Email" />
+                    </div>
+
+                    <!-- Campo: Contraseña (oculta) -->
+                    <div class="mb-4">
+                        <label class="block text-sm font-semibold text-slate-700 mb-1.5" for="password">
+                            <span class="flex items-center gap-1.5">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4 text-slate-400">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+                                </svg>
+                                Contraseña <span class="text-red-500">*</span>
+                            </span>
+                        </label>
+                        <InputText id="password"
+                                   type="password"
+                                   class="block w-full rounded-lg border border-slate-300 bg-slate-50 py-2.5 px-3 text-sm text-slate-800 placeholder-slate-400 shadow-sm transition focus:border-brand-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500/25"
+                                   @bind-Value="Input!.Password"
+                                   autocomplete="new-password"
+                                   placeholder="Mínimo 8 caracteres" />
+                        <ValidationMessage For="() => Input!.Password" />
+                    </div>
+
+                    <!-- Campo: Confirmar Contraseña (oculta) -->
+                    <div class="mb-6">
+                        <label class="block text-sm font-semibold text-slate-700 mb-1.5" for="confirmPassword">
+                            <span class="flex items-center gap-1.5">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4 text-slate-400">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z" />
+                                </svg>
+                                Confirmar contraseña <span class="text-red-500">*</span>
+                            </span>
+                        </label>
+                        <InputText id="confirmPassword"
+                                   type="password"
+                                   class="block w-full rounded-lg border border-slate-300 bg-slate-50 py-2.5 px-3 text-sm text-slate-800 placeholder-slate-400 shadow-sm transition focus:border-brand-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500/25"
+                                   @bind-Value="Input!.ConfirmPassword"
+                                   autocomplete="new-password"
+                                   placeholder="Repita la contraseña" />
+                        <ValidationMessage For="() => Input!.ConfirmPassword" />
+
+                        <!-- Reglas de contraseña -->
+                        <div class="mt-2 grid grid-cols-2 gap-1 text-xs text-slate-400">
+                            <span class="flex items-center gap-1"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-3"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>Mínimo 8 caracteres</span>
+                            <span class="flex items-center gap-1"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-3"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>Una mayúscula</span>
+                            <span class="flex items-center gap-1"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-3"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>Una minúscula</span>
+                            <span class="flex items-center gap-1"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-3"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>Un número</span>
+                        </div>
+                    </div>
+
+                    <!-- Botones -->
+                    <div class="flex flex-col-reverse sm:flex-row gap-3">
+                        <a href="/account/login"
+                           class="flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50 transition-all duration-150 w-full sm:w-auto">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3" />
+                            </svg>
+                            Volver
+                        </a>
+                        <button type="submit"
+                                class="flex items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 active:scale-95 transition-all duration-150 w-full sm:flex-1">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M18 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0ZM3 19.235v-.11a6.375 6.375 0 0 1 12.75 0v.109A12.318 12.318 0 0 1 9.374 21c-2.331 0-4.512-.645-6.374-1.766Z" />
+                            </svg>
+                            Crear cuenta
+                        </button>
+                    </div>
+                </EditForm>
+            </div>
+
+            <div class="border-t border-slate-100 bg-slate-50 px-8 py-4 text-center text-sm text-slate-500">
+                ¿Ya tiene cuenta?
+                <a href="/account/login" class="font-semibold text-brand-600 hover:text-brand-700 hover:underline transition-colors ml-1">
+                    Iniciar sesión
+                </a>
+            </div>
+        </div>
+
+        <p class="text-center text-xs text-slate-400 mt-6">
+            &copy; 2026 AxionERP — Sistema Integral de Gestión Empresarial
+        </p>
+    </div>
+</div>
+
+@code {
+    [SupplyParameterFromForm(FormName = "register")]
+    private RegisterInput? Input { get; set; }
+
+    private IReadOnlyList<string> errors = [];
+    private bool registered;
+
+    protected override void OnInitialized() => Input ??= new();
+
+    private async Task RegisterAsync()
+    {
+        errors = [];
+        registered = false;
+
+        var result = await AuthApiClient.RegisterAsync(new RegisterRequest
+        {
+            FullName = Input!.FullName.Trim(),
+            Email    = Input.Email.Trim(),
+            Password = Input.Password
+        });
+
+        if (!result.Succeeded)
+        {
+            errors = result.Errors.Count > 0
+                ? result.Errors
+                : ["No fue posible completar el registro. Intente nuevamente."];
+            return;
+        }
+
+        registered = true;
+        Navigation.NavigateTo("/account/login?registered=true", forceLoad: false);
+    }
+
+    private sealed class RegisterInput
+    {
+        [Required(ErrorMessage = "El nombre completo es obligatorio.")]
+        [MinLength(2, ErrorMessage = "El nombre debe tener al menos 2 caracteres.")]
+        [MaxLength(200, ErrorMessage = "El nombre no puede superar 200 caracteres.")]
+        public string FullName { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "El correo electrónico es obligatorio.")]
+        [EmailAddress(ErrorMessage = "Debe ingresar un correo electrónico válido.")]
+        [MaxLength(256, ErrorMessage = "El correo no puede superar 256 caracteres.")]
+        public string Email { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "La contraseña es obligatoria.")]
+        [MinLength(8, ErrorMessage = "La contraseña debe tener al menos 8 caracteres.")]
+        [MaxLength(100, ErrorMessage = "La contraseña no puede superar 100 caracteres.")]
+        public string Password { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Debe confirmar la contraseña.")]
+        [Compare(nameof(Password), ErrorMessage = "Las contraseñas no coinciden.")]
+        public string ConfirmPassword { get; set; } = string.Empty;
+    }
+}

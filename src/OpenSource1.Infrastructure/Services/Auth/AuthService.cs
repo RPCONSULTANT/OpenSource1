@@ -14,15 +14,24 @@ namespace OpenSource1.Infrastructure.Services.Auth;
 public sealed class AuthService(
     UserManager<Usuario> userManager,
     SignInManager<Usuario> signInManager,
-    IOptions<JwtOptions> jwtOptions) : IAuthService
+    IOptions<JwtOptions> jwtOptions,
+    IOptions<IdentityOptions> identityOptions) : IAuthService
 {
     private readonly JwtOptions _jwtOptions = jwtOptions.Value;
+    private readonly int _maxAttempts = identityOptions.Value.Lockout.MaxFailedAccessAttempts;
 
     public async Task<(AuthResponse? Response, IReadOnlyList<string> Errors)> RegisterAsync(
         RegisterRequest request,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
+
+        // Verificar si el correo ya existe antes de intentar crear
+        var existing = await userManager.FindByEmailAsync(request.Email);
+        if (existing is not null)
+        {
+            return (null, ["Ya existe una cuenta registrada con ese correo electrónico."]);
+        }
 
         var user = new Usuario
         {
@@ -37,7 +46,8 @@ public sealed class AuthService(
 
         if (!result.Succeeded)
         {
-            return (null, result.Errors.Select(error => error.Description).ToArray());
+            var errors = result.Errors.Select(e => TranslateIdentityError(e.Code, e.Description)).ToArray();
+            return (null, errors);
         }
 
         return (await CreateAuthResponseAsync(user), []);
@@ -55,24 +65,35 @@ public sealed class AuthService(
 
         if (user is null || !user.IsActive)
         {
-            return (null, ["Usuario o contraseña inválidos."]);
+            return (null, ["Usuario o contraseña incorrectos. Verifique sus credenciales."]);
         }
 
         if (await userManager.IsLockedOutAsync(user))
         {
-            return (null, ["Usuario bloqueado temporalmente por intentos fallidos."]);
+            var lockoutEnd = await userManager.GetLockoutEndDateAsync(user);
+            var remaining = lockoutEnd.HasValue
+                ? (int)Math.Ceiling((lockoutEnd.Value - DateTimeOffset.UtcNow).TotalMinutes)
+                : 5;
+            return (null, [$"Cuenta bloqueada temporalmente por múltiples intentos fallidos. Intente nuevamente en {remaining} minuto(s)."]);
         }
 
         var result = await signInManager.CheckPasswordSignInAsync(user, request.Password, lockoutOnFailure: true);
 
         if (result.IsLockedOut)
         {
-            return (null, ["Usuario bloqueado temporalmente por intentos fallidos."]);
+            return (null, [$"Cuenta bloqueada por exceder el máximo de intentos permitidos ({_maxAttempts}). Intente en 5 minutos."]);
         }
 
         if (!result.Succeeded)
         {
-            return (null, ["Usuario o contraseña inválidos."]);
+            var failedCount = await userManager.GetAccessFailedCountAsync(user);
+            var remaining = _maxAttempts - failedCount;
+
+            var message = remaining > 0
+                ? $"Contraseña incorrecta. Le quedan {remaining} intento(s) antes del bloqueo temporal de la cuenta."
+                : $"Contraseña incorrecta. La cuenta será bloqueada en el próximo intento fallido.";
+
+            return (null, [message]);
         }
 
         return (await CreateAuthResponseAsync(user), []);
@@ -140,4 +161,20 @@ public sealed class AuthService(
 
         return permissions.Order().ToArray();
     }
+
+    /// <summary>Traduce los códigos de error de ASP.NET Core Identity a mensajes amigables en español.</summary>
+    private static string TranslateIdentityError(string code, string fallback) => code switch
+    {
+        "DuplicateUserName"   => "El nombre de usuario ya está en uso. Elija uno diferente.",
+        "DuplicateEmail"      => "Ya existe una cuenta registrada con ese correo electrónico.",
+        "InvalidEmail"        => "El correo electrónico ingresado no es válido.",
+        "InvalidUserName"     => "El nombre de usuario contiene caracteres no permitidos.",
+        "PasswordTooShort"    => "La contraseña debe tener al menos 8 caracteres.",
+        "PasswordRequiresDigit"     => "La contraseña debe incluir al menos un número.",
+        "PasswordRequiresUpper"     => "La contraseña debe incluir al menos una letra mayúscula.",
+        "PasswordRequiresLower"     => "La contraseña debe incluir al menos una letra minúscula.",
+        "PasswordRequiresNonAlphanumeric" => "La contraseña debe incluir al menos un carácter especial.",
+        "PasswordRequiresUniqueChars"     => "La contraseña debe incluir más caracteres únicos.",
+        _ => fallback
+    };
 }

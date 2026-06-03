@@ -9,146 +9,146 @@
 @inject IHttpContextAccessor HttpContextAccessor
 @inject NavigationManager Navigation
 
-<PageTitle>Iniciar sesión – OpenSource1</PageTitle>
+<PageTitle>Iniciar sesión – AxionERP</PageTitle>
 
-<!-- fondo con gradiente sutil -->
 <div class="min-h-screen bg-gradient-to-br from-slate-100 via-brand-50 to-white flex items-center justify-center px-4 py-12">
-    <div class="w-full max-w-md">
+    <div class="w-full max-w-md animate-fade-in">
 
-        <!-- Logo / marca -->
-        <div class="text-center mb-8">
-            <div class="inline-flex items-center justify-center size-14 rounded-2xl bg-brand-600 shadow-lg mb-4">
-                <!-- heroicon: cpu-chip -->
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-                     stroke-width="1.8" stroke="white" class="size-7">
-                    <path stroke-linecap="round" stroke-linejoin="round"
-                          d="M8.25 3v1.5M4.5 8.25H3m18 0h-1.5M4.5 12H3m18 0h-1.5m-15 3.75H3m18 0h-1.5M8.25 19.5V21M12 3v1.5m0 15V21m3.75-18v1.5m0 15V21m-9-1.5h10.5a2.25 2.25 0 0 0 2.25-2.25V6.75a2.25 2.25 0 0 0-2.25-2.25H6.75A2.25 2.25 0 0 0 4.5 6.75v10.5a2.25 2.25 0 0 0 2.25 2.25Zm.75-12h9v9h-9v-9Z" />
+        <!-- ── Marca ── -->
+        <div class="text-center mb-8 animate-slide-up">
+            <div class="inline-flex items-center justify-center size-16 rounded-2xl bg-brand-600 shadow-lg mb-4 animate-float">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="white" class="size-8">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3.75h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Z" />
                 </svg>
             </div>
-            <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">OpenSource1</h1>
-            <p class="mt-1 text-sm text-slate-500">Ingrese sus credenciales para acceder al sistema</p>
+            <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">AxionERP</h1>
+            <p class="mt-1 text-sm text-slate-500">Sistema Integral de Gestión Empresarial</p>
         </div>
 
-        <!-- Tarjeta de login -->
-        <div class="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
-
-            <!-- barra de acento superior -->
+        <!-- ── Tarjeta ── -->
+        <div class="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden animate-pop">
             <div class="h-1 w-full bg-gradient-to-r from-brand-500 to-brand-700"></div>
 
             <div class="px-8 py-8">
                 <p class="text-xs font-bold tracking-widest uppercase text-brand-600 mb-5">Acceso seguro</p>
 
-                @* MessageBox: sesión cerrada *@
-                @if (LoggedOut)
+                @* MessageBox: cuenta registrada *@
+                @if (JustRegistered)
                 {
                     <div class="mb-5">
-                        <MessageBox Type="info" Message="La sesión fue cerrada correctamente." />
+                        <MessageBox Type="success" Message="¡Cuenta creada exitosamente! Inicie sesión con sus credenciales." />
                     </div>
                 }
 
-                @* MessageBox: error de credenciales *@
-                @if (!string.IsNullOrWhiteSpace(message))
+                @* MessageBox: sesión cerrada correctamente *@
+                @if (LoggedOut)
                 {
                     <div class="mb-5">
-                        <MessageBox Type="danger" Message="@message" />
+                        <MessageBox Type="info" Message="La sesión fue cerrada correctamente. Puede iniciar sesión nuevamente." />
+                    </div>
+                }
+
+                @* MessageBox: errores de autenticación (con lista de mensajes) *@
+                @if (errors.Count > 0)
+                {
+                    <div class="mb-5">
+                        <MessageBox Type="danger" Errors="errors" />
                     </div>
                 }
 
                 <EditForm Model="Input" FormName="login" OnValidSubmit="LoginAsync" autocomplete="off" novalidate>
                     <DataAnnotationsValidator />
 
-                    <!-- ── Campo: Usuario ── -->
+                    <!-- Campo: Usuario -->
                     <div class="mb-5">
                         <label class="block text-sm font-semibold text-slate-700 mb-1.5" for="userNameOrEmail">
-                            <!-- heroicon: user -->
-                            <span class="inline-flex items-center gap-1.5">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-                                     stroke-width="1.8" stroke="currentColor" class="size-4 text-slate-400">
-                                    <path stroke-linecap="round" stroke-linejoin="round"
-                                          d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
+                            <span class="flex items-center gap-1.5">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4 text-slate-400">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
                                 </svg>
-                                Usuario
+                                Usuario o correo electrónico
                             </span>
                         </label>
                         <div class="relative">
+                            <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
+                                </svg>
+                            </span>
                             <InputText id="userNameOrEmail"
                                        class="block w-full rounded-lg border border-slate-300 bg-slate-50 py-2.5 pl-10 pr-3 text-sm text-slate-800 placeholder-slate-400 shadow-sm transition focus:border-brand-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500/25"
                                        @bind-Value="Input!.UserNameOrEmail"
                                        autocomplete="username"
                                        placeholder="admin, supervisor o ejecutor" />
-                            <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-                                     stroke-width="1.8" stroke="currentColor" class="size-4">
-                                    <path stroke-linecap="round" stroke-linejoin="round"
-                                          d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
-                                </svg>
-                            </span>
                         </div>
                         <ValidationMessage For="() => Input!.UserNameOrEmail" />
                     </div>
 
-                    <!-- ── Campo: Contraseña ── -->
+                    <!-- Campo: Contraseña (oculta) -->
                     <div class="mb-6">
                         <label class="block text-sm font-semibold text-slate-700 mb-1.5" for="password">
-                            <span class="inline-flex items-center gap-1.5">
-                                <!-- heroicon: lock-closed -->
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-                                     stroke-width="1.8" stroke="currentColor" class="size-4 text-slate-400">
-                                    <path stroke-linecap="round" stroke-linejoin="round"
-                                          d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+                            <span class="flex items-center gap-1.5">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4 text-slate-400">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
                                 </svg>
                                 Contraseña
                             </span>
                         </label>
                         <div class="relative">
+                            <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+                                </svg>
+                            </span>
                             <InputText id="password"
                                        type="password"
                                        class="block w-full rounded-lg border border-slate-300 bg-slate-50 py-2.5 pl-10 pr-3 text-sm text-slate-800 placeholder-slate-400 shadow-sm transition focus:border-brand-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500/25"
                                        @bind-Value="Input!.Password"
                                        autocomplete="current-password"
                                        placeholder="••••••••" />
-                            <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-                                     stroke-width="1.8" stroke="currentColor" class="size-4">
-                                    <path stroke-linecap="round" stroke-linejoin="round"
-                                          d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
-                                </svg>
-                            </span>
                         </div>
                         <ValidationMessage For="() => Input!.Password" />
+                        <p class="mt-1.5 text-xs text-slate-400 flex items-center gap-1">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-3">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z" />
+                            </svg>
+                            La cuenta se bloquea tras 3 intentos fallidos consecutivos.
+                        </p>
                     </div>
 
-                    <!-- ── Botones de acción ── -->
+                    <!-- Botones -->
                     <div class="flex flex-col-reverse sm:flex-row gap-3">
                         <!-- Botón Salir -->
                         <a href="/"
-                           class="flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50 hover:text-slate-800 transition-colors w-full sm:w-auto">
-                            <!-- heroicon: x-mark -->
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-                                 stroke-width="2" stroke="currentColor" class="size-4">
+                           class="flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50 hover:text-slate-800 transition-all duration-150 w-full sm:w-auto">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
                             </svg>
                             Salir
                         </a>
-
                         <!-- Botón Iniciar Sesión -->
                         <button type="submit"
-                                class="flex items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 active:scale-95 transition-all w-full sm:flex-1">
-                            <!-- heroicon: arrow-right-on-rectangle -->
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-                                 stroke-width="2" stroke="currentColor" class="size-4">
-                                <path stroke-linecap="round" stroke-linejoin="round"
-                                      d="M8.25 9V5.25A2.25 2.25 0 0 1 10.5 3h6a2.25 2.25 0 0 1 2.25 2.25v13.5A2.25 2.25 0 0 1 16.5 21h-6a2.25 2.25 0 0 1-2.25-2.25V15M12 9l3 3m0 0-3 3m3-3H2.25" />
+                                class="flex items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 active:scale-95 transition-all duration-150 w-full sm:flex-1">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 9V5.25A2.25 2.25 0 0 1 10.5 3h6a2.25 2.25 0 0 1 2.25 2.25v13.5A2.25 2.25 0 0 1 16.5 21h-6a2.25 2.25 0 0 1-2.25-2.25V15M12 9l3 3m0 0-3 3m3-3H2.25" />
                             </svg>
                             Iniciar Sesión
                         </button>
                     </div>
                 </EditForm>
             </div>
+
+            <!-- Pie de tarjeta: enlace a registro -->
+            <div class="border-t border-slate-100 bg-slate-50 px-8 py-4 text-center text-sm text-slate-500">
+                ¿No tiene cuenta?
+                <a href="/account/register" class="font-semibold text-brand-600 hover:text-brand-700 hover:underline transition-colors ml-1">
+                    Registrarse
+                </a>
+            </div>
         </div>
 
         <p class="text-center text-xs text-slate-400 mt-6">
-            &copy; 2026 OpenSource1 &mdash; Acceso seguro mediante cookie HttpOnly
+            &copy; 2026 AxionERP — Acceso protegido mediante cookie HttpOnly
         </p>
     </div>
 </div>
@@ -163,15 +163,17 @@
     [SupplyParameterFromQuery(Name = "loggedOut")]
     private bool LoggedOut { get; set; }
 
-    private string? message;
+    [SupplyParameterFromQuery(Name = "registered")]
+    private bool JustRegistered { get; set; }
 
-    protected override void OnInitialized()
-    {
-        Input ??= new();
-    }
+    private IReadOnlyList<string> errors = [];
+
+    protected override void OnInitialized() => Input ??= new();
 
     private async Task LoginAsync()
     {
+        errors = [];
+
         var result = await AuthApiClient.LoginAsync(new LoginRequest
         {
             UserNameOrEmail = Input!.UserNameOrEmail.Trim(),
@@ -180,9 +182,7 @@
 
         if (!result.Succeeded || result.Response is null)
         {
-            message = result.Errors.Count > 0
-                ? string.Join(" ", result.Errors)
-                : "Usuario o contraseña inválidos.";
+            errors = result.Errors.Count > 0 ? result.Errors : ["Usuario o contraseña incorrectos."];
             return;
         }
 
@@ -196,8 +196,8 @@
             new(ClaimTypes.Email, result.Response.Email)
         };
 
-        claims.AddRange(result.Response.Roles.Select(role => new Claim(ClaimTypes.Role, role)));
-        claims.AddRange(result.Response.Permissions.Select(permission => new Claim("permission", permission)));
+        claims.AddRange(result.Response.Roles.Select(r => new Claim(ClaimTypes.Role, r)));
+        claims.AddRange(result.Response.Permissions.Select(p => new Claim("permission", p)));
 
         var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
         var principal = new ClaimsPrincipal(identity);
@@ -218,12 +218,12 @@
 
     private sealed class LoginInput
     {
-        [Required(ErrorMessage = "Debe indicar el usuario.")]
-        [MaxLength(256, ErrorMessage = "El usuario no puede superar 256 caracteres.")]
+        [Required(ErrorMessage = "Debe ingresar su usuario o correo electrónico.")]
+        [MaxLength(256)]
         public string UserNameOrEmail { get; set; } = string.Empty;
 
-        [Required(ErrorMessage = "Debe indicar la contraseña.")]
-        [MaxLength(100, ErrorMessage = "La contraseña no puede superar 100 caracteres.")]
+        [Required(ErrorMessage = "Debe ingresar su contraseña.")]
+        [MaxLength(100)]
         public string Password { get; set; } = string.Empty;
     }
 }

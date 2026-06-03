@@ -81,7 +81,7 @@
 
     <!-- Agregar -->
     <AuthorizeView Policy="@ApplicationPolicies.CanAdd">
-        <Authorized>
+        <Authorized Context="ctx">
             <div id="agregar" class="rounded-2xl border border-green-200 bg-white shadow-sm overflow-hidden">
                 <div class="px-6 py-4 bg-green-50 border-b border-green-100 flex items-center gap-2">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-5 text-green-600">
@@ -110,7 +110,7 @@
 
     <!-- Modificar -->
     <AuthorizeView Policy="@ApplicationPolicies.CanModify">
-        <Authorized>
+        <Authorized Context="ctx">
             <div id="modificar" class="rounded-2xl border border-amber-200 bg-white shadow-sm overflow-hidden">
                 <div class="px-6 py-4 bg-amber-50 border-b border-amber-100 flex items-center gap-2">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-5 text-amber-600">
@@ -139,7 +139,7 @@
 
     <!-- Eliminar -->
     <AuthorizeView Policy="@ApplicationPolicies.CanDelete">
-        <Authorized>
+        <Authorized Context="ctx">
             <div id="eliminar" class="rounded-2xl border border-red-200 bg-white shadow-sm overflow-hidden">
                 <div class="px-6 py-4 bg-red-50 border-b border-red-100 flex items-center gap-2">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-5 text-red-600">

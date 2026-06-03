@@ -5,6 +5,7 @@ using OpenSource1.Application.Data;
 using OpenSource1.Application.Data.Repositories;
 using OpenSource1.Application.Data.UnitOfWork;
 using OpenSource1.Application.Features.AppSettings;
+using OpenSource1.Application.Features.Users;
 using OpenSource1.Application.Services.Auth;
 using OpenSource1.Application.Services.Settings;
 using OpenSource1.Infrastructure.Data.Queries;
@@ -13,6 +14,7 @@ using OpenSource1.Infrastructure.Data.UnitOfWork;
 using OpenSource1.Infrastructure.Identity;
 using OpenSource1.Infrastructure.Services.Auth;
 using OpenSource1.Infrastructure.Services.Settings;
+using OpenSource1.Infrastructure.Services.Users;
 
 namespace OpenSource1.Infrastructure.Data;
 
@@ -40,6 +42,7 @@ public static class DependencyInjection
         services.AddScoped<IUnitOfWork, OpenSource1.Infrastructure.Data.UnitOfWork.UnitOfWork>();
         services.AddScoped<IAppSettingService, AppSettingService>();
         services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<IUserAdminService, UserAdminService>();
         services.AddHostedService<DatabaseMigrationHostedService>();
 
         return services;

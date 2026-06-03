@@ -1,0 +1,30 @@
+@page "/admin/users/assign-role"
+@attribute [Authorize(Roles = ApplicationRoles.Administrator)]
+@using OpenSource1.Application.Security
+@using OpenSource1.Blazor.Services
+@inject IUserAdminApiClient UserAdminApi
+@inject NavigationManager Nav
+
+@code {
+    [SupplyParameterFromForm]
+    private string? UserId { get; set; }
+
+    [SupplyParameterFromForm]
+    private string? Role { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (string.IsNullOrWhiteSpace(UserId) || string.IsNullOrWhiteSpace(Role))
+        {
+            Nav.NavigateTo("/admin/users?err=Datos+incompletos.");
+            return;
+        }
+
+        var (success, error) = await UserAdminApi.AssignRoleAsync(UserId, Role);
+        var redirectUrl = success
+            ? $"/admin/users?ok=Rol+'{Uri.EscapeDataString(Role)}'+asignado+correctamente."
+            : $"/admin/users?err={Uri.EscapeDataString(error ?? "Error al asignar el rol.")}";
+
+        Nav.NavigateTo(redirectUrl);
+    }
+}

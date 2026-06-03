@@ -5,6 +5,7 @@ namespace OpenSource1.Blazor.Services;
 public interface IAuthApiClient
 {
     Task<AuthResult> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default);
+    Task<AuthResult> RegisterAsync(RegisterRequest request, CancellationToken cancellationToken = default);
 }
 
 public sealed record AuthResult(AuthResponse? Response, IReadOnlyList<string> Errors)
