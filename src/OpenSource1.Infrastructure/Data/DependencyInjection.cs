@@ -1,10 +1,13 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using OpenSource1.Application.Data;
 using OpenSource1.Application.Data.Repositories;
 using OpenSource1.Application.Data.UnitOfWork;
+using OpenSource1.Application.Features.AppSettings;
 using OpenSource1.Application.Services.Auth;
 using OpenSource1.Application.Services.Settings;
+using OpenSource1.Infrastructure.Data.Queries;
 using OpenSource1.Infrastructure.Data.Repositories;
 using OpenSource1.Infrastructure.Data.UnitOfWork;
 using OpenSource1.Infrastructure.Identity;
@@ -31,6 +34,8 @@ public static class DependencyInjection
         services.AddDbContext<AppIdentityDbContext>(options =>
             options.UseSqlServer(identityConnectionString));
 
+        services.AddScoped<IDbConnectionFactory, SqlConnectionFactory>();
+        services.AddScoped<IAppSettingReadRepository, DapperAppSettingReadRepository>();
         services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
         services.AddScoped<IUnitOfWork, OpenSource1.Infrastructure.Data.UnitOfWork.UnitOfWork>();
         services.AddScoped<IAppSettingService, AppSettingService>();

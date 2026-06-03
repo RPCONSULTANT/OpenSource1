@@ -14,9 +14,10 @@ dotnet run
 
 ## Run with Docker Compose
 
-The project includes a multi-stage `Dockerfile` and a `docker-compose.yml` that runs:
+The project includes multi-stage Dockerfiles and a `docker-compose.yml` that runs:
 
 - ASP.NET Core MVC app on `http://localhost:8080`
+- ASP.NET Core API on `http://localhost:8081`
 - SQL Server 2022 Developer on `localhost:1433`
 
 Create a local `.env` file and start the full stack:
@@ -26,7 +27,7 @@ cp .env.example .env
 docker compose up --build -d
 ```
 
-The web container uses the SQL Server service name `sqlserver` internally and applies EF Core migrations automatically when `Database__ApplyMigrationsOnStartup=true` is set in `docker-compose.yml`.
+The app containers use the SQL Server service name `sqlserver` internally. The API container applies EF Core migrations automatically when `Database__ApplyMigrationsOnStartup=true` is set in `docker-compose.yml`.
 
 Stop the stack:
 
@@ -66,11 +67,31 @@ dotnet dotnet-ef database update --context AppIdentityDbContext
 
 ## Data Access Patterns
 
-The data layer uses Entity Framework Core with DDD-friendly abstractions:
+The solution follows Onion Architecture:
+
+- `OpenSource1.Core`: enterprise/domain model, aggregate roots and core abstractions.
+- `OpenSource1.Application`: use cases, CQRS contracts, DTOs, interfaces, MediatR handlers.
+- `OpenSource1.Infrastructure`: EF Core, Identity, Dapper, repositories, Unit of Work and external implementations.
+- `OpenSource1.Api`: HTTP API endpoints.
+- `OpenSource1.Mvc`: MVC presentation application.
+
+The data layer uses DDD-friendly abstractions:
 
 - `AggregateRoot<TKey>` / `IAggregateRoot` for aggregate boundaries.
 - `IGenericRepository<TEntity>` constrained to aggregate roots.
 - `IUnitOfWork` for transaction persistence through `SaveChangesAsync`.
+
+CQRS is implemented with MediatR for `AppSetting`:
+
+- Commands use EF Core through Repository + Unit of Work.
+- Queries use Dapper for lean read models.
+- Identity operations use ASP.NET Core Identity APIs.
+
+This keeps LINQ/EF for aggregate persistence, Dapper for optimized reads, and Identity for user/auth concerns.
+
+## dotnet skills guidance
+
+This repository includes `.opencode/skills` from `https://github.com/dotnet/skills.git`. The agent workflow should keep using those official skills for templates, Web API, EF Core, MSBuild, testing, diagnostics and .NET best practices before making architectural or code changes.
 
 ## Local JWT Auth
 

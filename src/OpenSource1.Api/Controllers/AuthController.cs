@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using OpenSource1.Application.Services.Auth;
 using OpenSource1.Application.Services.Auth.Dtos;
 
-namespace OpenSource1.Controllers.Api;
+namespace OpenSource1.Api.Controllers;
 
 [ApiController]
 [Route("api/auth")]

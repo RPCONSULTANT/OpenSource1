@@ -17,6 +17,15 @@ public sealed class GenericRepository<TEntity>(ApplicationDbContext dbContext) :
     public async Task<TEntity?> GetByIdAsync(object[] keyValues, CancellationToken cancellationToken = default) =>
         await _dbSet.FindAsync(keyValues, cancellationToken);
 
+    public async Task<TEntity?> FirstOrDefaultAsync(
+        Expression<Func<TEntity, bool>> predicate,
+        bool asTracking = false,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(predicate);
+        return await Query(asTracking).FirstOrDefaultAsync(predicate, cancellationToken);
+    }
+
     public async Task<IReadOnlyList<TEntity>> ListAsync(
         Expression<Func<TEntity, bool>>? predicate = null,
         CancellationToken cancellationToken = default)

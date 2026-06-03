@@ -1,4 +1,4 @@
-@baseUrl = http://localhost:5110
+@baseUrl = http://localhost:8081
 
 ### Register local user
 POST {{baseUrl}}/api/auth/register
@@ -9,6 +9,10 @@ Content-Type: application/json
   "password": "Password123",
   "fullName": "Local User"
 }
+
+### List app settings with JWT
+GET {{baseUrl}}/api/app-settings
+Authorization: Bearer {{accessToken}}
 
 ### Login local user
 POST {{baseUrl}}/api/auth/login
