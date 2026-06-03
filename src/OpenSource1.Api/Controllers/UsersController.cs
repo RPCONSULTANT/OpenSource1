@@ -21,6 +21,16 @@ public sealed class UsersController(IUserAdminService userAdminService) : Contro
         return Ok(users);
     }
 
+    /// <summary>Obtiene un usuario por su Id.</summary>
+    [HttpGet("{userId}")]
+    [ProducesResponseType<UserSummaryResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<UserSummaryResponse>> GetById(string userId, CancellationToken cancellationToken)
+    {
+        var user = await userAdminService.GetByIdAsync(userId, cancellationToken);
+        return user is null ? NotFound() : Ok(user);
+    }
+
     /// <summary>Asigna un rol a un usuario.</summary>
     [HttpPost("assign-role")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]

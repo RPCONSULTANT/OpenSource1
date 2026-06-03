@@ -32,6 +32,34 @@ public sealed class UserAdminApiClient(HttpClient httpClient, ILogger<UserAdminA
         }
     }
 
+    public async Task<(UserSummaryResponse? User, string? Error)> GetByIdAsync(
+        string userId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            using var response = await httpClient.GetAsync($"api/users/{userId}", cancellationToken);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var user = await response.Content.ReadFromJsonAsync<UserSummaryResponse>(cancellationToken);
+                return (user, null);
+            }
+
+            if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+                return (null, "Usuario no encontrado.");
+
+            if (response.StatusCode == System.Net.HttpStatusCode.Forbidden)
+                return (null, "No tiene permisos para ver este usuario.");
+
+            return (null, "No se pudo obtener el usuario.");
+        }
+        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException)
+        {
+            logger.LogWarning(ex, "Error calling get user by id API.");
+            return (null, "El servicio no está disponible en este momento.");
+        }
+    }
+
     public async Task<(bool Success, string? Error)> AssignRoleAsync(
         string userId, string role, CancellationToken cancellationToken = default)
         => await PostRoleActionAsync("api/users/assign-role", userId, role, cancellationToken);

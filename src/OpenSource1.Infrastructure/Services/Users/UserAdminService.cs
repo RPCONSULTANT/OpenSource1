@@ -10,6 +10,20 @@ namespace OpenSource1.Infrastructure.Services.Users;
 public sealed class UserAdminService(
     UserManager<Usuario> userManager) : IUserAdminService
 {
+    public async Task<UserSummaryResponse?> GetByIdAsync(string userId, CancellationToken cancellationToken = default)
+    {
+        var user = await userManager.FindByIdAsync(userId);
+        if (user is null) return null;
+
+        var roles = await userManager.GetRolesAsync(user);
+        return new UserSummaryResponse(
+            user.Id,
+            user.FullName ?? user.UserName ?? string.Empty,
+            user.Email ?? string.Empty,
+            user.IsActive,
+            roles.ToArray());
+    }
+
     public async Task<IReadOnlyList<UserSummaryResponse>> ListUsersAsync(CancellationToken cancellationToken = default)
     {
         var users = await userManager.Users
