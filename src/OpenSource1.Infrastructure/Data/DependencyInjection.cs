@@ -31,12 +31,12 @@ public static class DependencyInjection
             ?? throw new InvalidOperationException("Connection string 'IdentityConnection' was not found.");
 
         services.AddDbContext<ApplicationDbContext>(options =>
-            options.UseSqlServer(applicationConnectionString));
+            options.UseNpgsql(applicationConnectionString));
 
         services.AddDbContext<AppIdentityDbContext>(options =>
-            options.UseSqlServer(identityConnectionString));
+            options.UseNpgsql(identityConnectionString));
 
-        services.AddScoped<IDbConnectionFactory, SqlConnectionFactory>();
+        services.AddScoped<IDbConnectionFactory, NpgsqlConnectionFactory>();
         services.AddScoped<IAppSettingReadRepository, DapperAppSettingReadRepository>();
         services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
         services.AddScoped<IUnitOfWork, OpenSource1.Infrastructure.Data.UnitOfWork.UnitOfWork>();

@@ -8,8 +8,8 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:8080
-      ConnectionStrings__DefaultConnection: "Server=sqlserver,1433;Database=TestAppDb;User Id=sa;Password=${MSSQL_SA_PASSWORD:?Set MSSQL_SA_PASSWORD in a local .env file};TrustServerCertificate=True;MultipleActiveResultSets=True"
-      ConnectionStrings__IdentityConnection: "Server=sqlserver,1433;Database=TestIdentityDb;User Id=sa;Password=${MSSQL_SA_PASSWORD:?Set MSSQL_SA_PASSWORD in a local .env file};TrustServerCertificate=True;MultipleActiveResultSets=True"
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=AxionERP_App;Username=Rainiery;Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in a local .env file}"
+      ConnectionStrings__IdentityConnection: "Host=postgres;Port=5432;Database=AxionERP_Identity;Username=Rainiery;Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in a local .env file}"
       Jwt__Issuer: OpenSource1.Local
       Jwt__Audience: OpenSource1.Local
       Jwt__SigningKey: "${JWT_SIGNING_KEY:-LocalDevelopmentSigningKey_ChangeMe_1234567890}"
@@ -24,7 +24,7 @@ services:
     depends_on:
       api:
         condition: service_started
-      sqlserver:
+      postgres:
         condition: service_healthy
 
   api:
@@ -36,8 +36,8 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:8080
-      ConnectionStrings__DefaultConnection: "Server=sqlserver,1433;Database=TestAppDb;User Id=sa;Password=${MSSQL_SA_PASSWORD:?Set MSSQL_SA_PASSWORD in a local .env file};TrustServerCertificate=True;MultipleActiveResultSets=True"
-      ConnectionStrings__IdentityConnection: "Server=sqlserver,1433;Database=TestIdentityDb;User Id=sa;Password=${MSSQL_SA_PASSWORD:?Set MSSQL_SA_PASSWORD in a local .env file};TrustServerCertificate=True;MultipleActiveResultSets=True"
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=AxionERP_App;Username=Rainiery;Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in a local .env file}"
+      ConnectionStrings__IdentityConnection: "Host=postgres;Port=5432;Database=AxionERP_Identity;Username=Rainiery;Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in a local .env file}"
       Jwt__Issuer: OpenSource1.Local
       Jwt__Audience: OpenSource1.Local
       Jwt__SigningKey: "${JWT_SIGNING_KEY:-LocalDevelopmentSigningKey_ChangeMe_1234567890}"
@@ -52,27 +52,28 @@ services:
     volumes:
       - dataprotection-keys:/root/.aspnet/DataProtection-Keys
     depends_on:
-      sqlserver:
+      postgres:
         condition: service_healthy
 
-  sqlserver:
-    image: mcr.microsoft.com/mssql/server:2022-latest
-    container_name: test-sqlserver
+  postgres:
+    image: postgres:17-alpine
+    container_name: axionerp-postgres
     environment:
-      ACCEPT_EULA: "Y"
-      MSSQL_PID: Developer
-      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD:?Set MSSQL_SA_PASSWORD in a local .env file}"
+      POSTGRES_USER: Rainiery
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in a local .env file}"
+      POSTGRES_DB: postgres
     ports:
-      - "1433:1433"
+      - "5432:5432"
     volumes:
-      - sqlserver-data:/var/opt/mssql
+      - postgres-data:/var/lib/postgresql/data
+      - ./init-postgres.sh:/docker-entrypoint-initdb.d/init-postgres.sh:ro
     healthcheck:
-      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$${MSSQL_SA_PASSWORD}\" -C -Q \"SELECT 1\" || exit 1"]
+      test: ["CMD-SHELL", "pg_isready -U Rainiery -d postgres"]
       interval: 10s
       timeout: 5s
       retries: 10
-      start_period: 30s
+      start_period: 20s
 
 volumes:
-  sqlserver-data:
+  postgres-data:
   dataprotection-keys:
