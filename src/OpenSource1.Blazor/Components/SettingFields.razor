@@ -1,21 +1,38 @@
 @using OpenSource1.Blazor.Components.Pages
 
-<div class="field">
-    <label class="label" for="settingKey">Clave</label>
-    <InputText id="settingKey" class="input" @bind-Value="Model.Key" />
-    <ValidationMessage For="() => Model.Key" />
-</div>
+<div class="space-y-4">
+    <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1" for="settingKey">
+            Clave <span class="text-red-500">*</span>
+        </label>
+        <InputText id="settingKey"
+                   class="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 placeholder-slate-400 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20"
+                   @bind-Value="Model.Key"
+                   placeholder="ej. App:Feature:Enabled" />
+        <ValidationMessage For="() => Model.Key" />
+    </div>
 
-<div class="field">
-    <label class="label" for="settingValue">Valor</label>
-    <InputText id="settingValue" class="input" @bind-Value="Model.Value" />
-    <ValidationMessage For="() => Model.Value" />
-</div>
+    <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1" for="settingValue">
+            Valor <span class="text-red-500">*</span>
+        </label>
+        <InputText id="settingValue"
+                   class="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 placeholder-slate-400 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20"
+                   @bind-Value="Model.Value"
+                   placeholder="ej. true" />
+        <ValidationMessage For="() => Model.Value" />
+    </div>
 
-<div class="field">
-    <label class="label" for="settingDescription">Descripción</label>
-    <InputText id="settingDescription" class="input" @bind-Value="Model.Description" />
-    <ValidationMessage For="() => Model.Description" />
+    <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1" for="settingDescription">
+            Descripción
+        </label>
+        <InputText id="settingDescription"
+                   class="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 placeholder-slate-400 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20"
+                   @bind-Value="Model.Description"
+                   placeholder="Descripción opcional" />
+        <ValidationMessage For="() => Model.Description" />
+    </div>
 </div>
 
 @code {

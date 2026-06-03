@@ -1,39 +1,135 @@
 @page "/"
 
-<PageTitle>Inicio</PageTitle>
+<PageTitle>Inicio – OpenSource1</PageTitle>
 
-<section class="hero app-hero">
-    <div class="hero-body">
-        <p class="eyebrow">OpenSource1</p>
-        <h1 class="title is-2">Panel principal</h1>
-        <p class="subtitle is-5">Cliente Blazor conectado al API mediante autenticación JWT y cookie segura del lado web.</p>
+<!-- Hero -->
+<div class="rounded-2xl bg-gradient-to-br from-brand-600 to-brand-800 text-white px-8 py-10 mb-6 shadow-lg">
+    <p class="text-xs font-bold tracking-widest uppercase text-brand-200 mb-2">OpenSource1</p>
+    <h1 class="text-3xl font-extrabold tracking-tight mb-2">Panel principal</h1>
+    <p class="text-brand-100 text-sm max-w-xl">
+        Cliente Blazor conectado al API mediante autenticación JWT y cookie segura del lado del servidor.
+    </p>
+</div>
 
-        <AuthorizeView>
-            <Authorized Context="auth">
-                <MessageBox Type="success" Message="@($"Bienvenido, {auth.User.Identity?.Name}.")" />
-                <div class="permission-grid">
-                    <AuthorizeView Policy="@ApplicationPolicies.CanConsult"><Authorized><article class="permission-card">Consultar</article></Authorized></AuthorizeView>
-                    <AuthorizeView Policy="@ApplicationPolicies.CanAdd"><Authorized><article class="permission-card">Agregar</article></Authorized></AuthorizeView>
-                    <AuthorizeView Policy="@ApplicationPolicies.CanModify"><Authorized><article class="permission-card">Modificar</article></Authorized></AuthorizeView>
-                    <AuthorizeView Policy="@ApplicationPolicies.CanDelete"><Authorized><article class="permission-card">Eliminar</article></Authorized></AuthorizeView>
-                </div>
-                <a class="button is-primary" href="/app-settings">Gestionar configuraciones</a>
-            </Authorized>
-            <NotAuthorized>
-                <div class="guest-card">
-                    <p>Inicie sesión para habilitar el menú principal según su rol.</p>
-                    <a class="button is-primary" href="/account/login">Iniciar Sesión</a>
-                </div>
-            </NotAuthorized>
-        </AuthorizeView>
+<AuthorizeView>
+    <Authorized Context="auth">
+
+        <!-- Bienvenida -->
+        <div class="mb-6">
+            <MessageBox Type="success" Message="@($"Bienvenido, {auth.User.Identity?.Name}. Sesión activa.")" />
+        </div>
+
+        <!-- Permisos -->
+        <h2 class="text-base font-bold text-slate-700 mb-3 flex items-center gap-2">
+            <!-- heroicon: shield-check -->
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-5 text-brand-600">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z" />
+            </svg>
+            Permisos activos para tu rol
+        </h2>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
+            <AuthorizeView Policy="@ApplicationPolicies.CanConsult">
+                <Authorized>
+                    <div class="flex flex-col items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-5 text-center">
+                        <span class="inline-flex size-10 items-center justify-center rounded-full bg-blue-100 text-blue-600">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                            </svg>
+                        </span>
+                        <span class="text-sm font-bold text-blue-800">Consultar</span>
+                    </div>
+                </Authorized>
+            </AuthorizeView>
+
+            <AuthorizeView Policy="@ApplicationPolicies.CanAdd">
+                <Authorized>
+                    <div class="flex flex-col items-center gap-2 rounded-xl border border-green-200 bg-green-50 px-4 py-5 text-center">
+                        <span class="inline-flex size-10 items-center justify-center rounded-full bg-green-100 text-green-600">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                            </svg>
+                        </span>
+                        <span class="text-sm font-bold text-green-800">Agregar</span>
+                    </div>
+                </Authorized>
+            </AuthorizeView>
+
+            <AuthorizeView Policy="@ApplicationPolicies.CanModify">
+                <Authorized>
+                    <div class="flex flex-col items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-5 text-center">
+                        <span class="inline-flex size-10 items-center justify-center rounded-full bg-amber-100 text-amber-600">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
+                            </svg>
+                        </span>
+                        <span class="text-sm font-bold text-amber-800">Modificar</span>
+                    </div>
+                </Authorized>
+            </AuthorizeView>
+
+            <AuthorizeView Policy="@ApplicationPolicies.CanDelete">
+                <Authorized>
+                    <div class="flex flex-col items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-5 text-center">
+                        <span class="inline-flex size-10 items-center justify-center rounded-full bg-red-100 text-red-600">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                            </svg>
+                        </span>
+                        <span class="text-sm font-bold text-red-800">Eliminar</span>
+                    </div>
+                </Authorized>
+            </AuthorizeView>
+        </div>
+
+        <a href="/app-settings"
+           class="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 transition-colors shadow-sm">
+            <!-- heroicon: cog-6-tooth -->
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+            </svg>
+            Gestionar configuraciones
+        </a>
+    </Authorized>
+
+    <NotAuthorized>
+        <div class="rounded-2xl border border-slate-200 bg-white px-8 py-10 flex flex-col sm:flex-row items-center justify-between gap-6 shadow-sm">
+            <div>
+                <h2 class="text-lg font-bold text-slate-800 mb-1">Acceso no autenticado</h2>
+                <p class="text-sm text-slate-500">Inicie sesión para habilitar el menú principal según su rol asignado.</p>
+            </div>
+            <a href="/account/login"
+               class="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 transition-colors shadow-sm shrink-0">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 9V5.25A2.25 2.25 0 0 1 10.5 3h6a2.25 2.25 0 0 1 2.25 2.25v13.5A2.25 2.25 0 0 1 16.5 21h-6a2.25 2.25 0 0 1-2.25-2.25V15M12 9l3 3m0 0-3 3m3-3H2.25" />
+                </svg>
+                Iniciar Sesión
+            </a>
+        </div>
+    </NotAuthorized>
+</AuthorizeView>
+
+<!-- Roles del sistema -->
+<div class="mt-8 rounded-2xl border border-slate-200 bg-white px-6 py-6 shadow-sm">
+    <h2 class="text-base font-bold text-slate-700 mb-4 flex items-center gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-5 text-slate-400">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 0 1 6 18.719m12 0a5.971 5.971 0 0 0-.941-3.197m0 0A5.995 5.995 0 0 0 12 12.75a5.995 5.995 0 0 0-5.058 2.772m0 0a3 3 0 0 0-4.681 2.72 8.986 8.986 0 0 0 3.74.477m.94-3.197a5.971 5.971 0 0 0-.94 3.197M15 6.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z" />
+        </svg>
+        Roles del sistema
+    </h2>
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="rounded-xl border border-brand-100 bg-brand-50 px-5 py-4">
+            <p class="font-bold text-brand-700 mb-1">Administrador</p>
+            <p class="text-xs text-slate-600">Agregar, modificar, eliminar y consultar.</p>
+        </div>
+        <div class="rounded-xl border border-amber-100 bg-amber-50 px-5 py-4">
+            <p class="font-bold text-amber-700 mb-1">Supervisor</p>
+            <p class="text-xs text-slate-600">Consultar y modificar.</p>
+        </div>
+        <div class="rounded-xl border border-green-100 bg-green-50 px-5 py-4">
+            <p class="font-bold text-green-700 mb-1">Ejecutor</p>
+            <p class="text-xs text-slate-600">Consultar y agregar.</p>
+        </div>
     </div>
-</section>
-
-<section class="section compact-section">
-    <h2 class="title is-4">Roles configurados</h2>
-    <div class="columns">
-        <div class="column"><strong>Administrador</strong><p>Agregar, modificar, eliminar y consultar.</p></div>
-        <div class="column"><strong>Supervisor</strong><p>Consultar y modificar.</p></div>
-        <div class="column"><strong>Ejecutor</strong><p>Consultar y agregar.</p></div>
-    </div>
-</section>
+</div>
