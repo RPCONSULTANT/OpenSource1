@@ -41,12 +41,14 @@ public sealed class SetAppSettingCommandHandler(IUnitOfWork unitOfWork)
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
-        return new AppSettingResponse(
-            setting.Id,
-            setting.Key,
-            setting.Value,
-            setting.Description,
-            setting.CreatedAtUtc,
-            setting.UpdatedAtUtc);
+        return new AppSettingResponse
+        {
+            Id          = setting.Id,
+            Key         = setting.Key,
+            Value       = setting.Value,
+            Description = setting.Description,
+            CreatedAtUtc = setting.CreatedAtUtc.UtcDateTime,
+            UpdatedAtUtc = setting.UpdatedAtUtc?.UtcDateTime
+        };
     }
 }

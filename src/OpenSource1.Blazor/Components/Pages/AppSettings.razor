@@ -1,9 +1,11 @@
 @page "/app-settings"
 @attribute [Authorize(Policy = ApplicationPolicies.CanConsult)]
 @using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Authorization
 @using OpenSource1.Application.Features.AppSettings.Dtos
 @using OpenSource1.Blazor.Services
 @inject IAppSettingsApiClient AppSettingsApiClient
+@inject IAuthorizationService AuthorizationService
 @inject ILogger<AppSettings> Logger
 
 <PageTitle>Configuraciones – OpenSource1</PageTitle>
@@ -80,98 +82,96 @@
 <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
 
     <!-- Agregar -->
-    <AuthorizeView Policy="@ApplicationPolicies.CanAdd">
-        <Authorized Context="ctx">
-            <div id="agregar" class="rounded-2xl border border-green-200 bg-white shadow-sm overflow-hidden">
-                <div class="px-6 py-4 bg-green-50 border-b border-green-100 flex items-center gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-5 text-green-600">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                    </svg>
-                    <h2 class="text-sm font-bold text-green-800">Agregar configuración</h2>
-                </div>
-                <div class="px-6 py-5">
-                    <EditForm Model="SaveInput" FormName="save-setting" OnValidSubmit="CreateAsync">
-                        <DataAnnotationsValidator />
-                        <SettingFields Model="SaveInput!" />
-                        <div class="mt-5">
-                            <button type="submit"
-                                    class="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 transition-colors shadow-sm">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                                </svg>
-                                Agregar
-                            </button>
-                        </div>
-                    </EditForm>
-                </div>
+    @if (canAdd)
+    {
+        <div id="agregar" class="rounded-2xl border border-green-200 bg-white shadow-sm overflow-hidden">
+            <div class="px-6 py-4 bg-green-50 border-b border-green-100 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-5 text-green-600">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                </svg>
+                <h2 class="text-sm font-bold text-green-800">Agregar configuración</h2>
             </div>
-        </Authorized>
-    </AuthorizeView>
+            <div class="px-6 py-5">
+                <EditForm Model="SaveInput" FormName="save-setting" OnValidSubmit="CreateAsync">
+                    <DataAnnotationsValidator />
+                    <SettingFields Model="SaveInput!" Prefix="SaveInput" />
+                    <div class="mt-5">
+                        <button type="submit"
+                                class="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 transition-colors shadow-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                            </svg>
+                            Agregar
+                        </button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    }
 
     <!-- Modificar -->
-    <AuthorizeView Policy="@ApplicationPolicies.CanModify">
-        <Authorized Context="ctx">
-            <div id="modificar" class="rounded-2xl border border-amber-200 bg-white shadow-sm overflow-hidden">
-                <div class="px-6 py-4 bg-amber-50 border-b border-amber-100 flex items-center gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-5 text-amber-600">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
-                    </svg>
-                    <h2 class="text-sm font-bold text-amber-800">Modificar configuración</h2>
-                </div>
-                <div class="px-6 py-5">
-                    <EditForm Model="UpdateInput" FormName="update-setting" OnValidSubmit="UpdateAsync">
-                        <DataAnnotationsValidator />
-                        <SettingFields Model="UpdateInput!" />
-                        <div class="mt-5">
-                            <button type="submit"
-                                    class="flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-600 transition-colors shadow-sm">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125" />
-                                </svg>
-                                Modificar
-                            </button>
-                        </div>
-                    </EditForm>
-                </div>
+    @if (canModify)
+    {
+        <div id="modificar" class="rounded-2xl border border-amber-200 bg-white shadow-sm overflow-hidden">
+            <div class="px-6 py-4 bg-amber-50 border-b border-amber-100 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-5 text-amber-600">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
+                </svg>
+                <h2 class="text-sm font-bold text-amber-800">Modificar configuración</h2>
             </div>
-        </Authorized>
-    </AuthorizeView>
+            <div class="px-6 py-5">
+                <EditForm Model="UpdateInput" FormName="update-setting" OnValidSubmit="UpdateAsync">
+                    <DataAnnotationsValidator />
+                    <SettingFields Model="UpdateInput!" Prefix="UpdateInput" />
+                    <div class="mt-5">
+                        <button type="submit"
+                                class="flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-600 transition-colors shadow-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125" />
+                            </svg>
+                            Modificar
+                        </button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    }
 
     <!-- Eliminar -->
-    <AuthorizeView Policy="@ApplicationPolicies.CanDelete">
-        <Authorized Context="ctx">
-            <div id="eliminar" class="rounded-2xl border border-red-200 bg-white shadow-sm overflow-hidden">
-                <div class="px-6 py-4 bg-red-50 border-b border-red-100 flex items-center gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-5 text-red-600">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
-                    </svg>
-                    <h2 class="text-sm font-bold text-red-800">Eliminar configuración</h2>
-                </div>
-                <div class="px-6 py-5">
-                    <EditForm Model="DeleteInput" FormName="delete-setting" OnValidSubmit="DeleteAsync">
-                        <DataAnnotationsValidator />
-                        <div class="mb-4">
-                            <label class="block text-sm font-semibold text-slate-700 mb-1.5" for="deleteKey">
-                                Clave a eliminar <span class="text-red-500">*</span>
-                            </label>
-                            <InputText id="deleteKey"
-                                       class="block w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 shadow-sm focus:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-400/20"
-                                       @bind-Value="DeleteInput!.Key"
-                                       placeholder="App:Mi:Clave" />
-                            <ValidationMessage For="() => DeleteInput!.Key" />
-                        </div>
-                        <button type="submit"
-                                class="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 transition-colors shadow-sm">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
-                            </svg>
-                            Eliminar
-                        </button>
-                    </EditForm>
-                </div>
+    @if (canDelete)
+    {
+        <div id="eliminar" class="rounded-2xl border border-red-200 bg-white shadow-sm overflow-hidden">
+            <div class="px-6 py-4 bg-red-50 border-b border-red-100 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-5 text-red-600">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                </svg>
+                <h2 class="text-sm font-bold text-red-800">Eliminar configuración</h2>
             </div>
-        </Authorized>
-    </AuthorizeView>
+            <div class="px-6 py-5">
+                <EditForm Model="DeleteInput" FormName="delete-setting" OnValidSubmit="DeleteAsync">
+                    <DataAnnotationsValidator />
+                    <div class="mb-4">
+                        <label class="block text-sm font-semibold text-slate-700 mb-1.5" for="deleteKey">
+                            Clave a eliminar <span class="text-red-500">*</span>
+                        </label>
+                        <input id="deleteKey"
+                               name="DeleteInput.Key"
+                               type="text"
+                               value="@DeleteInput!.Key"
+                               placeholder="App:Mi:Clave"
+                               class="block w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 shadow-sm focus:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-400/20" />
+                    </div>
+                    <button type="submit"
+                            class="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 transition-colors shadow-sm">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                        </svg>
+                        Eliminar
+                    </button>
+                </EditForm>
+            </div>
+        </div>
+    }
 
 </div>
 
@@ -189,11 +189,29 @@
     private string? message;
     private string messageType = "info";
 
+    // Permisos computados sincrónicamente en OnInitializedAsync
+    private bool canAdd;
+    private bool canModify;
+    private bool canDelete;
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
     protected override async Task OnInitializedAsync()
     {
-        SaveInput ??= new();
+        SaveInput   ??= new();
         UpdateInput ??= new();
         DeleteInput ??= new();
+
+        if (AuthenticationStateTask is not null)
+        {
+            var authState = await AuthenticationStateTask;
+            var user = authState.User;
+            canAdd    = (await AuthorizationService.AuthorizeAsync(user, ApplicationPolicies.CanAdd)).Succeeded;
+            canModify = (await AuthorizationService.AuthorizeAsync(user, ApplicationPolicies.CanModify)).Succeeded;
+            canDelete = (await AuthorizationService.AuthorizeAsync(user, ApplicationPolicies.CanDelete)).Succeeded;
+        }
+
         await LoadAsync();
     }
 

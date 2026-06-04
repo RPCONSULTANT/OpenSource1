@@ -27,7 +27,15 @@ public sealed class UpdateEntradaCommandHandler(IUnitOfWork unitOfWork)
         repository.Update(entrada);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
-        return new(entrada.Id, entrada.Titulo, entrada.Descripcion, entrada.Tipo, entrada.Estado,
-                   entrada.CreatedAtUtc, entrada.UpdatedAtUtc);
+        return new EntradaResponse
+        {
+            Id          = entrada.Id,
+            Titulo      = entrada.Titulo,
+            Descripcion = entrada.Descripcion,
+            Tipo        = entrada.Tipo,
+            Estado      = entrada.Estado,
+            CreatedAtUtc = entrada.CreatedAtUtc.UtcDateTime,
+            UpdatedAtUtc = entrada.UpdatedAtUtc?.UtcDateTime
+        };
     }
 }

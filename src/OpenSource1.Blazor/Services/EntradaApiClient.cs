@@ -6,8 +6,22 @@ namespace OpenSource1.Blazor.Services;
 
 public sealed class EntradaApiClient(HttpClient httpClient, ILogger<EntradaApiClient> logger) : IEntradaApiClient
 {
-    public async Task<IReadOnlyList<EntradaResponse>> ListAsync(CancellationToken cancellationToken = default) =>
-        await httpClient.GetFromJsonAsync<IReadOnlyList<EntradaResponse>>("api/entradas", cancellationToken) ?? [];
+    public async Task<IReadOnlyList<EntradaResponse>> ListAsync(CancellationToken cancellationToken = default)
+    {
+        using var response = await httpClient.GetAsync("api/entradas", cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var body = await response.Content.ReadAsStringAsync(cancellationToken);
+            logger.LogWarning("Entradas LIST returned {StatusCode}. Body: {Body}", response.StatusCode, body);
+            throw new HttpRequestException(
+                $"El servidor devolvió {(int)response.StatusCode} al obtener las entradas.",
+                inner: null,
+                statusCode: response.StatusCode);
+        }
+
+        return await response.Content.ReadFromJsonAsync<IReadOnlyList<EntradaResponse>>(cancellationToken) ?? [];
+    }
 
     public async Task<EntradaOperationResult> CreateAsync(EntradaInput input, CancellationToken cancellationToken = default)
     {

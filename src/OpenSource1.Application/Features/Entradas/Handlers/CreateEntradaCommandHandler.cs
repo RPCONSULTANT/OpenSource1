@@ -26,6 +26,14 @@ public sealed class CreateEntradaCommandHandler(IUnitOfWork unitOfWork)
         return ToResponse(entrada);
     }
 
-    private static EntradaResponse ToResponse(Entrada e) =>
-        new(e.Id, e.Titulo, e.Descripcion, e.Tipo, e.Estado, e.CreatedAtUtc, e.UpdatedAtUtc);
+    private static EntradaResponse ToResponse(Entrada e) => new()
+    {
+        Id          = e.Id,
+        Titulo      = e.Titulo,
+        Descripcion = e.Descripcion,
+        Tipo        = e.Tipo,
+        Estado      = e.Estado,
+        CreatedAtUtc = e.CreatedAtUtc.UtcDateTime,
+        UpdatedAtUtc = e.UpdatedAtUtc?.UtcDateTime
+    };
 }

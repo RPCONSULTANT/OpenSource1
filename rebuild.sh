@@ -6,6 +6,11 @@
 #   ./rebuild.sh          → rebuild completo sin cache (recompila todo)
 #   ./rebuild.sh --soft   → rebuild con cache de capas (solo si cambiaron fuentes)
 #   ./rebuild.sh --down   → solo detiene y elimina contenedores/volúmenes de app
+#
+# IMPORTANTE: Usar siempre este script o 'docker compose build' para que
+# las imágenes usen el tag ':local' definido en docker-compose.yml.
+# NO usar 'docker build -f Dockerfile.* -t ...' directamente (genera tag ':latest'
+# que docker compose ignora).
 # ──────────────────────────────────────────────────────────────────
 set -euo pipefail
 

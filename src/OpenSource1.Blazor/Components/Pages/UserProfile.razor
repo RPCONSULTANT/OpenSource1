@@ -115,7 +115,6 @@ else
                     Asignar rol
                 </h2>
                 <EditForm Model="AssignRoleInput" FormName="assign-role" OnValidSubmit="AssignRoleAsync">
-                    <AntiforgeryToken />
                     <input type="hidden" name="AssignRoleInput.UserId" value="@UserId" />
                     <div class="flex items-center gap-3 flex-wrap">
                         <InputSelect @bind-Value="AssignRoleInput!.Role"
@@ -149,7 +148,6 @@ else
                             <!-- Un form por rol; mismo @formname "remove-role":
                                  el handler discrimina por el campo Role en el body -->
                             <EditForm Model="RemoveRoleInput" FormName="remove-role" OnValidSubmit="RemoveRoleAsync">
-                                <AntiforgeryToken />
                                 <input type="hidden" name="RemoveRoleInput.UserId" value="@UserId" />
                                 <input type="hidden" name="RemoveRoleInput.Role" value="@role" />
                                 <button type="submit"
@@ -184,7 +182,6 @@ else
                     }
                 </p>
                 <EditForm Model="ToggleActiveInput" FormName="toggle-active" OnValidSubmit="ToggleActiveAsync">
-                    <AntiforgeryToken />
                     <input type="hidden" name="ToggleActiveInput.UserId" value="@UserId" />
                     <button type="submit"
                             class="@(user.IsActive
