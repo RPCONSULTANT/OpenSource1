@@ -44,6 +44,48 @@ public sealed class AuthController(IAuthService authService) : ControllerBase
             : Ok(response);
     }
 
+    [HttpPost("forgot-password")]
+    [AllowAnonymous]
+    [ProducesResponseType<PasswordActionResponse>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<PasswordActionResponse>> ForgotPassword(
+        ForgotPasswordRequest request,
+        CancellationToken cancellationToken)
+    {
+        var response = await authService.ForgotPasswordAsync(request, cancellationToken);
+        return Ok(response);
+    }
+
+    [HttpPost("reset-password")]
+    [AllowAnonymous]
+    [ProducesResponseType<PasswordActionResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<AuthErrorResponse>(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<PasswordActionResponse>> ResetPassword(
+        ResetPasswordRequest request,
+        CancellationToken cancellationToken)
+    {
+        var (response, errors) = await authService.ResetPasswordAsync(request, cancellationToken);
+
+        return response is null
+            ? BadRequest(new AuthErrorResponse("Password reset failed.", errors))
+            : Ok(response);
+    }
+
+    [Authorize]
+    [HttpPost("change-password")]
+    [ProducesResponseType<PasswordActionResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<AuthErrorResponse>(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<PasswordActionResponse>> ChangePassword(
+        ChangePasswordRequest request,
+        CancellationToken cancellationToken)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? string.Empty;
+        var (response, errors) = await authService.ChangePasswordAsync(userId, request, cancellationToken);
+
+        return response is null
+            ? BadRequest(new AuthErrorResponse("Password change failed.", errors))
+            : Ok(response);
+    }
+
     [Authorize]
     [HttpGet("me")]
     [ProducesResponseType<CurrentUserResponse>(StatusCodes.Status200OK)]

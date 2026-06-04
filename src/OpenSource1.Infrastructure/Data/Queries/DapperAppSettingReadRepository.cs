@@ -10,9 +10,9 @@ public sealed class DapperAppSettingReadRepository(IDbConnectionFactory connecti
     public async Task<AppSettingResponse?> GetByKeyAsync(string key, CancellationToken cancellationToken = default)
     {
         const string sql = """
-            SELECT Id, [Key], [Value], [Description], CreatedAtUtc, UpdatedAtUtc
-            FROM AppSettings
-            WHERE [Key] = @Key
+            SELECT "Id", "Key", "Value", "Description", "CreatedAtUtc", "UpdatedAtUtc"
+            FROM "AppSettings"
+            WHERE "Key" = @Key
             """;
 
         using var connection = await connectionFactory.CreateOpenConnectionAsync(cancellationToken);
@@ -23,9 +23,9 @@ public sealed class DapperAppSettingReadRepository(IDbConnectionFactory connecti
     public async Task<IReadOnlyList<AppSettingResponse>> ListAsync(CancellationToken cancellationToken = default)
     {
         const string sql = """
-            SELECT Id, [Key], [Value], [Description], CreatedAtUtc, UpdatedAtUtc
-            FROM AppSettings
-            ORDER BY [Key]
+            SELECT "Id", "Key", "Value", "Description", "CreatedAtUtc", "UpdatedAtUtc"
+            FROM "AppSettings"
+            ORDER BY "Key"
             """;
 
         using var connection = await connectionFactory.CreateOpenConnectionAsync(cancellationToken);

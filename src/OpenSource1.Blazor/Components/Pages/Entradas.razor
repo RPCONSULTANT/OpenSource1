@@ -1,0 +1,531 @@
+@page "/entradas"
+@attribute [Authorize(Policy = ApplicationPolicies.CanConsult)]
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Authorization
+@using OpenSource1.Application.Features.Entradas.Dtos
+@using OpenSource1.Application.Security
+@using OpenSource1.Blazor.Services
+@inject IEntradaApiClient EntradaApiClient
+@inject IAuthorizationService AuthorizationService
+@inject ILogger<Entradas> Logger
+@inject NavigationManager Nav
+
+<PageTitle>Entradas – AxionERP</PageTitle>
+
+<!-- Encabezado -->
+<div class="mb-6">
+    <p class="text-xs font-bold tracking-widest uppercase text-violet-600 mb-1">Registros operativos</p>
+    <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-7 text-violet-600">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25ZM6.75 12h.008v.008H6.75V12Zm0 3h.008v.008H6.75V15Zm0 3h.008v.008H6.75V18Z" />
+        </svg>
+        Entradas
+    </h1>
+    <p class="text-sm text-slate-500 mt-1">Gestione los registros operativos del sistema. Las acciones disponibles dependen del rol asignado.</p>
+</div>
+
+@* Mensaje de operación *@
+@if (!string.IsNullOrWhiteSpace(message))
+{
+    <div class="mb-6">
+        <MessageBox Type="@messageType" Message="@message" />
+    </div>
+}
+
+<!-- ── Tabla ── -->
+<div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden mb-8">
+    <div class="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-5 text-slate-400">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 0 1-1.125-1.125M3.375 19.5h1.5C5.496 19.5 6 18.996 6 18.375m-3.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125m0 3.75h-1.5A1.125 1.125 0 0 1 18 18.375M20.625 4.5H3.375m17.25 0c.621 0 1.125.504 1.125 1.125M20.625 4.5h-1.5C18.504 4.5 18 5.004 18 5.625m3.75 0v1.5c0 .621-.504 1.125-1.125 1.125M3.375 4.5c-.621 0-1.125.504-1.125 1.125M3.375 4.5h1.5C5.496 4.5 6 5.004 6 5.625m-3.75 0v1.5c0 .621.504 1.125 1.125 1.125m0 0h1.5m-1.5 0c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125m1.5-3.75C5.496 8.25 6 8.754 6 9.375v1.5m0-5.25v5.25m0-5.25C6 5.004 6.504 4.5 7.125 4.5h9.75c.621 0 1.125.504 1.125 1.125m1.125 2.625h1.5m-1.5 0A1.125 1.125 0 0 1 18 7.875v1.5m1.125-1.125c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125M18 5.625v5.25M7.125 12h9.75m-9.75 0A1.125 1.125 0 0 1 6 10.875M7.125 12C6.504 12 6 12.504 6 13.125m0-2.25C6 11.496 5.496 12 4.875 12M18 10.875c0 .621-.504 1.125-1.125 1.125M18 10.875c0 .621.504 1.125 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-9.75 0h9.75" />
+        </svg>
+        <h2 class="text-sm font-semibold text-slate-700">Registros actuales</h2>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-slate-100 text-sm">
+            <thead class="bg-slate-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Título</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Tipo</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Estado</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Descripción</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Registrado</th>
+                    <th class="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Acciones</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-50 bg-white">
+                @if (entradas.Count == 0)
+                {
+                    <tr>
+                        <td colspan="6" class="px-6 py-10 text-center text-slate-400 text-sm">
+                            No hay entradas registradas aún.
+                        </td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var e in entradas)
+                    {
+                        <tr @key="e.Id" class="hover:bg-slate-50 transition-colors">
+                            <td class="px-6 py-3 font-semibold text-slate-800">@e.Titulo</td>
+                            <td class="px-6 py-3">
+                                <span class="inline-flex items-center rounded-full bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-700">@e.Tipo</span>
+                            </td>
+                            <td class="px-6 py-3">
+                                <span class="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">@e.Estado</span>
+                            </td>
+                            <td class="px-6 py-3 text-slate-500 max-w-xs truncate">@(e.Descripcion ?? "—")</td>
+                            <td class="px-6 py-3 text-slate-400 text-xs whitespace-nowrap">
+                                @(e.UpdatedAtUtc?.ToLocalTime().ToString("g") ?? e.CreatedAtUtc.ToLocalTime().ToString("g"))
+                            </td>
+                            <!-- Botones de acción por fila -->
+                            <td class="px-6 py-3 text-right">
+                                <div class="flex items-center justify-end gap-2">
+                                    <AuthorizeView Policy="@ApplicationPolicies.CanModify">
+                                        <Authorized>
+                                            <a href="/entradas?editId=@e.Id"
+                                               title="Editar entrada"
+                                               class="inline-flex items-center justify-center size-8 rounded-lg border border-amber-200 bg-amber-50 text-amber-600 hover:bg-amber-100 hover:border-amber-300 transition-all duration-150">
+                                                <!-- heroicon: pencil-square -->
+                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" />
+                                                </svg>
+                                            </a>
+                                        </Authorized>
+                                    </AuthorizeView>
+                                    <AuthorizeView Policy="@ApplicationPolicies.CanDelete">
+                                        <Authorized>
+                                            <a href="/entradas?deleteId=@e.Id"
+                                               title="Eliminar entrada"
+                                               class="inline-flex items-center justify-center size-8 rounded-lg border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 hover:border-red-300 transition-all duration-150">
+                                                <!-- heroicon: trash -->
+                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                                                </svg>
+                                            </a>
+                                        </Authorized>
+                                    </AuthorizeView>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ── Formulario: Agregar (siempre visible para CanAdd) ── -->
+@if (canAdd)
+{
+    <div class="rounded-2xl border border-green-200 bg-white shadow-sm overflow-hidden max-w-lg">
+            <div class="px-6 py-4 bg-green-50 border-b border-green-100 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-5 text-green-600">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                </svg>
+                <h2 class="text-sm font-bold text-green-800">Agregar nueva entrada</h2>
+            </div>
+            <div class="px-6 py-5">
+                <EditForm Model="CreateInput" FormName="create-entrada" OnValidSubmit="CreateAsync">
+                    <DataAnnotationsValidator />
+                    <EntradaFields Model="CreateInput!" Prefix="CreateInput" />
+                    <div class="mt-5">
+                        <button type="submit"
+                                class="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 transition-colors shadow-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                            </svg>
+                            Agregar entrada
+                        </button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+}
+
+<!-- ══════════════════════════════════════════════════════════
+     MODAL: Editar entrada  (se activa cuando editId está en la URL)
+═══════════════════════════════════════════════════════════ -->
+@if (EditId.HasValue)
+{
+    var editEntry = entradas.FirstOrDefault(e => e.Id == EditId.Value);
+    if (editEntry is not null)
+    {
+        if (canModify)
+        {
+            <!-- Overlay -->
+                <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4 animate-fade-in">
+                    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+
+                        <!-- Header del modal -->
+                        <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-amber-50">
+                            <div class="flex items-center gap-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-5 text-amber-600">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
+                                </svg>
+                                <h2 class="text-sm font-bold text-amber-900">Modificar entrada</h2>
+                            </div>
+                            <a href="/entradas"
+                               title="Cerrar"
+                               class="flex size-7 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+                                </svg>
+                            </a>
+                        </div>
+
+                        <!-- Referencia de la entrada que se edita -->
+                        <div class="px-6 pt-5 pb-1">
+                            <div class="flex items-center gap-2 rounded-xl bg-slate-50 border border-slate-200 px-4 py-3 mb-4">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4 text-slate-400 shrink-0">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
+                                </svg>
+                                <p class="text-xs text-slate-600">
+                                    Editando: <span class="font-semibold text-slate-800">@editEntry.Titulo</span>
+                                    <span class="ml-2 inline-flex items-center rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-semibold text-violet-700">@editEntry.Tipo</span>
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- Formulario de edición -->
+                        <div class="px-6 pb-6">
+                            <EditForm Model="UpdateInput" FormName="update-entrada" OnValidSubmit="PrepareUpdateConfirmation">
+                                <DataAnnotationsValidator />
+                                @if (!string.IsNullOrWhiteSpace(modalError))
+                                {
+                                    <div class="mb-4">
+                                        <MessageBox Type="warning" Message="@modalError" />
+                                    </div>
+                                }
+                                <EntradaFields Model="UpdateInput!" Prefix="UpdateInput" />
+                                <div class="mt-6 flex items-center gap-3">
+                                    <button type="submit"
+                                            class="flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-600 transition-colors shadow-sm">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                                        </svg>
+                                        Revisar cambios
+                                    </button>
+                                    <a href="/entradas"
+                                       class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors shadow-sm">
+                                        Cancelar
+                                    </a>
+                                </div>
+                            </EditForm>
+
+                            <EditForm Model="ConfirmUpdateInput" FormName="confirm-update-entrada" OnValidSubmit="UpdateAsync" class="@(showUpdateConfirmation ? "block" : "hidden")">
+                                @if (showUpdateConfirmation)
+                                {
+                                 <div class="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 animate-fade-in">
+                                    <div class="flex items-start gap-3">
+                                        <div class="flex size-10 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-5">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m0 3.75h.007v.008H12V16.5Zm9-4.5a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                                            </svg>
+                                        </div>
+                                        <div class="min-w-0 flex-1">
+                                            <p class="text-sm font-bold text-amber-900">Confirmar modificación</p>
+                                            <p class="mt-1 text-sm text-amber-800">
+                                                Está a punto de guardar los cambios de <strong>@UpdateInput!.Titulo</strong>.
+                                                Revise la información antes de confirmar.
+                                            </p>
+                                            <dl class="mt-3 grid grid-cols-1 gap-2 text-xs text-amber-900 sm:grid-cols-2">
+                                                <div><dt class="font-semibold">Tipo</dt><dd>@UpdateInput.Tipo</dd></div>
+                                                <div><dt class="font-semibold">Estado</dt><dd>@UpdateInput.Estado</dd></div>
+                                            </dl>
+
+                                            <input type="hidden" name="ConfirmUpdateInput.Titulo" value="@UpdateInput.Titulo" />
+                                            <input type="hidden" name="ConfirmUpdateInput.Descripcion" value="@UpdateInput.Descripcion" />
+                                            <input type="hidden" name="ConfirmUpdateInput.Tipo" value="@UpdateInput.Tipo" />
+                                            <input type="hidden" name="ConfirmUpdateInput.Estado" value="@UpdateInput.Estado" />
+                                            <div class="mt-4 flex flex-wrap items-center gap-3">
+                                                <button type="submit"
+                                                        class="flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700 transition-colors shadow-sm">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                                                    </svg>
+                                                    Sí, guardar cambios
+                                                </button>
+                                                <a href="/entradas?editId=@EditId"
+                                                   class="rounded-lg border border-amber-200 bg-white px-4 py-2 text-sm font-semibold text-amber-700 hover:bg-amber-100 transition-colors shadow-sm">
+                                                    Seguir editando
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                }
+                            </EditForm>
+                        </div>
+
+                    </div>
+                </div>
+            }
+        }
+    }
+}
+
+<!-- ══════════════════════════════════════════════════════════
+     MODAL: Confirmar eliminación  (se activa cuando deleteId está en la URL)
+═══════════════════════════════════════════════════════════ -->
+@if (DeleteId.HasValue)
+{
+    var deleteEntry = entradas.FirstOrDefault(e => e.Id == DeleteId.Value);
+    if (deleteEntry is not null)
+    {
+        if (canDelete)
+        {
+            <!-- Overlay -->
+            <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4 animate-fade-in">
+                    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+
+                        <!-- Header -->
+                        <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-red-50">
+                            <div class="flex items-center gap-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-5 text-red-600">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+                                </svg>
+                                <h2 class="text-sm font-bold text-red-900">Confirmar eliminación</h2>
+                            </div>
+                            <a href="/entradas"
+                               title="Cerrar"
+                               class="flex size-7 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+                                </svg>
+                            </a>
+                        </div>
+
+                        <!-- Cuerpo del confirm -->
+                        <div class="px-6 py-6">
+                            <div class="flex gap-4 mb-6">
+                                <div class="flex size-12 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-6">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <p class="text-sm font-semibold text-slate-800 mb-1">¿Eliminar esta entrada?</p>
+                                    <p class="text-sm text-slate-500">
+                                        Está a punto de eliminar <strong class="text-slate-700">"@deleteEntry.Titulo"</strong>
+                                        (@deleteEntry.Tipo · @deleteEntry.Estado).
+                                        Esta acción <span class="font-semibold text-red-600">no se puede deshacer</span>.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <EditForm Model="DeleteInput" FormName="delete-entrada" OnValidSubmit="DeleteAsync">
+                                @if (!string.IsNullOrWhiteSpace(modalError))
+                                {
+                                    <div class="mb-4">
+                                        <MessageBox Type="warning" Message="@modalError" />
+                                    </div>
+                                }
+                                <div class="flex items-center gap-3">
+                                    <button type="submit"
+                                            class="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 transition-colors shadow-sm">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                                        </svg>
+                                        Sí, eliminar
+                                    </button>
+                                    <a href="/entradas"
+                                       class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors shadow-sm">
+                                        Cancelar
+                                    </a>
+                                </div>
+                            </EditForm>
+                        </div>
+
+                    </div>
+                </div>
+            }
+        }
+    }
+}
+
+@code {
+    // ── Query params que controlan los modales ──
+    [SupplyParameterFromQuery(Name = "editId")]
+    private Guid? EditId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "deleteId")]
+    private Guid? DeleteId { get; set; }
+
+    // Mensaje de éxito pasado por redirect
+    [SupplyParameterFromQuery(Name = "ok")]
+    private string? Ok { get; set; }
+
+    // ── Form models ──
+    [SupplyParameterFromForm(FormName = "create-entrada")]
+    private EntradaForm? CreateInput { get; set; }
+
+    [SupplyParameterFromForm(FormName = "update-entrada")]
+    private EntradaForm? UpdateInput { get; set; }
+
+    [SupplyParameterFromForm(FormName = "confirm-update-entrada")]
+    private EntradaForm? ConfirmUpdateInput { get; set; }
+
+    [SupplyParameterFromForm(FormName = "delete-entrada")]
+    private DeleteConfirmForm? DeleteInput { get; set; }
+
+    private IReadOnlyList<EntradaResponse> entradas = [];
+    private string? message;
+    private string messageType = "info";
+    private string? modalError;   // errores que se muestran dentro del modal activo
+    private bool showUpdateConfirmation;
+
+    // Permisos computados sincrónicamente en OnInitializedAsync
+    // (no se puede usar AuthorizeView como wrapper de EditForm en Static SSR)
+    private bool canAdd;
+    private bool canModify;
+    private bool canDelete;
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        CreateInput ??= new();
+        UpdateInput ??= new();
+        ConfirmUpdateInput ??= new();
+        DeleteInput ??= new();
+
+        // Resolver permisos antes de renderizar los EditForm
+        if (AuthenticationStateTask is not null)
+        {
+            var authState = await AuthenticationStateTask;
+            var user = authState.User;
+            canAdd    = (await AuthorizationService.AuthorizeAsync(user, ApplicationPolicies.CanAdd)).Succeeded;
+            canModify = (await AuthorizationService.AuthorizeAsync(user, ApplicationPolicies.CanModify)).Succeeded;
+            canDelete = (await AuthorizationService.AuthorizeAsync(user, ApplicationPolicies.CanDelete)).Succeeded;
+        }
+
+        await LoadAsync();
+
+        // Mensaje de operación exitosa (viene de redirect tras POST)
+        if (Ok is not null)
+        {
+            (messageType, message) = Ok switch
+            {
+                "created" => ("success", "Entrada registrada correctamente."),
+                "updated" => ("success", "Entrada modificada correctamente."),
+                "deleted" => ("success", "Entrada eliminada correctamente."),
+                _         => ("info",    null!)
+            };
+        }
+
+        // Pre-rellenar el form de edición en GET (cuando llega vía ?editId=)
+        // Si UpdateInput ya tiene datos (viene de un POST con error), no sobreescribir.
+        if (EditId.HasValue && string.IsNullOrEmpty(UpdateInput!.Titulo))
+        {
+            var entry = entradas.FirstOrDefault(e => e.Id == EditId.Value);
+            if (entry is not null)
+            {
+                UpdateInput.Titulo      = entry.Titulo;
+                UpdateInput.Descripcion = entry.Descripcion;
+                UpdateInput.Tipo        = entry.Tipo;
+                UpdateInput.Estado      = entry.Estado;
+            }
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        try   { entradas = await EntradaApiClient.ListAsync(); }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not load entradas from API.");
+            message     = "No fue posible cargar las entradas.";
+            messageType = "danger";
+        }
+    }
+
+    // ── Crear ────────────────────────────────────────────────
+    private async Task CreateAsync()
+    {
+        var result = await EntradaApiClient.CreateAsync(
+            new EntradaInput(
+                CreateInput!.Titulo.Trim(),
+                CreateInput.Descripcion,
+                CreateInput.Tipo.Trim(),
+                CreateInput.Estado.Trim()));
+
+        if (result.Succeeded)
+            Nav.NavigateTo("/entradas?ok=created");
+        else
+        {
+            message     = result.Message;
+            messageType = "warning";
+        }
+    }
+
+    // ── Confirmar modificación antes de persistir ──
+    private Task PrepareUpdateConfirmation()
+    {
+        showUpdateConfirmation = true;
+        modalError = null;
+        return Task.CompletedTask;
+    }
+
+    // ── Modificar  (EditId viene del query string del POST URL) ──
+    private async Task UpdateAsync()
+    {
+        if (!EditId.HasValue)
+        {
+            modalError = "No se pudo identificar la entrada. Intente de nuevo.";
+            return;
+        }
+
+        var result = await EntradaApiClient.UpdateAsync(
+            EditId.Value,
+            new EntradaInput(
+                ConfirmUpdateInput!.Titulo.Trim(),
+                ConfirmUpdateInput.Descripcion,
+                ConfirmUpdateInput.Tipo.Trim(),
+                ConfirmUpdateInput.Estado.Trim()));
+
+        if (result.Succeeded)
+            Nav.NavigateTo("/entradas?ok=updated");
+        else
+            modalError = result.Message;   // queda dentro del modal
+    }
+
+    // ── Eliminar  (DeleteId viene del query string del POST URL) ──
+    private async Task DeleteAsync()
+    {
+        if (!DeleteId.HasValue)
+        {
+            modalError = "No se pudo identificar la entrada. Intente de nuevo.";
+            return;
+        }
+
+        var result = await EntradaApiClient.DeleteAsync(DeleteId.Value);
+
+        if (result.Succeeded)
+            Nav.NavigateTo("/entradas?ok=deleted");
+        else
+            modalError = result.Message;   // queda dentro del modal
+    }
+
+    // ── Form models ──────────────────────────────────────────
+    public class EntradaForm
+    {
+        [Required(ErrorMessage = "El título es obligatorio.")]
+        [MaxLength(200, ErrorMessage = "Máximo 200 caracteres.")]
+        public string Titulo { get; set; } = string.Empty;
+
+        [MaxLength(1000, ErrorMessage = "Máximo 1000 caracteres.")]
+        public string? Descripcion { get; set; }
+
+        [Required(ErrorMessage = "El tipo es obligatorio.")]
+        [MaxLength(100, ErrorMessage = "Máximo 100 caracteres.")]
+        public string Tipo { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "El estado es obligatorio.")]
+        [MaxLength(50, ErrorMessage = "Máximo 50 caracteres.")]
+        public string Estado { get; set; } = string.Empty;
+    }
+
+    // Modelo vacío: solo necesitamos el token antiforgery del EditForm
+    public sealed class DeleteConfirmForm { }
+}

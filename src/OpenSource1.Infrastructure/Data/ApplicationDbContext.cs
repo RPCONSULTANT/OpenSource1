@@ -6,6 +6,7 @@ namespace OpenSource1.Infrastructure.Data;
 public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : DbContext(options)
 {
     public DbSet<AppSetting> AppSettings => Set<AppSetting>();
+    public DbSet<Entrada>    Entradas    => Set<Entrada>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -21,6 +22,18 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.Property(setting => setting.CreatedBy).HasMaxLength(100).IsRequired();
             entity.Property(setting => setting.UpdatedBy).HasMaxLength(100);
             entity.HasIndex(setting => setting.Key).IsUnique();
+        });
+
+        modelBuilder.Entity<Entrada>(entity =>
+        {
+            entity.ToTable("Entradas");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Titulo).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.Descripcion).HasMaxLength(1_000);
+            entity.Property(e => e.Tipo).HasMaxLength(100).IsRequired();
+            entity.Property(e => e.Estado).HasMaxLength(50).IsRequired();
+            entity.Property(e => e.CreatedBy).HasMaxLength(100).IsRequired();
+            entity.Property(e => e.UpdatedBy).HasMaxLength(100);
         });
     }
 }

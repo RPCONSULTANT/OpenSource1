@@ -4,16 +4,24 @@ EXPOSE 8080
 
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
+
+# ── Restaurar dependencias (capa cacheada solo si cambian los .csproj) ──────
 COPY ["test.slnx", "./"]
-COPY ["src/OpenSource1.Core/OpenSource1.Core.csproj", "src/OpenSource1.Core/"]
+COPY ["src/OpenSource1.Core/OpenSource1.Core.csproj",           "src/OpenSource1.Core/"]
 COPY ["src/OpenSource1.Application/OpenSource1.Application.csproj", "src/OpenSource1.Application/"]
 COPY ["src/OpenSource1.Infrastructure/OpenSource1.Infrastructure.csproj", "src/OpenSource1.Infrastructure/"]
-COPY ["src/OpenSource1.Api/OpenSource1.Api.csproj", "src/OpenSource1.Api/"]
+COPY ["src/OpenSource1.Api/OpenSource1.Api.csproj",             "src/OpenSource1.Api/"]
 RUN dotnet restore "src/OpenSource1.Api/OpenSource1.Api.csproj"
+
+# ── Compilar y publicar ──────────────────────────────────────────────────────
 COPY . .
-RUN dotnet publish "src/OpenSource1.Api/OpenSource1.Api.csproj" -c Release -o /app/publish /p:UseAppHost=false
+RUN dotnet publish "src/OpenSource1.Api/OpenSource1.Api.csproj" \
+    -c Release \
+    -o /app/publish \
+    /p:UseAppHost=false
 
 FROM runtime AS final
 WORKDIR /app
 COPY --from=build /app/publish .
 ENTRYPOINT ["dotnet", "OpenSource1.Api.dll"]
+

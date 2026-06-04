@@ -1,10 +1,10 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Npgsql;
 using OpenSource1.Infrastructure.Identity;
 
 namespace OpenSource1.Infrastructure.Data;
@@ -40,9 +40,9 @@ public sealed class DatabaseMigrationHostedService(
         {
             await database.MigrateAsync(cancellationToken);
         }
-        catch (SqlException exception) when (exception.Number == 1801)
+        catch (PostgresException ex) when (ex.SqlState == "42P04") // database already exists
         {
-            logger.LogWarning(exception, "Database already exists while EF was creating it. Retrying migrations.");
+            logger.LogWarning(ex, "PostgreSQL database already exists. Retrying migrations.");
             await database.MigrateAsync(cancellationToken);
         }
     }

@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "skills": {
+    "blazor": {
+      "source": "smithery.ai",
+      "sourceType": "well-known",
+      "computedHash": "f080f78b1ef888fd53a59a67b69aefef3e98f6a360b442d5c39c5941681603e7"
+    }
+  }
+}

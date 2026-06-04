@@ -1,0 +1,324 @@
+@page "/admin/users/{UserId}"
+@attribute [Authorize(Roles = ApplicationRoles.Administrator)]
+@using OpenSource1.Application.Security
+@using OpenSource1.Application.Features.Users.Dtos
+@using OpenSource1.Blazor.Services
+@inject IUserAdminApiClient UserAdminApi
+@inject NavigationManager Nav
+
+<PageTitle>Perfil de Usuario – AxionERP</PageTitle>
+
+<!-- ── Migas de pan ── -->
+<nav class="flex items-center gap-1.5 text-sm text-slate-500 mb-5 animate-fade-in">
+    <a href="/admin/users" class="hover:text-brand-600 transition-colors font-medium">Usuarios</a>
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-3.5 text-slate-400">
+        <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+    </svg>
+    <span class="text-slate-800 font-semibold truncate">@(user?.FullName ?? UserId)</span>
+</nav>
+
+@if (loadError is not null)
+{
+    <MessageBox Type="danger" Message="@loadError" />
+    <div class="mt-4">
+        <a href="/admin/users" class="inline-flex items-center gap-2 text-sm font-semibold text-brand-600 hover:underline">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3" />
+            </svg>
+            Volver a la lista
+        </a>
+    </div>
+}
+else if (user is null)
+{
+    <!-- Skeleton -->
+    <div class="animate-pulse space-y-4">
+        <div class="rounded-2xl border border-slate-200 bg-white shadow-sm p-6 flex items-center gap-4">
+            <div class="size-16 rounded-full bg-slate-200 shrink-0"></div>
+            <div class="flex-1 space-y-2">
+                <div class="h-5 bg-slate-200 rounded w-1/3"></div>
+                <div class="h-3 bg-slate-200 rounded w-1/2"></div>
+                <div class="h-3 bg-slate-200 rounded w-1/4"></div>
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    <!-- ── Feedback ── -->
+    @if (feedbackMessage is not null)
+    {
+        <div class="mb-5">
+            <MessageBox Type="@feedbackType" Message="@feedbackMessage" />
+        </div>
+    }
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-slide-up">
+
+        <!-- ── Tarjeta de datos del usuario ── -->
+        <div class="lg:col-span-1">
+            <div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+                <div class="h-1.5 bg-gradient-to-r from-brand-400 to-brand-600"></div>
+                <div class="p-6 text-center">
+                    <!-- Avatar grande -->
+                    <div class="mx-auto mb-4 flex size-20 items-center justify-center rounded-full bg-brand-100 text-brand-700 font-extrabold text-3xl">
+                        @(user.FullName.Length > 0 ? user.FullName[0].ToString().ToUpper() : "?")
+                    </div>
+                    <p class="text-lg font-extrabold text-slate-900 mb-0.5">@user.FullName</p>
+                    <p class="text-sm text-slate-400 break-all">@user.Email</p>
+
+                    <!-- Estado -->
+                    <div class="mt-3">
+                        @if (user.IsActive)
+                        {
+                            <span class="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-800">
+                                <span class="size-2 rounded-full bg-green-500 inline-block"></span>
+                                Cuenta activa
+                            </span>
+                        }
+                        else
+                        {
+                            <span class="inline-flex items-center gap-1.5 rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-700">
+                                <span class="size-2 rounded-full bg-red-400 inline-block"></span>
+                                Cuenta inactiva
+                            </span>
+                        }
+                    </div>
+
+                    <!-- Roles actuales -->
+                    <div class="mt-4 flex flex-wrap justify-center gap-1.5">
+                        @if (user.Roles.Count == 0)
+                        {
+                            <span class="text-xs text-slate-400 italic">Sin rol asignado</span>
+                        }
+                        else
+                        {
+                            @foreach (var role in user.Roles)
+                            {
+                                <span class="inline-flex items-center rounded-full bg-brand-100 px-2.5 py-0.5 text-xs font-semibold text-brand-800">@role</span>
+                            }
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Panel de acciones ── -->
+        <div class="lg:col-span-2 space-y-5">
+
+            <!-- ── Asignar rol ── -->
+            <div class="rounded-2xl border border-slate-200 bg-white shadow-sm p-6">
+                <h2 class="text-sm font-bold text-slate-700 uppercase tracking-wide mb-4 flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-5 text-brand-500">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                    </svg>
+                    Asignar rol
+                </h2>
+                <EditForm Model="AssignRoleInput" FormName="assign-role" OnValidSubmit="AssignRoleAsync">
+                    <input type="hidden" name="AssignRoleInput.UserId" value="@UserId" />
+                    <div class="flex items-center gap-3 flex-wrap">
+                        <InputSelect @bind-Value="AssignRoleInput!.Role"
+                                     class="flex-1 min-w-[10rem] rounded-lg border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 shadow-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 focus:outline-none">
+                            @foreach (var role in ApplicationRoles.All)
+                            {
+                                <option value="@role">@role</option>
+                            }
+                        </InputSelect>
+                        <button type="submit"
+                                class="rounded-lg bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 active:scale-95 transition-all duration-150 shrink-0">
+                            Asignar
+                        </button>
+                    </div>
+                </EditForm>
+            </div>
+
+            <!-- ── Quitar rol ── -->
+            @if (user.Roles.Count > 0)
+            {
+                <div class="rounded-2xl border border-slate-200 bg-white shadow-sm p-6">
+                    <h2 class="text-sm font-bold text-slate-700 uppercase tracking-wide mb-4 flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-5 text-red-400">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                        </svg>
+                        Quitar rol
+                    </h2>
+                    <div class="flex flex-wrap gap-2">
+                        @foreach (var role in user.Roles)
+                        {
+                            <!-- Un form por rol; mismo @formname "remove-role":
+                                 el handler discrimina por el campo Role en el body -->
+                            <EditForm Model="RemoveRoleInput" FormName="remove-role" OnValidSubmit="RemoveRoleAsync">
+                                <input type="hidden" name="RemoveRoleInput.UserId" value="@UserId" />
+                                <input type="hidden" name="RemoveRoleInput.Role" value="@role" />
+                                <button type="submit"
+                                        class="inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100 active:scale-95 transition-all duration-150">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-3.5">
+                                        <path d="M5.28 4.22a.75.75 0 0 0-1.06 1.06L6.94 8l-2.72 2.72a.75.75 0 1 0 1.06 1.06L8 9.06l2.72 2.72a.75.75 0 1 0 1.06-1.06L9.06 8l2.72-2.72a.75.75 0 0 0-1.06-1.06L8 6.94 5.28 4.22Z" />
+                                    </svg>
+                                    @role
+                                </button>
+                            </EditForm>
+                        }
+                    </div>
+                </div>
+            }
+
+            <!-- ── Toggle activo/inactivo ── -->
+            <div class="rounded-2xl border border-slate-200 bg-white shadow-sm p-6">
+                <h2 class="text-sm font-bold text-slate-700 uppercase tracking-wide mb-4 flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-5 text-slate-400">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 0 1 3 3m3 0a6 6 0 0 1-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1 1 21.75 8.25Z" />
+                    </svg>
+                    Estado de la cuenta
+                </h2>
+                <p class="text-sm text-slate-500 mb-4">
+                    @if (user.IsActive)
+                    {
+                        <span>La cuenta está <strong class="text-green-700">activa</strong>. El usuario puede iniciar sesión.</span>
+                    }
+                    else
+                    {
+                        <span>La cuenta está <strong class="text-red-700">inactiva</strong>. El usuario no puede iniciar sesión.</span>
+                    }
+                </p>
+                <EditForm Model="ToggleActiveInput" FormName="toggle-active" OnValidSubmit="ToggleActiveAsync">
+                    <input type="hidden" name="ToggleActiveInput.UserId" value="@UserId" />
+                    <button type="submit"
+                            class="@(user.IsActive
+                                ? "inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-5 py-2.5 text-sm font-semibold text-red-700 hover:bg-red-100 active:scale-95 transition-all duration-150"
+                                : "inline-flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-5 py-2.5 text-sm font-semibold text-green-700 hover:bg-green-100 active:scale-95 transition-all duration-150")">
+                        @if (user.IsActive)
+                        {
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636" />
+                            </svg>
+                            <span>Desactivar cuenta</span>
+                        }
+                        else
+                        {
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                            </svg>
+                            <span>Activar cuenta</span>
+                        }
+                    </button>
+                </EditForm>
+            </div>
+
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public string UserId { get; set; } = string.Empty;
+
+    [SupplyParameterFromQuery(Name = "ok")]  private string? OkMessage  { get; set; }
+    [SupplyParameterFromQuery(Name = "err")] private string? ErrMessage { get; set; }
+
+    [SupplyParameterFromForm(FormName = "assign-role")]
+    private AssignRoleModel? AssignRoleInput { get; set; }
+
+    [SupplyParameterFromForm(FormName = "remove-role")]
+    private RemoveRoleModel? RemoveRoleInput { get; set; }
+
+    [SupplyParameterFromForm(FormName = "toggle-active")]
+    private ToggleActiveModel? ToggleActiveInput { get; set; }
+
+    private UserSummaryResponse? user;
+    private string? loadError;
+    private string feedbackType = "success";
+    private string? feedbackMessage;
+
+    protected override void OnInitialized()
+    {
+        AssignRoleInput  ??= new() { UserId = UserId, Role = ApplicationRoles.Executor };
+        RemoveRoleInput  ??= new() { UserId = UserId };
+        ToggleActiveInput??= new() { UserId = UserId };
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Mensajes de feedback via query string (redireccionados desde acciones POST)
+        if (OkMessage is not null)
+        {
+            feedbackType = "success";
+            feedbackMessage = Uri.UnescapeDataString(OkMessage);
+        }
+        else if (ErrMessage is not null)
+        {
+            feedbackType = "danger";
+            feedbackMessage = Uri.UnescapeDataString(ErrMessage);
+        }
+
+        await LoadUserAsync();
+    }
+
+    private async Task LoadUserAsync()
+    {
+        var (result, error) = await UserAdminApi.GetByIdAsync(UserId);
+        if (error is not null)
+            loadError = error;
+        else
+            user = result;
+    }
+
+    private async Task AssignRoleAsync()
+    {
+        var input = AssignRoleInput!;
+        var (success, error) = await UserAdminApi.AssignRoleAsync(input.UserId, input.Role);
+        var msg = success
+            ? Uri.EscapeDataString($"Rol '{input.Role}' asignado correctamente.")
+            : Uri.EscapeDataString(error ?? "No se pudo asignar el rol.");
+
+        Nav.NavigateTo($"/admin/users/{UserId}?{(success ? "ok" : "err")}={msg}", forceLoad: false);
+    }
+
+    private async Task RemoveRoleAsync()
+    {
+        var input = RemoveRoleInput!;
+        var (success, error) = await UserAdminApi.RemoveRoleAsync(input.UserId, input.Role);
+        var msg = success
+            ? Uri.EscapeDataString($"Rol '{input.Role}' eliminado correctamente.")
+            : Uri.EscapeDataString(error ?? "No se pudo quitar el rol.");
+
+        Nav.NavigateTo($"/admin/users/{UserId}?{(success ? "ok" : "err")}={msg}", forceLoad: false);
+    }
+
+    private async Task ToggleActiveAsync()
+    {
+        var input = ToggleActiveInput!;
+        var (success, error) = await UserAdminApi.ToggleActiveAsync(input.UserId);
+
+        string msg;
+        if (success)
+        {
+            // Determinamos el nuevo estado tras el toggle
+            var newState = user?.IsActive == true ? "desactivada" : "activada";
+            msg = Uri.EscapeDataString($"Cuenta {newState} correctamente.");
+        }
+        else
+        {
+            msg = Uri.EscapeDataString(error ?? "No se pudo cambiar el estado de la cuenta.");
+        }
+
+        Nav.NavigateTo($"/admin/users/{UserId}?{(success ? "ok" : "err")}={msg}", forceLoad: false);
+    }
+
+    // Modelos ligeros para los forms
+    private sealed class AssignRoleModel
+    {
+        public string UserId { get; set; } = string.Empty;
+        public string Role   { get; set; } = string.Empty;
+    }
+
+    private sealed class RemoveRoleModel
+    {
+        public string UserId { get; set; } = string.Empty;
+        public string Role   { get; set; } = string.Empty;
+    }
+
+    private sealed class ToggleActiveModel
+    {
+        public string UserId { get; set; } = string.Empty;
+    }
+}

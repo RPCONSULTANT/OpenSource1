@@ -1,0 +1,33 @@
+/* ===================================================
+   app.css  –  overrides mínimos sobre Tailwind
+   Tailwind Play CDN maneja el reset y las utilidades.
+   =================================================== */
+
+/* Blazor form-validation state colors */
+.valid.modified:not([type="checkbox"]) {
+    outline: 2px solid #16a34a;
+    outline-offset: 0;
+}
+
+.invalid {
+    outline: 2px solid #dc2626;
+    outline-offset: 0;
+}
+
+.validation-message {
+    color: #dc2626;
+    font-size: 0.8125rem;
+    margin-top: 0.25rem;
+    display: block;
+}
+
+/* Blazor enhanced-nav progress bar */
+.blazor-loading-bar {
+    height: 3px;
+    background: #2155d9;
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 9999;
+    transition: width 0.2s ease;
+}

@@ -2,7 +2,7 @@
 
 Trabajo Final ISO615 UNAPEC.
 
-ASP.NET Core MVC project targeting .NET 10.
+.NET 10 solution with Onion Architecture, ASP.NET Core API, and a Blazor Web App client.
 
 ## Run Locally
 
@@ -16,7 +16,7 @@ dotnet run
 
 The project includes multi-stage Dockerfiles and a `docker-compose.yml` that runs:
 
-- ASP.NET Core MVC app on `http://localhost:8080`
+- Blazor Web App client on `http://localhost:8080`
 - ASP.NET Core API on `http://localhost:8081`
 - SQL Server 2022 Developer on `localhost:1433`
 
@@ -73,7 +73,7 @@ The solution follows Onion Architecture:
 - `OpenSource1.Application`: use cases, CQRS contracts, DTOs, interfaces, MediatR handlers.
 - `OpenSource1.Infrastructure`: EF Core, Identity, Dapper, repositories, Unit of Work and external implementations.
 - `OpenSource1.Api`: HTTP API endpoints.
-- `OpenSource1.Mvc`: MVC presentation application.
+- `OpenSource1.Blazor`: Blazor Web App presentation client.
 
 The data layer uses DDD-friendly abstractions:
 
@@ -109,9 +109,22 @@ Role permissions:
 
 Auth uses ASP.NET Core Identity lockout with 3 failed attempts and JWT Bearer tokens. The `/api/auth/me` endpoint returns the current user's roles and permissions so clients can show/hide UI options by role. Unauthorized operations return `401` or `403` with a safe message.
 
+## Blazor web application UI
+
+The Blazor front-end uses Static SSR and Bulma instead of Bootstrap for a minimal, responsive UI. It authenticates against the API with JWT, then creates a secure HttpOnly cookie for the Blazor client and stores the JWT server-side for API calls. The login screen includes the required form components:
+
+- Label + TextBox for `Usuario`
+- Label + password TextBox for `Contraseña`
+- `Iniciar Sesión` button
+- `Salir` button
+- MessageBox-style notifications using Bulma notifications
+- Main menu with options shown/hidden according to the authenticated role permissions
+
+The Blazor client calls the existing API through typed `HttpClient` services and sends the API JWT with a delegating handler. API endpoints still enforce JWT policies; hiding menu options is only a user experience feature.
+
 ## dotnet skills guidance
 
-This repository includes `.opencode/skills` from `https://github.com/dotnet/skills.git`. The agent workflow should keep using those official skills for templates, Web API, EF Core, MSBuild, testing, diagnostics and .NET best practices before making architectural or code changes.
+This repository includes `.opencode/skills` from `https://github.com/dotnet/skills.git`, merged local Blazor expert skill files, and should also use any installed external Blazor skills after opencode is restarted. The agent workflow should keep using those official skills for templates, Blazor, Web API, EF Core, MSBuild, testing, diagnostics and .NET best practices before making architectural or code changes.
 
 ## Local JWT Auth
 

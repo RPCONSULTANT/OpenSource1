@@ -1,0 +1,70 @@
+@using OpenSource1.Blazor.Components.Pages
+
+@*
+    EntradaFields — campos reutilizables para crear / editar una Entrada.
+
+    Requiere el parámetro Prefix con el nombre exacto de la propiedad
+    [SupplyParameterFromForm] del componente padre:
+      - Crear:  Prefix="CreateInput"
+      - Editar: Prefix="UpdateInput"
+
+    El FormDataMapper de Blazor SSR usa el nombre del parámetro como prefijo,
+    por lo que los inputs deben ser name="CreateInput.Titulo" etc.
+*@
+
+<div class="space-y-4">
+    <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-1.5">
+            Título <span class="text-red-500">*</span>
+        </label>
+        <input type="text"
+               name="@($"{Prefix}.Titulo")"
+               value="@Model.Titulo"
+               placeholder="Título de la entrada"
+               class="block w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 shadow-sm focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-400/20" />
+        <ValidationMessage For="() => Model.Titulo" />
+    </div>
+
+    <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-1.5">Descripción</label>
+        <textarea name="@($"{Prefix}.Descripcion")"
+                  rows="3"
+                  placeholder="Descripción opcional"
+                  class="block w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 shadow-sm focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-400/20 resize-none">@Model.Descripcion</textarea>
+        <ValidationMessage For="() => Model.Descripcion" />
+    </div>
+
+    <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-1.5">
+            Tipo <span class="text-red-500">*</span>
+        </label>
+        <input type="text"
+               name="@($"{Prefix}.Tipo")"
+               value="@Model.Tipo"
+               placeholder="Ej. Contrato, Solicitud, Reporte"
+               class="block w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 shadow-sm focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-400/20" />
+        <ValidationMessage For="() => Model.Tipo" />
+    </div>
+
+    <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-1.5">
+            Estado <span class="text-red-500">*</span>
+        </label>
+        <input type="text"
+               name="@($"{Prefix}.Estado")"
+               value="@Model.Estado"
+               placeholder="Ej. Activo, Pendiente, Cerrado"
+               class="block w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 shadow-sm focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-400/20" />
+        <ValidationMessage For="() => Model.Estado" />
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public Entradas.EntradaForm Model { get; set; } = default!;
+    /// <summary>
+    /// Nombre exacto del parámetro [SupplyParameterFromForm] en el componente padre.
+    /// Blazor SSR usa ese nombre como prefijo en los name= de los inputs.
+    /// Ej: "CreateInput" o "UpdateInput"
+    /// </summary>
+    [Parameter, EditorRequired] public string Prefix { get; set; } = default!;
+}
