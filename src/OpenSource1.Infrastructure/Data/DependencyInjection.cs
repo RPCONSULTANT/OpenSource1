@@ -5,6 +5,7 @@ using OpenSource1.Application.Data;
 using OpenSource1.Application.Data.Repositories;
 using OpenSource1.Application.Data.UnitOfWork;
 using OpenSource1.Application.Features.AppSettings;
+using OpenSource1.Application.Features.Entradas;
 using OpenSource1.Application.Features.Users;
 using OpenSource1.Application.Services.Auth;
 using OpenSource1.Application.Services.Settings;
@@ -38,6 +39,7 @@ public static class DependencyInjection
 
         services.AddScoped<IDbConnectionFactory, NpgsqlConnectionFactory>();
         services.AddScoped<IAppSettingReadRepository, DapperAppSettingReadRepository>();
+        services.AddScoped<IEntradaReadRepository, DapperEntradaReadRepository>();
         services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
         services.AddScoped<IUnitOfWork, OpenSource1.Infrastructure.Data.UnitOfWork.UnitOfWork>();
         services.AddScoped<IAppSettingService, AppSettingService>();
