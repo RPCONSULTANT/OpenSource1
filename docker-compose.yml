@@ -1,10 +1,12 @@
+name: proyecto-opensource1
+
 services:
   blazor:
     build:
       context: .
       dockerfile: Dockerfile.blazor
-    image: opensource1-blazor:local
-    container_name: opensource1-blazor
+    image: ggeasy75/opensource:blazor
+    container_name: Proyecto-OpenSource1-blazor
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:8080
@@ -31,8 +33,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.api
-    image: opensource1-api:local
-    container_name: opensource1-api
+    image: ggeasy75/opensource:api
+    container_name: Proyecto-OpenSource1-api
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:8080
@@ -57,7 +59,7 @@ services:
 
   postgres:
     image: postgres:17-alpine
-    container_name: axionerp-postgres
+    container_name: Proyecto-OpenSource1-postgres
     environment:
       POSTGRES_USER: Rainiery
       POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in a local .env file}"
