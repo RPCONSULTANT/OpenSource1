@@ -99,6 +99,85 @@ public sealed class AuthService(
         return (await CreateAuthResponseAsync(user), []);
     }
 
+    public async Task<PasswordActionResponse> ForgotPasswordAsync(
+        ForgotPasswordRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.UserNameOrEmail);
+
+        var user = await FindUserAsync(request.UserNameOrEmail);
+
+        if (user is null || !user.IsActive)
+        {
+            return new PasswordActionResponse("Si la cuenta existe, se generó una solicitud de restablecimiento.");
+        }
+
+        var token = await userManager.GeneratePasswordResetTokenAsync(user);
+
+        return new PasswordActionResponse(
+            "Solicitud generada correctamente. Use el token mostrado para restablecer la contraseña.",
+            token);
+    }
+
+    public async Task<(PasswordActionResponse? Response, IReadOnlyList<string> Errors)> ResetPasswordAsync(
+        ResetPasswordRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.UserNameOrEmail);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.Token);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.NewPassword);
+
+        var user = await FindUserAsync(request.UserNameOrEmail);
+        if (user is null || !user.IsActive)
+        {
+            return (null, ["No fue posible restablecer la contraseña. Verifique los datos e intente nuevamente."]);
+        }
+
+        var result = await userManager.ResetPasswordAsync(user, request.Token, request.NewPassword);
+        if (!result.Succeeded)
+        {
+            return (null, result.Errors.Select(e => TranslateIdentityError(e.Code, e.Description)).ToArray());
+        }
+
+        await userManager.ResetAccessFailedCountAsync(user);
+
+        return (new PasswordActionResponse("Contraseña restablecida correctamente. Ya puede iniciar sesión."), []);
+    }
+
+    public async Task<(PasswordActionResponse? Response, IReadOnlyList<string> Errors)> ChangePasswordAsync(
+        string userId,
+        ChangePasswordRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(userId);
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.CurrentPassword);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.NewPassword);
+
+        var user = await userManager.FindByIdAsync(userId);
+        if (user is null || !user.IsActive)
+        {
+            return (null, ["No fue posible identificar la cuenta autenticada."]);
+        }
+
+        var result = await userManager.ChangePasswordAsync(user, request.CurrentPassword, request.NewPassword);
+        if (!result.Succeeded)
+        {
+            return (null, result.Errors.Select(e => TranslateIdentityError(e.Code, e.Description)).ToArray());
+        }
+
+        await userManager.ResetAccessFailedCountAsync(user);
+
+        return (new PasswordActionResponse("Contraseña cambiada correctamente."), []);
+    }
+
+    private async Task<Usuario?> FindUserAsync(string userNameOrEmail) =>
+        userNameOrEmail.Contains('@', StringComparison.Ordinal)
+            ? await userManager.FindByEmailAsync(userNameOrEmail)
+            : await userManager.FindByNameAsync(userNameOrEmail);
+
     private async Task<AuthResponse> CreateAuthResponseAsync(Usuario user)
     {
         var expiresAtUtc = DateTimeOffset.UtcNow.AddMinutes(_jwtOptions.ExpirationMinutes);
@@ -169,6 +248,8 @@ public sealed class AuthService(
         "DuplicateEmail"      => "Ya existe una cuenta registrada con ese correo electrónico.",
         "InvalidEmail"        => "El correo electrónico ingresado no es válido.",
         "InvalidUserName"     => "El nombre de usuario contiene caracteres no permitidos.",
+        "PasswordMismatch"    => "La contraseña actual no es correcta.",
+        "InvalidToken"        => "El token de restablecimiento no es válido o ya expiró.",
         "PasswordTooShort"    => "La contraseña debe tener al menos 8 caracteres.",
         "PasswordRequiresDigit"     => "La contraseña debe incluir al menos un número.",
         "PasswordRequiresUpper"     => "La contraseña debe incluir al menos una letra mayúscula.",

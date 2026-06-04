@@ -188,7 +188,7 @@
 
                         <!-- Formulario de edición -->
                         <div class="px-6 pb-6">
-                            <EditForm Model="UpdateInput" FormName="update-entrada" OnValidSubmit="UpdateAsync">
+                            <EditForm Model="UpdateInput" FormName="update-entrada" OnValidSubmit="PrepareUpdateConfirmation">
                                 <DataAnnotationsValidator />
                                 @if (!string.IsNullOrWhiteSpace(modalError))
                                 {
@@ -203,13 +203,57 @@
                                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
                                             <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
                                         </svg>
-                                        Guardar cambios
+                                        Revisar cambios
                                     </button>
                                     <a href="/entradas"
                                        class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors shadow-sm">
                                         Cancelar
                                     </a>
                                 </div>
+                            </EditForm>
+
+                            <EditForm Model="ConfirmUpdateInput" FormName="confirm-update-entrada" OnValidSubmit="UpdateAsync" class="@(showUpdateConfirmation ? "block" : "hidden")">
+                                @if (showUpdateConfirmation)
+                                {
+                                 <div class="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 animate-fade-in">
+                                    <div class="flex items-start gap-3">
+                                        <div class="flex size-10 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-5">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m0 3.75h.007v.008H12V16.5Zm9-4.5a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                                            </svg>
+                                        </div>
+                                        <div class="min-w-0 flex-1">
+                                            <p class="text-sm font-bold text-amber-900">Confirmar modificación</p>
+                                            <p class="mt-1 text-sm text-amber-800">
+                                                Está a punto de guardar los cambios de <strong>@UpdateInput!.Titulo</strong>.
+                                                Revise la información antes de confirmar.
+                                            </p>
+                                            <dl class="mt-3 grid grid-cols-1 gap-2 text-xs text-amber-900 sm:grid-cols-2">
+                                                <div><dt class="font-semibold">Tipo</dt><dd>@UpdateInput.Tipo</dd></div>
+                                                <div><dt class="font-semibold">Estado</dt><dd>@UpdateInput.Estado</dd></div>
+                                            </dl>
+
+                                            <input type="hidden" name="ConfirmUpdateInput.Titulo" value="@UpdateInput.Titulo" />
+                                            <input type="hidden" name="ConfirmUpdateInput.Descripcion" value="@UpdateInput.Descripcion" />
+                                            <input type="hidden" name="ConfirmUpdateInput.Tipo" value="@UpdateInput.Tipo" />
+                                            <input type="hidden" name="ConfirmUpdateInput.Estado" value="@UpdateInput.Estado" />
+                                            <div class="mt-4 flex flex-wrap items-center gap-3">
+                                                <button type="submit"
+                                                        class="flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700 transition-colors shadow-sm">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                                                    </svg>
+                                                    Sí, guardar cambios
+                                                </button>
+                                                <a href="/entradas?editId=@EditId"
+                                                   class="rounded-lg border border-amber-200 bg-white px-4 py-2 text-sm font-semibold text-amber-700 hover:bg-amber-100 transition-colors shadow-sm">
+                                                    Seguir editando
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                }
                             </EditForm>
                         </div>
 
@@ -318,6 +362,9 @@
     [SupplyParameterFromForm(FormName = "update-entrada")]
     private EntradaForm? UpdateInput { get; set; }
 
+    [SupplyParameterFromForm(FormName = "confirm-update-entrada")]
+    private EntradaForm? ConfirmUpdateInput { get; set; }
+
     [SupplyParameterFromForm(FormName = "delete-entrada")]
     private DeleteConfirmForm? DeleteInput { get; set; }
 
@@ -325,6 +372,7 @@
     private string? message;
     private string messageType = "info";
     private string? modalError;   // errores que se muestran dentro del modal activo
+    private bool showUpdateConfirmation;
 
     // Permisos computados sincrónicamente en OnInitializedAsync
     // (no se puede usar AuthorizeView como wrapper de EditForm en Static SSR)
@@ -339,6 +387,7 @@
     {
         CreateInput ??= new();
         UpdateInput ??= new();
+        ConfirmUpdateInput ??= new();
         DeleteInput ??= new();
 
         // Resolver permisos antes de renderizar los EditForm
@@ -410,6 +459,14 @@
         }
     }
 
+    // ── Confirmar modificación antes de persistir ──
+    private Task PrepareUpdateConfirmation()
+    {
+        showUpdateConfirmation = true;
+        modalError = null;
+        return Task.CompletedTask;
+    }
+
     // ── Modificar  (EditId viene del query string del POST URL) ──
     private async Task UpdateAsync()
     {
@@ -422,10 +479,10 @@
         var result = await EntradaApiClient.UpdateAsync(
             EditId.Value,
             new EntradaInput(
-                UpdateInput!.Titulo.Trim(),
-                UpdateInput.Descripcion,
-                UpdateInput.Tipo.Trim(),
-                UpdateInput.Estado.Trim()));
+                ConfirmUpdateInput!.Titulo.Trim(),
+                ConfirmUpdateInput.Descripcion,
+                ConfirmUpdateInput.Tipo.Trim(),
+                ConfirmUpdateInput.Estado.Trim()));
 
         if (result.Succeeded)
             Nav.NavigateTo("/entradas?ok=updated");

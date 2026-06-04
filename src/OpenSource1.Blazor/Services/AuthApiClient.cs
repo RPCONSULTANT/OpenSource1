@@ -69,4 +69,49 @@ public sealed class AuthApiClient(HttpClient httpClient, ILogger<AuthApiClient> 
             return new AuthResult(null, ["El servicio de registro no está disponible en este momento."]);
         }
     }
+
+    public async Task<PasswordActionResult> ForgotPasswordAsync(ForgotPasswordRequest request, CancellationToken cancellationToken = default) =>
+        await PostPasswordActionAsync("api/auth/forgot-password", request, "No fue posible generar la solicitud de recuperación.", cancellationToken);
+
+    public async Task<PasswordActionResult> ResetPasswordAsync(ResetPasswordRequest request, CancellationToken cancellationToken = default) =>
+        await PostPasswordActionAsync("api/auth/reset-password", request, "No fue posible restablecer la contraseña.", cancellationToken);
+
+    public async Task<PasswordActionResult> ChangePasswordAsync(ChangePasswordRequest request, CancellationToken cancellationToken = default) =>
+        await PostPasswordActionAsync("api/auth/change-password", request, "No fue posible cambiar la contraseña.", cancellationToken);
+
+    private async Task<PasswordActionResult> PostPasswordActionAsync<TRequest>(
+        string url,
+        TRequest request,
+        string fallbackMessage,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var response = await httpClient.PostAsJsonAsync(url, request, cancellationToken);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var actionResponse = await response.Content.ReadFromJsonAsync<PasswordActionResponse>(cancellationToken);
+                return new PasswordActionResult(actionResponse, []);
+            }
+
+            if (response.StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.Unauthorized)
+            {
+                var error = await response.Content.ReadFromJsonAsync<AuthErrorResponse>(cancellationToken);
+                return new PasswordActionResult(null, error?.Errors.Count > 0 ? error.Errors : [fallbackMessage]);
+            }
+
+            logger.LogWarning("Password action API {Url} returned unexpected status {StatusCode}.", url, response.StatusCode);
+            return new PasswordActionResult(null, [fallbackMessage]);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return new PasswordActionResult(null, ["El servicio tardó demasiado en responder. Intente nuevamente."]);
+        }
+        catch (HttpRequestException ex)
+        {
+            logger.LogWarning(ex, "Password action API {Url} is not available.", url);
+            return new PasswordActionResult(null, ["El servicio de autenticación no está disponible en este momento."]);
+        }
+    }
 }
