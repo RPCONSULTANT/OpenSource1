@@ -141,15 +141,17 @@ The development profiles are configured in `Properties/launchSettings.json`.
 ## Git Flow
 
 - `main`: stable base branch.
-- `qa`: validation branch before release.
+- `qa`/`QA`: validation branch before release.
 - `deploy`: deployment-ready branch.
 
 ## CI workflows and merge prevention
 
-This repository includes two pull request workflows:
+This repository includes four workflows for promotion and validation:
 
-- `.github/workflows/pr-to-qa.yml`: runs restore/build/test for PRs targeting `qa`.
-- `.github/workflows/pr-to-main.yml`: blocks PRs to `main` unless source branch is `qa`, then runs restore/build/test again.
+- `.github/workflows/pr-to-qa.yml`: runs restore/build/test for PRs targeting `qa`/`QA`.
+- `.github/workflows/pr-to-deploy.yml`: blocks PRs to `deploy` unless source branch is `qa`/`QA`, then runs restore/build/test.
+- `.github/workflows/pr-to-main.yml`: blocks PRs to `main` unless source branch is `deploy`, then runs restore/build/test.
+- `.github/workflows/auto-promote-deploy-to-main.yml`: on push to `deploy`, creates/reuses PR `deploy -> main` and enables auto-merge.
 
 A minimum smoke test suite lives in `tests/OpenSource1.SmokeTests`.
 
