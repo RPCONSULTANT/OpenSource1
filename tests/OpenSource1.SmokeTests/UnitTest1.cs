@@ -3,7 +3,7 @@ using OpenSource1.Core.ValueObjects;
 
 namespace OpenSource1.SmokeTests;
 
-public class UnitTest1
+public class UsuarioAndApplicationRolesTests
 {
     [Fact]
     public void Usuario_Constructor_NormalizesValues()
