@@ -1,9 +1,10 @@
-name: PR to Main - Enforce Deploy and Validate
+name: PR to Deploy - Enforce QA and Validate
 
 on:
   pull_request:
     branches:
-      - main
+      - deploy
+      - Deploy
     types:
       - opened
       - synchronize
@@ -11,23 +12,23 @@ on:
       - ready_for_review
 
 jobs:
-  enforce-deploy-source:
-    name: Enforce source branch deploy
+  enforce-qa-source:
+    name: Enforce source branch QA
     if: ${{ !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
     permissions: {}
     steps:
-      - name: Fail if PR source is not deploy
+      - name: Fail if PR source is not QA
         run: |
-          if [ "${{ github.head_ref }}" != "deploy" ] && [ "${{ github.head_ref }}" != "Deploy" ]; then
-            echo "Only PRs from 'deploy' to 'main' are allowed. Current source: '${{ github.head_ref }}'."
+          if [ "${{ github.head_ref }}" != "qa" ] && [ "${{ github.head_ref }}" != "QA" ]; then
+            echo "Only PRs from 'QA' to 'deploy' are allowed. Current source: '${{ github.head_ref }}'."
             exit 1
           fi
 
   validate:
     name: Restore, Build and Test
     if: ${{ !github.event.pull_request.draft }}
-    needs: enforce-deploy-source
+    needs: enforce-qa-source
     runs-on: ubuntu-latest
     permissions:
       contents: read
