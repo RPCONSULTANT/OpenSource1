@@ -1,0 +1,35 @@
+name: PR to QA - Validate
+
+on:
+  pull_request:
+    branches:
+      - qa
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+
+jobs:
+  validate:
+    name: Restore, Build and Test
+    if: ${{ !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore "$GITHUB_WORKSPACE/test.slnx"
+
+      - name: Build
+        run: dotnet build "$GITHUB_WORKSPACE/test.slnx" --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test "$GITHUB_WORKSPACE/test.slnx" --configuration Release --no-build
