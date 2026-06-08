@@ -8,9 +8,10 @@
 #   ./rebuild.sh --down   → solo detiene y elimina contenedores/volúmenes de app
 #
 # IMPORTANTE: Usar siempre este script o 'docker compose build' para que
-# las imágenes usen el tag ':local' definido en docker-compose.yml.
-# NO usar 'docker build -f Dockerfile.* -t ...' directamente (genera tag ':latest'
-# que docker compose ignora).
+# las imágenes usen los tags Docker Hub definidos en docker-compose.yml:
+#   ggeasy75/opensource:api
+#   ggeasy75/opensource:blazor
+# NO usar 'docker build -f Dockerfile.* -t ...' directamente sin esos tags.
 # ──────────────────────────────────────────────────────────────────
 set -euo pipefail
 
@@ -43,7 +44,7 @@ fi
 # ── 2. Eliminar imágenes locales para forzar rebuild desde cero ─────────────
 if [[ "$MODE" == "hard" ]]; then
   echo "▶ Eliminando imágenes locales (hard clean)..."
-  docker rmi opensource1-api:local opensource1-blazor:local 2>/dev/null || true
+  docker rmi ggeasy75/opensource:api ggeasy75/opensource:blazor 2>/dev/null || true
   echo ""
 fi
 

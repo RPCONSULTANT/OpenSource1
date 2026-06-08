@@ -1,7 +1,7 @@
 # ──────────────────────────────────────────────────────────────────
 # Makefile — Comandos de gestión del stack AxionERP
 # ──────────────────────────────────────────────────────────────────
-.PHONY: rebuild up down logs ps clean help
+.PHONY: rebuild soft up down clean push logs logs-api logs-blazor ps help
 
 ## rebuild  → Rebuild limpio sin cache (recompila todo desde cero)
 rebuild:
@@ -22,7 +22,11 @@ down:
 ## clean    → Detiene, elimina contenedores E imágenes locales
 clean:
 	docker compose down --remove-orphans
-	docker rmi opensource1-api:local opensource1-blazor:local 2>/dev/null || true
+	docker rmi ggeasy75/opensource:api ggeasy75/opensource:blazor 2>/dev/null || true
+
+## push     → Sube las imágenes API y Blazor a Docker Hub (ggeasy75/opensource)
+push:
+	docker compose push api blazor
 
 ## logs     → Sigue los logs de todos los servicios
 logs:
