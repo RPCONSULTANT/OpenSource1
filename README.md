@@ -143,3 +143,16 @@ The development profiles are configured in `Properties/launchSettings.json`.
 - `main`: stable base branch.
 - `qa`: validation branch before release.
 - `deploy`: deployment-ready branch.
+
+## CI workflows and merge prevention
+
+This repository includes two pull request workflows:
+
+- `.github/workflows/pr-to-qa.yml`: runs restore/build/test for PRs targeting `qa`.
+- `.github/workflows/pr-to-main.yml`: blocks PRs to `main` unless source branch is `qa`, then runs restore/build/test again.
+
+A minimum smoke test suite lives in `tests/OpenSource1.SmokeTests`.
+
+To complete merge prevention, configure branch protection rules as documented in:
+
+- `.github/branch-protection.md`
