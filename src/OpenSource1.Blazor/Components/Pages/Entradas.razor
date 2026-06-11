@@ -28,7 +28,14 @@
 @if (!string.IsNullOrWhiteSpace(message))
 {
     <div class="mb-6">
-        <MessageBox Type="@messageType" Message="@message" />
+        @if (messageType == "success")
+        {
+            <ActionFeedback Type="success" Message="@message" />
+        }
+        else
+        {
+            <MessageBox Type="@messageType" Message="@message" />
+        }
     </div>
 }
 
@@ -237,49 +244,6 @@
                                 </div>
                             </EditForm>
 
-                            <EditForm Model="ConfirmUpdateInput" FormName="confirm-update-entrada" OnValidSubmit="UpdateAsync" class="@(showUpdateConfirmation ? "block" : "hidden")">
-                                @if (showUpdateConfirmation)
-                                {
-                                 <div class="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 animate-fade-in">
-                                    <div class="flex items-start gap-3">
-                                        <div class="flex size-10 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700">
-                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-5">
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m0 3.75h.007v.008H12V16.5Zm9-4.5a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                                            </svg>
-                                        </div>
-                                        <div class="min-w-0 flex-1">
-                                            <p class="text-sm font-bold text-amber-900">Confirmar modificación</p>
-                                            <p class="mt-1 text-sm text-amber-800">
-                                                Está a punto de guardar los cambios de <strong>@UpdateInput!.Titulo</strong>.
-                                                Revise la información antes de confirmar.
-                                            </p>
-                                            <dl class="mt-3 grid grid-cols-1 gap-2 text-xs text-amber-900 sm:grid-cols-2">
-                                                <div><dt class="font-semibold">Tipo</dt><dd>@UpdateInput.Tipo</dd></div>
-                                                <div><dt class="font-semibold">Estado</dt><dd>@UpdateInput.Estado</dd></div>
-                                            </dl>
-
-                                            <input type="hidden" name="ConfirmUpdateInput.Titulo" value="@UpdateInput.Titulo" />
-                                            <input type="hidden" name="ConfirmUpdateInput.Descripcion" value="@UpdateInput.Descripcion" />
-                                            <input type="hidden" name="ConfirmUpdateInput.Tipo" value="@UpdateInput.Tipo" />
-                                            <input type="hidden" name="ConfirmUpdateInput.Estado" value="@UpdateInput.Estado" />
-                                            <div class="mt-4 flex flex-wrap items-center gap-3">
-                                                <button type="submit"
-                                                         class="btn-press flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700 transition-colors shadow-sm">
-                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-                                                    </svg>
-                                                    Sí, guardar cambios
-                                                </button>
-                                                <a href="/entradas?editId=@EditId"
-                                                   class="rounded-lg border border-amber-200 bg-white px-4 py-2 text-sm font-semibold text-amber-700 hover:bg-amber-100 transition-colors shadow-sm">
-                                                    Seguir editando
-                                                </a>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                }
-                            </EditForm>
                         </div>
 
                     </div>
@@ -287,6 +251,27 @@
             }
         }
     }
+}
+
+@if (showUpdateConfirmation)
+{
+    <ConfirmDialog Title="Confirmar modificación"
+                   Message="Está a punto de guardar los cambios de esta entrada. Revise la información antes de confirmar."
+                   Variant="warning"
+                   CancelHref="@($"/entradas?editId={EditId}")">
+        <div class="rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            <p class="font-semibold">@UpdateInput!.Titulo</p>
+            <p class="mt-1 text-xs">@UpdateInput.Tipo · @UpdateInput.Estado</p>
+        </div>
+        <EditForm Model="ConfirmUpdateInput" FormName="confirm-update-entrada" OnValidSubmit="UpdateAsync" class="mt-4">
+            <input type="hidden" name="ConfirmUpdateInput.Titulo" value="@UpdateInput.Titulo" />
+            <input type="hidden" name="ConfirmUpdateInput.Descripcion" value="@UpdateInput.Descripcion" />
+            <input type="hidden" name="ConfirmUpdateInput.Tipo" value="@UpdateInput.Tipo" />
+            <input type="hidden" name="ConfirmUpdateInput.Estado" value="@UpdateInput.Estado" />
+            <button type="submit" class="btn-press rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-amber-700">Sí, guardar cambios</button>
+            <a href="/entradas?editId=@EditId" class="btn-press ml-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Seguir editando</a>
+        </EditForm>
+    </ConfirmDialog>
 }
 
 <!-- ══════════════════════════════════════════════════════════

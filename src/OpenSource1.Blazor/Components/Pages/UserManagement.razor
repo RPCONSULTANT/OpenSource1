@@ -25,7 +25,14 @@
 @if (feedbackMessage is not null)
 {
     <div class="mb-4">
-        <MessageBox Type="@feedbackType" Message="@feedbackMessage" />
+        @if (feedbackType == "success")
+        {
+            <ActionFeedback Type="success" Message="@feedbackMessage" />
+        }
+        else
+        {
+            <MessageBox Type="@feedbackType" Message="@feedbackMessage" />
+        }
     </div>
 }
 
@@ -162,4 +169,3 @@ else
             users = result;
     }
 }
-

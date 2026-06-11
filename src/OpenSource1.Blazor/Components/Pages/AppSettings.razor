@@ -29,7 +29,14 @@
 @if (!string.IsNullOrWhiteSpace(message))
 {
     <div class="mb-6">
-        <MessageBox Type="@messageType" Message="@message" />
+        @if (messageType == "success")
+        {
+            <ActionFeedback Type="success" Message="@message" />
+        }
+        else
+        {
+            <MessageBox Type="@messageType" Message="@message" />
+        }
     </div>
 }
 
