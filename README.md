@@ -1,161 +1,374 @@
-# OpenSource1
+# AxionERP / OpenSource1
 
-Trabajo Final ISO615 UNAPEC.
+Proyecto final para la materia **DESARROLLO DE SOFTWARE CON TECNOLOGÍAS PROPIETARIAS Y OPEN SOURCE I / ISO-615**.
 
-.NET 10 solution with Onion Architecture, ASP.NET Core API, and a Blazor Web App client.
+**Nombre del proyecto:** Sistema de Gestión Empresarial con Control de Acceso por Roles.
 
-## Run Locally
+AxionERP es una aplicación cliente-servidor construida con **.NET 10**, **ASP.NET Core Web API**, **Blazor Web App Static SSR**, **PostgreSQL**, **ASP.NET Core Identity**, **JWT**, **Entity Framework Core**, **Dapper**, **Tailwind CSS** y arquitectura Onion.
 
+## Resumen del proyecto
 
-```bash
-dotnet restore
-dotnet build
-dotnet run
-```
+El sistema implementa una base funcional para gestión empresarial con:
 
-## Run with Docker Compose
+- Autenticación de usuarios.
+- Roles y permisos.
+- CRUDs conectados a base de datos.
+- Buscadores y consultas.
+- Validaciones.
+- Navegación por módulos.
+- Seguridad básica.
+- Interfaz web amigable.
+- Integración entre frontend, API y base de datos.
 
-The project includes multi-stage Dockerfiles and a `docker-compose.yml` that runs:
+## Tecnologías usadas
 
-- Blazor Web App client on `http://localhost:8080`
-- ASP.NET Core API on `http://localhost:8081`
-- SQL Server 2022 Developer on `localhost:1433`
+| Área | Tecnología |
+| --- | --- |
+| Lenguaje | C# |
+| Backend | ASP.NET Core Web API |
+| Frontend | Blazor Web App Static SSR |
+| Base de datos | PostgreSQL |
+| ORM / datos | Entity Framework Core y Dapper |
+| Seguridad | ASP.NET Core Identity, JWT, cookies HttpOnly |
+| Contenedores | Docker y Docker Compose |
+| Estilos | Tailwind CSS |
+| Control de versiones | Git |
 
-Create a local `.env` file and start the full stack:
+## Arquitectura
 
-```bash
-cp .env.example .env
-docker compose up --build -d
-```
+La solución está organizada con arquitectura Onion:
 
-The app containers use the SQL Server service name `sqlserver` internally. The API container applies EF Core migrations automatically when `Database__ApplyMigrationsOnStartup=true` is set in `docker-compose.yml`.
+| Proyecto | Responsabilidad |
+| --- | --- |
+| `OpenSource1.Core` | Entidades de dominio y abstracciones base. |
+| `OpenSource1.Application` | Casos de uso, DTOs, CQRS, contratos y reglas de aplicación. |
+| `OpenSource1.Infrastructure` | EF Core, Identity, Dapper, repositorios y Unit of Work. |
+| `OpenSource1.Api` | Endpoints HTTP, autenticación JWT y autorización por políticas. |
+| `OpenSource1.Blazor` | Interfaz web Blazor, formularios, menú y consumo de API. |
 
-Stop the stack:
+## Estado actual
 
-```bash
-docker compose down
-```
+Actualmente el proyecto cuenta con:
 
-Remove SQL Server data too:
+- Frontend Blazor en **Static SSR**.
+- API REST con autenticación y autorización.
+- Base de datos PostgreSQL para aplicación e identidad.
+- Docker Compose con API, Blazor y PostgreSQL.
+- Imágenes publicadas en Docker Hub: `ggeasy75/opensource`.
+- CRUD de entradas.
+- CRUD de configuraciones de aplicación.
+- Gestión de usuarios, roles y estado activo/inactivo.
+- Registro, login, logout, recuperación y cambio de contraseña.
+- Menú principal con opciones según rol.
+- Validaciones y mensajes en español.
 
-```bash
-docker compose down -v
-```
+## Cumplimiento del entregable 1
 
-## Local SQL Server
+La **Etapa I — Sistema de Login y Roles** está cubierta con los siguientes puntos:
 
-Create a local `.env` file from the example and set a strong SA password:
+| Requerimiento | Estado |
+| --- | --- |
+| Pantalla de login | Implementada en Blazor. |
+| Usuario y contraseña | Implementados. |
+| Botón iniciar sesión | Implementado. |
+| Validación contra base de datos | Implementada con ASP.NET Core Identity. |
+| Mensajes de error | Implementados. |
+| Bloqueo de acceso incorrecto | Implementado mediante validación y control de autenticación. |
+| Contraseñas ocultas | Implementado en el formulario de login. |
+| Roles requeridos | `Administrador`, `Supervisor`, `Ejecutor`. |
+| Control de acceso por rol | Implementado en UI y API. |
+| Opciones según rol | Implementado en el menú y acciones disponibles. |
+| Permisos insuficientes | Controlados por políticas de autorización. |
+| Menú principal | Implementado. |
+| Formularios | Implementados en Blazor. |
+| Base de datos obligatoria | Implementada con PostgreSQL. |
+| Código fuente | Incluido en el repositorio. |
+| Script / inicialización de BD | Incluido mediante migraciones e inicialización Docker. |
 
-```bash
-cp .env.example .env
-docker compose up -d
-```
+## Roles y permisos
 
-Store the application connection strings with user secrets instead of committing passwords:
+| Rol | Consultar | Agregar | Modificar | Eliminar |
+| --- | --- | --- | --- | --- |
+| `Administrador` | Sí | Sí | Sí | Sí |
+| `Supervisor` | Sí | No | Sí | No |
+| `Ejecutor` | Sí | Sí | No | No |
 
-```bash
-dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Server=localhost,1433;Database=TestAppDb;User Id=sa;Password=<your-password>;TrustServerCertificate=True;MultipleActiveResultSets=True"
-dotnet user-secrets set "ConnectionStrings:IdentityConnection" "Server=localhost,1433;Database=TestIdentityDb;User Id=sa;Password=<your-password>;TrustServerCertificate=True;MultipleActiveResultSets=True"
-```
+Políticas internas usadas por la API:
 
-Apply the EF Core migrations:
+- `CanConsult`
+- `CanAdd`
+- `CanModify`
+- `CanDelete`
 
-```bash
-dotnet tool restore
-dotnet dotnet-ef database update --context ApplicationDbContext
-dotnet dotnet-ef database update --context AppIdentityDbContext
-```
+La interfaz oculta acciones según el rol, pero la seguridad principal se valida en la API con JWT y políticas de autorización.
 
-## Data Access Patterns
+## Usuarios iniciales
 
-The solution follows Onion Architecture:
+Cuando la carga inicial de usuarios está habilitada, se crean estos usuarios:
 
-- `OpenSource1.Core`: enterprise/domain model, aggregate roots and core abstractions.
-- `OpenSource1.Application`: use cases, CQRS contracts, DTOs, interfaces, MediatR handlers.
-- `OpenSource1.Infrastructure`: EF Core, Identity, Dapper, repositories, Unit of Work and external implementations.
-- `OpenSource1.Api`: HTTP API endpoints.
-- `OpenSource1.Blazor`: Blazor Web App presentation client.
-
-The data layer uses DDD-friendly abstractions:
-
-- `AggregateRoot<TKey>` / `IAggregateRoot` for aggregate boundaries.
-- `IGenericRepository<TEntity>` constrained to aggregate roots.
-- `IUnitOfWork` for transaction persistence through `SaveChangesAsync`.
-
-CQRS is implemented with MediatR for `AppSetting`:
-
-- Commands use EF Core through Repository + Unit of Work.
-- Queries use Dapper for lean read models.
-- Identity operations use ASP.NET Core Identity APIs.
-
-This keeps LINQ/EF for aggregate persistence, Dapper for optimized reads, and Identity for user/auth concerns.
-
-## Security, users and permissions
-
-Local seeding creates three users when `UserSeed__Enabled=true` and `UserSeed__DefaultPassword` is supplied through environment variables:
-
-| User | Role |
+| Usuario | Rol |
 | --- | --- |
 | `admin` | `Administrador` |
 | `supervisor` | `Supervisor` |
 | `ejecutor` | `Ejecutor` |
 
-Role permissions:
+Contraseña de desarrollo usada para demostración:
 
-| Role | Add | Modify | Delete | Consult |
-| --- | --- | --- | --- | --- |
-| Administrador | yes | yes | yes | yes |
-| Supervisor | no | yes | no | yes |
-| Ejecutor | yes | no | no | yes |
+```txt
+Password123
+```
 
-Auth uses ASP.NET Core Identity lockout with 3 failed attempts and JWT Bearer tokens. The `/api/auth/me` endpoint returns the current user's roles and permissions so clients can show/hide UI options by role. Unauthorized operations return `401` or `403` with a safe message.
+También existen usuarios de demostración adicionales para pruebas del módulo de usuarios.
 
-## Blazor web application UI
+## Autenticación y seguridad
 
-The Blazor front-end uses Static SSR and Bulma instead of Bootstrap for a minimal, responsive UI. It authenticates against the API with JWT, then creates a secure HttpOnly cookie for the Blazor client and stores the JWT server-side for API calls. The login screen includes the required form components:
+Flujo actual:
 
-- Label + TextBox for `Usuario`
-- Label + password TextBox for `Contraseña`
-- `Iniciar Sesión` button
-- `Salir` button
-- MessageBox-style notifications using Bulma notifications
-- Main menu with options shown/hidden according to the authenticated role permissions
+1. Blazor envía las credenciales a `POST /api/auth/login`.
+2. La API valida el usuario con ASP.NET Core Identity.
+3. La API devuelve un JWT con roles y permisos.
+4. Blazor crea una sesión web con cookie segura HttpOnly.
+5. El JWT se guarda del lado servidor para llamar a la API.
 
-The Blazor client calls the existing API through typed `HttpClient` services and sends the API JWT with a delegating handler. API endpoints still enforce JWT policies; hiding menu options is only a user experience feature.
+El JWT no se guarda en `localStorage`, `sessionStorage` ni en cookies accesibles desde JavaScript.
 
-## dotnet skills guidance
+Endpoints principales:
 
-This repository includes `.opencode/skills` from `https://github.com/dotnet/skills.git`, merged local Blazor expert skill files, and should also use any installed external Blazor skills after opencode is restarted. The agent workflow should keep using those official skills for templates, Blazor, Web API, EF Core, MSBuild, testing, diagnostics and .NET best practices before making architectural or code changes.
+| Endpoint | Descripción |
+| --- | --- |
+| `POST /api/auth/register` | Registro de usuario. |
+| `POST /api/auth/login` | Inicio de sesión y emisión de JWT. |
+| `GET /api/auth/me` | Usuario actual, roles y permisos. |
+| `POST /api/auth/forgot-password` | Solicitud de recuperación de contraseña. |
+| `POST /api/auth/reset-password` | Restablecimiento de contraseña. |
+| `POST /api/auth/change-password` | Cambio de contraseña autenticado. |
 
-## Local JWT Auth
+> Nota: en ambiente local el token de recuperación puede mostrarse en pantalla para fines de demostración. En producción debe enviarse por correo.
 
-JWT settings are configured for local development in `appsettings*.json`.
-Authentication endpoints are available at:
+## Estructura del repositorio
 
-- `POST /api/auth/register`
-- `POST /api/auth/login`
+```txt
+.
+├── src/
+│   ├── OpenSource1.Core/
+│   ├── OpenSource1.Application/
+│   ├── OpenSource1.Infrastructure/
+│   ├── OpenSource1.Api/
+│   └── OpenSource1.Blazor/
+├── tests/OpenSource1.SmokeTests/
+├── Dockerfile.api
+├── Dockerfile.blazor
+├── docker-compose.yml
+├── init-postgres.sh
+├── rebuild.sh
+├── Makefile
+├── auth.http
+├── .env.example
+└── test.slnx
+```
 
-Example requests are included in `auth.http`.
+## Configuración local
 
-The development profiles are configured in `Properties/launchSettings.json`.
+Crear el archivo `.env` desde la plantilla:
 
-## Git Flow
+```bash
+cp .env.example .env
+```
 
-- `main`: stable base branch.
-- `qa`/`QA`: validation branch before release.
-- `deploy`: deployment-ready branch.
+Variables requeridas:
 
-## CI workflows and merge prevention
+```env
+POSTGRES_PASSWORD=Change_this_postgres_password_12345
+JWT_SIGNING_KEY=Change_this_local_jwt_signing_key_1234567890
+AUTH_SEED_DEFAULT_PASSWORD=Change_this_seed_password_12345
+```
 
-This repository includes four workflows for promotion and validation:
+Para usar los usuarios iniciales documentados:
 
-- `.github/workflows/pr-to-qa.yml`: runs restore/build/test for PRs targeting `qa`/`QA`.
-- `.github/workflows/pr-to-deploy.yml`: blocks PRs to `deploy` unless source branch is `qa`/`QA`, then runs restore/build/test.
-- `.github/workflows/pr-to-main.yml`: blocks PRs to `main` unless source branch is `deploy`, then runs restore/build/test.
-- `.github/workflows/auto-promote-deploy-to-main.yml`: on push to `deploy`, creates/reuses PR `deploy -> main` and enables auto-merge.
+```env
+AUTH_SEED_DEFAULT_PASSWORD=Password123
+```
 
-A minimum smoke test suite lives in `tests/OpenSource1.SmokeTests`.
+No subir el archivo `.env` real al repositorio.
 
-To complete merge prevention, configure branch protection rules as documented in:
+## Ejecución con Docker Compose
 
-- `.github/branch-protection.md`
+Levantar el sistema:
+
+```bash
+docker compose up -d
+```
+
+Servicios disponibles:
+
+| Servicio | URL / Puerto |
+| --- | --- |
+| Blazor | <http://localhost:8080> |
+| API | <http://localhost:8081> |
+| PostgreSQL | `localhost:5432` |
+
+Reconstruir desde el código local:
+
+```bash
+docker compose build api blazor
+docker compose up -d
+```
+
+Rebuild limpio:
+
+```bash
+./rebuild.sh
+```
+
+Detener contenedores:
+
+```bash
+docker compose down --remove-orphans
+```
+
+Eliminar también datos persistentes:
+
+```bash
+docker compose down -v
+```
+
+## Ejecución sin Docker
+
+Requiere PostgreSQL local y cadenas de conexión configuradas por variables de entorno, user-secrets o `appsettings.Development.json`.
+
+Restaurar y compilar:
+
+```bash
+dotnet restore test.slnx
+dotnet build test.slnx
+```
+
+Ejecutar API:
+
+```bash
+dotnet run --project src/OpenSource1.Api/OpenSource1.Api.csproj
+```
+
+Ejecutar Blazor:
+
+```bash
+dotnet run --project src/OpenSource1.Blazor/OpenSource1.Blazor.csproj
+```
+
+## Base de datos
+
+El contenedor PostgreSQL crea dos bases de datos:
+
+- `AxionERP_App`
+- `AxionERP_Identity`
+
+La API puede aplicar migraciones automáticamente en Docker mediante `Database__ApplyMigrationsOnStartup=true`.
+
+Volúmenes usados:
+
+| Volumen | Uso |
+| --- | --- |
+| `postgres-data` | Datos persistentes de PostgreSQL. |
+| `dataprotection-keys` | Llaves Data Protection compartidas entre API y Blazor. |
+
+## Pruebas rápidas
+
+Ver contenedores:
+
+```bash
+docker compose ps
+```
+
+Probar login desde la API:
+
+```bash
+curl -X POST http://localhost:8081/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"userNameOrEmail":"admin","password":"Password123"}'
+```
+
+Abrir la interfaz:
+
+```txt
+http://localhost:8080
+```
+
+Documentación interactiva de la API:
+
+```txt
+http://localhost:8081/scalar/v1
+```
+
+## Docker Hub
+
+Repositorio:
+
+```txt
+ggeasy75/opensource
+```
+
+Imágenes principales:
+
+```bash
+docker pull ggeasy75/opensource:api
+docker pull ggeasy75/opensource:blazor
+```
+
+## Git Flow y validación
+
+Ramas principales:
+
+- `main`: rama estable.
+- `qa` / `QA`: validación previa a release.
+- `deploy`: rama lista para despliegue.
+
+El repositorio incluye workflows para validar PRs hacia `qa`, `deploy` y `main`, además de promoción automática de `deploy` hacia `main`.
+
+Las pruebas smoke se encuentran en:
+
+```txt
+tests/OpenSource1.SmokeTests
+```
+
+## Changelog
+
+### Versión 0.1 — Entregable 1
+
+Primera versión del sistema, enfocada en la **Etapa I: Sistema de Login y Roles**.
+
+Incluye:
+
+- Proyecto cliente-servidor en .NET.
+- Backend ASP.NET Core Web API.
+- Frontend Blazor Web App Static SSR.
+- Base de datos PostgreSQL.
+- Arquitectura organizada por capas usando Onion Architecture.
+- Autenticación de usuarios con ASP.NET Core Identity.
+- Inicio de sesión con usuario y contraseña.
+- Contraseñas ocultas en el formulario.
+- Validación de credenciales desde base de datos.
+- Control de acceso incorrecto y mensajes de error.
+- Roles iniciales: `Administrador`, `Supervisor` y `Ejecutor`.
+- Usuarios iniciales: `admin`, `supervisor` y `ejecutor`.
+- Permisos por rol para consultar, agregar, modificar y eliminar.
+- Menú principal con opciones según permisos.
+- Bloqueo de acciones no autorizadas desde UI y API.
+- CRUD funcional de entradas.
+- CRUD funcional de configuraciones.
+- Gestión de usuarios y roles.
+- Consultas y buscadores básicos.
+- Validaciones en formularios.
+- Navegación entre módulos.
+- Docker Compose para ejecutar API, Blazor y PostgreSQL.
+- Scripts y configuración para inicialización de base de datos.
+- Workflows de validación y pruebas smoke.
+
+## Notas de mantenimiento
+
+- Target framework: `net10.0`.
+- Solución: `test.slnx`.
+- Proyecto Blazor: `src/OpenSource1.Blazor/OpenSource1.Blazor.csproj`.
+- Proyecto API: `src/OpenSource1.Api/OpenSource1.Api.csproj`.
+- Los paquetes se gestionan con `PackageReference` directo en cada proyecto.
+- Nullable reference types e implicit usings están habilitados.
+- El frontend Blazor usa Static SSR; no agregar `@rendermode` ni handlers interactivos salvo que se migre explícitamente a modo interactivo.
