@@ -391,8 +391,29 @@ http://localhost:8080
 ## Git Flow
 
 - `main`: rama estable.
-- `qa`: validación previa a release.
+- `qa`/`QA`: validación previa a release.
 - `deploy`: rama lista para despliegue.
+
+## CI workflows and merge prevention
+
+Este repositorio incluye workflows de validación y promoción:
+
+- `.github/workflows/pr-to-qa.yml`: ejecuta restore/build/test para PRs hacia `qa`/`QA`.
+- `.github/workflows/pr-to-deploy.yml`: bloquea PRs hacia `deploy` si la rama origen no es `qa`/`QA`, luego ejecuta restore/build/test.
+- `.github/workflows/pr-to-main.yml`: bloquea PRs hacia `main` si la rama origen no es `deploy`, luego ejecuta restore/build/test.
+- `.github/workflows/auto-promote-deploy-to-main.yml`: al hacer push a `deploy`, crea/reusa PR `deploy -> main` y habilita auto-merge.
+
+La suite mínima de smoke tests vive en:
+
+```txt
+tests/OpenSource1.SmokeTests
+```
+
+Para completar la prevención de merges, configure branch protection según:
+
+```txt
+.github/branch-protection.md
+```
 
 ## Notas para agentes / mantenimiento
 
