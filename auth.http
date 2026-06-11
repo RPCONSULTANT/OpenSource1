@@ -32,6 +32,34 @@ Content-Type: application/json
 GET {{baseUrl}}/api/auth/me
 Authorization: Bearer {{accessToken}}
 
+### Forgot password
+POST {{baseUrl}}/api/auth/forgot-password
+Content-Type: application/json
+
+{
+  "userNameOrEmail": "admin"
+}
+
+### Reset password
+POST {{baseUrl}}/api/auth/reset-password
+Content-Type: application/json
+
+{
+  "userNameOrEmail": "admin",
+  "token": "paste-reset-token-here",
+  "newPassword": "Password123"
+}
+
+### Change password
+POST {{baseUrl}}/api/auth/change-password
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "currentPassword": "Password123",
+  "newPassword": "Password1234"
+}
+
 ### List app settings with JWT
 GET {{baseUrl}}/api/app-settings
 Authorization: Bearer {{accessToken}}
