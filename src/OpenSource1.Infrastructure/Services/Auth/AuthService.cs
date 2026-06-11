@@ -113,11 +113,10 @@ public sealed class AuthService(
             return new PasswordActionResponse("Si la cuenta existe, se generó una solicitud de restablecimiento.");
         }
 
-        var token = await userManager.GeneratePasswordResetTokenAsync(user);
+        _ = await userManager.GeneratePasswordResetTokenAsync(user);
 
         return new PasswordActionResponse(
-            "Solicitud generada correctamente. Use el token mostrado para restablecer la contraseña.",
-            token);
+            "Si la cuenta existe, recibirá instrucciones para restablecer su contraseña.");
     }
 
     public async Task<(PasswordActionResponse? Response, IReadOnlyList<string> Errors)> ResetPasswordAsync(

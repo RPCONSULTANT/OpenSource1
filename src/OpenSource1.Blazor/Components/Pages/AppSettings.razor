@@ -7,6 +7,7 @@
 @inject IAppSettingsApiClient AppSettingsApiClient
 @inject IAuthorizationService AuthorizationService
 @inject ILogger<AppSettings> Logger
+@inject NavigationManager Nav
 
 <PageTitle>Configuraciones – OpenSource1</PageTitle>
 
@@ -48,13 +49,14 @@
                     <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Valor</th>
                     <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Descripción</th>
                     <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Actualizado</th>
+                    <th class="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Acciones</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-slate-50 bg-white">
                 @if (settings.Count == 0)
                 {
                     <tr>
-                        <td colspan="4" class="px-6 py-8 text-center text-slate-400 text-sm">
+                        <td colspan="5" class="px-6 py-8 text-center text-slate-400 text-sm">
                             No hay configuraciones registradas aún.
                         </td>
                     </tr>
@@ -69,6 +71,22 @@
                             <td class="px-6 py-3 text-slate-500">@setting.Description</td>
                             <td class="px-6 py-3 text-slate-400 text-xs">
                                 @(setting.UpdatedAtUtc?.ToLocalTime().ToString("g") ?? setting.CreatedAtUtc.ToLocalTime().ToString("g"))
+                            </td>
+                            <td class="px-6 py-3 text-right">
+                                <div class="flex items-center justify-end gap-2">
+                                    @if (canModify)
+                                    {
+                                        <a href="/app-settings?editKey=@Uri.EscapeDataString(setting.Key)" class="btn-press inline-flex items-center justify-center size-8 rounded-lg border border-amber-200 bg-amber-50 text-amber-600 hover:bg-amber-100" title="Editar configuración">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Z" /></svg>
+                                        </a>
+                                    }
+                                    @if (canDelete)
+                                    {
+                                        <a href="/app-settings?deleteKey=@Uri.EscapeDataString(setting.Key)" class="btn-press inline-flex items-center justify-center size-8 rounded-lg border border-red-200 bg-red-50 text-red-600 hover:bg-red-100" title="Eliminar configuración">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79" /></svg>
+                                        </a>
+                                    }
+                                </div>
                             </td>
                         </tr>
                     }
@@ -92,16 +110,16 @@
                 <h2 class="text-sm font-bold text-green-800">Agregar configuración</h2>
             </div>
             <div class="px-6 py-5">
-                <EditForm Model="SaveInput" FormName="save-setting" OnValidSubmit="CreateAsync">
+                <EditForm Model="SaveInput" FormName="save-setting" OnValidSubmit="PrepareCreateConfirmation">
                     <DataAnnotationsValidator />
                     <SettingFields Model="SaveInput!" Prefix="SaveInput" />
                     <div class="mt-5">
                         <button type="submit"
-                                class="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 transition-colors shadow-sm">
+                                class="btn-press flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 transition-colors shadow-sm">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                             </svg>
-                            Agregar
+                            Revisar y agregar
                         </button>
                     </div>
                 </EditForm>
@@ -120,16 +138,16 @@
                 <h2 class="text-sm font-bold text-amber-800">Modificar configuración</h2>
             </div>
             <div class="px-6 py-5">
-                <EditForm Model="UpdateInput" FormName="update-setting" OnValidSubmit="UpdateAsync">
+                <EditForm Model="UpdateInput" FormName="update-setting" OnValidSubmit="PrepareUpdateConfirmation">
                     <DataAnnotationsValidator />
                     <SettingFields Model="UpdateInput!" Prefix="UpdateInput" />
                     <div class="mt-5">
                         <button type="submit"
-                                class="flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-600 transition-colors shadow-sm">
+                                class="btn-press flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-600 transition-colors shadow-sm">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125" />
                             </svg>
-                            Modificar
+                            Revisar modificación
                         </button>
                     </div>
                 </EditForm>
@@ -137,57 +155,78 @@
         </div>
     }
 
-    <!-- Eliminar -->
-    @if (canDelete)
-    {
-        <div id="eliminar" class="rounded-2xl border border-red-200 bg-white shadow-sm overflow-hidden">
-            <div class="px-6 py-4 bg-red-50 border-b border-red-100 flex items-center gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-5 text-red-600">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
-                </svg>
-                <h2 class="text-sm font-bold text-red-800">Eliminar configuración</h2>
-            </div>
-            <div class="px-6 py-5">
-                <EditForm Model="DeleteInput" FormName="delete-setting" OnValidSubmit="DeleteAsync">
-                    <DataAnnotationsValidator />
-                    <div class="mb-4">
-                        <label class="block text-sm font-semibold text-slate-700 mb-1.5" for="deleteKey">
-                            Clave a eliminar <span class="text-red-500">*</span>
-                        </label>
-                        <input id="deleteKey"
-                               name="DeleteInput.Key"
-                               type="text"
-                               value="@DeleteInput!.Key"
-                               placeholder="App:Mi:Clave"
-                               class="block w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 shadow-sm focus:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-400/20" />
-                    </div>
-                    <button type="submit"
-                            class="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 transition-colors shadow-sm">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
-                        </svg>
-                        Eliminar
-                    </button>
-                </EditForm>
-            </div>
-        </div>
-    }
-
 </div>
+
+@if (showCreateConfirmation)
+{
+    <ConfirmDialog Title="Confirmar creación" Message="Está a punto de crear una configuración de aplicación." Variant="success" CancelHref="/app-settings">
+        <p class="rounded-xl border border-green-100 bg-green-50 px-4 py-3 text-sm font-mono text-green-900">@SaveInput!.Key</p>
+        <EditForm Model="ConfirmSaveInput" FormName="confirm-save-setting" OnValidSubmit="CreateAsync" class="mt-4">
+            <input type="hidden" name="ConfirmSaveInput.Key" value="@SaveInput.Key" />
+            <input type="hidden" name="ConfirmSaveInput.Value" value="@SaveInput.Value" />
+            <input type="hidden" name="ConfirmSaveInput.Description" value="@SaveInput.Description" />
+            <button type="submit" class="btn-press rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-green-700">Sí, crear configuración</button>
+            <a href="/app-settings" class="btn-press ml-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Cancelar</a>
+        </EditForm>
+    </ConfirmDialog>
+}
+
+@if (showUpdateConfirmation)
+{
+    <ConfirmDialog Title="Confirmar modificación" Message="Está a punto de modificar una configuración de aplicación." Variant="warning" CancelHref="/app-settings">
+        <p class="rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm font-mono text-amber-900">@UpdateInput!.Key</p>
+        <EditForm Model="ConfirmUpdateInput" FormName="confirm-update-setting" OnValidSubmit="UpdateAsync" class="mt-4">
+            <input type="hidden" name="ConfirmUpdateInput.Key" value="@UpdateInput.Key" />
+            <input type="hidden" name="ConfirmUpdateInput.Value" value="@UpdateInput.Value" />
+            <input type="hidden" name="ConfirmUpdateInput.Description" value="@UpdateInput.Description" />
+            <button type="submit" class="btn-press rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-amber-700">Sí, guardar cambios</button>
+            <a href="/app-settings" class="btn-press ml-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Cancelar</a>
+        </EditForm>
+    </ConfirmDialog>
+}
+
+@if (!string.IsNullOrWhiteSpace(DeleteKey) && canDelete)
+{
+    <ConfirmDialog Title="Confirmar eliminación" Message="Esta acción eliminará la configuración seleccionada y no se puede deshacer." Variant="danger" CancelHref="/app-settings">
+        <p class="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-mono text-red-900">@DeleteKey</p>
+        <EditForm Model="DeleteInput" FormName="delete-setting" OnValidSubmit="DeleteAsync" class="mt-4">
+            <input type="hidden" name="DeleteInput.Key" value="@DeleteKey" />
+            <button type="submit" class="btn-press rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-700">Sí, eliminar</button>
+            <a href="/app-settings" class="btn-press ml-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Cancelar</a>
+        </EditForm>
+    </ConfirmDialog>
+}
 
 @code {
     [SupplyParameterFromForm(FormName = "save-setting")]
     private SettingForm? SaveInput { get; set; }
 
+    [SupplyParameterFromForm(FormName = "confirm-save-setting")]
+    private SettingForm? ConfirmSaveInput { get; set; }
+
     [SupplyParameterFromForm(FormName = "update-setting")]
     private SettingForm? UpdateInput { get; set; }
+
+    [SupplyParameterFromForm(FormName = "confirm-update-setting")]
+    private SettingForm? ConfirmUpdateInput { get; set; }
 
     [SupplyParameterFromForm(FormName = "delete-setting")]
     private DeleteForm? DeleteInput { get; set; }
 
+    [SupplyParameterFromQuery(Name = "editKey")]
+    private string? EditKey { get; set; }
+
+    [SupplyParameterFromQuery(Name = "deleteKey")]
+    private string? DeleteKey { get; set; }
+
+    [SupplyParameterFromQuery(Name = "ok")]
+    private string? Ok { get; set; }
+
     private IReadOnlyList<AppSettingResponse> settings = [];
     private string? message;
     private string messageType = "info";
+    private bool showCreateConfirmation;
+    private bool showUpdateConfirmation;
 
     // Permisos computados sincrónicamente en OnInitializedAsync
     private bool canAdd;
@@ -200,7 +239,9 @@
     protected override async Task OnInitializedAsync()
     {
         SaveInput   ??= new();
+        ConfirmSaveInput ??= new();
         UpdateInput ??= new();
+        ConfirmUpdateInput ??= new();
         DeleteInput ??= new();
 
         if (AuthenticationStateTask is not null)
@@ -213,6 +254,28 @@
         }
 
         await LoadAsync();
+
+        if (Ok is not null)
+        {
+            (messageType, message) = Ok switch
+            {
+                "created" => ("success", "Configuración creada satisfactoriamente."),
+                "updated" => ("success", "Configuración modificada satisfactoriamente."),
+                "deleted" => ("success", "Configuración eliminada satisfactoriamente."),
+                _ => ("info", null)
+            };
+        }
+
+        if (!string.IsNullOrWhiteSpace(EditKey) && string.IsNullOrWhiteSpace(UpdateInput.Key))
+        {
+            var setting = settings.FirstOrDefault(s => s.Key == EditKey);
+            if (setting is not null)
+            {
+                UpdateInput.Key = setting.Key;
+                UpdateInput.Value = setting.Value;
+                UpdateInput.Description = setting.Description;
+            }
+        }
     }
 
     private async Task LoadAsync()
@@ -228,17 +291,22 @@
         }
     }
 
-    private async Task CreateAsync() => await ExecuteAsync(() => AppSettingsApiClient.CreateAsync(ToInput(SaveInput!)));
-    private async Task UpdateAsync() => await ExecuteAsync(() => AppSettingsApiClient.UpdateAsync(ToInput(UpdateInput!)));
-    private async Task DeleteAsync() => await ExecuteAsync(() => AppSettingsApiClient.DeleteAsync(DeleteInput!.Key.Trim()));
+    private Task PrepareCreateConfirmation() { showCreateConfirmation = true; return Task.CompletedTask; }
+    private Task PrepareUpdateConfirmation() { showUpdateConfirmation = true; return Task.CompletedTask; }
 
-    private async Task ExecuteAsync(Func<Task<AppSettingOperationResult>> operation)
+    private async Task CreateAsync() => await ExecuteAsync(() => AppSettingsApiClient.CreateAsync(ToInput(ConfirmSaveInput!)), "created");
+    private async Task UpdateAsync() => await ExecuteAsync(() => AppSettingsApiClient.UpdateAsync(ToInput(ConfirmUpdateInput!)), "updated");
+    private async Task DeleteAsync() => await ExecuteAsync(() => AppSettingsApiClient.DeleteAsync(DeleteInput!.Key.Trim()), "deleted");
+
+    private async Task ExecuteAsync(Func<Task<AppSettingOperationResult>> operation, string successCode)
     {
         try
         {
             var result = await operation();
-            Show(result.Succeeded ? "success" : "warning", result.Message);
-            if (result.Succeeded) await LoadAsync();
+            if (result.Succeeded)
+                Nav.NavigateTo($"/app-settings?ok={successCode}");
+            else
+                Show("warning", result.Message);
         }
         catch (Exception ex)
         {

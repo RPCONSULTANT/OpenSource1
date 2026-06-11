@@ -31,3 +31,97 @@
     z-index: 9999;
     transition: width 0.2s ease;
 }
+
+/* Shared SSR UI motion */
+.btn-press {
+    transition: transform 140ms ease, background-color 140ms ease, border-color 140ms ease, color 140ms ease, box-shadow 140ms ease;
+}
+
+.btn-press:hover {
+    transform: translateY(-1px);
+}
+
+.btn-press:active {
+    transform: translateY(0) scale(0.96);
+}
+
+.confirm-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    background: rgba(15, 23, 42, 0.55);
+    backdrop-filter: blur(6px);
+}
+
+.confirm-panel {
+    width: min(100%, 34rem);
+    overflow: hidden;
+    border-radius: 1rem;
+    background: #fff;
+    box-shadow: 0 25px 60px rgba(15, 23, 42, 0.28);
+}
+
+.confirm-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    border-bottom-width: 1px;
+    padding: 1rem 1.5rem;
+}
+
+.confirm-icon {
+    display: inline-flex;
+    width: 2.25rem;
+    height: 2.25rem;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9999px;
+}
+
+.confirm-close {
+    display: inline-flex;
+    width: 1.9rem;
+    height: 1.9rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.6rem;
+    color: #64748b;
+}
+
+.confirm-close:hover {
+    background: rgba(148, 163, 184, 0.16);
+    color: #334155;
+}
+
+.animate-fade-in {
+    animation: fade-in 180ms ease-out both;
+}
+
+.animate-modal-in {
+    animation: modal-in 210ms cubic-bezier(.16, 1, .3, 1) both;
+}
+
+.animate-slide-up {
+    animation: slide-up 220ms ease-out both;
+}
+
+@keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes modal-in {
+    from { opacity: 0; transform: translateY(14px) scale(.97); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes slide-up {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}

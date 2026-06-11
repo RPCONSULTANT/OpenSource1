@@ -125,21 +125,46 @@
                 <h2 class="text-sm font-bold text-green-800">Agregar nueva entrada</h2>
             </div>
             <div class="px-6 py-5">
-                <EditForm Model="CreateInput" FormName="create-entrada" OnValidSubmit="CreateAsync">
+                <EditForm Model="CreateInput" FormName="create-entrada" OnValidSubmit="PrepareCreateConfirmation">
                     <DataAnnotationsValidator />
                     <EntradaFields Model="CreateInput!" Prefix="CreateInput" />
                     <div class="mt-5">
                         <button type="submit"
-                                class="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 transition-colors shadow-sm">
+                                class="btn-press flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 transition-colors shadow-sm">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                             </svg>
-                            Agregar entrada
+                            Revisar y agregar
                         </button>
                     </div>
                 </EditForm>
             </div>
         </div>
+}
+
+@if (showCreateConfirmation)
+{
+    <ConfirmDialog Title="Confirmar creación"
+                   Message="Está a punto de crear una nueva entrada. Revise los datos antes de confirmar."
+                   Variant="success"
+                   CancelHref="/entradas">
+        <div class="rounded-xl border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-900">
+            <p class="font-semibold">@CreateInput!.Titulo</p>
+            <p class="mt-1 text-xs">@CreateInput.Tipo · @CreateInput.Estado</p>
+        </div>
+        <EditForm Model="ConfirmCreateInput" FormName="confirm-create-entrada" OnValidSubmit="CreateAsync" class="mt-4">
+            <input type="hidden" name="ConfirmCreateInput.Titulo" value="@CreateInput.Titulo" />
+            <input type="hidden" name="ConfirmCreateInput.Descripcion" value="@CreateInput.Descripcion" />
+            <input type="hidden" name="ConfirmCreateInput.Tipo" value="@CreateInput.Tipo" />
+            <input type="hidden" name="ConfirmCreateInput.Estado" value="@CreateInput.Estado" />
+            <div class="flex flex-wrap items-center gap-3">
+                <button type="submit" class="btn-press inline-flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-green-700">
+                    Sí, crear entrada
+                </button>
+                <a href="/entradas" class="btn-press rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Cancelar</a>
+            </div>
+        </EditForm>
+    </ConfirmDialog>
 }
 
 <!-- ══════════════════════════════════════════════════════════
@@ -199,7 +224,7 @@
                                 <EntradaFields Model="UpdateInput!" Prefix="UpdateInput" />
                                 <div class="mt-6 flex items-center gap-3">
                                     <button type="submit"
-                                            class="flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-600 transition-colors shadow-sm">
+                                            class="btn-press flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-600 transition-colors shadow-sm">
                                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
                                             <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
                                         </svg>
@@ -239,7 +264,7 @@
                                             <input type="hidden" name="ConfirmUpdateInput.Estado" value="@UpdateInput.Estado" />
                                             <div class="mt-4 flex flex-wrap items-center gap-3">
                                                 <button type="submit"
-                                                        class="flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700 transition-colors shadow-sm">
+                                                         class="btn-press flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700 transition-colors shadow-sm">
                                                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
                                                         <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
                                                     </svg>
@@ -322,7 +347,7 @@
                                 }
                                 <div class="flex items-center gap-3">
                                     <button type="submit"
-                                            class="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 transition-colors shadow-sm">
+                                             class="btn-press flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 transition-colors shadow-sm">
                                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
                                             <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
                                         </svg>
@@ -359,6 +384,9 @@
     [SupplyParameterFromForm(FormName = "create-entrada")]
     private EntradaForm? CreateInput { get; set; }
 
+    [SupplyParameterFromForm(FormName = "confirm-create-entrada")]
+    private EntradaForm? ConfirmCreateInput { get; set; }
+
     [SupplyParameterFromForm(FormName = "update-entrada")]
     private EntradaForm? UpdateInput { get; set; }
 
@@ -372,6 +400,7 @@
     private string? message;
     private string messageType = "info";
     private string? modalError;   // errores que se muestran dentro del modal activo
+    private bool showCreateConfirmation;
     private bool showUpdateConfirmation;
 
     // Permisos computados sincrónicamente en OnInitializedAsync
@@ -386,6 +415,7 @@
     protected override async Task OnInitializedAsync()
     {
         CreateInput ??= new();
+        ConfirmCreateInput ??= new();
         UpdateInput ??= new();
         ConfirmUpdateInput ??= new();
         DeleteInput ??= new();
@@ -407,9 +437,9 @@
         {
             (messageType, message) = Ok switch
             {
-                "created" => ("success", "Entrada registrada correctamente."),
-                "updated" => ("success", "Entrada modificada correctamente."),
-                "deleted" => ("success", "Entrada eliminada correctamente."),
+                "created" => ("success", "Entrada creada satisfactoriamente."),
+                "updated" => ("success", "Entrada modificada satisfactoriamente."),
+                "deleted" => ("success", "Entrada eliminada satisfactoriamente."),
                 _         => ("info",    null!)
             };
         }
@@ -441,14 +471,21 @@
     }
 
     // ── Crear ────────────────────────────────────────────────
+    private Task PrepareCreateConfirmation()
+    {
+        showCreateConfirmation = true;
+        modalError = null;
+        return Task.CompletedTask;
+    }
+
     private async Task CreateAsync()
     {
         var result = await EntradaApiClient.CreateAsync(
             new EntradaInput(
-                CreateInput!.Titulo.Trim(),
-                CreateInput.Descripcion,
-                CreateInput.Tipo.Trim(),
-                CreateInput.Estado.Trim()));
+                ConfirmCreateInput!.Titulo.Trim(),
+                ConfirmCreateInput.Descripcion,
+                ConfirmCreateInput.Tipo.Trim(),
+                ConfirmCreateInput.Estado.Trim()));
 
         if (result.Succeeded)
             Nav.NavigateTo("/entradas?ok=created");
