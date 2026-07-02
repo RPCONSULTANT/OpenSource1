@@ -44,6 +44,16 @@ builder.Services.AddHttpClient<IEntradaApiClient, EntradaApiClient>((serviceProv
     var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<ApiClientOptions>>().Value;
     client.BaseAddress = options.BaseAddress;
 }).AddHttpMessageHandler<BearerTokenHandler>();
+builder.Services.AddHttpClient<IClienteApiClient, ClienteApiClient>((serviceProvider, client) =>
+{
+    var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<ApiClientOptions>>().Value;
+    client.BaseAddress = options.BaseAddress;
+}).AddHttpMessageHandler<BearerTokenHandler>();
+builder.Services.AddHttpClient<IProductoApiClient, ProductoApiClient>((serviceProvider, client) =>
+{
+    var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<ApiClientOptions>>().Value;
+    client.BaseAddress = options.BaseAddress;
+}).AddHttpMessageHandler<BearerTokenHandler>();
 
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>

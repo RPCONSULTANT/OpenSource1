@@ -31,6 +31,17 @@ public sealed class UsersController(IUserAdminService userAdminService) : Contro
         return user is null ? NotFound() : Ok(user);
     }
 
+    [HttpPost]
+    [ProducesResponseType(StatusCodes.Status201Created)]
+    [ProducesResponseType<AuthErrorResponse>(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> Create(CreateUserRequest request, CancellationToken cancellationToken)
+    {
+        var (success, errors) = await userAdminService.CreateUserAsync(request, cancellationToken);
+        if (!success)
+            return BadRequest(new AuthErrorResponse("No se pudo crear el usuario.", errors));
+        return CreatedAtAction(nameof(GetById), new { userId = request.Email }, new { message = "Usuario creado." });
+    }
+
     /// <summary>Asigna un rol a un usuario.</summary>
     [HttpPost("assign-role")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -67,6 +78,17 @@ public sealed class UsersController(IUserAdminService userAdminService) : Contro
         if (!success)
             return BadRequest(new AuthErrorResponse("No se pudo cambiar el estado del usuario.", errors));
 
+        return NoContent();
+    }
+
+    [HttpDelete("{userId}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType<AuthErrorResponse>(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> Delete(string userId, CancellationToken cancellationToken)
+    {
+        var (success, errors) = await userAdminService.DeleteUserAsync(userId, cancellationToken);
+        if (!success)
+            return BadRequest(new AuthErrorResponse("No se pudo eliminar el usuario.", errors));
         return NoContent();
     }
 }

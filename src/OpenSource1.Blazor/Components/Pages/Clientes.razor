@@ -1,0 +1,330 @@
+@page "/clientes"
+@attribute [Authorize(Policy = ApplicationPolicies.CanConsult)]
+@using Microsoft.AspNetCore.Authorization
+@using OpenSource1.Application.Features.Clientes.Dtos
+@using OpenSource1.Application.Security
+@using OpenSource1.Blazor.Services
+@inject IClienteApiClient ClienteApiClient
+@inject IAuthorizationService AuthorizationService
+@inject ILogger<Clientes> Logger
+@inject NavigationManager Nav
+
+<PageTitle>Clientes – AxionERP</PageTitle>
+
+<div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+    <div>
+        <p class="text-xs font-bold tracking-widest uppercase text-brand-600 mb-1">Mantenimiento</p>
+        <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">Clientes</h1>
+        <p class="text-sm text-slate-500 mt-1">Listado principal con búsqueda, filtros y acceso a la ficha del cliente.</p>
+    </div>
+
+    <div class="flex items-center gap-3">
+        <a href="@BuildListUrl(showFilters: !ShowFilters)"
+           class="btn-press inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 3c2.755 0 4.174.117 5.126.237 1.01.128 1.816.935 1.944 1.944.12.952.237 2.371.237 5.126s-.117 4.174-.237 5.126a2.25 2.25 0 0 1-1.944 1.944c-.952.12-2.371.237-5.126.237s-4.174-.117-5.126-.237a2.25 2.25 0 0 1-1.944-1.944C4.117 14.174 4 12.755 4 10s.117-4.174.237-5.126a2.25 2.25 0 0 1 1.944-1.944C7.126 2.817 8.545 2.7 11.3 2.7M10.5 10.5l3 3m0-3-3 3" />
+            </svg>
+            @(ShowFilters ? "Ocultar filtros" : "Filtros")
+        </a>
+
+        @if (canAdd)
+        {
+            <a href="/clientes/new"
+               class="btn-press inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                </svg>
+                New
+            </a>
+        }
+    </div>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(message))
+{
+    <div class="mb-6">
+        @if (messageType == "success")
+        {
+            <ActionFeedback Type="success" Message="@message" />
+        }
+        else
+        {
+            <MessageBox Type="@messageType" Message="@message" />
+        }
+    </div>
+}
+
+<div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden mb-8">
+    <form method="get" action="/clientes" data-enhance class="border-b border-slate-100 p-4 sm:p-6">
+        <input type="hidden" name="showFilters" value="@(ShowFilters ? "true" : "false")" />
+
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div class="relative flex-1 max-w-2xl">
+                <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-4.35-4.35m0 0A7.95 7.95 0 1 0 5.4 5.4a7.95 7.95 0 0 0 11.25 11.25Z" />
+                    </svg>
+                </span>
+                <input type="text"
+                       name="q"
+                       value="@SearchText"
+                       placeholder="Buscar por nombre del cliente"
+                       class="block w-full rounded-xl border border-slate-300 bg-slate-50 py-3 pl-10 pr-4 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-600/20" />
+            </div>
+
+            <div class="flex items-center gap-3">
+                <button type="submit" class="btn-press inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-700">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-4.35-4.35m0 0A7.95 7.95 0 1 0 5.4 5.4a7.95 7.95 0 0 0 11.25 11.25Z" />
+                    </svg>
+                    Buscar
+                </button>
+                <a href="/clientes" class="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50">Limpiar</a>
+            </div>
+        </div>
+
+        @if (ShowFilters)
+        {
+            <div class="mt-5 grid grid-cols-1 md:grid-cols-2 gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 animate-fade-in">
+                <div>
+                    <label class="block text-sm font-semibold text-slate-700 mb-1.5">Documento</label>
+                    <input type="text"
+                           name="documento"
+                           value="@SearchDocumento"
+                           placeholder="Filtrar por documento"
+                           class="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20" />
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-slate-700 mb-1.5">Estado</label>
+                    <select name="activo" class="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20">
+                        <option value="" selected="@string.IsNullOrWhiteSpace(SearchActivo)">Todos</option>
+                        <option value="true" selected="@(SearchActivo == "true")">Activo</option>
+                        <option value="false" selected="@(SearchActivo == "false")">Inactivo</option>
+                    </select>
+                </div>
+            </div>
+        }
+    </form>
+
+    <div class="flex items-center justify-between gap-3 px-6 py-4 border-b border-slate-100 bg-slate-50/70">
+        <div>
+            <h2 class="text-sm font-bold text-slate-800">Listado de clientes</h2>
+            <p class="text-xs text-slate-500 mt-0.5">@clientes.Count resultado(s) encontrados.</p>
+        </div>
+    </div>
+
+    @if (clientes.Count == 0)
+    {
+        <div class="px-6 py-14 text-center text-slate-400">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-12 mx-auto mb-3 text-slate-300">
+                <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-4.35-4.35m0 0A7.95 7.95 0 1 0 5.4 5.4a7.95 7.95 0 0 0 11.25 11.25Z" />
+            </svg>
+            <p class="font-semibold text-slate-500">No encontramos clientes con esos criterios.</p>
+        </div>
+    }
+    else
+    {
+        <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 p-4 sm:p-6">
+            @foreach (var cliente in clientes)
+            {
+                <article @key="cliente.Id" class="rounded-2xl border border-slate-200 bg-white shadow-sm hover:shadow-md hover:border-brand-200 transition-all duration-200 overflow-hidden">
+                    <div class="p-5">
+                        <div class="flex items-start justify-between gap-4">
+                            <div>
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <h3 class="text-lg font-extrabold text-slate-900">@cliente.NombreCompleto</h3>
+                                    <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold @(cliente.Activo ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-600")">@(cliente.Activo ? "Activo" : "Inactivo")</span>
+                                </div>
+                                <p class="mt-1 text-sm text-slate-500">Documento: <span class="font-semibold text-slate-700">@cliente.DocumentoIdentidad</span></p>
+                            </div>
+
+                            <div class="flex items-center gap-2">
+                                <a href="/clientes/@cliente.Id"
+                                   class="btn-press inline-flex items-center justify-center size-9 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                                   title="Ver ficha">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12S5.25 5.25 12 5.25 21.75 12 21.75 12 18.75 18.75 12 18.75 2.25 12 2.25 12Z" />
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
+                                    </svg>
+                                </a>
+                                @if (canModify)
+                                {
+                                    <a href="/clientes/@cliente.Id?edit=true"
+                                       class="btn-press inline-flex items-center justify-center size-9 rounded-lg border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
+                                       title="Editar ficha">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z" />
+                                        </svg>
+                                    </a>
+                                }
+                                @if (canDelete)
+                                {
+                                    <a href="@BuildListUrl(deleteId: cliente.Id)"
+                                       class="btn-press inline-flex items-center justify-center size-9 rounded-lg border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+                                       title="Eliminar desde listado">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79" />
+                                        </svg>
+                                    </a>
+                                }
+                            </div>
+                        </div>
+
+                        <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                            <div class="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
+                                <p class="text-xs font-bold uppercase tracking-wide text-slate-400">Correo</p>
+                                <p class="mt-1 text-slate-700 break-all">@cliente.Email</p>
+                            </div>
+                            <div class="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
+                                <p class="text-xs font-bold uppercase tracking-wide text-slate-400">Teléfono</p>
+                                <p class="mt-1 text-slate-700">@(string.IsNullOrWhiteSpace(cliente.Telefono) ? "No indicado" : cliente.Telefono)</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="border-t border-slate-100 px-5 py-3 bg-slate-50/60 flex items-center justify-between gap-3">
+                        <p class="text-xs text-slate-400">Actualizado: @(cliente.UpdatedAtUtc?.ToLocalTime().ToString("g") ?? cliente.CreatedAtUtc.ToLocalTime().ToString("g"))</p>
+                        <a href="/clientes/@cliente.Id" class="text-sm font-semibold text-brand-600 hover:text-brand-700">Abrir ficha</a>
+                    </div>
+                </article>
+            }
+        </div>
+    }
+</div>
+
+@if (DeleteId.HasValue && canDelete)
+{
+    var item = clientes.FirstOrDefault(c => c.Id == DeleteId.Value);
+    <ConfirmDialog Title="Confirmar eliminación"
+                   Message="Esta acción eliminará el cliente seleccionado y no se puede deshacer."
+                   Variant="danger"
+                   CancelHref="@BuildListUrl()">
+        <p class="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-semibold text-red-900">@(item?.NombreCompleto ?? "Cliente seleccionado")</p>
+        @if (!string.IsNullOrWhiteSpace(modalError))
+        {
+            <div class="mt-4"><MessageBox Type="warning" Message="@modalError" /></div>
+        }
+        <EditForm Model="DeleteInput" FormName="delete-cliente-list" OnValidSubmit="DeleteAsync" class="mt-4" Enhance="true">
+            <button type="submit" class="btn-press rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700">Sí, eliminar</button>
+            <a href="@BuildListUrl()" class="btn-press ml-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">Cancelar</a>
+        </EditForm>
+    </ConfirmDialog>
+}
+
+@code {
+    [SupplyParameterFromQuery(Name = "q")] private string? SearchText { get; set; }
+    [SupplyParameterFromQuery(Name = "documento")] private string? SearchDocumento { get; set; }
+    [SupplyParameterFromQuery(Name = "activo")] private string? SearchActivo { get; set; }
+    [SupplyParameterFromQuery(Name = "showFilters")] private bool ShowFilters { get; set; }
+    [SupplyParameterFromQuery(Name = "deleteId")] private Guid? DeleteId { get; set; }
+    [SupplyParameterFromQuery(Name = "ok")] private string? Ok { get; set; }
+    [SupplyParameterFromForm(FormName = "delete-cliente-list")] private DeleteConfirmForm? DeleteInput { get; set; }
+
+    private IReadOnlyList<ClienteResponse> clientes = [];
+    private string? message;
+    private string messageType = "info";
+    private string? modalError;
+    private bool canAdd;
+    private bool canModify;
+    private bool canDelete;
+
+    [CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        DeleteInput ??= new();
+
+        if (AuthenticationStateTask is not null)
+        {
+            var user = (await AuthenticationStateTask).User;
+            canAdd = (await AuthorizationService.AuthorizeAsync(user, ApplicationPolicies.CanAdd)).Succeeded;
+            canModify = (await AuthorizationService.AuthorizeAsync(user, ApplicationPolicies.CanModify)).Succeeded;
+            canDelete = (await AuthorizationService.AuthorizeAsync(user, ApplicationPolicies.CanDelete)).Succeeded;
+        }
+
+        await LoadAsync();
+
+        if (Ok is not null)
+        {
+            (messageType, message) = Ok switch
+            {
+                "created" => ("success", "Cliente creado satisfactoriamente."),
+                "updated" => ("success", "Cliente modificado satisfactoriamente."),
+                "deleted" => ("success", "Cliente eliminado satisfactoriamente."),
+                _ => ("info", null)
+            };
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            clientes = await ClienteApiClient.ListAsync(new ClienteSearchFilter(
+                null,
+                EmptyAsNull(SearchDocumento),
+                EmptyAsNull(SearchText),
+                ParseBool(SearchActivo)));
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not load clientes from API.");
+            message = "No fue posible cargar los clientes.";
+            messageType = "danger";
+        }
+    }
+
+    private async Task DeleteAsync()
+    {
+        if (!DeleteId.HasValue)
+        {
+            modalError = "No se pudo identificar el cliente. Intente de nuevo.";
+            return;
+        }
+
+        var result = await ClienteApiClient.DeleteAsync(DeleteId.Value);
+        if (result.Succeeded)
+        {
+            Nav.NavigateTo(BuildListUrl(ok: "deleted"));
+        }
+        else
+        {
+            modalError = result.Message;
+        }
+    }
+
+    private string BuildListUrl(Guid? deleteId = null, bool? showFilters = null, string? ok = null)
+    {
+        var parameters = new List<string>();
+        AddParameter(parameters, "q", SearchText);
+        AddParameter(parameters, "documento", SearchDocumento);
+        AddParameter(parameters, "activo", SearchActivo);
+
+        var filtersValue = showFilters ?? ShowFilters;
+        if (filtersValue)
+        {
+            parameters.Add("showFilters=true");
+        }
+
+        if (deleteId.HasValue)
+        {
+            AddParameter(parameters, "deleteId", deleteId.Value.ToString());
+        }
+
+        AddParameter(parameters, "ok", ok);
+        return parameters.Count == 0 ? "/clientes" : $"/clientes?{string.Join("&", parameters)}";
+    }
+
+    private static void AddParameter(List<string> parameters, string key, string? value)
+    {
+        if (!string.IsNullOrWhiteSpace(value))
+        {
+            parameters.Add($"{key}={Uri.EscapeDataString(value)}");
+        }
+    }
+
+    private static bool? ParseBool(string? value) => bool.TryParse(value, out var parsed) ? parsed : null;
+    private static string? EmptyAsNull(string? value) => string.IsNullOrWhiteSpace(value) ? null : value;
+
+    private sealed class DeleteConfirmForm { }
+}

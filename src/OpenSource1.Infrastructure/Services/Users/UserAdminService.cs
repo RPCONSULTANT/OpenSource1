@@ -24,6 +24,22 @@ public sealed class UserAdminService(
             roles.ToArray());
     }
 
+    public async Task<(bool Success, IReadOnlyList<string> Errors)> CreateUserAsync(CreateUserRequest request, CancellationToken cancellationToken = default)
+    {
+        var user = new Usuario { UserName = request.Email.Trim(), Email = request.Email.Trim(), FullName = request.FullName.Trim(), IsActive = true };
+        var result = await userManager.CreateAsync(user, request.Password);
+        return result.Succeeded ? (true, Array.Empty<string>()) : (false, result.Errors.Select(e => e.Description).ToArray());
+    }
+
+    public async Task<(bool Success, IReadOnlyList<string> Errors)> DeleteUserAsync(string userId, CancellationToken cancellationToken = default)
+    {
+        var user = await userManager.FindByIdAsync(userId);
+        if (user is null) return (false, ["Usuario no encontrado."]);
+        if (user.UserName == "admin") return (false, ["No se puede eliminar el usuario administrador principal."]);
+        var result = await userManager.DeleteAsync(user);
+        return result.Succeeded ? (true, Array.Empty<string>()) : (false, result.Errors.Select(e => e.Description).ToArray());
+    }
+
     public async Task<IReadOnlyList<UserSummaryResponse>> ListUsersAsync(CancellationToken cancellationToken = default)
     {
         var users = await userManager.Users
@@ -86,6 +102,8 @@ public sealed class UserAdminService(
         var user = await userManager.FindByIdAsync(userId);
         if (user is null)
             return (false, ["Usuario no encontrado."]);
+        if (user.UserName == "admin" && user.IsActive)
+            return (false, ["No se puede desactivar el administrador principal."]);
 
         user.IsActive = !user.IsActive;
         var result = await userManager.UpdateAsync(user);

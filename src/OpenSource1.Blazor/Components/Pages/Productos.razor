@@ -1,0 +1,397 @@
+@page "/productos"
+@attribute [Authorize(Policy = ApplicationPolicies.CanConsult)]
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Authorization
+@using OpenSource1.Application.Features.Productos.Dtos
+@using OpenSource1.Application.Security
+@using OpenSource1.Blazor.Services
+@inject IProductoApiClient ProductoApiClient
+@inject IAuthorizationService AuthorizationService
+@inject ILogger<Productos> Logger
+@inject NavigationManager Nav
+
+<PageTitle>Productos – AxionERP</PageTitle>
+
+<div class="mb-6">
+    <p class="text-xs font-bold tracking-widest uppercase text-brand-600 mb-1">Mantenimiento</p>
+    <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">Productos</h1>
+    <p class="text-sm text-slate-500 mt-1">Consulte, agregue, modifique y elimine productos según sus permisos.</p>
+</div>
+
+<div class="rounded-2xl border border-brand-200 bg-white shadow-sm overflow-hidden mb-8">
+    <div class="px-6 py-4 bg-brand-50 border-b border-brand-100">
+        <h2 class="text-sm font-bold text-brand-800">Consultar registros</h2>
+    </div>
+    <form method="get" action="/productos" data-enhance class="px-6 py-5">
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1.5">ID</label>
+                <input type="text" name="id" value="@SearchId" placeholder="GUID exacto" class="block w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20" />
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1.5">Código</label>
+                <input type="text" name="codigo" value="@SearchCodigo" placeholder="Código parcial o exacto" class="block w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20" />
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1.5">Nombre</label>
+                <input type="text" name="nombre" value="@SearchNombre" placeholder="Nombre parcial" class="block w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20" />
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1.5">Estado</label>
+                <select name="activo" class="block w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20">
+                    <option value="" selected="@string.IsNullOrWhiteSpace(SearchActivo)">Todos</option>
+                    <option value="true" selected="@(SearchActivo == "true")">Activo</option>
+                    <option value="false" selected="@(SearchActivo == "false")">Inactivo</option>
+                </select>
+            </div>
+        </div>
+        <div class="mt-5 flex items-center gap-3">
+            <button type="submit" class="btn-press rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">Buscar</button>
+            <a href="/productos" class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">Limpiar campos</a>
+        </div>
+    </form>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(message))
+{
+    <div class="mb-6">
+        @if (messageType == "success")
+        {
+            <ActionFeedback Type="success" Message="@message" />
+        }
+        else
+        {
+            <MessageBox Type="@messageType" Message="@message" />
+        }
+    </div>
+}
+
+<div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden mb-8">
+    <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between gap-3">
+        <h2 class="text-sm font-semibold text-slate-700">Registros actuales</h2>
+        <a href="/productos" class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">Limpiar campos</a>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-slate-100 text-sm">
+            <thead class="bg-slate-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Código</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Nombre</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Precio</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Stock</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Estado</th>
+                    <th class="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Acciones</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-50 bg-white">
+                @if (productos.Count == 0)
+                {
+                    <tr><td colspan="6" class="px-6 py-10 text-center text-slate-400">No hay productos registrados.</td></tr>
+                }
+                else
+                {
+                    @foreach (var producto in productos)
+                    {
+                        <tr @key="producto.Id" class="hover:bg-slate-50 transition-colors">
+                            <td class="px-6 py-3 font-mono text-xs font-semibold text-brand-700">@producto.Codigo</td>
+                            <td class="px-6 py-3 font-semibold text-slate-800">@producto.Nombre</td>
+                            <td class="px-6 py-3 text-slate-600">@producto.Precio.ToString("N2")</td>
+                            <td class="px-6 py-3 text-slate-600">@producto.Stock</td>
+                            <td class="px-6 py-3">
+                                <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold @(producto.Activo ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-600")">@(producto.Activo ? "Activo" : "Inactivo")</span>
+                            </td>
+                            <td class="px-6 py-3 text-right">
+                                <div class="flex items-center justify-end gap-2">
+                                    @if (canModify)
+                                    {
+                                        <a href="@BuildPageUrl(editId: producto.Id)" class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-100">Modificar</a>
+                                    }
+                                    @if (canDelete)
+                                    {
+                                        <a href="@BuildPageUrl(deleteId: producto.Id)" class="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100">Eliminar</a>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@if (canAdd && !EditId.HasValue)
+{
+    <div class="rounded-2xl border border-green-200 bg-white shadow-sm overflow-hidden max-w-2xl mb-8">
+        <div class="px-6 py-4 bg-green-50 border-b border-green-100"><h2 class="text-sm font-bold text-green-800">Agregar producto</h2></div>
+        <div class="px-6 py-5">
+            <EditForm Model="CreateInput" FormName="create-producto" OnValidSubmit="PrepareCreateConfirmation" data-no-loading="true" Enhance="true">
+                <DataAnnotationsValidator />
+                <ProductoFields Model="CreateInput!" Prefix="CreateInput" />
+                <div class="mt-5 flex items-center gap-3">
+                    <button type="submit" class="btn-press rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700">Revisar y agregar</button>
+                    <a href="/productos" class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">Limpiar campos</a>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+}
+
+@if (EditId.HasValue && canModify)
+{
+    <div class="rounded-2xl border border-amber-200 bg-white shadow-sm overflow-hidden max-w-2xl mb-8">
+        <div class="px-6 py-4 bg-amber-50 border-b border-amber-100 flex items-center justify-between">
+            <h2 class="text-sm font-bold text-amber-900">Modificar producto</h2>
+            <a href="@BuildPageUrl()" class="text-sm font-semibold text-slate-500 hover:text-slate-800">Cerrar</a>
+        </div>
+        <div class="px-6 py-5">
+            @if (!string.IsNullOrWhiteSpace(modalError))
+            {
+                <div class="mb-4"><MessageBox Type="warning" Message="@modalError" /></div>
+            }
+            <EditForm Model="UpdateInput" FormName="update-producto" OnValidSubmit="PrepareUpdateConfirmation" data-no-loading="true" Enhance="true">
+                <DataAnnotationsValidator />
+                <ProductoFields Model="UpdateInput!" Prefix="UpdateInput" />
+                <div class="mt-5 flex items-center gap-3">
+                    <button type="submit" class="btn-press rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700">Revisar modificación</button>
+                    <a href="/productos" class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">Limpiar campos</a>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+}
+
+@if (showCreateConfirmation)
+{
+    <ConfirmDialog Title="Confirmar creación" Message="Está a punto de crear un producto." Variant="success" CancelHref="/productos">
+        <p class="rounded-xl border border-green-100 bg-green-50 px-4 py-3 text-sm font-semibold text-green-900">@CreateInput!.Codigo · @CreateInput.Nombre</p>
+        <EditForm Model="ConfirmCreateInput" FormName="confirm-create-producto" OnValidSubmit="CreateAsync" class="mt-4" Enhance="true">
+            <input type="hidden" name="ConfirmCreateInput.Codigo" value="@CreateInput.Codigo" />
+            <input type="hidden" name="ConfirmCreateInput.Nombre" value="@CreateInput.Nombre" />
+            <input type="hidden" name="ConfirmCreateInput.Descripcion" value="@CreateInput.Descripcion" />
+            <input type="hidden" name="ConfirmCreateInput.Precio" value="@CreateInput.Precio" />
+            <input type="hidden" name="ConfirmCreateInput.Stock" value="@CreateInput.Stock" />
+            <input type="hidden" name="ConfirmCreateInput.Activo" value="@CreateInput.Activo" />
+            <button type="submit" class="btn-press rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700">Sí, crear producto</button>
+            <a href="@BuildPageUrl()" class="btn-press ml-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">Cancelar</a>
+        </EditForm>
+    </ConfirmDialog>
+}
+
+@if (showUpdateConfirmation)
+{
+    <ConfirmDialog Title="Confirmar modificación" Message="Está a punto de modificar un producto." Variant="warning" CancelHref="@BuildPageUrl(editId: EditId)">
+        <p class="rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">@UpdateInput!.Codigo · @UpdateInput.Nombre</p>
+        <EditForm Model="ConfirmUpdateInput" FormName="confirm-update-producto" OnValidSubmit="UpdateAsync" class="mt-4" Enhance="true">
+            <input type="hidden" name="ConfirmUpdateInput.Codigo" value="@UpdateInput.Codigo" />
+            <input type="hidden" name="ConfirmUpdateInput.Nombre" value="@UpdateInput.Nombre" />
+            <input type="hidden" name="ConfirmUpdateInput.Descripcion" value="@UpdateInput.Descripcion" />
+            <input type="hidden" name="ConfirmUpdateInput.Precio" value="@UpdateInput.Precio" />
+            <input type="hidden" name="ConfirmUpdateInput.Stock" value="@UpdateInput.Stock" />
+            <input type="hidden" name="ConfirmUpdateInput.Activo" value="@UpdateInput.Activo" />
+            <button type="submit" class="btn-press rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700">Sí, guardar cambios</button>
+            <a href="@BuildPageUrl(editId: EditId)" class="btn-press ml-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">Seguir editando</a>
+        </EditForm>
+    </ConfirmDialog>
+}
+
+@if (DeleteId.HasValue && canDelete)
+{
+    var item = productos.FirstOrDefault(p => p.Id == DeleteId.Value);
+    <ConfirmDialog Title="Confirmar eliminación" Message="Esta acción eliminará el producto seleccionado y no se puede deshacer." Variant="danger" CancelHref="@BuildPageUrl()">
+        <p class="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-semibold text-red-900">@(item is null ? "Producto seleccionado" : $"{item.Codigo} · {item.Nombre}")</p>
+        @if (!string.IsNullOrWhiteSpace(modalError))
+        {
+            <div class="mt-4"><MessageBox Type="warning" Message="@modalError" /></div>
+        }
+        <EditForm Model="DeleteInput" FormName="delete-producto" OnValidSubmit="DeleteAsync" class="mt-4" Enhance="true">
+            <button type="submit" class="btn-press rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700">Sí, eliminar</button>
+            <a href="@BuildPageUrl()" class="btn-press ml-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">Cancelar</a>
+        </EditForm>
+    </ConfirmDialog>
+}
+
+@code {
+    [SupplyParameterFromQuery(Name = "id")] private string? SearchId { get; set; }
+    [SupplyParameterFromQuery(Name = "codigo")] private string? SearchCodigo { get; set; }
+    [SupplyParameterFromQuery(Name = "nombre")] private string? SearchNombre { get; set; }
+    [SupplyParameterFromQuery(Name = "activo")] private string? SearchActivo { get; set; }
+    [SupplyParameterFromQuery(Name = "editId")] private Guid? EditId { get; set; }
+    [SupplyParameterFromQuery(Name = "deleteId")] private Guid? DeleteId { get; set; }
+    [SupplyParameterFromQuery(Name = "ok")] private string? Ok { get; set; }
+    [SupplyParameterFromForm(FormName = "create-producto")] private ProductoForm? CreateInput { get; set; }
+    [SupplyParameterFromForm(FormName = "confirm-create-producto")] private ProductoForm? ConfirmCreateInput { get; set; }
+    [SupplyParameterFromForm(FormName = "update-producto")] private ProductoForm? UpdateInput { get; set; }
+    [SupplyParameterFromForm(FormName = "confirm-update-producto")] private ProductoForm? ConfirmUpdateInput { get; set; }
+    [SupplyParameterFromForm(FormName = "delete-producto")] private DeleteConfirmForm? DeleteInput { get; set; }
+
+    private IReadOnlyList<ProductoResponse> productos = [];
+    private string? message;
+    private string messageType = "info";
+    private string? modalError;
+    private bool showCreateConfirmation;
+    private bool showUpdateConfirmation;
+    private bool canAdd;
+    private bool canModify;
+    private bool canDelete;
+
+    [CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        CreateInput ??= new();
+        ConfirmCreateInput ??= new();
+        UpdateInput ??= new();
+        ConfirmUpdateInput ??= new();
+        DeleteInput ??= new();
+
+        if (AuthenticationStateTask is not null)
+        {
+            var user = (await AuthenticationStateTask).User;
+            canAdd = (await AuthorizationService.AuthorizeAsync(user, ApplicationPolicies.CanAdd)).Succeeded;
+            canModify = (await AuthorizationService.AuthorizeAsync(user, ApplicationPolicies.CanModify)).Succeeded;
+            canDelete = (await AuthorizationService.AuthorizeAsync(user, ApplicationPolicies.CanDelete)).Succeeded;
+        }
+
+        await LoadAsync();
+
+        if (Ok is not null)
+        {
+            (messageType, message) = Ok switch
+            {
+                "created" => ("success", "Producto creado satisfactoriamente."),
+                "updated" => ("success", "Producto modificado satisfactoriamente."),
+                "deleted" => ("success", "Producto eliminado satisfactoriamente."),
+                _ => ("info", null)
+            };
+        }
+
+        if (EditId.HasValue && string.IsNullOrWhiteSpace(UpdateInput.Codigo))
+        {
+            var item = productos.FirstOrDefault(p => p.Id == EditId.Value);
+            if (item is not null)
+            {
+                UpdateInput.Codigo = item.Codigo;
+                UpdateInput.Nombre = item.Nombre;
+                UpdateInput.Descripcion = item.Descripcion;
+                UpdateInput.Precio = item.Precio;
+                UpdateInput.Stock = item.Stock;
+                UpdateInput.Activo = item.Activo;
+            }
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            productos = await ProductoApiClient.ListAsync(new ProductoSearchFilter(
+                ParseGuid(SearchId),
+                EmptyAsNull(SearchCodigo),
+                EmptyAsNull(SearchNombre),
+                ParseBool(SearchActivo)));
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not load productos from API.");
+            message = "No fue posible cargar los productos.";
+            messageType = "danger";
+        }
+    }
+
+    private Task PrepareCreateConfirmation() { showCreateConfirmation = true; modalError = null; return Task.CompletedTask; }
+    private Task PrepareUpdateConfirmation() { showUpdateConfirmation = true; modalError = null; return Task.CompletedTask; }
+
+    private async Task CreateAsync()
+    {
+        var result = await ProductoApiClient.CreateAsync(ToInput(ConfirmCreateInput!));
+        if (result.Succeeded) Nav.NavigateTo(BuildPageUrl(ok: "created"));
+        else { message = result.Message; messageType = "warning"; }
+    }
+
+    private async Task UpdateAsync()
+    {
+        if (!EditId.HasValue) { modalError = "No se pudo identificar el producto. Intente de nuevo."; return; }
+        var result = await ProductoApiClient.UpdateAsync(EditId.Value, ToInput(ConfirmUpdateInput!));
+        if (result.Succeeded) Nav.NavigateTo(BuildPageUrl(ok: "updated"));
+        else modalError = result.Message;
+    }
+
+    private async Task DeleteAsync()
+    {
+        if (!DeleteId.HasValue) { modalError = "No se pudo identificar el producto. Intente de nuevo."; return; }
+        var result = await ProductoApiClient.DeleteAsync(DeleteId.Value);
+        if (result.Succeeded) Nav.NavigateTo(BuildPageUrl(ok: "deleted"));
+        else modalError = result.Message;
+    }
+
+    private string BuildPageUrl(Guid? editId = null, Guid? deleteId = null, string? ok = null)
+    {
+        var parameters = new List<string>();
+
+        AddParameter(parameters, "id", SearchId);
+        AddParameter(parameters, "codigo", SearchCodigo);
+        AddParameter(parameters, "nombre", SearchNombre);
+        AddParameter(parameters, "activo", SearchActivo);
+
+        if (editId.HasValue)
+        {
+            AddParameter(parameters, "editId", editId.Value.ToString());
+        }
+
+        if (deleteId.HasValue)
+        {
+            AddParameter(parameters, "deleteId", deleteId.Value.ToString());
+        }
+
+        AddParameter(parameters, "ok", ok);
+
+        return parameters.Count == 0 ? "/productos" : $"/productos?{string.Join("&", parameters)}";
+    }
+
+    private static void AddParameter(List<string> parameters, string key, string? value)
+    {
+        if (!string.IsNullOrWhiteSpace(value))
+        {
+            parameters.Add($"{key}={Uri.EscapeDataString(value)}");
+        }
+    }
+
+    private static Guid? ParseGuid(string? value) => Guid.TryParse(value, out var parsed) ? parsed : null;
+
+    private static bool? ParseBool(string? value) => bool.TryParse(value, out var parsed) ? parsed : null;
+
+    private static string? EmptyAsNull(string? value) => string.IsNullOrWhiteSpace(value) ? null : value;
+
+    private static ProductoInput ToInput(ProductoForm form) => new(
+        form.Codigo.Trim(),
+        form.Nombre.Trim(),
+        form.Descripcion?.Trim(),
+        form.Precio,
+        form.Stock,
+        form.Activo);
+
+    public sealed class ProductoForm
+    {
+        [Required(ErrorMessage = "El código es obligatorio.")]
+        [MaxLength(50, ErrorMessage = "Máximo 50 caracteres.")]
+        public string Codigo { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "El nombre es obligatorio.")]
+        [MaxLength(200, ErrorMessage = "Máximo 200 caracteres.")]
+        public string Nombre { get; set; } = string.Empty;
+
+        [MaxLength(1000, ErrorMessage = "Máximo 1000 caracteres.")]
+        public string? Descripcion { get; set; }
+
+        [Range(0, 999999999, ErrorMessage = "El precio no puede ser negativo.")]
+        public decimal Precio { get; set; }
+
+        [Range(0, int.MaxValue, ErrorMessage = "El stock no puede ser negativo.")]
+        public int Stock { get; set; }
+
+        public bool Activo { get; set; } = true;
+    }
+
+    public sealed class DeleteConfirmForm { }
+}

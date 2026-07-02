@@ -1,0 +1,94 @@
+@page "/clientes/new"
+@attribute [Authorize(Policy = ApplicationPolicies.CanAdd)]
+@using Microsoft.AspNetCore.Authorization
+@using OpenSource1.Blazor.Services
+@inject IClienteApiClient ClienteApiClient
+@inject ILogger<ClienteNew> Logger
+@inject NavigationManager Nav
+
+<PageTitle>Nuevo cliente – AxionERP</PageTitle>
+
+<div class="mb-6 flex items-center justify-between gap-4">
+    <div>
+        <p class="text-xs font-bold tracking-widest uppercase text-brand-600 mb-1">Ficha</p>
+        <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">Crear cliente</h1>
+        <p class="text-sm text-slate-500 mt-1">Complete la ficha del cliente y guarde los datos.</p>
+    </div>
+    <a href="/clientes" class="btn-press rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Volver al listado</a>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(message))
+{
+    <div class="mb-6">
+        <MessageBox Type="@messageType" Message="@message" />
+    </div>
+}
+
+<div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden max-w-4xl">
+    <div class="px-6 py-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between gap-3">
+        <div>
+            <h2 class="text-sm font-bold text-slate-800 uppercase tracking-wide">Nueva ficha</h2>
+            <p class="text-xs text-slate-500 mt-1">Información general del cliente</p>
+        </div>
+        <span class="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700">Nuevo</span>
+    </div>
+
+    <div class="px-6 py-6">
+        <EditForm Model="Input" FormName="cliente-new" OnValidSubmit="CreateAsync" Enhance="true">
+            <DataAnnotationsValidator />
+            <ClienteFields Model="Input!" Prefix="Input" />
+
+            <div class="mt-6 flex flex-wrap items-center gap-3">
+                <button type="submit" class="btn-press inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-700">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75 10.5 18.75 19.5 5.25" />
+                    </svg>
+                    Guardar cliente
+                </button>
+                <a href="/clientes" class="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50">Cancelar</a>
+            </div>
+        </EditForm>
+    </div>
+</div>
+
+@code {
+    [SupplyParameterFromForm(FormName = "cliente-new")]
+    private ClienteEditorForm? Input { get; set; }
+
+    private string? message;
+    private string messageType = "danger";
+
+    protected override void OnInitialized() => Input ??= new();
+
+    private async Task CreateAsync()
+    {
+        try
+        {
+            var result = await ClienteApiClient.CreateAsync(ToInput(Input!));
+            if (result.Succeeded)
+            {
+                Nav.NavigateTo(result.EntityId.HasValue
+                    ? $"/clientes/{result.EntityId.Value}?ok=created"
+                    : "/clientes?ok=created");
+                return;
+            }
+
+            message = result.Message;
+            messageType = "warning";
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not create cliente.");
+            message = "No fue posible crear el cliente.";
+            messageType = "danger";
+        }
+    }
+
+    private static ClienteInput ToInput(ClienteEditorForm form) => new(
+        form.NombreCompleto.Trim(),
+        form.DocumentoIdentidad.Trim(),
+        form.Email.Trim(),
+        form.Telefono?.Trim(),
+        form.Direccion?.Trim(),
+        form.Activo);
+}
