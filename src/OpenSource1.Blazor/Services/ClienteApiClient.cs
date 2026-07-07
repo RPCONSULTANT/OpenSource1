@@ -59,9 +59,9 @@ public sealed class ClienteApiClient(HttpClient httpClient, ILogger<ClienteApiCl
             parameters.Add($"id={Uri.EscapeDataString(filter.Id.Value.ToString())}");
         }
 
-        if (!string.IsNullOrWhiteSpace(filter.DocumentoIdentidad))
+        if (!string.IsNullOrWhiteSpace(filter.Apellido))
         {
-            parameters.Add($"documentoIdentidad={Uri.EscapeDataString(filter.DocumentoIdentidad.Trim())}");
+            parameters.Add($"apellido={Uri.EscapeDataString(filter.Apellido.Trim())}");
         }
 
         if (!string.IsNullOrWhiteSpace(filter.Nombre))
@@ -69,9 +69,19 @@ public sealed class ClienteApiClient(HttpClient httpClient, ILogger<ClienteApiCl
             parameters.Add($"nombre={Uri.EscapeDataString(filter.Nombre.Trim())}");
         }
 
-        if (filter.Activo.HasValue)
+        if (!string.IsNullOrWhiteSpace(filter.Email))
         {
-            parameters.Add($"activo={filter.Activo.Value.ToString().ToLowerInvariant()}");
+            parameters.Add($"email={Uri.EscapeDataString(filter.Email.Trim())}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter.Telefono))
+        {
+            parameters.Add($"telefono={Uri.EscapeDataString(filter.Telefono.Trim())}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter.Direccion))
+        {
+            parameters.Add($"direccion={Uri.EscapeDataString(filter.Direccion.Trim())}");
         }
 
         return parameters.Count == 0 ? "api/clientes" : $"api/clientes?{string.Join("&", parameters)}";

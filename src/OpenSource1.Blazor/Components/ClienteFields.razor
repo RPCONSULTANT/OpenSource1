@@ -1,13 +1,13 @@
 <div class="space-y-4">
     <div>
-        <label class="block text-sm font-semibold text-slate-700 mb-1.5">Nombre completo <span class="text-red-500">*</span></label>
-        <input type="text" name="@($"{Prefix}.NombreCompleto")" value="@Model.NombreCompleto" placeholder="Nombre del cliente" class="block w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20" />
-        <ValidationMessage For="() => Model.NombreCompleto" />
+        <label class="block text-sm font-semibold text-slate-700 mb-1.5">Nombre <span class="text-red-500">*</span></label>
+        <input type="text" name="@($"{Prefix}.Nombre")" value="@Model.Nombre" placeholder="Nombre del cliente" class="block w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20" />
+        <ValidationMessage For="() => Model.Nombre" />
     </div>
     <div>
-        <label class="block text-sm font-semibold text-slate-700 mb-1.5">Documento <span class="text-red-500">*</span></label>
-        <input type="text" name="@($"{Prefix}.DocumentoIdentidad")" value="@Model.DocumentoIdentidad" placeholder="Cédula/RNC/Pasaporte" class="block w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20" />
-        <ValidationMessage For="() => Model.DocumentoIdentidad" />
+        <label class="block text-sm font-semibold text-slate-700 mb-1.5">Apellido <span class="text-red-500">*</span></label>
+        <input type="text" name="@($"{Prefix}.Apellido")" value="@Model.Apellido" placeholder="Apellido del cliente" class="block w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20" />
+        <ValidationMessage For="() => Model.Apellido" />
     </div>
     <div>
         <label class="block text-sm font-semibold text-slate-700 mb-1.5">Email <span class="text-red-500">*</span></label>
@@ -23,13 +23,6 @@
         <label class="block text-sm font-semibold text-slate-700 mb-1.5">Dirección</label>
         <textarea name="@($"{Prefix}.Direccion")" rows="3" placeholder="Dirección opcional" class="block w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20 resize-none">@Model.Direccion</textarea>
         <ValidationMessage For="() => Model.Direccion" />
-    </div>
-    <div>
-        <label class="block text-sm font-semibold text-slate-700 mb-1.5">Estado</label>
-        <select name="@($"{Prefix}.Activo")" class="block w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20">
-            <option value="true" selected="@Model.Activo">Activo</option>
-            <option value="false" selected="@(!Model.Activo)">Inactivo</option>
-        </select>
     </div>
 </div>
 

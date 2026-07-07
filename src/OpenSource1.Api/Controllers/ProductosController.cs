@@ -20,11 +20,13 @@ public sealed class ProductosController(ISender sender) : ControllerBase
         [FromQuery] Guid? id,
         [FromQuery] string? codigo,
         [FromQuery] string? nombre,
-        [FromQuery] bool? activo,
+        [FromQuery] string? categoria,
+        [FromQuery] decimal? precio,
+        [FromQuery] int? stock,
         CancellationToken cancellationToken)
     {
         var result = await sender.Send(
-            new ListProductosQuery(new ProductoSearchCriteria(id, codigo, nombre, activo)),
+            new ListProductosQuery(new ProductoSearchCriteria(id, codigo, nombre, categoria, precio, stock)),
             cancellationToken);
 
         return Ok(result);
@@ -48,6 +50,7 @@ public sealed class ProductosController(ISender sender) : ControllerBase
     {
         if (string.IsNullOrWhiteSpace(request.Codigo) ||
             string.IsNullOrWhiteSpace(request.Nombre) ||
+            string.IsNullOrWhiteSpace(request.Categoria) ||
             request.Precio < 0 ||
             request.Stock < 0)
         {
@@ -55,7 +58,7 @@ public sealed class ProductosController(ISender sender) : ControllerBase
         }
 
         var result = await sender.Send(
-            new CreateProductoCommand(request.Codigo, request.Nombre, request.Descripcion, request.Precio, request.Stock, request.Activo),
+            new CreateProductoCommand(request.Codigo, request.Nombre, request.Precio, request.Stock, request.Categoria, request.ImagePath),
             cancellationToken);
 
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
@@ -70,6 +73,7 @@ public sealed class ProductosController(ISender sender) : ControllerBase
     {
         if (string.IsNullOrWhiteSpace(request.Codigo) ||
             string.IsNullOrWhiteSpace(request.Nombre) ||
+            string.IsNullOrWhiteSpace(request.Categoria) ||
             request.Precio < 0 ||
             request.Stock < 0)
         {
@@ -77,7 +81,7 @@ public sealed class ProductosController(ISender sender) : ControllerBase
         }
 
         var result = await sender.Send(
-            new UpdateProductoCommand(id, request.Codigo, request.Nombre, request.Descripcion, request.Precio, request.Stock, request.Activo),
+            new UpdateProductoCommand(id, request.Codigo, request.Nombre, request.Precio, request.Stock, request.Categoria, request.ImagePath),
             cancellationToken);
 
         return result is null ? NotFound() : Ok(result);
@@ -94,5 +98,5 @@ public sealed class ProductosController(ISender sender) : ControllerBase
     }
 }
 
-public sealed record CreateProductoRequest(string Codigo, string Nombre, string? Descripcion, decimal Precio, int Stock, bool Activo = true);
-public sealed record UpdateProductoRequest(string Codigo, string Nombre, string? Descripcion, decimal Precio, int Stock, bool Activo);
+public sealed record CreateProductoRequest(string Codigo, string Nombre, decimal Precio, int Stock, string Categoria, string? ImagePath = null);
+public sealed record UpdateProductoRequest(string Codigo, string Nombre, decimal Precio, int Stock, string Categoria, string? ImagePath = null);

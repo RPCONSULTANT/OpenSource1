@@ -42,14 +42,14 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         {
             entity.ToTable("Clientes");
             entity.HasKey(x => x.Id);
-            entity.Property(x => x.NombreCompleto).HasMaxLength(200).IsRequired();
-            entity.Property(x => x.DocumentoIdentidad).HasMaxLength(50).IsRequired();
+            entity.Property(x => x.Nombre).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.Apellido).HasMaxLength(100).IsRequired();
             entity.Property(x => x.Email).HasMaxLength(256).IsRequired();
             entity.Property(x => x.Telefono).HasMaxLength(50);
             entity.Property(x => x.Direccion).HasMaxLength(500);
+            entity.Property(x => x.ImagePath).HasMaxLength(500);
             entity.Property(x => x.CreatedBy).HasMaxLength(100).IsRequired();
             entity.Property(x => x.UpdatedBy).HasMaxLength(100);
-            entity.HasIndex(x => x.DocumentoIdentidad).IsUnique();
         });
 
         modelBuilder.Entity<Producto>(entity =>
@@ -58,7 +58,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.HasKey(x => x.Id);
             entity.Property(x => x.Codigo).HasMaxLength(50).IsRequired();
             entity.Property(x => x.Nombre).HasMaxLength(200).IsRequired();
-            entity.Property(x => x.Descripcion).HasMaxLength(1_000);
+            entity.Property(x => x.Categoria).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.ImagePath).HasMaxLength(500);
             entity.Property(x => x.Precio).HasPrecision(18, 2);
             entity.Property(x => x.CreatedBy).HasMaxLength(100).IsRequired();
             entity.Property(x => x.UpdatedBy).HasMaxLength(100);

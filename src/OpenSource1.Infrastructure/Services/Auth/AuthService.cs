@@ -170,6 +170,43 @@ public sealed class AuthService(
         return (new PasswordActionResponse("Contraseña cambiada correctamente."), []);
     }
 
+    public async Task<CurrentUserResponse?> GetCurrentUserAsync(string userId, CancellationToken cancellationToken = default)
+    {
+        var user = await userManager.FindByIdAsync(userId);
+        if (user is null || !user.IsActive)
+        {
+            return null;
+        }
+
+        var roles = (await userManager.GetRolesAsync(user)).ToArray();
+        var permissions = GetPermissions(roles);
+
+        return new CurrentUserResponse(
+            user.Id,
+            user.FullName ?? user.UserName ?? string.Empty,
+            user.Email ?? string.Empty,
+            user.ProfileImagePath,
+            roles,
+            permissions);
+    }
+
+    public async Task<(bool Success, IReadOnlyList<string> Errors)> UpdateProfileImageAsync(string userId, string? imagePath, CancellationToken cancellationToken = default)
+    {
+        var user = await userManager.FindByIdAsync(userId);
+        if (user is null || !user.IsActive)
+        {
+            return (false, ["No fue posible identificar la cuenta autenticada."]);
+        }
+
+        user.ProfileImagePath = imagePath;
+        user.UpdatedAtUtc = DateTimeOffset.UtcNow;
+
+        var result = await userManager.UpdateAsync(user);
+        return result.Succeeded
+            ? (true, Array.Empty<string>())
+            : (false, result.Errors.Select(e => e.Description).ToArray());
+    }
+
     private async Task<Usuario?> FindUserAsync(string userNameOrEmail) =>
         userNameOrEmail.Contains('@', StringComparison.Ordinal)
             ? await userManager.FindByEmailAsync(userNameOrEmail)

@@ -26,7 +26,7 @@ public class DeleteClienteCommandHandlerTests
     [Fact]
     public async Task Handle_RemovesAndSaves_WhenClienteExists()
     {
-        var entity = new Cliente { NombreCompleto = "Test", DocumentoIdentidad = "1", Email = "test@mail.com" };
+        var entity = new Cliente { Nombre = "Test", Apellido = "Client", Email = "test@mail.com" };
         var repo = new Mock<IGenericRepository<Cliente>>();
         repo.Setup(r => r.GetByIdAsync(It.IsAny<object[]>(), It.IsAny<CancellationToken>())).ReturnsAsync(entity);
 

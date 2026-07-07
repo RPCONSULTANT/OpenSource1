@@ -10,7 +10,7 @@ public sealed class DapperClienteReadRepository(IDbConnectionFactory connectionF
     public async Task<ClienteResponse?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         const string sql = """
-            SELECT "Id", "NombreCompleto", "DocumentoIdentidad", "Email", "Telefono", "Direccion", "Activo", "CreatedAtUtc", "UpdatedAtUtc"
+            SELECT "Id", "Nombre", "Apellido", "Email", "Telefono", "Direccion", "ImagePath", "CreatedAtUtc", "UpdatedAtUtc"
             FROM "Clientes"
             WHERE "Id" = @Id
             """;
@@ -21,7 +21,7 @@ public sealed class DapperClienteReadRepository(IDbConnectionFactory connectionF
     public async Task<IReadOnlyList<ClienteResponse>> ListAsync(ClienteSearchCriteria search, CancellationToken cancellationToken = default)
     {
         var sql = """
-            SELECT "Id", "NombreCompleto", "DocumentoIdentidad", "Email", "Telefono", "Direccion", "Activo", "CreatedAtUtc", "UpdatedAtUtc"
+            SELECT "Id", "Nombre", "Apellido", "Email", "Telefono", "Direccion", "ImagePath", "CreatedAtUtc", "UpdatedAtUtc"
             FROM "Clientes"
             """;
 
@@ -34,22 +34,34 @@ public sealed class DapperClienteReadRepository(IDbConnectionFactory connectionF
             parameters.Add("Id", search.Id.Value);
         }
 
-        if (!string.IsNullOrWhiteSpace(search.DocumentoIdentidad))
-        {
-            filters.Add("\"DocumentoIdentidad\" ILIKE @DocumentoIdentidad");
-            parameters.Add("DocumentoIdentidad", $"%{search.DocumentoIdentidad.Trim()}%");
-        }
-
         if (!string.IsNullOrWhiteSpace(search.Nombre))
         {
-            filters.Add("\"NombreCompleto\" ILIKE @Nombre");
+            filters.Add("\"Nombre\" ILIKE @Nombre");
             parameters.Add("Nombre", $"%{search.Nombre.Trim()}%");
         }
 
-        if (search.Activo.HasValue)
+        if (!string.IsNullOrWhiteSpace(search.Apellido))
         {
-            filters.Add("\"Activo\" = @Activo");
-            parameters.Add("Activo", search.Activo.Value);
+            filters.Add("\"Apellido\" ILIKE @Apellido");
+            parameters.Add("Apellido", $"%{search.Apellido.Trim()}%");
+        }
+
+        if (!string.IsNullOrWhiteSpace(search.Email))
+        {
+            filters.Add("\"Email\" ILIKE @Email");
+            parameters.Add("Email", $"%{search.Email.Trim()}%");
+        }
+
+        if (!string.IsNullOrWhiteSpace(search.Telefono))
+        {
+            filters.Add("\"Telefono\" ILIKE @Telefono");
+            parameters.Add("Telefono", $"%{search.Telefono.Trim()}%");
+        }
+
+        if (!string.IsNullOrWhiteSpace(search.Direccion))
+        {
+            filters.Add("\"Direccion\" ILIKE @Direccion");
+            parameters.Add("Direccion", $"%{search.Direccion.Trim()}%");
         }
 
         if (filters.Count > 0)

@@ -4,4 +4,6 @@ public sealed record ProductoSearchCriteria(
     Guid? Id,
     string? Codigo,
     string? Nombre,
-    bool? Activo);
+    string? Categoria,
+    decimal? Precio,
+    int? Stock);

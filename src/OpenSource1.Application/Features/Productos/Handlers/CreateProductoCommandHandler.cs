@@ -10,11 +10,11 @@ public sealed class CreateProductoCommandHandler(IUnitOfWork unitOfWork) : IRequ
 {
     public async Task<ProductoResponse> Handle(CreateProductoCommand request, CancellationToken cancellationToken)
     {
-        var entity = new Producto { Codigo = request.Codigo.Trim(), Nombre = request.Nombre.Trim(), Descripcion = request.Descripcion?.Trim(), Precio = request.Precio, Stock = request.Stock, Activo = request.Activo };
+        var entity = new Producto { Codigo = request.Codigo.Trim(), Nombre = request.Nombre.Trim(), Precio = request.Precio, Stock = request.Stock, Categoria = request.Categoria.Trim(), ImagePath = request.ImagePath };
         await unitOfWork.Repository<Producto>().AddAsync(entity, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return ToResponse(entity);
     }
 
-    public static ProductoResponse ToResponse(Producto x) => new() { Id = x.Id, Codigo = x.Codigo, Nombre = x.Nombre, Descripcion = x.Descripcion, Precio = x.Precio, Stock = x.Stock, Activo = x.Activo, CreatedAtUtc = x.CreatedAtUtc.UtcDateTime, UpdatedAtUtc = x.UpdatedAtUtc?.UtcDateTime };
+    public static ProductoResponse ToResponse(Producto x) => new() { Id = x.Id, Codigo = x.Codigo, Nombre = x.Nombre, Precio = x.Precio, Stock = x.Stock, Categoria = x.Categoria, ImagePath = x.ImagePath, CreatedAtUtc = x.CreatedAtUtc.UtcDateTime, UpdatedAtUtc = x.UpdatedAtUtc?.UtcDateTime };
 }

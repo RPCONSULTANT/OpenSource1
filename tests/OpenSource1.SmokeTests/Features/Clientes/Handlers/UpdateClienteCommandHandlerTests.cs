@@ -18,7 +18,7 @@ public class UpdateClienteCommandHandlerTests
         unitOfWork.Setup(u => u.Repository<Cliente>()).Returns(repo.Object);
 
         var handler = new UpdateClienteCommandHandler(unitOfWork.Object);
-        var response = await handler.Handle(new UpdateClienteCommand(Guid.NewGuid(), "A", "B", "C", null, null, false), default);
+        var response = await handler.Handle(new UpdateClienteCommand(Guid.NewGuid(), "A", "B", "C", null, null), default);
 
         Assert.Null(response);
     }
@@ -26,7 +26,7 @@ public class UpdateClienteCommandHandlerTests
     [Fact]
     public async Task Handle_UpdatesAndSaves_WhenClienteExists()
     {
-        var entity = new Cliente { NombreCompleto = "Old", DocumentoIdentidad = "1", Email = "old@mail.com", Activo = false };
+        var entity = new Cliente { Nombre = "Old", Apellido = "Client", Email = "old@mail.com" };
         var repo = new Mock<IGenericRepository<Cliente>>();
         repo.Setup(r => r.GetByIdAsync(It.IsAny<object[]>(), It.IsAny<CancellationToken>())).ReturnsAsync(entity);
 
@@ -35,12 +35,11 @@ public class UpdateClienteCommandHandlerTests
         unitOfWork.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
 
         var handler = new UpdateClienteCommandHandler(unitOfWork.Object);
-        var response = await handler.Handle(new UpdateClienteCommand(entity.Id, " Nuevo ", " 002 ", " nuevo@mail.com ", " 809 ", " Dir ", true), default);
+        var response = await handler.Handle(new UpdateClienteCommand(entity.Id, " Nuevo ", " Apellido ", " nuevo@mail.com ", " 809 ", " Dir "), default);
 
         Assert.NotNull(response);
-        Assert.Equal("Nuevo", entity.NombreCompleto);
-        Assert.Equal("002", entity.DocumentoIdentidad);
-        Assert.True(entity.Activo);
+        Assert.Equal("Nuevo", entity.Nombre);
+        Assert.Equal("Apellido", entity.Apellido);
         unitOfWork.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 }

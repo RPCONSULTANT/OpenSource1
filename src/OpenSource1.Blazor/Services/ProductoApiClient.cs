@@ -23,6 +23,19 @@ public sealed class ProductoApiClient(HttpClient httpClient, ILogger<ProductoApi
         return await response.Content.ReadFromJsonAsync<IReadOnlyList<ProductoResponse>>(cancellationToken) ?? [];
     }
 
+    public async Task<ProductoResponse?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        using var response = await httpClient.GetAsync($"api/productos/{id}", cancellationToken);
+        if (response.StatusCode == HttpStatusCode.NotFound) return null;
+        if (!response.IsSuccessStatusCode)
+        {
+            var body = await response.Content.ReadAsStringAsync(cancellationToken);
+            logger.LogWarning("Productos GET BY ID returned {StatusCode}. Body: {Body}", response.StatusCode, body);
+            throw new HttpRequestException($"El servidor devolvió {(int)response.StatusCode} al obtener el producto.", inner: null, statusCode: response.StatusCode);
+        }
+        return await response.Content.ReadFromJsonAsync<ProductoResponse>(cancellationToken);
+    }
+
     private static string BuildListUrl(ProductoSearchFilter? filter)
     {
         if (filter is null)
@@ -47,9 +60,19 @@ public sealed class ProductoApiClient(HttpClient httpClient, ILogger<ProductoApi
             parameters.Add($"nombre={Uri.EscapeDataString(filter.Nombre.Trim())}");
         }
 
-        if (filter.Activo.HasValue)
+        if (!string.IsNullOrWhiteSpace(filter.Categoria))
         {
-            parameters.Add($"activo={filter.Activo.Value.ToString().ToLowerInvariant()}");
+            parameters.Add($"categoria={Uri.EscapeDataString(filter.Categoria.Trim())}");
+        }
+
+        if (filter.Precio.HasValue)
+        {
+            parameters.Add($"precio={Uri.EscapeDataString(filter.Precio.Value.ToString(System.Globalization.CultureInfo.InvariantCulture))}");
+        }
+
+        if (filter.Stock.HasValue)
+        {
+            parameters.Add($"stock={filter.Stock.Value}");
         }
 
         return parameters.Count == 0 ? "api/productos" : $"api/productos?{string.Join("&", parameters)}";
@@ -78,7 +101,14 @@ public sealed class ProductoApiClient(HttpClient httpClient, ILogger<ProductoApi
     {
         if (response.IsSuccessStatusCode)
         {
-            return new ProductoOperationResult(true, successMessage);
+            Guid? entityId = null;
+            try
+            {
+                var payload = await response.Content.ReadFromJsonAsync<ProductoResponse>(cancellationToken);
+                entityId = payload?.Id;
+            }
+            catch { }
+            return new ProductoOperationResult(true, successMessage, entityId);
         }
 
         var safe = response.StatusCode switch

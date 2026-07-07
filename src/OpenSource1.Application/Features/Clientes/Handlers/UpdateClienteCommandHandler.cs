@@ -13,7 +13,7 @@ public sealed class UpdateClienteCommandHandler(IUnitOfWork unitOfWork) : IReque
         var repo = unitOfWork.Repository<Cliente>();
         var entity = await repo.GetByIdAsync(new object[] { request.Id }, cancellationToken);
         if (entity is null) return null;
-        entity.NombreCompleto = request.NombreCompleto.Trim(); entity.DocumentoIdentidad = request.DocumentoIdentidad.Trim(); entity.Email = request.Email.Trim(); entity.Telefono = request.Telefono?.Trim(); entity.Direccion = request.Direccion?.Trim(); entity.Activo = request.Activo;
+        entity.Nombre = request.Nombre.Trim(); entity.Apellido = request.Apellido.Trim(); entity.Email = request.Email.Trim(); entity.Telefono = request.Telefono?.Trim(); entity.Direccion = request.Direccion?.Trim(); entity.ImagePath = request.ImagePath;
         repo.Update(entity); await unitOfWork.SaveChangesAsync(cancellationToken); return CreateClienteCommandHandler.ToResponse(entity);
     }
 }

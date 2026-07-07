@@ -10,7 +10,7 @@ public sealed class DapperProductoReadRepository(IDbConnectionFactory connection
     public async Task<ProductoResponse?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         const string sql = """
-            SELECT "Id", "Codigo", "Nombre", "Descripcion", "Precio", "Stock", "Activo", "CreatedAtUtc", "UpdatedAtUtc"
+            SELECT "Id", "Codigo", "Nombre", "Precio", "Stock", "Categoria", "ImagePath", "CreatedAtUtc", "UpdatedAtUtc"
             FROM "Productos"
             WHERE "Id" = @Id
             """;
@@ -21,7 +21,7 @@ public sealed class DapperProductoReadRepository(IDbConnectionFactory connection
     public async Task<IReadOnlyList<ProductoResponse>> ListAsync(ProductoSearchCriteria search, CancellationToken cancellationToken = default)
     {
         var sql = """
-            SELECT "Id", "Codigo", "Nombre", "Descripcion", "Precio", "Stock", "Activo", "CreatedAtUtc", "UpdatedAtUtc"
+            SELECT "Id", "Codigo", "Nombre", "Precio", "Stock", "Categoria", "ImagePath", "CreatedAtUtc", "UpdatedAtUtc"
             FROM "Productos"
             """;
 
@@ -46,10 +46,22 @@ public sealed class DapperProductoReadRepository(IDbConnectionFactory connection
             parameters.Add("Nombre", $"%{search.Nombre.Trim()}%");
         }
 
-        if (search.Activo.HasValue)
+        if (!string.IsNullOrWhiteSpace(search.Categoria))
         {
-            filters.Add("\"Activo\" = @Activo");
-            parameters.Add("Activo", search.Activo.Value);
+            filters.Add("\"Categoria\" ILIKE @Categoria");
+            parameters.Add("Categoria", $"%{search.Categoria.Trim()}%");
+        }
+
+        if (search.Precio.HasValue)
+        {
+            filters.Add("\"Precio\" = @Precio");
+            parameters.Add("Precio", search.Precio.Value);
+        }
+
+        if (search.Stock.HasValue)
+        {
+            filters.Add("\"Stock\" = @Stock");
+            parameters.Add("Stock", search.Stock.Value);
         }
 
         if (filters.Count > 0)

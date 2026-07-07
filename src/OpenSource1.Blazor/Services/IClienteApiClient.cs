@@ -13,16 +13,18 @@ public interface IClienteApiClient
 
 public sealed record ClienteSearchFilter(
     Guid? Id,
-    string? DocumentoIdentidad,
     string? Nombre,
-    bool? Activo);
+    string? Apellido,
+    string? Email,
+    string? Telefono,
+    string? Direccion);
 
 public sealed record ClienteInput(
-    string NombreCompleto,
-    string DocumentoIdentidad,
+    string Nombre,
+    string Apellido,
     string Email,
     string? Telefono,
     string? Direccion,
-    bool Activo);
+    string? ImagePath = null);
 
 public sealed record ClienteOperationResult(bool Succeeded, string Message, Guid? EntityId = null);

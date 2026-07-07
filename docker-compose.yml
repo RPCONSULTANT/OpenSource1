@@ -23,6 +23,7 @@ services:
       - "8080:8080"
     volumes:
       - dataprotection-keys:/root/.aspnet/DataProtection-Keys
+      - uploads-data:/app/storage/uploads
     depends_on:
       api:
         condition: service_started
@@ -79,3 +80,4 @@ services:
 volumes:
   postgres-data:
   dataprotection-keys:
+  uploads-data:

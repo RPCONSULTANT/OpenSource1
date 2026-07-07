@@ -23,17 +23,17 @@ public class CreateClienteCommandHandlerTests
         unitOfWork.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
 
         var handler = new CreateClienteCommandHandler(unitOfWork.Object);
-        var response = await handler.Handle(new CreateClienteCommand("  Juan Perez  ", " 001-123 ", "  JP@MAIL.COM ", " 809-111 ", " Calle 1 ", true), default);
+        var response = await handler.Handle(new CreateClienteCommand("  Juan  ", "  Perez  ", "  JP@MAIL.COM ", " 809-111 ", " Calle 1 "), default);
 
         Assert.NotNull(added);
-        Assert.Equal("Juan Perez", added!.NombreCompleto);
-        Assert.Equal("001-123", added.DocumentoIdentidad);
+        Assert.Equal("Juan", added!.Nombre);
+        Assert.Equal("Perez", added.Apellido);
         Assert.Equal("JP@MAIL.COM", added.Email);
         Assert.Equal("809-111", added.Telefono);
         Assert.Equal("Calle 1", added.Direccion);
-        Assert.True(added.Activo);
         Assert.Equal(added.Id, response.Id);
-        Assert.Equal("Juan Perez", response.NombreCompleto);
+        Assert.Equal("Juan", response.Nombre);
+        Assert.Equal("Perez", response.Apellido);
         unitOfWork.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 }

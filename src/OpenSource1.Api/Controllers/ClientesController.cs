@@ -18,13 +18,15 @@ public sealed class ClientesController(ISender sender) : ControllerBase
     [ProducesResponseType<IReadOnlyList<ClienteResponse>>(StatusCodes.Status200OK)]
     public async Task<ActionResult<IReadOnlyList<ClienteResponse>>> List(
         [FromQuery] Guid? id,
-        [FromQuery] string? documentoIdentidad,
         [FromQuery] string? nombre,
-        [FromQuery] bool? activo,
+        [FromQuery] string? apellido,
+        [FromQuery] string? email,
+        [FromQuery] string? telefono,
+        [FromQuery] string? direccion,
         CancellationToken cancellationToken)
     {
         var result = await sender.Send(
-            new ListClientesQuery(new ClienteSearchCriteria(id, documentoIdentidad, nombre, activo)),
+            new ListClientesQuery(new ClienteSearchCriteria(id, nombre, apellido, email, telefono, direccion)),
             cancellationToken);
 
         return Ok(result);
@@ -46,15 +48,15 @@ public sealed class ClientesController(ISender sender) : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<ClienteResponse>> Create(CreateClienteRequest request, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(request.NombreCompleto) ||
-            string.IsNullOrWhiteSpace(request.DocumentoIdentidad) ||
+        if (string.IsNullOrWhiteSpace(request.Nombre) ||
+            string.IsNullOrWhiteSpace(request.Apellido) ||
             string.IsNullOrWhiteSpace(request.Email))
         {
             return BadRequest();
         }
 
         var result = await sender.Send(
-            new CreateClienteCommand(request.NombreCompleto, request.DocumentoIdentidad, request.Email, request.Telefono, request.Direccion, request.Activo),
+            new CreateClienteCommand(request.Nombre, request.Apellido, request.Email, request.Telefono, request.Direccion, request.ImagePath),
             cancellationToken);
 
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
@@ -67,15 +69,15 @@ public sealed class ClientesController(ISender sender) : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<ClienteResponse>> Update(Guid id, UpdateClienteRequest request, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(request.NombreCompleto) ||
-            string.IsNullOrWhiteSpace(request.DocumentoIdentidad) ||
+        if (string.IsNullOrWhiteSpace(request.Nombre) ||
+            string.IsNullOrWhiteSpace(request.Apellido) ||
             string.IsNullOrWhiteSpace(request.Email))
         {
             return BadRequest();
         }
 
         var result = await sender.Send(
-            new UpdateClienteCommand(id, request.NombreCompleto, request.DocumentoIdentidad, request.Email, request.Telefono, request.Direccion, request.Activo),
+            new UpdateClienteCommand(id, request.Nombre, request.Apellido, request.Email, request.Telefono, request.Direccion, request.ImagePath),
             cancellationToken);
 
         return result is null ? NotFound() : Ok(result);
@@ -92,5 +94,5 @@ public sealed class ClientesController(ISender sender) : ControllerBase
     }
 }
 
-public sealed record CreateClienteRequest(string NombreCompleto, string DocumentoIdentidad, string Email, string? Telefono, string? Direccion, bool Activo = true);
-public sealed record UpdateClienteRequest(string NombreCompleto, string DocumentoIdentidad, string Email, string? Telefono, string? Direccion, bool Activo);
+public sealed record CreateClienteRequest(string Nombre, string Apellido, string Email, string? Telefono, string? Direccion, string? ImagePath = null);
+public sealed record UpdateClienteRequest(string Nombre, string Apellido, string Email, string? Telefono, string? Direccion, string? ImagePath = null);
