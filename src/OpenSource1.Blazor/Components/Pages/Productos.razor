@@ -18,13 +18,13 @@
         <p class="text-sm text-slate-500 mt-1">Listado principal con búsqueda, filtros y reportería.</p>
     </div>
     <div class="flex items-center gap-3 flex-wrap">
-        <a href="@BuildListUrl(showFilters: !ShowFilters)" class="btn-press inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3c2.755 0 4.174.117 5.126.237 1.01.128 1.816.935 1.944 1.944.12.952.237 2.371.237 5.126s-.117 4.174-.237 5.126a2.25 2.25 0 0 1-1.944 1.944c-.952.12-2.371.237-5.126.237s-4.174-.117-5.126-.237a2.25 2.25 0 0 1-1.944-1.944C4.117 14.174 4 12.755 4 10s.117-4.174.237-5.126a2.25 2.25 0 0 1 1.944-1.944C7.126 2.817 8.545 2.7 11.3 2.7" /></svg>@(ShowFilters ? "Ocultar filtros" : "Filtros")</a>
+        <a href="@BuildListUrl(showFilters: !ShowFilters)" class="btn-press inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="M3 4.5h18M6.75 12h10.5m-7.5 7.5h4.5" /></svg>@(ShowFilters ? "Ocultar filtros" : "Filtros")</a>
         <a href="@BuildListUrl(view: "grid")" title="Vista cuadrícula" class="btn-press inline-flex items-center justify-center size-10 rounded-lg border shadow-sm @(IsListView ? "border-slate-300 bg-white text-slate-600 hover:bg-slate-50" : "border-brand-200 bg-brand-50 text-brand-700")"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-5"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 8.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 8.25 20.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z" /></svg></a>
         <a href="@BuildListUrl(view: "list")" title="Vista lista" class="btn-press inline-flex items-center justify-center size-10 rounded-lg border shadow-sm @(IsListView ? "border-brand-200 bg-brand-50 text-brand-700" : "border-slate-300 bg-white text-slate-600 hover:bg-slate-50")"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-5"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12m-12 5.25h12m-12 5.25h12M3.75 6.75h.008v.008H3.75V6.75Zm0 5.25h.008v.008H3.75V12Zm0 5.25h.008v.008H3.75v-.008Z" /></svg></a>
-        <a href="@BuildListUrl(report: true)" class="btn-press inline-flex items-center gap-2 rounded-lg border border-brand-200 bg-brand-50 px-4 py-2 text-sm font-semibold text-brand-700 shadow-sm hover:bg-brand-100">Reporte</a>
+        <a href="@BuildListUrl(report: true)" class="btn-press inline-flex items-center gap-2 rounded-lg border border-brand-200 bg-brand-50 px-4 py-2 text-sm font-semibold text-brand-700 shadow-sm hover:bg-brand-100"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 21V5.25A2.25 2.25 0 0 0 17.25 3H6.75A2.25 2.25 0 0 0 4.5 5.25V21m15 0h1.125a1.125 1.125 0 1 0 0-2.25H19.5M4.5 21H3.375a1.125 1.125 0 1 1 0-2.25H4.5m3-13.5h9m-9 4.5h9m-9 4.5h5.25" /></svg>Reporte</a>
         @if (canAdd)
         {
-            <a href="/productos/new" class="btn-press inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700">New</a>
+            <a href="/productos/new" class="btn-press inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>Nuevo</a>
         }
     </div>
 </div>
@@ -34,7 +34,45 @@
     <div class="mb-6">@(messageType == "success" ? (RenderFragment)(@<ActionFeedback Type="success" Message="@message" />) : @<MessageBox Type="@messageType" Message="@message" />)</div>
 }
 
-<div class="mb-8 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px] gap-6 items-start">
+<div class="mb-8 grid grid-cols-1 gap-6 items-start @GridColsClass">
+@if (ShowFactbox)
+{
+    var factProducto = productos.FirstOrDefault(x => x.Id == FocusProductoId!.Value);
+    <aside class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden sticky top-24">
+        <div class="px-5 py-4 border-b border-slate-100 bg-slate-50 flex items-start justify-between gap-3">
+            <div>
+                <h2 class="text-sm font-bold uppercase tracking-wide text-slate-800">Factbox</h2>
+                <p class="mt-1 text-xs text-slate-500">Resumen visual del registro enfocado.</p>
+            </div>
+            <a href="@BuildListUrl()" title="Cerrar factbox" class="btn-press inline-flex items-center justify-center size-7 rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50">✕</a>
+        </div>
+        <div class="p-5">
+            @if (factProducto is null)
+            {
+                <div class="flex h-48 items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 text-sm text-slate-400">Sin registro</div>
+            }
+            else
+            {
+                @if (!string.IsNullOrWhiteSpace(factProducto.ImagePath))
+                {
+                    <img src="@factProducto.ImagePath" alt="Imagen del producto" class="h-48 w-full rounded-2xl object-cover border border-slate-200 bg-slate-50" />
+                }
+                else
+                {
+                    <div class="flex h-48 items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 text-sm text-slate-400">Sin imagen</div>
+                }
+                <div class="mt-4 space-y-3 text-sm">
+                    <div><p class="text-xs font-bold uppercase tracking-wide text-slate-400">General</p><p class="mt-1 font-semibold text-slate-800">@factProducto.Nombre</p></div>
+                    <div><p class="text-xs font-bold uppercase tracking-wide text-slate-400">Código</p><p class="mt-1 text-slate-700">@factProducto.Codigo</p></div>
+                    <div><p class="text-xs font-bold uppercase tracking-wide text-slate-400">Precio</p><p class="mt-1 text-slate-700">@factProducto.Precio.ToString("N2")</p></div>
+                    <div><p class="text-xs font-bold uppercase tracking-wide text-slate-400">Stock</p><p class="mt-1 text-slate-700">@factProducto.Stock</p></div>
+                    <div><p class="text-xs font-bold uppercase tracking-wide text-slate-400">Categoría</p><p class="mt-1 text-slate-700">@factProducto.Categoria</p></div>
+                </div>
+            }
+        </div>
+    </aside>
+}
+
 <div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
     <form method="get" action="/productos" data-enhance class="border-b border-slate-100 p-4 sm:p-6">
         <input type="hidden" name="showFilters" value="@(ShowFilters ? "true" : "false")" />
@@ -112,20 +150,21 @@
             }
             else
             {
-                <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 p-4 sm:p-6">
+                <div class="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3 gap-4 p-4 sm:p-6">
                     @foreach (var producto in productos)
                     {
                         <article @key="producto.Id" class="rounded-2xl border border-slate-200 bg-white shadow-sm hover:shadow-md hover:border-brand-200 transition-all duration-200 overflow-hidden">
                             <div class="p-5">
                                 <div class="flex items-start justify-between gap-4">
                                     <div>
-                                        <h3 class="text-lg font-extrabold text-slate-900">@producto.Nombre</h3>
+                                        <h3 class="text-lg font-extrabold text-slate-900"><a href="@BuildListUrl(focusId: producto.Id)" class="hover:text-brand-700 hover:underline" title="Ver en factbox">@producto.Nombre</a></h3>
                                         <p class="mt-1 text-sm text-slate-500">Código: <span class="font-semibold text-slate-700">@producto.Codigo</span></p>
                                     </div>
                                     <div class="flex items-center gap-2">
                                         <label class="inline-flex items-center justify-center size-9 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 cursor-pointer" title="Seleccionar para reporte">
                                             <input type="checkbox" name="SelectedIds" value="@producto.Id" class="size-4 rounded border-slate-300 text-brand-600 focus:ring-brand-600" />
                                         </label>
+                                        <a href="@BuildListUrl(focusId: producto.Id)" class="btn-press inline-flex items-center justify-center size-9 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50" title="Ver en factbox">🖼</a>
                                         <a href="/productos/@producto.Id" class="btn-press inline-flex items-center justify-center size-9 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50" title="Ver ficha">👁</a>
                                         @if (canModify)
                                         {
@@ -223,15 +262,17 @@
     [SupplyParameterFromQuery(Name = "view")] private string? View { get; set; }
     [SupplyParameterFromQuery(Name = "showFilters")] private bool ShowFilters { get; set; }
     [SupplyParameterFromQuery(Name = "report")] private bool ShowReport { get; set; }
+    [SupplyParameterFromQuery(Name = "focusId")] private Guid? FocusProductoId { get; set; }
     [SupplyParameterFromQuery(Name = "deleteId")] private Guid? DeleteId { get; set; }
     [SupplyParameterFromQuery(Name = "ok")] private string? Ok { get; set; }
     [SupplyParameterFromForm(FormName = "delete-producto-list")] private DeleteConfirmForm? DeleteInput { get; set; }
     private IReadOnlyList<ProductoResponse> productos = [];
-    private string? message; private string messageType = "info"; private string? modalError; private bool canAdd; private bool canModify; private bool canDelete; private bool IsListView => string.Equals(View, "list", StringComparison.OrdinalIgnoreCase); [CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+    private string? message; private string messageType = "info"; private string? modalError; private bool canAdd; private bool canModify; private bool canDelete; private bool IsListView => string.Equals(View, "list", StringComparison.OrdinalIgnoreCase); private bool ShowFactbox => !IsListView && FocusProductoId.HasValue; [CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+    private string GridColsClass => (ShowFactbox, ShowFilters) switch { (true, true) => "xl:grid-cols-[280px_minmax(0,1fr)_320px]", (true, false) => "xl:grid-cols-[280px_minmax(0,1fr)]", (false, true) => "xl:grid-cols-[minmax(0,1fr)_320px]", (false, false) => "xl:grid-cols-1" };
     protected override async Task OnInitializedAsync(){DeleteInput ??= new(); if(AuthenticationStateTask is not null){var user=(await AuthenticationStateTask).User; canAdd=(await AuthorizationService.AuthorizeAsync(user, ApplicationPolicies.CanAdd)).Succeeded; canModify=(await AuthorizationService.AuthorizeAsync(user, ApplicationPolicies.CanModify)).Succeeded; canDelete=(await AuthorizationService.AuthorizeAsync(user, ApplicationPolicies.CanDelete)).Succeeded;} await LoadAsync(); if(Ok is not null){(messageType, message)=Ok switch {"created"=>("success","Producto creado satisfactoriamente."),"updated"=>("success","Producto modificado satisfactoriamente."),"deleted"=>("success","Producto eliminado satisfactoriamente."),"report-select-required"=>("warning","Seleccione al menos un producto para generar el reporte."),"report-no-data"=>("warning","No hay datos para generar el reporte solicitado."),_ =>("info",null)};}}
-    private async Task LoadAsync(){try{productos=await ProductoApiClient.ListAsync(new ProductoSearchFilter(null, EmptyAsNull(SearchCodigo), EmptyAsNull(SearchText), EmptyAsNull(SearchCategoria)));} catch(Exception ex){Logger.LogWarning(ex,"Could not load productos from API."); message="No fue posible cargar los productos."; messageType="danger";}}
+    private async Task LoadAsync(){try{productos=await ProductoApiClient.ListAsync(new ProductoSearchFilter(null, EmptyAsNull(SearchCodigo), EmptyAsNull(SearchText), EmptyAsNull(SearchCategoria), null, null));} catch(Exception ex){Logger.LogWarning(ex,"Could not load productos from API."); message="No fue posible cargar los productos."; messageType="danger";}}
     private async Task DeleteAsync(){if(!DeleteId.HasValue){modalError="No se pudo identificar el producto. Intente de nuevo."; return;} var result=await ProductoApiClient.DeleteAsync(DeleteId.Value); if(result.Succeeded) Nav.NavigateTo(BuildListUrl(ok:"deleted")); else modalError=result.Message;}
-    private string BuildListUrl(Guid? deleteId=null, bool? showFilters=null, string? ok=null, string? view=null, bool? report=null){var parameters=new List<string>(); AddParameter(parameters,"q",SearchText); AddParameter(parameters,"codigo",SearchCodigo); AddParameter(parameters,"categoria",SearchCategoria); AddParameter(parameters,"filterBy", FilterBy); AddParameter(parameters,"view", view ?? View); if(showFilters ?? ShowFilters) parameters.Add("showFilters=true"); if(report ?? ShowReport) parameters.Add("report=true"); if(deleteId.HasValue) AddParameter(parameters,"deleteId",deleteId.Value.ToString()); AddParameter(parameters,"ok",ok); return parameters.Count==0 ? "/productos" : $"/productos?{string.Join("&",parameters)}";}
+    private string BuildListUrl(Guid? deleteId=null, bool? showFilters=null, string? ok=null, string? view=null, bool? report=null, Guid? focusId=null){var parameters=new List<string>(); AddParameter(parameters,"q",SearchText); AddParameter(parameters,"codigo",SearchCodigo); AddParameter(parameters,"categoria",SearchCategoria); AddParameter(parameters,"filterBy", FilterBy); AddParameter(parameters,"view", view ?? View); if(showFilters ?? ShowFilters) parameters.Add("showFilters=true"); if(report ?? ShowReport) parameters.Add("report=true"); if(focusId.HasValue) AddParameter(parameters,"focusId",focusId.Value.ToString()); if(deleteId.HasValue) AddParameter(parameters,"deleteId",deleteId.Value.ToString()); AddParameter(parameters,"ok",ok); return parameters.Count==0 ? "/productos" : $"/productos?{string.Join("&",parameters)}";}
     private static void AddParameter(List<string> parameters,string key,string? value){if(!string.IsNullOrWhiteSpace(value)) parameters.Add($"{key}={Uri.EscapeDataString(value)}");}
     private static string? EmptyAsNull(string? value)=>string.IsNullOrWhiteSpace(value)?null:value;
     private sealed class DeleteConfirmForm{}
