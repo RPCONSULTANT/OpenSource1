@@ -28,41 +28,11 @@ public sealed class DapperClienteReadRepository(IDbConnectionFactory connectionF
         var filters = new List<string>();
         var parameters = new DynamicParameters();
 
-        if (search.Id.HasValue)
-        {
-            filters.Add("\"Id\" = @Id");
-            parameters.Add("Id", search.Id.Value);
-        }
-
-        if (!string.IsNullOrWhiteSpace(search.Nombre))
-        {
-            filters.Add("\"Nombre\" ILIKE @Nombre");
-            parameters.Add("Nombre", $"%{search.Nombre.Trim()}%");
-        }
-
-        if (!string.IsNullOrWhiteSpace(search.Apellido))
-        {
-            filters.Add("\"Apellido\" ILIKE @Apellido");
-            parameters.Add("Apellido", $"%{search.Apellido.Trim()}%");
-        }
-
-        if (!string.IsNullOrWhiteSpace(search.Email))
-        {
-            filters.Add("\"Email\" ILIKE @Email");
-            parameters.Add("Email", $"%{search.Email.Trim()}%");
-        }
-
-        if (!string.IsNullOrWhiteSpace(search.Telefono))
-        {
-            filters.Add("\"Telefono\" ILIKE @Telefono");
-            parameters.Add("Telefono", $"%{search.Telefono.Trim()}%");
-        }
-
-        if (!string.IsNullOrWhiteSpace(search.Direccion))
-        {
-            filters.Add("\"Direccion\" ILIKE @Direccion");
-            parameters.Add("Direccion", $"%{search.Direccion.Trim()}%");
-        }
+        FilterExpressionBuilder.AddTextFilter(filters, parameters, "Nombre", search.Nombre);
+        FilterExpressionBuilder.AddTextFilter(filters, parameters, "Apellido", search.Apellido);
+        FilterExpressionBuilder.AddTextFilter(filters, parameters, "Email", search.Email);
+        FilterExpressionBuilder.AddTextFilter(filters, parameters, "Telefono", search.Telefono);
+        FilterExpressionBuilder.AddTextFilter(filters, parameters, "Direccion", search.Direccion);
 
         if (filters.Count > 0)
         {

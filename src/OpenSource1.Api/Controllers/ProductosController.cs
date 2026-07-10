@@ -17,16 +17,15 @@ public sealed class ProductosController(ISender sender) : ControllerBase
     [Authorize(Policy = ApplicationPolicies.CanConsult)]
     [ProducesResponseType<IReadOnlyList<ProductoResponse>>(StatusCodes.Status200OK)]
     public async Task<ActionResult<IReadOnlyList<ProductoResponse>>> List(
-        [FromQuery] Guid? id,
         [FromQuery] string? codigo,
         [FromQuery] string? nombre,
         [FromQuery] string? categoria,
-        [FromQuery] decimal? precio,
-        [FromQuery] int? stock,
+        [FromQuery] string? precio,
+        [FromQuery] string? stock,
         CancellationToken cancellationToken)
     {
         var result = await sender.Send(
-            new ListProductosQuery(new ProductoSearchCriteria(id, codigo, nombre, categoria, precio, stock)),
+            new ListProductosQuery(new ProductoSearchCriteria(codigo, nombre, categoria, precio, stock)),
             cancellationToken);
 
         return Ok(result);

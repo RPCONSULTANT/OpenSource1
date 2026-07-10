@@ -17,7 +17,6 @@ public sealed class ClientesController(ISender sender) : ControllerBase
     [Authorize(Policy = ApplicationPolicies.CanConsult)]
     [ProducesResponseType<IReadOnlyList<ClienteResponse>>(StatusCodes.Status200OK)]
     public async Task<ActionResult<IReadOnlyList<ClienteResponse>>> List(
-        [FromQuery] Guid? id,
         [FromQuery] string? nombre,
         [FromQuery] string? apellido,
         [FromQuery] string? email,
@@ -26,7 +25,7 @@ public sealed class ClientesController(ISender sender) : ControllerBase
         CancellationToken cancellationToken)
     {
         var result = await sender.Send(
-            new ListClientesQuery(new ClienteSearchCriteria(id, nombre, apellido, email, telefono, direccion)),
+            new ListClientesQuery(new ClienteSearchCriteria(nombre, apellido, email, telefono, direccion)),
             cancellationToken);
 
         return Ok(result);

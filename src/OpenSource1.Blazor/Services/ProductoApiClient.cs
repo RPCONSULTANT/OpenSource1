@@ -45,11 +45,6 @@ public sealed class ProductoApiClient(HttpClient httpClient, ILogger<ProductoApi
 
         var parameters = new List<string>();
 
-        if (filter.Id.HasValue)
-        {
-            parameters.Add($"id={Uri.EscapeDataString(filter.Id.Value.ToString())}");
-        }
-
         if (!string.IsNullOrWhiteSpace(filter.Codigo))
         {
             parameters.Add($"codigo={Uri.EscapeDataString(filter.Codigo.Trim())}");
@@ -65,14 +60,14 @@ public sealed class ProductoApiClient(HttpClient httpClient, ILogger<ProductoApi
             parameters.Add($"categoria={Uri.EscapeDataString(filter.Categoria.Trim())}");
         }
 
-        if (filter.Precio.HasValue)
+        if (!string.IsNullOrWhiteSpace(filter.Precio))
         {
-            parameters.Add($"precio={Uri.EscapeDataString(filter.Precio.Value.ToString(System.Globalization.CultureInfo.InvariantCulture))}");
+            parameters.Add($"precio={Uri.EscapeDataString(filter.Precio.Trim())}");
         }
 
-        if (filter.Stock.HasValue)
+        if (!string.IsNullOrWhiteSpace(filter.Stock))
         {
-            parameters.Add($"stock={filter.Stock.Value}");
+            parameters.Add($"stock={Uri.EscapeDataString(filter.Stock.Trim())}");
         }
 
         return parameters.Count == 0 ? "api/productos" : $"api/productos?{string.Join("&", parameters)}";

@@ -12,12 +12,11 @@ public interface IProductoApiClient
 }
 
 public sealed record ProductoSearchFilter(
-    Guid? Id,
     string? Codigo,
     string? Nombre,
     string? Categoria,
-    decimal? Precio,
-    int? Stock);
+    string? Precio,
+    string? Stock);
 
 public sealed record ProductoInput(
     string Codigo,

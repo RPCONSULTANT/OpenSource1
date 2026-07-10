@@ -12,7 +12,6 @@ public interface IClienteApiClient
 }
 
 public sealed record ClienteSearchFilter(
-    Guid? Id,
     string? Nombre,
     string? Apellido,
     string? Email,

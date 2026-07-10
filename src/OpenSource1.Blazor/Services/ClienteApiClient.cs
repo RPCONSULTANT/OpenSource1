@@ -54,11 +54,6 @@ public sealed class ClienteApiClient(HttpClient httpClient, ILogger<ClienteApiCl
 
         var parameters = new List<string>();
 
-        if (filter.Id.HasValue)
-        {
-            parameters.Add($"id={Uri.EscapeDataString(filter.Id.Value.ToString())}");
-        }
-
         if (!string.IsNullOrWhiteSpace(filter.Apellido))
         {
             parameters.Add($"apellido={Uri.EscapeDataString(filter.Apellido.Trim())}");

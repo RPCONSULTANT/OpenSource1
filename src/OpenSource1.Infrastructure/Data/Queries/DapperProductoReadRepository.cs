@@ -28,41 +28,13 @@ public sealed class DapperProductoReadRepository(IDbConnectionFactory connection
         var filters = new List<string>();
         var parameters = new DynamicParameters();
 
-        if (search.Id.HasValue)
-        {
-            filters.Add("\"Id\" = @Id");
-            parameters.Add("Id", search.Id.Value);
-        }
-
-        if (!string.IsNullOrWhiteSpace(search.Codigo))
-        {
-            filters.Add("\"Codigo\" ILIKE @Codigo");
-            parameters.Add("Codigo", $"%{search.Codigo.Trim()}%");
-        }
-
-        if (!string.IsNullOrWhiteSpace(search.Nombre))
-        {
-            filters.Add("\"Nombre\" ILIKE @Nombre");
-            parameters.Add("Nombre", $"%{search.Nombre.Trim()}%");
-        }
-
-        if (!string.IsNullOrWhiteSpace(search.Categoria))
-        {
-            filters.Add("\"Categoria\" ILIKE @Categoria");
-            parameters.Add("Categoria", $"%{search.Categoria.Trim()}%");
-        }
-
-        if (search.Precio.HasValue)
-        {
-            filters.Add("\"Precio\" = @Precio");
-            parameters.Add("Precio", search.Precio.Value);
-        }
-
-        if (search.Stock.HasValue)
-        {
-            filters.Add("\"Stock\" = @Stock");
-            parameters.Add("Stock", search.Stock.Value);
-        }
+        FilterExpressionBuilder.AddTextFilter(filters, parameters, "Codigo", search.Codigo);
+        FilterExpressionBuilder.AddTextFilter(filters, parameters, "Nombre", search.Nombre);
+        FilterExpressionBuilder.AddTextFilter(filters, parameters, "Categoria", search.Categoria);
+        FilterExpressionBuilder.AddExactFilter(filters, parameters, "Precio", search.Precio,
+            static term => (decimal.TryParse(term, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var value), value));
+        FilterExpressionBuilder.AddExactFilter(filters, parameters, "Stock", search.Stock,
+            static term => (int.TryParse(term, out var value), value));
 
         if (filters.Count > 0)
         {
