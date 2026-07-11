@@ -9,4 +9,6 @@ public interface IAuthService
     Task<PasswordActionResponse> ForgotPasswordAsync(ForgotPasswordRequest request, CancellationToken cancellationToken = default);
     Task<(PasswordActionResponse? Response, IReadOnlyList<string> Errors)> ResetPasswordAsync(ResetPasswordRequest request, CancellationToken cancellationToken = default);
     Task<(PasswordActionResponse? Response, IReadOnlyList<string> Errors)> ChangePasswordAsync(string userId, ChangePasswordRequest request, CancellationToken cancellationToken = default);
+    Task<CurrentUserResponse?> GetCurrentUserAsync(string userId, CancellationToken cancellationToken = default);
+    Task<(bool Success, IReadOnlyList<string> Errors)> UpdateProfileImageAsync(string userId, string? imagePath, CancellationToken cancellationToken = default);
 }

@@ -1,9 +1,11 @@
 using System.Net;
 using System.Net.Http.Json;
 using OpenSource1.Application.Features.AppSettings.Dtos;
+using System;
 
 namespace OpenSource1.Blazor.Services;
 
+[Obsolete("Modulo de prueba obsoleto. No usar AppSettings para nuevos desarrollos.")]
 public sealed class AppSettingsApiClient(HttpClient httpClient, ILogger<AppSettingsApiClient> logger) : IAppSettingsApiClient
 {
     public async Task<IReadOnlyList<AppSettingResponse>> ListAsync(CancellationToken cancellationToken = default) =>

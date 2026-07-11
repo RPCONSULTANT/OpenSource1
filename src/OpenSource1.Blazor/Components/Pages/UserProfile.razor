@@ -49,7 +49,14 @@ else
     @if (feedbackMessage is not null)
     {
         <div class="mb-5">
-            <MessageBox Type="@feedbackType" Message="@feedbackMessage" />
+            @if (feedbackType == "success")
+            {
+                <ActionFeedback Type="success" Message="@feedbackMessage" />
+            }
+            else
+            {
+                <MessageBox Type="@feedbackType" Message="@feedbackMessage" />
+            }
         </div>
     }
 
@@ -114,7 +121,7 @@ else
                     </svg>
                     Asignar rol
                 </h2>
-                <EditForm Model="AssignRoleInput" FormName="assign-role" OnValidSubmit="AssignRoleAsync">
+                <EditForm Model="AssignRoleInput" FormName="assign-role" OnValidSubmit="PrepareAssignRoleConfirmation">
                     <input type="hidden" name="AssignRoleInput.UserId" value="@UserId" />
                     <div class="flex items-center gap-3 flex-wrap">
                         <InputSelect @bind-Value="AssignRoleInput!.Role"
@@ -125,8 +132,8 @@ else
                             }
                         </InputSelect>
                         <button type="submit"
-                                class="rounded-lg bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 active:scale-95 transition-all duration-150 shrink-0">
-                            Asignar
+                                class="btn-press rounded-lg bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 active:scale-95 transition-all duration-150 shrink-0">
+                            Revisar asignación
                         </button>
                     </div>
                 </EditForm>
@@ -147,17 +154,13 @@ else
                         {
                             <!-- Un form por rol; mismo @formname "remove-role":
                                  el handler discrimina por el campo Role en el body -->
-                            <EditForm Model="RemoveRoleInput" FormName="remove-role" OnValidSubmit="RemoveRoleAsync">
-                                <input type="hidden" name="RemoveRoleInput.UserId" value="@UserId" />
-                                <input type="hidden" name="RemoveRoleInput.Role" value="@role" />
-                                <button type="submit"
-                                        class="inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100 active:scale-95 transition-all duration-150">
+                            <a href="/admin/users/@UserId?confirm=removeRole&role=@Uri.EscapeDataString(role)"
+                               class="btn-press inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100 active:scale-95 transition-all duration-150">
                                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-3.5">
                                         <path d="M5.28 4.22a.75.75 0 0 0-1.06 1.06L6.94 8l-2.72 2.72a.75.75 0 1 0 1.06 1.06L8 9.06l2.72 2.72a.75.75 0 1 0 1.06-1.06L9.06 8l2.72-2.72a.75.75 0 0 0-1.06-1.06L8 6.94 5.28 4.22Z" />
                                     </svg>
                                     @role
-                                </button>
-                            </EditForm>
+                            </a>
                         }
                     </div>
                 </div>
@@ -181,10 +184,8 @@ else
                         <span>La cuenta está <strong class="text-red-700">inactiva</strong>. El usuario no puede iniciar sesión.</span>
                     }
                 </p>
-                <EditForm Model="ToggleActiveInput" FormName="toggle-active" OnValidSubmit="ToggleActiveAsync">
-                    <input type="hidden" name="ToggleActiveInput.UserId" value="@UserId" />
-                    <button type="submit"
-                            class="@(user.IsActive
+                <a href="/admin/users/@UserId?confirm=toggleActive"
+                   class="@(user.IsActive
                                 ? "inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-5 py-2.5 text-sm font-semibold text-red-700 hover:bg-red-100 active:scale-95 transition-all duration-150"
                                 : "inline-flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-5 py-2.5 text-sm font-semibold text-green-700 hover:bg-green-100 active:scale-95 transition-all duration-150")">
                         @if (user.IsActive)
@@ -201,12 +202,49 @@ else
                             </svg>
                             <span>Activar cuenta</span>
                         }
-                    </button>
-                </EditForm>
+                </a>
             </div>
 
         </div>
     </div>
+}
+
+@if (showAssignRoleConfirmation)
+{
+    <ConfirmDialog Title="Confirmar asignación de rol" Message="Está a punto de asignar un rol a este usuario." Variant="success" CancelHref="@($"/admin/users/{UserId}")">
+        <p class="rounded-xl border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-900"><strong>@AssignRoleInput!.Role</strong> para @user?.FullName</p>
+        <EditForm Model="ConfirmAssignRoleInput" FormName="confirm-assign-role" OnValidSubmit="AssignRoleAsync" class="mt-4">
+            <input type="hidden" name="ConfirmAssignRoleInput.UserId" value="@UserId" />
+            <input type="hidden" name="ConfirmAssignRoleInput.Role" value="@AssignRoleInput.Role" />
+            <button type="submit" class="btn-press rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-green-700">Sí, asignar rol</button>
+            <a href="/admin/users/@UserId" class="btn-press ml-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Cancelar</a>
+        </EditForm>
+    </ConfirmDialog>
+}
+
+@if (Confirm == "removeRole" && !string.IsNullOrWhiteSpace(Role) && user is not null)
+{
+    <ConfirmDialog Title="Confirmar retiro de rol" Message="Está a punto de quitar un rol. Esta acción puede reducir los permisos del usuario." Variant="danger" CancelHref="@($"/admin/users/{UserId}")">
+        <p class="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-900"><strong>@Role</strong> de @user.FullName</p>
+        <EditForm Model="RemoveRoleInput" FormName="remove-role" OnValidSubmit="RemoveRoleAsync" class="mt-4">
+            <input type="hidden" name="RemoveRoleInput.UserId" value="@UserId" />
+            <input type="hidden" name="RemoveRoleInput.Role" value="@Role" />
+            <button type="submit" class="btn-press rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-700">Sí, quitar rol</button>
+            <a href="/admin/users/@UserId" class="btn-press ml-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Cancelar</a>
+        </EditForm>
+    </ConfirmDialog>
+}
+
+@if (Confirm == "toggleActive" && user is not null)
+{
+    <ConfirmDialog Title="Confirmar cambio de estado" Message="Está a punto de cambiar el acceso de este usuario al sistema." Variant="warning" CancelHref="@($"/admin/users/{UserId}")">
+        <p class="rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-900">La cuenta de <strong>@user.FullName</strong> será @(user.IsActive ? "desactivada" : "activada").</p>
+        <EditForm Model="ToggleActiveInput" FormName="toggle-active" OnValidSubmit="ToggleActiveAsync" class="mt-4">
+            <input type="hidden" name="ToggleActiveInput.UserId" value="@UserId" />
+            <button type="submit" class="btn-press rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-amber-700">Sí, cambiar estado</button>
+            <a href="/admin/users/@UserId" class="btn-press ml-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Cancelar</a>
+        </EditForm>
+    </ConfirmDialog>
 }
 
 @code {
@@ -214,9 +252,14 @@ else
 
     [SupplyParameterFromQuery(Name = "ok")]  private string? OkMessage  { get; set; }
     [SupplyParameterFromQuery(Name = "err")] private string? ErrMessage { get; set; }
+    [SupplyParameterFromQuery(Name = "confirm")] private string? Confirm { get; set; }
+    [SupplyParameterFromQuery(Name = "role")] private string? Role { get; set; }
 
     [SupplyParameterFromForm(FormName = "assign-role")]
     private AssignRoleModel? AssignRoleInput { get; set; }
+
+    [SupplyParameterFromForm(FormName = "confirm-assign-role")]
+    private AssignRoleModel? ConfirmAssignRoleInput { get; set; }
 
     [SupplyParameterFromForm(FormName = "remove-role")]
     private RemoveRoleModel? RemoveRoleInput { get; set; }
@@ -228,10 +271,12 @@ else
     private string? loadError;
     private string feedbackType = "success";
     private string? feedbackMessage;
+    private bool showAssignRoleConfirmation;
 
     protected override void OnInitialized()
     {
         AssignRoleInput  ??= new() { UserId = UserId, Role = ApplicationRoles.Executor };
+        ConfirmAssignRoleInput ??= new() { UserId = UserId, Role = ApplicationRoles.Executor };
         RemoveRoleInput  ??= new() { UserId = UserId };
         ToggleActiveInput??= new() { UserId = UserId };
     }
@@ -262,12 +307,18 @@ else
             user = result;
     }
 
+    private Task PrepareAssignRoleConfirmation()
+    {
+        showAssignRoleConfirmation = true;
+        return Task.CompletedTask;
+    }
+
     private async Task AssignRoleAsync()
     {
-        var input = AssignRoleInput!;
+        var input = ConfirmAssignRoleInput!;
         var (success, error) = await UserAdminApi.AssignRoleAsync(input.UserId, input.Role);
         var msg = success
-            ? Uri.EscapeDataString($"Rol '{input.Role}' asignado correctamente.")
+            ? Uri.EscapeDataString($"Rol '{input.Role}' asignado satisfactoriamente.")
             : Uri.EscapeDataString(error ?? "No se pudo asignar el rol.");
 
         Nav.NavigateTo($"/admin/users/{UserId}?{(success ? "ok" : "err")}={msg}", forceLoad: false);
@@ -278,7 +329,7 @@ else
         var input = RemoveRoleInput!;
         var (success, error) = await UserAdminApi.RemoveRoleAsync(input.UserId, input.Role);
         var msg = success
-            ? Uri.EscapeDataString($"Rol '{input.Role}' eliminado correctamente.")
+            ? Uri.EscapeDataString($"Rol '{input.Role}' eliminado satisfactoriamente.")
             : Uri.EscapeDataString(error ?? "No se pudo quitar el rol.");
 
         Nav.NavigateTo($"/admin/users/{UserId}?{(success ? "ok" : "err")}={msg}", forceLoad: false);
@@ -294,7 +345,7 @@ else
         {
             // Determinamos el nuevo estado tras el toggle
             var newState = user?.IsActive == true ? "desactivada" : "activada";
-            msg = Uri.EscapeDataString($"Cuenta {newState} correctamente.");
+            msg = Uri.EscapeDataString($"Cuenta {newState} satisfactoriamente.");
         }
         else
         {

@@ -9,6 +9,8 @@ public interface IAuthApiClient
     Task<PasswordActionResult> ForgotPasswordAsync(ForgotPasswordRequest request, CancellationToken cancellationToken = default);
     Task<PasswordActionResult> ResetPasswordAsync(ResetPasswordRequest request, CancellationToken cancellationToken = default);
     Task<PasswordActionResult> ChangePasswordAsync(ChangePasswordRequest request, CancellationToken cancellationToken = default);
+    Task<CurrentUserResponse?> GetCurrentUserAsync(CancellationToken cancellationToken = default);
+    Task<(bool Success, IReadOnlyList<string> Errors)> UpdateProfileImageAsync(UpdateProfileImageRequest request, CancellationToken cancellationToken = default);
 }
 
 public sealed record AuthResult(AuthResponse? Response, IReadOnlyList<string> Errors)
