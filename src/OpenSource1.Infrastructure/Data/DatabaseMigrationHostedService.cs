@@ -4,7 +4,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Npgsql;
 using OpenSource1.Infrastructure.Identity;
 
 namespace OpenSource1.Infrastructure.Data;
@@ -12,6 +11,7 @@ namespace OpenSource1.Infrastructure.Data;
 public sealed class DatabaseMigrationHostedService(
     IServiceScopeFactory scopeFactory,
     IOptions<DatabaseOptions> databaseOptions,
+    IHostEnvironment hostEnvironment,
     ILogger<DatabaseMigrationHostedService> logger) : IHostedService
 {
     public async Task StartAsync(CancellationToken cancellationToken)
@@ -36,14 +36,10 @@ public sealed class DatabaseMigrationHostedService(
 
     private async Task MigrateAsync(DatabaseFacade database, CancellationToken cancellationToken)
     {
-        try
-        {
-            await database.MigrateAsync(cancellationToken);
-        }
-        catch (PostgresException ex) when (ex.SqlState == "42P04") // database already exists
-        {
-            logger.LogWarning(ex, "PostgreSQL database already exists. Retrying migrations.");
-            await database.MigrateAsync(cancellationToken);
-        }
+        await DatabaseMigrationExecutor.MigrateWithRecoveryAsync(
+            database,
+            hostEnvironment.IsDevelopment() && databaseOptions.Value.RecreateOnPendingModelChangesInDevelopment,
+            logger,
+            cancellationToken);
     }
 }

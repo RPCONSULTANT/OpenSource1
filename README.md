@@ -143,7 +143,7 @@ Endpoints principales:
 | `POST /api/auth/reset-password` | Restablecimiento de contraseña. |
 | `POST /api/auth/change-password` | Cambio de contraseña autenticado. |
 
-> Nota: en ambiente local el token de recuperación puede mostrarse en pantalla para fines de demostración. En producción debe enviarse por correo.
+> Nota: el token de recuperación no debe mostrarse en pantalla. En producción debe enviarse por correo o por otro canal seguro. En desarrollo, use herramientas internas o logs controlados si necesita probar el flujo.
 
 ## Estructura del repositorio
 
@@ -235,6 +235,13 @@ docker compose down -v
 ## Ejecución sin Docker
 
 Requiere PostgreSQL local y cadenas de conexión configuradas por variables de entorno, user-secrets o `appsettings.Development.json`.
+
+Ejemplo de variables de entorno para PostgreSQL local:
+
+```bash
+export ConnectionStrings__DefaultConnection="Host=localhost;Port=5432;Database=AxionERP_App;Username=Rainiery;Password=<tu-password>"
+export ConnectionStrings__IdentityConnection="Host=localhost;Port=5432;Database=AxionERP_Identity;Username=Rainiery;Password=<tu-password>"
+```
 
 Restaurar y compilar:
 

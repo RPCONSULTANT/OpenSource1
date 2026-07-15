@@ -5,11 +5,13 @@ using OpenSource1.Application.Security;
 using OpenSource1.Application.Features.AppSettings.Commands;
 using OpenSource1.Application.Features.AppSettings.Dtos;
 using OpenSource1.Application.Features.AppSettings.Queries;
+using System;
 
 namespace OpenSource1.Api.Controllers;
 
 [ApiController]
 [Route("api/app-settings")]
+[Obsolete("Modulo de prueba obsoleto. No usar AppSettings para nuevos desarrollos.")]
 public sealed class AppSettingsController(ISender sender) : ControllerBase
 {
     [HttpGet]

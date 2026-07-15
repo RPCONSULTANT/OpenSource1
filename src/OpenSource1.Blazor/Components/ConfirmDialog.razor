@@ -1,0 +1,70 @@
+@* ConfirmDialog – modal SSR reutilizable para confirmar acciones sensibles. *@
+<div class="confirm-backdrop animate-fade-in" role="presentation">
+    <section class="confirm-panel animate-modal-in" role="dialog" aria-modal="true" aria-labelledby="@TitleId" aria-describedby="@BodyId">
+        <header class="confirm-header @HeaderClass">
+            <div class="flex items-center gap-2">
+                <span class="confirm-icon @IconClass" aria-hidden="true">
+                    @if (Variant == "danger")
+                    {
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+                        </svg>
+                    }
+                    else if (Variant == "success")
+                    {
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                        </svg>
+                    }
+                    else
+                    {
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m0 3.75h.007v.008H12V16.5Zm9-4.5a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                        </svg>
+                    }
+                </span>
+                <h2 id="@TitleId" class="text-sm font-bold">@Title</h2>
+            </div>
+            <a href="@CancelHref" title="Cancelar" class="confirm-close btn-press" aria-label="Cancelar confirmación">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+                </svg>
+            </a>
+        </header>
+
+        <div class="px-6 py-6">
+            <p id="@BodyId" class="text-sm text-slate-600 leading-6 dark:text-slate-300">@Message</p>
+            @if (ChildContent is not null)
+            {
+                <div class="mt-5">
+                    @ChildContent
+                </div>
+            }
+        </div>
+    </section>
+</div>
+
+@code {
+    [Parameter] public string Title { get; set; } = "Confirmar acción";
+    [Parameter] public string Message { get; set; } = string.Empty;
+    [Parameter] public string Variant { get; set; } = "warning";
+    [Parameter] public string CancelHref { get; set; } = "/";
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private string TitleId { get; } = $"confirm-title-{Guid.NewGuid():N}";
+    private string BodyId { get; } = $"confirm-body-{Guid.NewGuid():N}";
+
+    private string HeaderClass => Variant switch
+    {
+        "danger" => "bg-red-50 text-red-900 border-red-100 dark:bg-red-500/10 dark:text-red-400 dark:border-red-500/20",
+        "success" => "bg-green-50 text-green-900 border-green-100 dark:bg-green-500/10 dark:text-green-400 dark:border-green-500/20",
+        _ => "bg-amber-50 text-amber-900 border-amber-100 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20"
+    };
+
+    private string IconClass => Variant switch
+    {
+        "danger" => "text-red-600 bg-red-100 dark:text-red-400 dark:bg-red-500/20",
+        "success" => "text-green-700 bg-green-100 dark:text-green-400 dark:bg-green-500/20",
+        _ => "text-amber-700 bg-amber-100 dark:text-amber-400 dark:bg-amber-500/20"
+    };
+}

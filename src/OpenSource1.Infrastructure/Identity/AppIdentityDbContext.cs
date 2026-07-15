@@ -13,6 +13,7 @@ public sealed class AppIdentityDbContext(DbContextOptions<AppIdentityDbContext> 
         builder.Entity<Usuario>(entity =>
         {
             entity.Property(user => user.FullName).HasMaxLength(200);
+            entity.Property(user => user.ProfileImagePath).HasMaxLength(500);
             entity.Property(user => user.CreatedAtUtc).HasDefaultValueSql("now()").IsRequired();
             entity.Property(user => user.IsActive).HasDefaultValue(true).IsRequired();
         });

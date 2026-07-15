@@ -79,6 +79,30 @@ public sealed class AuthApiClient(HttpClient httpClient, ILogger<AuthApiClient> 
     public async Task<PasswordActionResult> ChangePasswordAsync(ChangePasswordRequest request, CancellationToken cancellationToken = default) =>
         await PostPasswordActionAsync("api/auth/change-password", request, "No fue posible cambiar la contraseña.", cancellationToken);
 
+    public async Task<CurrentUserResponse?> GetCurrentUserAsync(CancellationToken cancellationToken = default)
+    {
+        using var response = await httpClient.GetAsync("api/auth/me", cancellationToken);
+        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+        {
+            return null;
+        }
+
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<CurrentUserResponse>(cancellationToken);
+    }
+
+    public async Task<(bool Success, IReadOnlyList<string> Errors)> UpdateProfileImageAsync(UpdateProfileImageRequest request, CancellationToken cancellationToken = default)
+    {
+        using var response = await httpClient.PostAsJsonAsync("api/auth/profile-image", request, cancellationToken);
+        if (response.IsSuccessStatusCode)
+        {
+            return (true, Array.Empty<string>());
+        }
+
+        var error = await response.Content.ReadFromJsonAsync<AuthErrorResponse>(cancellationToken);
+        return (false, error?.Errors ?? ["No fue posible actualizar la imagen de perfil."]);
+    }
+
     private async Task<PasswordActionResult> PostPasswordActionAsync<TRequest>(
         string url,
         TRequest request,

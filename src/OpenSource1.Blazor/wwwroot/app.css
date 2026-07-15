@@ -31,3 +31,210 @@
     z-index: 9999;
     transition: width 0.2s ease;
 }
+
+/* Shared SSR UI motion */
+.btn-press {
+    transition: transform 140ms ease, background-color 140ms ease, border-color 140ms ease, color 140ms ease, box-shadow 140ms ease;
+}
+
+.btn-press:hover {
+    transform: translateY(-1px);
+}
+
+.btn-press:active {
+    transform: translateY(0) scale(0.96);
+}
+
+.confirm-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    background: rgba(15, 23, 42, 0.55);
+    backdrop-filter: blur(6px);
+}
+
+.confirm-panel {
+    width: min(100%, 34rem);
+    overflow: hidden;
+    border-radius: 1rem;
+    background: #fff;
+    box-shadow: 0 25px 60px rgba(15, 23, 42, 0.28);
+}
+
+.dark .confirm-panel {
+    background: #1e293b;
+}
+
+.confirm-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    border-bottom-width: 1px;
+    padding: 1rem 1.5rem;
+}
+
+.confirm-icon {
+    display: inline-flex;
+    width: 2.25rem;
+    height: 2.25rem;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9999px;
+}
+
+.confirm-close {
+    display: inline-flex;
+    width: 1.9rem;
+    height: 1.9rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.6rem;
+    color: #64748b;
+}
+
+.confirm-close:hover {
+    background: rgba(148, 163, 184, 0.16);
+    color: #334155;
+}
+
+.dark .confirm-close {
+    color: #94a3b8;
+}
+
+.dark .confirm-close:hover {
+    background: rgba(148, 163, 184, 0.16);
+    color: #e2e8f0;
+}
+
+.animate-fade-in {
+    animation: fade-in 180ms ease-out both;
+}
+
+.animate-modal-in {
+    animation: modal-in 210ms cubic-bezier(.16, 1, .3, 1) both;
+}
+
+.animate-slide-up {
+    animation: slide-up 220ms ease-out both;
+}
+
+.action-feedback {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    border-width: 1px;
+    border-radius: 1rem;
+    padding: 0.9rem 1rem;
+    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+    animation: action-complete 520ms cubic-bezier(.16, 1, .3, 1) both;
+}
+
+.action-feedback-icon {
+    display: inline-flex;
+    width: 2.5rem;
+    height: 2.5rem;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9999px;
+    animation: success-pop 520ms cubic-bezier(.16, 1, .3, 1) both;
+}
+
+.action-checkmark {
+    stroke-dasharray: 30;
+    stroke-dashoffset: 30;
+    animation: draw-check 520ms ease-out 120ms forwards;
+}
+
+.global-loading-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    background: rgba(248, 250, 252, 0.72);
+    backdrop-filter: blur(4px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 160ms ease;
+}
+
+.global-loading-overlay.is-visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.global-loading-card {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 1rem;
+    background: white;
+    padding: 1rem 1.15rem;
+    box-shadow: 0 22px 45px rgba(15, 23, 42, 0.18);
+    transform: translateY(8px) scale(.98);
+    transition: transform 160ms ease;
+}
+
+.global-loading-overlay.is-visible .global-loading-card {
+    transform: translateY(0) scale(1);
+}
+
+.global-spinner {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 9999px;
+    border: 3px solid #dbeafe;
+    border-top-color: #2155d9;
+    animation: spin 760ms linear infinite;
+}
+
+.is-loading {
+    position: relative;
+    pointer-events: none;
+    opacity: .78;
+}
+
+@keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes modal-in {
+    from { opacity: 0; transform: translateY(14px) scale(.97); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes slide-up {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes action-complete {
+    0% { opacity: 0; transform: translateY(-8px) scale(.98); }
+    65% { opacity: 1; transform: translateY(0) scale(1.01); }
+    100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes success-pop {
+    0% { transform: scale(.7); }
+    70% { transform: scale(1.08); }
+    100% { transform: scale(1); }
+}
+
+@keyframes draw-check {
+    to { stroke-dashoffset: 0; }
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}

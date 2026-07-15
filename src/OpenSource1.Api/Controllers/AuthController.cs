@@ -89,16 +89,26 @@ public sealed class AuthController(IAuthService authService) : ControllerBase
     [Authorize]
     [HttpGet("me")]
     [ProducesResponseType<CurrentUserResponse>(StatusCodes.Status200OK)]
-    public ActionResult<CurrentUserResponse> Me()
+    public async Task<ActionResult<CurrentUserResponse>> Me(CancellationToken cancellationToken)
     {
-        var roles = User.FindAll(ClaimTypes.Role).Select(claim => claim.Value).ToArray();
-        var permissions = User.FindAll("permission").Select(claim => claim.Value).ToArray();
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? string.Empty;
+        var response = await authService.GetCurrentUserAsync(userId, cancellationToken);
+        return response is null ? Unauthorized() : Ok(response);
+    }
 
-        return Ok(new CurrentUserResponse(
-            User.FindFirstValue(ClaimTypes.NameIdentifier) ?? string.Empty,
-            User.Identity?.Name ?? string.Empty,
-            User.FindFirstValue(ClaimTypes.Email) ?? User.FindFirstValue("email") ?? string.Empty,
-            roles,
-            permissions));
+    [Authorize]
+    [HttpPost("profile-image")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType<AuthErrorResponse>(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> UpdateProfileImage(UpdateProfileImageRequest request, CancellationToken cancellationToken)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? string.Empty;
+        var (success, errors) = await authService.UpdateProfileImageAsync(userId, request.ImagePath, cancellationToken);
+        if (!success)
+        {
+            return BadRequest(new AuthErrorResponse("No se pudo actualizar la imagen de perfil.", errors));
+        }
+
+        return NoContent();
     }
 }

@@ -113,11 +113,8 @@ public sealed class AuthService(
             return new PasswordActionResponse("Si la cuenta existe, se generó una solicitud de restablecimiento.");
         }
 
-        var token = await userManager.GeneratePasswordResetTokenAsync(user);
-
         return new PasswordActionResponse(
-            "Solicitud generada correctamente. Use el token mostrado para restablecer la contraseña.",
-            token);
+            "Si la cuenta existe, recibirá instrucciones para restablecer su contraseña.");
     }
 
     public async Task<(PasswordActionResponse? Response, IReadOnlyList<string> Errors)> ResetPasswordAsync(
@@ -171,6 +168,43 @@ public sealed class AuthService(
         await userManager.ResetAccessFailedCountAsync(user);
 
         return (new PasswordActionResponse("Contraseña cambiada correctamente."), []);
+    }
+
+    public async Task<CurrentUserResponse?> GetCurrentUserAsync(string userId, CancellationToken cancellationToken = default)
+    {
+        var user = await userManager.FindByIdAsync(userId);
+        if (user is null || !user.IsActive)
+        {
+            return null;
+        }
+
+        var roles = (await userManager.GetRolesAsync(user)).ToArray();
+        var permissions = GetPermissions(roles);
+
+        return new CurrentUserResponse(
+            user.Id,
+            user.FullName ?? user.UserName ?? string.Empty,
+            user.Email ?? string.Empty,
+            user.ProfileImagePath,
+            roles,
+            permissions);
+    }
+
+    public async Task<(bool Success, IReadOnlyList<string> Errors)> UpdateProfileImageAsync(string userId, string? imagePath, CancellationToken cancellationToken = default)
+    {
+        var user = await userManager.FindByIdAsync(userId);
+        if (user is null || !user.IsActive)
+        {
+            return (false, ["No fue posible identificar la cuenta autenticada."]);
+        }
+
+        user.ProfileImagePath = imagePath;
+        user.UpdatedAtUtc = DateTimeOffset.UtcNow;
+
+        var result = await userManager.UpdateAsync(user);
+        return result.Succeeded
+            ? (true, Array.Empty<string>())
+            : (false, result.Errors.Select(e => e.Description).ToArray());
     }
 
     private async Task<Usuario?> FindUserAsync(string userNameOrEmail) =>
