@@ -1,4 +1,5 @@
 @inherits LayoutComponentBase
+@inject IHttpContextAccessor HttpContextAccessor
 
 <!-- ====== SIDEBAR TOGGLE (solo controla el drawer en móvil, vía CSS puro) ====== -->
 <input type="checkbox" id="sidebar-toggle" class="peer hidden" aria-hidden="true" />
@@ -25,21 +26,28 @@
 <label for="sidebar-toggle" class="fixed inset-0 z-40 hidden bg-slate-900/50 peer-checked:block lg:hidden" aria-hidden="true"></label>
 
 <!-- ====== SIDEBAR ====== -->
-<aside class="fixed inset-y-0 left-0 z-50 flex w-72 -translate-x-full flex-col bg-white transition-transform duration-200 ease-out peer-checked:translate-x-0 lg:w-64 lg:translate-x-0 border-r border-slate-200 dark:border-slate-700 dark:bg-slate-900">
+<aside class="fixed inset-y-0 left-0 z-50 flex w-72 -translate-x-full flex-col bg-white transition-transform duration-200 ease-out peer-checked:translate-x-0 lg:w-64 border-r border-slate-200 dark:border-slate-700 dark:bg-slate-900 @(SidebarCollapsed ? "" : "lg:translate-x-0")">
 
     <!-- Brand -->
-    <div class="flex items-center gap-2.5 border-b border-slate-100 px-5 py-5 dark:border-slate-800">
-        <NavLink href="" Match="NavLinkMatch.All" class="flex items-center gap-2.5 group">
-            <div class="flex size-9 items-center justify-center rounded-xl bg-brand-600 shadow-md transition-colors group-hover:bg-brand-700">
+    <div class="flex items-center justify-between gap-2.5 border-b border-slate-100 px-5 py-5 dark:border-slate-800">
+        <NavLink href="" Match="NavLinkMatch.All" class="flex items-center gap-2.5 group min-w-0">
+            <div class="flex size-9 shrink-0 items-center justify-center rounded-xl bg-brand-600 shadow-md transition-colors group-hover:bg-brand-700">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="white" class="size-5">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3.75h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Z" />
                 </svg>
             </div>
-            <div class="leading-tight">
-                <span class="block text-base font-extrabold tracking-tight text-slate-900 transition-colors group-hover:text-brand-600 dark:text-slate-100">AxionERP</span>
-                <span class="block text-[10px] font-medium uppercase tracking-wide text-slate-400">Gestión Empresarial</span>
+            <div class="min-w-0 leading-tight">
+                <span class="block truncate text-base font-extrabold tracking-tight text-slate-900 transition-colors group-hover:text-brand-600 dark:text-slate-100">AxionERP</span>
+                <span class="block truncate text-[10px] font-medium uppercase tracking-wide text-slate-400">Gestión Empresarial</span>
             </div>
         </NavLink>
+        <button type="button" title="Ocultar menú"
+                onclick="(function(){document.cookie='axionerp-sidebar=collapsed; path=/; max-age=31536000; samesite=lax';location.reload();})()"
+                class="hidden shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition-colors hover:bg-slate-100 lg:flex size-8 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M18.75 19.5 12 12.75 18.75 6M11.25 19.5 4.5 12.75 11.25 6" />
+            </svg>
+        </button>
     </div>
 
     <!-- Nav links -->
@@ -169,8 +177,19 @@
     </div>
 </aside>
 
+@if (SidebarCollapsed)
+{
+    <button type="button" title="Mostrar menú"
+            onclick="(function(){document.cookie='axionerp-sidebar=expanded; path=/; max-age=31536000; samesite=lax';location.reload();})()"
+            class="fixed left-3 top-1/2 z-40 hidden size-10 -translate-y-1/2 items-center justify-center rounded-full bg-brand-600 text-white shadow-lg transition-colors hover:bg-brand-700 lg:flex">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4">
+            <path stroke-linecap="round" stroke-linejoin="round" d="m5.25 4.5 7.5 7.5-7.5 7.5m6-15 7.5 7.5-7.5 7.5" />
+        </svg>
+    </button>
+}
+
 <!-- ====== CONTENIDO + FOOTER ====== -->
-<div class="flex min-h-screen flex-col lg:pl-64">
+<div class="flex min-h-screen flex-col @(SidebarCollapsed ? "" : "lg:pl-64")">
 
     <main class="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6 lg:px-8">
         <ErrorBoundary>
@@ -187,22 +206,18 @@
     </main>
 
     <footer class="border-t border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
-        <div class="mx-auto flex max-w-7xl flex-col items-center justify-between gap-3 px-4 py-5 text-xs text-slate-400 sm:flex-row sm:px-6 lg:px-8">
-            <div class="flex items-center gap-2">
-                <div class="flex size-6 items-center justify-center rounded-md bg-brand-600">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="white" class="size-3.5">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3.75h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Z" />
-                    </svg>
-                </div>
-                <span class="font-semibold text-slate-500 dark:text-slate-300">AxionERP</span>
-                <span>&copy; 2026 — Sistema Integral de Gestión Empresarial</span>
-            </div>
-            <span class="flex items-center gap-1.5">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-3.5 text-brand-400">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z" />
+        <div class="mx-auto flex max-w-7xl items-center justify-center gap-2 px-4 py-5 text-xs text-slate-400 sm:px-6 lg:px-8">
+            <div class="flex size-6 items-center justify-center rounded-md bg-brand-600">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="white" class="size-3.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3.75h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Z" />
                 </svg>
-                Blazor SSR · API JWT · PostgreSQL · .NET 10
-            </span>
+            </div>
+            <span class="font-semibold text-slate-500 dark:text-slate-300">AxionERP</span>
+            <span>&copy; 2026 — Sistema Integral de Gestión Empresarial</span>
         </div>
     </footer>
 </div>
+
+@code {
+    private bool SidebarCollapsed => HttpContextAccessor.HttpContext?.Request.Cookies["axionerp-sidebar"] == "collapsed";
+}
