@@ -1,0 +1,19 @@
+@using System.Text.Json
+@using System.Text.Json.Serialization
+
+<div class="relative w-full" style="height:@Height">
+    <canvas id="@Id" data-chart="@Type"></canvas>
+</div>
+<script type="application/json" id="@(Id)-data">@((MarkupString)SerializedPayload)</script>
+
+@code {
+    [Parameter, EditorRequired] public string Id { get; set; } = string.Empty;
+    [Parameter] public string Type { get; set; } = "bar";
+    [Parameter, EditorRequired] public IReadOnlyList<string> Labels { get; set; } = [];
+    [Parameter, EditorRequired] public IReadOnlyList<ChartDataset> Datasets { get; set; } = [];
+    [Parameter] public string Height { get; set; } = "260px";
+
+    private static readonly JsonSerializerOptions SerializerOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+
+    private string SerializedPayload => JsonSerializer.Serialize(new { labels = Labels, datasets = Datasets }, SerializerOptions);
+}

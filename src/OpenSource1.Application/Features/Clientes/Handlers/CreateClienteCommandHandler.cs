@@ -16,5 +16,5 @@ public sealed class CreateClienteCommandHandler(IUnitOfWork unitOfWork) : IReque
         return ToResponse(entity);
     }
 
-    public static ClienteResponse ToResponse(Cliente x) => new() { Id = x.Id, Nombre = x.Nombre, Apellido = x.Apellido, Email = x.Email, Telefono = x.Telefono, Direccion = x.Direccion, ImagePath = x.ImagePath, CreatedAtUtc = x.CreatedAtUtc.UtcDateTime, UpdatedAtUtc = x.UpdatedAtUtc?.UtcDateTime };
+    public static ClienteResponse ToResponse(Cliente x) => new() { Id = x.Id, Nombre = x.Nombre, Apellido = x.Apellido, Email = x.Email, Telefono = x.Telefono, Direccion = x.Direccion, ImagePath = x.ImagePath, CreatedAtUtc = x.CreatedAtUtc.UtcDateTime, UpdatedAtUtc = x.UpdatedAtUtc?.UtcDateTime, CreatedBy = x.CreatedBy, UpdatedBy = x.UpdatedBy };
 }

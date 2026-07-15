@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
 using OpenSource1.Core.Abstractions;
@@ -7,7 +8,8 @@ using OpenSource1.Infrastructure.Data;
 
 namespace OpenSource1.Infrastructure.Data.UnitOfWork;
 
-public sealed class UnitOfWork(ApplicationDbContext dbContext, IServiceProvider serviceProvider) : IUnitOfWork
+public sealed class UnitOfWork(
+    ApplicationDbContext dbContext, IServiceProvider serviceProvider, IHttpContextAccessor httpContextAccessor) : IUnitOfWork
 {
     public IGenericRepository<TEntity> Repository<TEntity>() where TEntity : class, IAggregateRoot =>
         serviceProvider.GetRequiredService<IGenericRepository<TEntity>>();
@@ -21,23 +23,21 @@ public sealed class UnitOfWork(ApplicationDbContext dbContext, IServiceProvider 
     private void ApplyAuditValues()
     {
         var now = DateTimeOffset.UtcNow;
+        var currentUser = httpContextAccessor.HttpContext?.User.Identity?.Name;
+        currentUser = string.IsNullOrWhiteSpace(currentUser) ? "system" : currentUser;
 
         foreach (var entry in dbContext.ChangeTracker.Entries<IAuditableEntity>())
         {
             if (entry.State == EntityState.Added)
             {
                 entry.Entity.CreatedAtUtc = now;
-
-                if (string.IsNullOrWhiteSpace(entry.Entity.CreatedBy))
-                {
-                    entry.Entity.CreatedBy = "system";
-                }
+                entry.Entity.CreatedBy = currentUser;
             }
 
             if (entry.State == EntityState.Modified)
             {
                 entry.Entity.UpdatedAtUtc = now;
-                entry.Entity.UpdatedBy = "system";
+                entry.Entity.UpdatedBy = currentUser;
                 entry.Property(entity => entity.CreatedAtUtc).IsModified = false;
                 entry.Property(entity => entity.CreatedBy).IsModified = false;
             }

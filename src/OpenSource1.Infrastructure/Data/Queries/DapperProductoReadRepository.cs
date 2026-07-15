@@ -10,7 +10,7 @@ public sealed class DapperProductoReadRepository(IDbConnectionFactory connection
     public async Task<ProductoResponse?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         const string sql = """
-            SELECT "Id", "Codigo", "Nombre", "Precio", "Stock", "Categoria", "ImagePath", "CreatedAtUtc", "UpdatedAtUtc"
+            SELECT "Id", "Codigo", "Nombre", "Precio", "Stock", "Categoria", "ImagePath", "CreatedAtUtc", "UpdatedAtUtc", "CreatedBy", "UpdatedBy"
             FROM "Productos"
             WHERE "Id" = @Id
             """;
@@ -21,7 +21,7 @@ public sealed class DapperProductoReadRepository(IDbConnectionFactory connection
     public async Task<IReadOnlyList<ProductoResponse>> ListAsync(ProductoSearchCriteria search, CancellationToken cancellationToken = default)
     {
         var sql = """
-            SELECT "Id", "Codigo", "Nombre", "Precio", "Stock", "Categoria", "ImagePath", "CreatedAtUtc", "UpdatedAtUtc"
+            SELECT "Id", "Codigo", "Nombre", "Precio", "Stock", "Categoria", "ImagePath", "CreatedAtUtc", "UpdatedAtUtc", "CreatedBy", "UpdatedBy"
             FROM "Productos"
             """;
 

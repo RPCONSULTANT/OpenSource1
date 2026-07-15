@@ -7,8 +7,14 @@
   let pendingFetches = 0;
   let hardNavigationPending = false;
 
+  let progressBarActive = false;
+
   function overlay() {
     return document.getElementById(overlayId);
+  }
+
+  function progressBar() {
+    return document.getElementById('nav-progress-bar');
   }
 
   function clearTimer(timerId) {
@@ -38,9 +44,18 @@
 
   function showLoading() {
     const el = overlay();
-    if (!el) return;
-    el.classList.add('is-visible');
-    el.setAttribute('aria-hidden', 'false');
+    if (el) {
+      el.classList.add('is-visible');
+      el.setAttribute('aria-hidden', 'false');
+    }
+
+    const bar = progressBar();
+    if (bar) {
+      progressBarActive = true;
+      bar.style.transition = 'width 400ms ease-out, opacity 150ms ease-out';
+      bar.style.opacity = '1';
+      bar.style.width = '85%';
+    }
   }
 
   function hideLoading() {
@@ -50,10 +65,25 @@
     hideTimer = 0;
 
     const el = overlay();
-    if (!el) return;
+    if (el) {
+      el.classList.remove('is-visible');
+      el.setAttribute('aria-hidden', 'true');
+    }
 
-    el.classList.remove('is-visible');
-    el.setAttribute('aria-hidden', 'true');
+    const bar = progressBar();
+    if (bar && progressBarActive) {
+      progressBarActive = false;
+      bar.style.transition = 'width 150ms ease-out';
+      bar.style.width = '100%';
+      window.setTimeout(() => {
+        bar.style.transition = 'opacity 200ms ease-out';
+        bar.style.opacity = '0';
+        window.setTimeout(() => {
+          bar.style.transition = 'none';
+          bar.style.width = '0';
+        }, 220);
+      }, 150);
+    }
   }
 
   function beginTrackedActivity() {
@@ -169,6 +199,9 @@
   document.addEventListener('DOMContentLoaded', hideLoading);
   window.addEventListener('load', hideLoading);
   document.addEventListener('enhancedload', hideLoading);
+  if (window.Blazor && typeof window.Blazor.addEventListener === 'function') {
+    window.Blazor.addEventListener('enhancedload', hideLoading);
+  }
 
   const main = document.querySelector('main');
   if (main && 'MutationObserver' in window) {

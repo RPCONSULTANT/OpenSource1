@@ -11,4 +11,6 @@ public sealed class ClienteResponse
     public string? ImagePath { get; init; }
     public DateTime CreatedAtUtc { get; init; }
     public DateTime? UpdatedAtUtc { get; init; }
+    public string CreatedBy { get; init; } = string.Empty;
+    public string? UpdatedBy { get; init; }
 }

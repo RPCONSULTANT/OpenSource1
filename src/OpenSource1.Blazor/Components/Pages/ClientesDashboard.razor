@@ -1,0 +1,106 @@
+@page "/dashboard/clientes"
+@attribute [Authorize(Policy = ApplicationPolicies.CanConsult)]
+@using System.Globalization
+@using Microsoft.AspNetCore.Authorization
+@using OpenSource1.Application.Security
+@using OpenSource1.Blazor.Components
+@using OpenSource1.Blazor.Services
+@inject IClienteApiClient ClienteApiClient
+@inject ILogger<ClientesDashboard> Logger
+
+<PageTitle>Panel de Clientes – AxionERP</PageTitle>
+
+<div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between animate-fade-in">
+    <div>
+        <p class="mb-1 text-xs font-bold uppercase tracking-widest text-brand-600">Panel de detalle</p>
+        <h1 class="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">Clientes</h1>
+        <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Vista en profundidad de la cartera de clientes: crecimiento y actividad reciente.</p>
+    </div>
+    <a href="/clientes" class="btn-press inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700/60">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" /></svg>
+        Volver al listado
+    </a>
+</div>
+
+@if (loadError is not null)
+{
+    <div class="mb-6"><MessageBox Type="warning" Message="@loadError" /></div>
+}
+else
+{
+    <div class="grid grid-cols-2 gap-4 mb-8 lg:grid-cols-4 animate-slide-up">
+        <div class="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+            <p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Total clientes</p>
+            <p class="mt-1 text-2xl font-extrabold text-slate-900 dark:text-slate-100">@total</p>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+            <p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Nuevos (30 días)</p>
+            <p class="mt-1 text-2xl font-extrabold text-slate-900 dark:text-slate-100">@nuevos30d</p>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+            <p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Actualizados (30 días)</p>
+            <p class="mt-1 text-2xl font-extrabold text-slate-900 dark:text-slate-100">@actualizados30d</p>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+            <p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Sin cambios recientes</p>
+            <p class="mt-1 text-2xl font-extrabold text-slate-900 dark:text-slate-100">@sinCambiosRecientes</p>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 gap-5 mb-8 lg:grid-cols-2 animate-slide-up">
+        <div class="rounded-2xl border border-slate-200 bg-white shadow-sm p-5 dark:border-slate-700 dark:bg-slate-800">
+            <h2 class="mb-4 text-sm font-bold uppercase tracking-wide text-slate-700 dark:text-slate-300">Altas por mes (últimos 6 meses)</h2>
+            <ChartCanvas Id="chart-clientes-altas" Type="bar" Labels="@altasPorMes.Keys.ToList()"
+                         Datasets="@(new List<ChartDataset> { new("Clientes nuevos", altasPorMes.Values.Select(v => (double)v).ToList(), [ChartPalette.Pick(1)]) })" />
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-white shadow-sm p-5 dark:border-slate-700 dark:bg-slate-800">
+            <h2 class="mb-4 text-sm font-bold uppercase tracking-wide text-slate-700 dark:text-slate-300">Actividad de los últimos 30 días</h2>
+            @if (total > 0)
+            {
+                <ChartCanvas Id="chart-clientes-actividad" Type="doughnut"
+                             Labels="@(new List<string> { "Nuevos", "Actualizados", "Sin cambios recientes" })"
+                             Datasets="@(new List<ChartDataset> { new("Clientes", [nuevos30d, actualizados30d, sinCambiosRecientes], [ChartPalette.Pick(1), ChartPalette.Pick(0), ChartPalette.Pick(9)]) })" />
+            }
+            else
+            {
+                <p class="text-sm text-slate-400">Sin datos suficientes para graficar.</p>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private int total;
+    private int nuevos30d;
+    private int actualizados30d;
+    private int sinCambiosRecientes;
+    private Dictionary<string, int> altasPorMes = [];
+    private string? loadError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var clientes = await ClienteApiClient.ListAsync();
+            var corte = DateTime.UtcNow.AddDays(-30);
+
+            total = clientes.Count;
+            nuevos30d = clientes.Count(c => c.CreatedAtUtc >= corte);
+            actualizados30d = clientes.Count(c => c.UpdatedAtUtc is not null && c.UpdatedAtUtc >= corte && c.CreatedAtUtc < corte);
+            sinCambiosRecientes = total - nuevos30d - actualizados30d;
+
+            var culture = CultureInfo.GetCultureInfo("es-ES");
+            var hoy = DateTime.UtcNow;
+            altasPorMes = Enumerable.Range(0, 6)
+                .Select(offset => new DateTime(hoy.Year, hoy.Month, 1).AddMonths(-5 + offset))
+                .ToDictionary(
+                    mes => culture.TextInfo.ToTitleCase(mes.ToString("MMM yyyy", culture)),
+                    mes => clientes.Count(c => c.CreatedAtUtc.Year == mes.Year && c.CreatedAtUtc.Month == mes.Month));
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not load clientes dashboard data.");
+            loadError = "No fue posible cargar el panel de clientes en este momento.";
+        }
+    }
+}

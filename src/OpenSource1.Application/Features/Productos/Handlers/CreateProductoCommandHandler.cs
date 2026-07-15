@@ -16,5 +16,5 @@ public sealed class CreateProductoCommandHandler(IUnitOfWork unitOfWork) : IRequ
         return ToResponse(entity);
     }
 
-    public static ProductoResponse ToResponse(Producto x) => new() { Id = x.Id, Codigo = x.Codigo, Nombre = x.Nombre, Precio = x.Precio, Stock = x.Stock, Categoria = x.Categoria, ImagePath = x.ImagePath, CreatedAtUtc = x.CreatedAtUtc.UtcDateTime, UpdatedAtUtc = x.UpdatedAtUtc?.UtcDateTime };
+    public static ProductoResponse ToResponse(Producto x) => new() { Id = x.Id, Codigo = x.Codigo, Nombre = x.Nombre, Precio = x.Precio, Stock = x.Stock, Categoria = x.Categoria, ImagePath = x.ImagePath, CreatedAtUtc = x.CreatedAtUtc.UtcDateTime, UpdatedAtUtc = x.UpdatedAtUtc?.UtcDateTime, CreatedBy = x.CreatedBy, UpdatedBy = x.UpdatedBy };
 }

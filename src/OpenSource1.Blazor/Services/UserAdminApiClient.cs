@@ -8,11 +8,17 @@ namespace OpenSource1.Blazor.Services;
 public sealed class UserAdminApiClient(HttpClient httpClient, ILogger<UserAdminApiClient> logger) : IUserAdminApiClient
 {
     public async Task<(IReadOnlyList<UserSummaryResponse>? Users, string? Error)> ListUsersAsync(
-        CancellationToken cancellationToken = default)
+        string? search = null, string? role = null, bool? isActive = null, CancellationToken cancellationToken = default)
     {
         try
         {
-            using var response = await httpClient.GetAsync("api/users", cancellationToken);
+            var parameters = new List<string>();
+            if (!string.IsNullOrWhiteSpace(search)) parameters.Add($"search={Uri.EscapeDataString(search.Trim())}");
+            if (!string.IsNullOrWhiteSpace(role)) parameters.Add($"role={Uri.EscapeDataString(role.Trim())}");
+            if (isActive.HasValue) parameters.Add($"isActive={isActive.Value}");
+            var url = parameters.Count == 0 ? "api/users" : $"api/users?{string.Join("&", parameters)}";
+
+            using var response = await httpClient.GetAsync(url, cancellationToken);
 
             if (response.IsSuccessStatusCode)
             {
@@ -57,6 +63,74 @@ public sealed class UserAdminApiClient(HttpClient httpClient, ILogger<UserAdminA
         {
             logger.LogWarning(ex, "Error calling get user by id API.");
             return (null, "El servicio no está disponible en este momento.");
+        }
+    }
+
+    public async Task<(bool Success, string? Error)> CreateAsync(
+        string email, string fullName, string password, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            using var response = await httpClient.PostAsJsonAsync("api/users", new CreateUserRequest(email, fullName, password), cancellationToken);
+            if (response.IsSuccessStatusCode) return (true, null);
+            var error = await TryReadError(response, cancellationToken);
+            return (false, error);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException)
+        {
+            logger.LogWarning(ex, "Error creating user.");
+            return (false, "El servicio no está disponible en este momento.");
+        }
+    }
+
+    public async Task<(bool Success, string? Error)> UpdateAsync(
+        string userId, string fullName, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            using var response = await httpClient.PutAsJsonAsync($"api/users/{userId}", new UpdateUserRequest(fullName), cancellationToken);
+            if (response.IsSuccessStatusCode) return (true, null);
+            var error = await TryReadError(response, cancellationToken);
+            return (false, error);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException)
+        {
+            logger.LogWarning(ex, "Error updating user.");
+            return (false, "El servicio no está disponible en este momento.");
+        }
+    }
+
+    public async Task<(bool Success, string? Error)> ResetPasswordAsync(
+        string userId, string newPassword, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            using var response = await httpClient.PostAsJsonAsync($"api/users/{userId}/reset-password", new AdminResetPasswordRequest(newPassword), cancellationToken);
+            if (response.IsSuccessStatusCode) return (true, null);
+            var error = await TryReadError(response, cancellationToken);
+            return (false, error);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException)
+        {
+            logger.LogWarning(ex, "Error resetting user password.");
+            return (false, "El servicio no está disponible en este momento.");
+        }
+    }
+
+    public async Task<(bool Success, string? Error)> DeleteAsync(
+        string userId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            using var response = await httpClient.DeleteAsync($"api/users/{userId}", cancellationToken);
+            if (response.IsSuccessStatusCode) return (true, null);
+            var error = await TryReadError(response, cancellationToken);
+            return (false, error);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException)
+        {
+            logger.LogWarning(ex, "Error deleting user.");
+            return (false, "El servicio no está disponible en este momento.");
         }
     }
 

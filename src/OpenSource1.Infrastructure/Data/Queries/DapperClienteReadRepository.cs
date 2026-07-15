@@ -10,7 +10,7 @@ public sealed class DapperClienteReadRepository(IDbConnectionFactory connectionF
     public async Task<ClienteResponse?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         const string sql = """
-            SELECT "Id", "Nombre", "Apellido", "Email", "Telefono", "Direccion", "ImagePath", "CreatedAtUtc", "UpdatedAtUtc"
+            SELECT "Id", "Nombre", "Apellido", "Email", "Telefono", "Direccion", "ImagePath", "CreatedAtUtc", "UpdatedAtUtc", "CreatedBy", "UpdatedBy"
             FROM "Clientes"
             WHERE "Id" = @Id
             """;
@@ -21,7 +21,7 @@ public sealed class DapperClienteReadRepository(IDbConnectionFactory connectionF
     public async Task<IReadOnlyList<ClienteResponse>> ListAsync(ClienteSearchCriteria search, CancellationToken cancellationToken = default)
     {
         var sql = """
-            SELECT "Id", "Nombre", "Apellido", "Email", "Telefono", "Direccion", "ImagePath", "CreatedAtUtc", "UpdatedAtUtc"
+            SELECT "Id", "Nombre", "Apellido", "Email", "Telefono", "Direccion", "ImagePath", "CreatedAtUtc", "UpdatedAtUtc", "CreatedBy", "UpdatedBy"
             FROM "Clientes"
             """;
 

@@ -65,6 +65,10 @@
     box-shadow: 0 25px 60px rgba(15, 23, 42, 0.28);
 }
 
+.dark .confirm-panel {
+    background: #1e293b;
+}
+
 .confirm-header {
     display: flex;
     align-items: center;
@@ -97,6 +101,15 @@
 .confirm-close:hover {
     background: rgba(148, 163, 184, 0.16);
     color: #334155;
+}
+
+.dark .confirm-close {
+    color: #94a3b8;
+}
+
+.dark .confirm-close:hover {
+    background: rgba(148, 163, 184, 0.16);
+    color: #e2e8f0;
 }
 
 .animate-fade-in {
