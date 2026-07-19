@@ -16,14 +16,19 @@ public sealed record ClienteSearchFilter(
     string? Apellido,
     string? Email,
     string? Telefono,
-    string? Direccion);
+    string? Direccion,
+    string? Sector,
+    string? Pais);
 
 public sealed record ClienteInput(
     string Nombre,
     string Apellido,
     string Email,
     string? Telefono,
-    string? Direccion,
+    string? DireccionLinea1,
+    string? DireccionLinea2,
+    string? Sector,
+    string? PaisCodigo,
     string? ImagePath = null);
 
 public sealed record ClienteOperationResult(bool Succeeded, string Message, Guid? EntityId = null);

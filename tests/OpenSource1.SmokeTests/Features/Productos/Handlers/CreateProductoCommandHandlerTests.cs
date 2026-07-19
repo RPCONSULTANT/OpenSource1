@@ -23,14 +23,15 @@ public class CreateProductoCommandHandlerTests
         unitOfWork.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
 
         var handler = new CreateProductoCommandHandler(unitOfWork.Object);
-        var response = await handler.Handle(new CreateProductoCommand("  COD-1 ", "  Producto ", 10.50m, 5, " General "), default);
+        var response = await handler.Handle(new CreateProductoCommand("  COD-1 ", "  Producto ", 10.50m, 5, "gen", "General", "UND"), default);
 
         Assert.NotNull(added);
         Assert.Equal("COD-1", added!.Codigo);
         Assert.Equal("Producto", added.Nombre);
         Assert.Equal(10.50m, added.Precio);
         Assert.Equal(5, added.Stock);
-        Assert.Equal("General", added.Categoria);
+        Assert.Equal("General", added.Categoria.Nombre);
+        Assert.Equal("UND", added.UnidadMedida.Codigo);
         Assert.Equal(response.Id, added.Id);
         unitOfWork.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
     }

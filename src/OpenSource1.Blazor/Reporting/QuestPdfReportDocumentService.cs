@@ -50,7 +50,7 @@ public sealed class QuestPdfReportDocumentService : IReportDocumentService
                         BodyCell(table, cliente.Apellido);
                         BodyCell(table, cliente.Email);
                         BodyCell(table, cliente.Telefono ?? "—");
-                        BodyCell(table, cliente.Direccion ?? "—");
+                        BodyCell(table, DireccionDisplay(cliente.DireccionLinea1, cliente.DireccionLinea2));
                     }
                 });
 
@@ -106,7 +106,7 @@ public sealed class QuestPdfReportDocumentService : IReportDocumentService
                         BodyCell(table, producto.Nombre);
                         BodyCell(table, producto.Precio.ToString("N2"));
                         BodyCell(table, producto.Stock.ToString());
-                        BodyCell(table, producto.Categoria);
+                        BodyCell(table, producto.CategoriaNombre);
                     }
                 });
 
@@ -146,7 +146,7 @@ public sealed class QuestPdfReportDocumentService : IReportDocumentService
             sheet.Cell(row, 2).Value = cliente.Apellido;
             sheet.Cell(row, 3).Value = cliente.Email;
             sheet.Cell(row, 4).Value = cliente.Telefono ?? "—";
-            sheet.Cell(row, 5).Value = cliente.Direccion ?? "—";
+            sheet.Cell(row, 5).Value = DireccionDisplay(cliente.DireccionLinea1, cliente.DireccionLinea2);
             row++;
         }
 
@@ -185,7 +185,7 @@ public sealed class QuestPdfReportDocumentService : IReportDocumentService
             sheet.Cell(row, 2).Value = producto.Nombre;
             sheet.Cell(row, 3).Value = producto.Precio;
             sheet.Cell(row, 4).Value = producto.Stock;
-            sheet.Cell(row, 5).Value = producto.Categoria;
+            sheet.Cell(row, 5).Value = producto.CategoriaNombre;
             row++;
         }
 
@@ -204,7 +204,7 @@ public sealed class QuestPdfReportDocumentService : IReportDocumentService
         using var workbook = new XLWorkbook();
         var sheet = workbook.Worksheets.Add("Clientes");
 
-        string[] headers = ["Id", "Nombre", "Apellido", "Email", "Telefono", "Direccion", "ImagePath", "CreatedAtUtc", "UpdatedAtUtc", "CreatedBy", "UpdatedBy"];
+        string[] headers = ["Id", "Nombre", "Apellido", "Email", "Telefono", "DireccionLinea1", "DireccionLinea2", "Sector", "PaisCodigo", "PaisNombre", "ImagePath", "CreatedAtUtc", "UpdatedAtUtc", "CreatedBy", "UpdatedBy"];
         for (var i = 0; i < headers.Length; i++)
         {
             var cell = sheet.Cell(1, i + 1);
@@ -220,15 +220,19 @@ public sealed class QuestPdfReportDocumentService : IReportDocumentService
             sheet.Cell(row, 3).Value = cliente.Apellido;
             sheet.Cell(row, 4).Value = cliente.Email;
             sheet.Cell(row, 5).Value = cliente.Telefono ?? string.Empty;
-            sheet.Cell(row, 6).Value = cliente.Direccion ?? string.Empty;
-            sheet.Cell(row, 7).Value = cliente.ImagePath ?? string.Empty;
-            sheet.Cell(row, 8).Value = cliente.CreatedAtUtc;
+            sheet.Cell(row, 6).Value = cliente.DireccionLinea1 ?? string.Empty;
+            sheet.Cell(row, 7).Value = cliente.DireccionLinea2 ?? string.Empty;
+            sheet.Cell(row, 8).Value = cliente.Sector ?? string.Empty;
+            sheet.Cell(row, 9).Value = cliente.PaisCodigo ?? string.Empty;
+            sheet.Cell(row, 10).Value = cliente.PaisNombre ?? string.Empty;
+            sheet.Cell(row, 11).Value = cliente.ImagePath ?? string.Empty;
+            sheet.Cell(row, 12).Value = cliente.CreatedAtUtc;
             if (cliente.UpdatedAtUtc is { } updatedAt)
             {
-                sheet.Cell(row, 9).Value = updatedAt;
+                sheet.Cell(row, 13).Value = updatedAt;
             }
-            sheet.Cell(row, 10).Value = cliente.CreatedBy;
-            sheet.Cell(row, 11).Value = cliente.UpdatedBy ?? string.Empty;
+            sheet.Cell(row, 14).Value = cliente.CreatedBy;
+            sheet.Cell(row, 15).Value = cliente.UpdatedBy ?? string.Empty;
             row++;
         }
 
@@ -247,7 +251,7 @@ public sealed class QuestPdfReportDocumentService : IReportDocumentService
         using var workbook = new XLWorkbook();
         var sheet = workbook.Worksheets.Add("Productos");
 
-        string[] headers = ["Id", "Codigo", "Nombre", "Precio", "Stock", "Categoria", "ImagePath", "CreatedAtUtc", "UpdatedAtUtc", "CreatedBy", "UpdatedBy"];
+        string[] headers = ["Id", "Codigo", "Nombre", "Precio", "Stock", "CategoriaCodigo", "CategoriaNombre", "UnidadMedidaCodigo", "UnidadMedidaNombre", "ImagePath", "CreatedAtUtc", "UpdatedAtUtc", "CreatedBy", "UpdatedBy"];
         for (var i = 0; i < headers.Length; i++)
         {
             var cell = sheet.Cell(1, i + 1);
@@ -263,15 +267,18 @@ public sealed class QuestPdfReportDocumentService : IReportDocumentService
             sheet.Cell(row, 3).Value = producto.Nombre;
             sheet.Cell(row, 4).Value = producto.Precio;
             sheet.Cell(row, 5).Value = producto.Stock;
-            sheet.Cell(row, 6).Value = producto.Categoria;
-            sheet.Cell(row, 7).Value = producto.ImagePath ?? string.Empty;
-            sheet.Cell(row, 8).Value = producto.CreatedAtUtc;
+            sheet.Cell(row, 6).Value = producto.CategoriaCodigo;
+            sheet.Cell(row, 7).Value = producto.CategoriaNombre;
+            sheet.Cell(row, 8).Value = producto.UnidadMedidaCodigo;
+            sheet.Cell(row, 9).Value = producto.UnidadMedidaNombre;
+            sheet.Cell(row, 10).Value = producto.ImagePath ?? string.Empty;
+            sheet.Cell(row, 11).Value = producto.CreatedAtUtc;
             if (producto.UpdatedAtUtc is { } updatedAt)
             {
-                sheet.Cell(row, 9).Value = updatedAt;
+                sheet.Cell(row, 12).Value = updatedAt;
             }
-            sheet.Cell(row, 10).Value = producto.CreatedBy;
-            sheet.Cell(row, 11).Value = producto.UpdatedBy ?? string.Empty;
+            sheet.Cell(row, 13).Value = producto.CreatedBy;
+            sheet.Cell(row, 14).Value = producto.UpdatedBy ?? string.Empty;
             row++;
         }
 
@@ -283,6 +290,16 @@ public sealed class QuestPdfReportDocumentService : IReportDocumentService
             $"productos-crudo-{DateTime.UtcNow:yyyyMMddHHmmss}.xlsx",
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             stream.ToArray());
+    }
+
+    private static string DireccionDisplay(string? linea1, string? linea2)
+    {
+        if (string.IsNullOrWhiteSpace(linea1))
+        {
+            return "—";
+        }
+
+        return string.IsNullOrWhiteSpace(linea2) ? linea1 : $"{linea1}, {linea2}";
     }
 
     private static void HeaderCell(IContainer container, string text)

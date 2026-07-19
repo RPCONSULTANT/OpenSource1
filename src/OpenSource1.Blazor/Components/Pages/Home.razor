@@ -386,10 +386,10 @@
                 .ToList();
 
             porCategoria = productos
-                .GroupBy(p => p.Categoria)
+                .GroupBy(p => p.CategoriaCodigo)
                 .OrderByDescending(g => g.Count())
                 .Take(6)
-                .ToDictionary(g => g.Key, g => g.Count());
+                .ToDictionary(g => g.First().CategoriaNombre, g => g.Count());
 
             var culture = CultureInfo.GetCultureInfo("es-ES");
             var hoy = DateTime.UtcNow;

@@ -6,6 +6,7 @@ using OpenSource1.Application.Features.Productos.Commands;
 using OpenSource1.Application.Features.Productos.Dtos;
 using OpenSource1.Application.Features.Productos.Queries;
 using OpenSource1.Application.Security;
+using OpenSource1.Core.ValueObjects;
 
 namespace OpenSource1.Api.Controllers;
 
@@ -19,13 +20,16 @@ public sealed class ProductosController(ISender sender) : ControllerBase
     public async Task<ActionResult<IReadOnlyList<ProductoResponse>>> List(
         [FromQuery] string? codigo,
         [FromQuery] string? nombre,
-        [FromQuery] string? categoria,
+        [FromQuery] string? categoriaCodigo,
+        [FromQuery] string? categoriaNombre,
+        [FromQuery] string? unidadMedidaCodigo,
+        [FromQuery] string? unidadMedidaNombre,
         [FromQuery] string? precio,
         [FromQuery] string? stock,
         CancellationToken cancellationToken)
     {
         var result = await sender.Send(
-            new ListProductosQuery(new ProductoSearchCriteria(codigo, nombre, categoria, precio, stock)),
+            new ListProductosQuery(new ProductoSearchCriteria(codigo, nombre, categoriaCodigo, categoriaNombre, unidadMedidaCodigo, unidadMedidaNombre, precio, stock)),
             cancellationToken);
 
         return Ok(result);
@@ -49,7 +53,9 @@ public sealed class ProductosController(ISender sender) : ControllerBase
     {
         if (string.IsNullOrWhiteSpace(request.Codigo) ||
             string.IsNullOrWhiteSpace(request.Nombre) ||
-            string.IsNullOrWhiteSpace(request.Categoria) ||
+            string.IsNullOrWhiteSpace(request.CategoriaCodigo) ||
+            string.IsNullOrWhiteSpace(request.CategoriaNombre) ||
+            !UnidadMedida.EsCodigoValido(request.UnidadMedidaCodigo) ||
             request.Precio < 0 ||
             request.Stock < 0)
         {
@@ -57,7 +63,7 @@ public sealed class ProductosController(ISender sender) : ControllerBase
         }
 
         var result = await sender.Send(
-            new CreateProductoCommand(request.Codigo, request.Nombre, request.Precio, request.Stock, request.Categoria, request.ImagePath),
+            new CreateProductoCommand(request.Codigo, request.Nombre, request.Precio, request.Stock, request.CategoriaCodigo, request.CategoriaNombre, request.UnidadMedidaCodigo, request.ImagePath),
             cancellationToken);
 
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
@@ -72,7 +78,9 @@ public sealed class ProductosController(ISender sender) : ControllerBase
     {
         if (string.IsNullOrWhiteSpace(request.Codigo) ||
             string.IsNullOrWhiteSpace(request.Nombre) ||
-            string.IsNullOrWhiteSpace(request.Categoria) ||
+            string.IsNullOrWhiteSpace(request.CategoriaCodigo) ||
+            string.IsNullOrWhiteSpace(request.CategoriaNombre) ||
+            !UnidadMedida.EsCodigoValido(request.UnidadMedidaCodigo) ||
             request.Precio < 0 ||
             request.Stock < 0)
         {
@@ -80,7 +88,7 @@ public sealed class ProductosController(ISender sender) : ControllerBase
         }
 
         var result = await sender.Send(
-            new UpdateProductoCommand(id, request.Codigo, request.Nombre, request.Precio, request.Stock, request.Categoria, request.ImagePath),
+            new UpdateProductoCommand(id, request.Codigo, request.Nombre, request.Precio, request.Stock, request.CategoriaCodigo, request.CategoriaNombre, request.UnidadMedidaCodigo, request.ImagePath),
             cancellationToken);
 
         return result is null ? NotFound() : Ok(result);
@@ -97,5 +105,5 @@ public sealed class ProductosController(ISender sender) : ControllerBase
     }
 }
 
-public sealed record CreateProductoRequest(string Codigo, string Nombre, decimal Precio, int Stock, string Categoria, string? ImagePath = null);
-public sealed record UpdateProductoRequest(string Codigo, string Nombre, decimal Precio, int Stock, string Categoria, string? ImagePath = null);
+public sealed record CreateProductoRequest(string Codigo, string Nombre, decimal Precio, int Stock, string CategoriaCodigo, string CategoriaNombre, string UnidadMedidaCodigo, string? ImagePath = null);
+public sealed record UpdateProductoRequest(string Codigo, string Nombre, decimal Precio, int Stock, string CategoriaCodigo, string CategoriaNombre, string UnidadMedidaCodigo, string? ImagePath = null);

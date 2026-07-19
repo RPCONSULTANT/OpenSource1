@@ -18,7 +18,7 @@ public class UpdateClienteCommandHandlerTests
         unitOfWork.Setup(u => u.Repository<Cliente>()).Returns(repo.Object);
 
         var handler = new UpdateClienteCommandHandler(unitOfWork.Object);
-        var response = await handler.Handle(new UpdateClienteCommand(Guid.NewGuid(), "A", "B", "C", null, null), default);
+        var response = await handler.Handle(new UpdateClienteCommand(Guid.NewGuid(), "A", "B", "C", null, null, null, null, null), default);
 
         Assert.Null(response);
     }
@@ -35,7 +35,7 @@ public class UpdateClienteCommandHandlerTests
         unitOfWork.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
 
         var handler = new UpdateClienteCommandHandler(unitOfWork.Object);
-        var response = await handler.Handle(new UpdateClienteCommand(entity.Id, " Nuevo ", " Apellido ", " nuevo@mail.com ", " 809 ", " Dir "), default);
+        var response = await handler.Handle(new UpdateClienteCommand(entity.Id, " Nuevo ", " Apellido ", " nuevo@mail.com ", " 809 ", " Dir ", null, null, null), default);
 
         Assert.NotNull(response);
         Assert.Equal("Nuevo", entity.Nombre);

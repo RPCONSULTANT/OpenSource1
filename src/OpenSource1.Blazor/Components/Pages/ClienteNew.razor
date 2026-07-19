@@ -76,5 +76,14 @@
         }
     }
 
-    private static ClienteInput ToInput(ClienteEditorForm form) => new(form.Nombre.Trim(), form.Apellido.Trim(), form.Email.Trim(), form.Telefono?.Trim(), form.Direccion?.Trim(), form.ImagePath);
+    private static ClienteInput ToInput(ClienteEditorForm form) => new(
+        form.Nombre.Trim(),
+        form.Apellido.Trim(),
+        form.Email.Trim(),
+        form.Telefono?.Trim(),
+        form.DireccionLinea1?.Trim(),
+        form.DireccionLinea2?.Trim(),
+        form.Sector?.Trim(),
+        form.PaisCodigo,
+        form.ImagePath);
 }

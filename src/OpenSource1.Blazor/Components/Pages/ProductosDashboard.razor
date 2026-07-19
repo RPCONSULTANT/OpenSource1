@@ -127,9 +127,9 @@ else
             valorInventario = productos.Sum(p => p.Precio * p.Stock);
 
             porCategoria = productos
-                .GroupBy(p => p.Categoria)
+                .GroupBy(p => p.CategoriaCodigo)
                 .OrderByDescending(g => g.Count())
-                .ToDictionary(g => g.Key, g => g.Count());
+                .ToDictionary(g => g.First().CategoriaNombre, g => g.Count());
 
             menorStock = productos.OrderBy(p => p.Stock).Take(10).ToList();
 
@@ -142,8 +142,8 @@ else
                     mes => productos.Count(p => p.CreatedAtUtc.Year == mes.Year && p.CreatedAtUtc.Month == mes.Month));
 
             resumenCategoria = productos
-                .GroupBy(p => p.Categoria)
-                .Select(g => new ResumenCategoriaRow(g.Key, g.Count(), g.Sum(p => p.Stock), g.Average(p => p.Precio)))
+                .GroupBy(p => p.CategoriaCodigo)
+                .Select(g => new ResumenCategoriaRow(g.First().CategoriaNombre, g.Count(), g.Sum(p => p.Stock), g.Average(p => p.Precio)))
                 .OrderByDescending(r => r.Cantidad)
                 .ToList();
         }

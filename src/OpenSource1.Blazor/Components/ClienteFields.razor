@@ -20,9 +20,31 @@
         <ValidationMessage For="() => Model.Telefono" />
     </div>
     <div>
-        <label class="block text-sm font-semibold text-slate-700 mb-1.5">Dirección</label>
-        <textarea name="@($"{Prefix}.Direccion")" rows="3" placeholder="Dirección opcional" class="block w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20 resize-none">@Model.Direccion</textarea>
-        <ValidationMessage For="() => Model.Direccion" />
+        <label class="block text-sm font-semibold text-slate-700 mb-1.5">Dirección — línea 1</label>
+        <input type="text" name="@($"{Prefix}.DireccionLinea1")" value="@Model.DireccionLinea1" placeholder="Calle, número, sector" class="block w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20" />
+        <ValidationMessage For="() => Model.DireccionLinea1" />
+    </div>
+    <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-1.5">Dirección — línea 2</label>
+        <input type="text" name="@($"{Prefix}.DireccionLinea2")" value="@Model.DireccionLinea2" placeholder="Referencia, apartamento, edificio (opcional)" class="block w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20" />
+        <ValidationMessage For="() => Model.DireccionLinea2" />
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+            <label class="block text-sm font-semibold text-slate-700 mb-1.5">Sector</label>
+            <input type="text" name="@($"{Prefix}.Sector")" value="@Model.Sector" placeholder="ej: Retail, Salud, Construcción" class="block w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20" />
+            <ValidationMessage For="() => Model.Sector" />
+        </div>
+        <div>
+            <label class="block text-sm font-semibold text-slate-700 mb-1.5">País</label>
+            <select name="@($"{Prefix}.PaisCodigo")" class="block w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20">
+                <option value="">-- Sin especificar --</option>
+                @foreach (var pais in OpenSource1.Core.ValueObjects.Pais.Catalogo)
+                {
+                    <option value="@pais.Codigo" selected="@(pais.Codigo == Model.PaisCodigo)">@pais.Nombre</option>
+                }
+            </select>
+        </div>
     </div>
 </div>
 

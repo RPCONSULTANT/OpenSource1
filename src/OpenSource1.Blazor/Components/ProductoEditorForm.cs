@@ -18,9 +18,16 @@ public sealed class ProductoEditorForm
     [Range(0, int.MaxValue, ErrorMessage = "El stock no puede ser negativo.")]
     public int Stock { get; set; }
 
-    [Required(ErrorMessage = "La categoría es obligatoria.")]
+    [Required(ErrorMessage = "El código de categoría es obligatorio.")]
+    [MaxLength(30, ErrorMessage = "Máximo 30 caracteres.")]
+    public string CategoriaCodigo { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "El nombre de categoría es obligatorio.")]
     [MaxLength(100, ErrorMessage = "Máximo 100 caracteres.")]
-    public string Categoria { get; set; } = string.Empty;
+    public string CategoriaNombre { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "La unidad de medida es obligatoria.")]
+    public string UnidadMedidaCodigo { get; set; } = "UND";
 
     public string? ImagePath { get; set; }
 }

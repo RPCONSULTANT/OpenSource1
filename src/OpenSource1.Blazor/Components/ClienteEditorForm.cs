@@ -20,8 +20,16 @@ public sealed class ClienteEditorForm
     [MaxLength(50, ErrorMessage = "Máximo 50 caracteres.")]
     public string? Telefono { get; set; }
 
-    [MaxLength(512, ErrorMessage = "Máximo 512 caracteres.")]
-    public string? Direccion { get; set; }
+    [MaxLength(300, ErrorMessage = "Máximo 300 caracteres.")]
+    public string? DireccionLinea1 { get; set; }
+
+    [MaxLength(300, ErrorMessage = "Máximo 300 caracteres.")]
+    public string? DireccionLinea2 { get; set; }
+
+    [MaxLength(100, ErrorMessage = "Máximo 100 caracteres.")]
+    public string? Sector { get; set; }
+
+    public string? PaisCodigo { get; set; }
 
     public string? ImagePath { get; set; }
 }
