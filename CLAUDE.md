@@ -39,4 +39,4 @@ When asked for a maintenance CRUD module, follow the existing pattern establishe
 - `.opencode/` (gitignored, personal) configures an OpenCode `dotnet` agent with the same conventions above.
 - `~/.codex/agents/dotnet.md` and `~/.codex/AGENTS.md` (global, personal) configure an equivalent Codex `dotnet` agent.
 - `.agents/skills/blazor/SKILL.md` is a shared, committed Blazor skill reference.
-- `OpenSource1.code-workspace` (gitignored, personal) is a VS Code multi-root workspace that opens this repo alongside `~/.codex` for editing both configs together.
+- `OpenSource1.code-workspace` is the shared VS Code multi-root workspace for source code, tests, documentation, and GitHub automation.

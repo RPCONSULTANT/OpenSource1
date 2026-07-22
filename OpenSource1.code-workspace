@@ -1,0 +1,62 @@
+{
+  "folders": [
+    {
+      "name": "00 · OpenSource1",
+      "path": "."
+    },
+    {
+      "name": "01 · Código fuente",
+      "path": "src"
+    },
+    {
+      "name": "02 · Pruebas",
+      "path": "tests"
+    },
+    {
+      "name": "03 · Documentación",
+      "path": "docs"
+    },
+    {
+      "name": "04 · Automatización GitHub",
+      "path": ".github"
+    }
+  ],
+  "settings": {
+    "dotnet.defaultSolution": "test.slnx",
+    "explorer.compactFolders": false,
+    "files.trimTrailingWhitespace": true,
+    "files.insertFinalNewline": true,
+    "files.exclude": {
+      "**/bin": true,
+      "**/obj": true,
+      "**/.DS_Store": true,
+      "**/.~lock.*": true
+    },
+    "search.exclude": {
+      "**/bin": true,
+      "**/obj": true,
+      "**/.git": true,
+      "**/.logs": true,
+      "**/.opencode/node_modules": true,
+      "**/.playwright-cli": true
+    },
+    "files.watcherExclude": {
+      "**/bin/**": true,
+      "**/obj/**": true,
+      "**/.git/objects/**": true,
+      "**/.git/subtree-cache/**": true,
+      "**/.logs/**": true
+    }
+  },
+  "extensions": {
+    "recommendations": [
+      "ms-dotnettools.csdevkit",
+      "ms-dotnettools.csharp",
+      "editorconfig.editorconfig",
+      "ms-azuretools.vscode-docker",
+      "davidanson.vscode-markdownlint",
+      "humao.rest-client",
+      "github.vscode-github-actions"
+    ]
+  }
+}
