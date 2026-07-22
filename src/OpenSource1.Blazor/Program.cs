@@ -129,7 +129,7 @@ app.MapPost("/account/logout", async (HttpContext httpContext) =>
     httpContext.Response.Cookies.Delete("OpenSource1.Session", new CookieOptions { Path = "/" });
     httpContext.Response.Headers["Clear-Site-Data"] = "\"cache\", \"cookies\", \"storage\"";
     return Results.Redirect("/");
-}).RequireAuthorization();
+}).RequireAuthorization(ApplicationPolicies.CanConsult);
 
 app.MapPost("/account/profile/image", async (
     HttpContext httpContext,
@@ -154,7 +154,7 @@ app.MapPost("/account/profile/image", async (
     {
         return Results.Redirect("/account/profile");
     }
-}).RequireAuthorization();
+}).RequireAuthorization(ApplicationPolicies.CanConsult);
 
 app.MapPost("/reports/clientes/selected", async (
     [FromForm] ClienteSelectionReportForm form,
@@ -184,7 +184,7 @@ app.MapPost("/reports/clientes/selected", async (
 
     var file = reportDocumentService.GenerateClientesReport(clientes, "Reporte de Clientes Seleccionados");
     return Results.File(file.Content, file.ContentType, file.FileName);
-}).RequireAuthorization();
+}).RequireAuthorization(ApplicationPolicies.CanConsult);
 
 app.MapPost("/reports/clientes/selected.xlsx", async (
     [FromForm] ClienteSelectionReportForm form,
@@ -214,7 +214,7 @@ app.MapPost("/reports/clientes/selected.xlsx", async (
 
     var file = reportDocumentService.GenerateClientesExcel(clientes, "Reporte de Clientes Seleccionados");
     return Results.File(file.Content, file.ContentType, file.FileName);
-}).RequireAuthorization();
+}).RequireAuthorization(ApplicationPolicies.CanConsult);
 
 app.MapPost("/reports/productos/selected", async (
     [FromForm] ProductoSelectionReportForm form,
@@ -256,7 +256,7 @@ app.MapPost("/reports/productos/selected", async (
 
     var file = reportDocumentService.GenerateProductosReport(productos, "Reporte de Productos Seleccionados");
     return Results.File(file.Content, file.ContentType, file.FileName);
-}).RequireAuthorization();
+}).RequireAuthorization(ApplicationPolicies.CanConsult);
 
 app.MapPost("/reports/productos/selected.xlsx", async (
     [FromForm] ProductoSelectionReportForm form,
@@ -298,7 +298,7 @@ app.MapPost("/reports/productos/selected.xlsx", async (
 
     var file = reportDocumentService.GenerateProductosExcel(productos, "Reporte de Productos Seleccionados");
     return Results.File(file.Content, file.ContentType, file.FileName);
-}).RequireAuthorization();
+}).RequireAuthorization(ApplicationPolicies.CanConsult);
 
 app.MapPost("/reports/clientes/history", async (
     [FromForm] ClienteHistoricalReportForm form,
@@ -317,7 +317,7 @@ app.MapPost("/reports/clientes/history", async (
 
     var file = reportDocumentService.GenerateClientesReport(clientes, "Reporte Histórico de Clientes");
     return Results.File(file.Content, file.ContentType, file.FileName);
-}).RequireAuthorization();
+}).RequireAuthorization(ApplicationPolicies.CanConsult);
 
 app.MapPost("/reports/clientes/history.xlsx", async (
     [FromForm] ClienteHistoricalReportForm form,
@@ -336,7 +336,7 @@ app.MapPost("/reports/clientes/history.xlsx", async (
 
     var file = reportDocumentService.GenerateClientesExcel(clientes, "Reporte Histórico de Clientes");
     return Results.File(file.Content, file.ContentType, file.FileName);
-}).RequireAuthorization();
+}).RequireAuthorization(ApplicationPolicies.CanConsult);
 
 app.MapPost("/reports/productos/history", async (
     [FromForm] ProductoHistoricalReportForm form,
@@ -357,7 +357,7 @@ app.MapPost("/reports/productos/history", async (
 
     var file = reportDocumentService.GenerateProductosReport(productos, "Reporte Histórico de Productos");
     return Results.File(file.Content, file.ContentType, file.FileName);
-}).RequireAuthorization();
+}).RequireAuthorization(ApplicationPolicies.CanConsult);
 
 app.MapPost("/reports/productos/history.xlsx", async (
     [FromForm] ProductoHistoricalReportForm form,
@@ -378,7 +378,7 @@ app.MapPost("/reports/productos/history.xlsx", async (
 
     var file = reportDocumentService.GenerateProductosExcel(productos, "Reporte Histórico de Productos");
     return Results.File(file.Content, file.ContentType, file.FileName);
-}).RequireAuthorization();
+}).RequireAuthorization(ApplicationPolicies.CanConsult);
 
 app.MapGet("/reports/clientes/raw.xlsx", async (
     IClienteApiClient clienteApiClient,

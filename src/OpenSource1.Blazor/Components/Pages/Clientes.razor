@@ -91,7 +91,9 @@
                         <div><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">General</p><p class="mt-1.5 text-base font-semibold text-slate-800 dark:text-slate-200">@factCliente.Nombre @factCliente.Apellido</p></div>
                         <div><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Correo</p><p class="mt-1 text-slate-700 break-all dark:text-slate-300">@factCliente.Email</p></div>
                         <div><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Teléfono</p><p class="mt-1 text-slate-700 dark:text-slate-300">@(string.IsNullOrWhiteSpace(factCliente.Telefono) ? "No indicado" : factCliente.Telefono)</p></div>
-                        <div><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Dirección</p><p class="mt-1 text-slate-700 dark:text-slate-300">@(string.IsNullOrWhiteSpace(factCliente.Direccion) ? "No indicada" : factCliente.Direccion)</p></div>
+                        <div><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Dirección</p><p class="mt-1 text-slate-700 dark:text-slate-300">@DireccionDisplay(factCliente)</p></div>
+                        <div><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Sector</p><p class="mt-1 text-slate-700 dark:text-slate-300">@(string.IsNullOrWhiteSpace(factCliente.Sector) ? "No indicado" : factCliente.Sector)</p></div>
+                        <div><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">País</p><p class="mt-1 text-slate-700 dark:text-slate-300">@(string.IsNullOrWhiteSpace(factCliente.PaisNombre) ? "No indicado" : factCliente.PaisNombre)</p></div>
                     </div>
                 }
             </div>
@@ -154,7 +156,7 @@
                                         <td class="px-4 py-3 text-slate-700 dark:text-slate-300">@cliente.Apellido</td>
                                         <td class="px-4 py-3 text-slate-700 dark:text-slate-300">@cliente.Email</td>
                                         <td class="px-4 py-3 text-slate-700 dark:text-slate-300">@(string.IsNullOrWhiteSpace(cliente.Telefono) ? "—" : cliente.Telefono)</td>
-                                        <td class="px-4 py-3 text-slate-700 dark:text-slate-300">@(string.IsNullOrWhiteSpace(cliente.Direccion) ? "—" : cliente.Direccion)</td>
+                                        <td class="px-4 py-3 text-slate-700 dark:text-slate-300">@DireccionDisplay(cliente)</td>
                                         <td class="px-4 py-3 text-right">
                                             <div class="flex items-center justify-end gap-2">
                                                 <a href="/clientes/@cliente.Id" class="btn-press inline-flex items-center justify-center size-9 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700/60" title="Ver ficha">👁</a>
@@ -187,7 +189,7 @@
                                 <div class="grid min-w-0 flex-1 grid-cols-1 gap-3 text-sm sm:grid-cols-3">
                                     <div class="min-w-0 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5 dark:border-slate-700/60 dark:bg-slate-900/40"><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Correo</p><p class="mt-1 truncate text-slate-700 dark:text-slate-300" title="@cliente.Email">@cliente.Email</p></div>
                                     <div class="min-w-0 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5 dark:border-slate-700/60 dark:bg-slate-900/40"><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Teléfono</p><p class="mt-1 truncate text-slate-700 dark:text-slate-300">@(string.IsNullOrWhiteSpace(cliente.Telefono) ? "No indicado" : cliente.Telefono)</p></div>
-                                    <div class="min-w-0 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5 dark:border-slate-700/60 dark:bg-slate-900/40"><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Dirección</p><p class="mt-1 truncate text-slate-700 dark:text-slate-300" title="@cliente.Direccion">@(string.IsNullOrWhiteSpace(cliente.Direccion) ? "No indicada" : cliente.Direccion)</p></div>
+                                    <div class="min-w-0 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5 dark:border-slate-700/60 dark:bg-slate-900/40"><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Dirección</p><p class="mt-1 truncate text-slate-700 dark:text-slate-300" title="@DireccionDisplay(cliente)">@DireccionDisplay(cliente)</p></div>
                                 </div>
                                 <div class="flex shrink-0 items-center gap-2">
                                     <label class="inline-flex items-center justify-center size-9 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 cursor-pointer dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700/60" title="Seleccionar"><input type="checkbox" name="SelectedIds" value="@cliente.Id" checked="@(cliente.Id == FocusClienteId)" onchange="@EntityFabOnChange" class="size-4 rounded border-slate-300 text-brand-600 focus:ring-brand-600 dark:border-slate-600" /></label>
@@ -248,7 +250,7 @@
     }
 </div>
 
-<div id="cliente-detail-fab" data-base-url="@BuildListUrl()" data-auto-nav="@(ShowFactbox ? "true" : "false")" class="hidden fixed left-4 top-1/2 z-40 -translate-y-1/2">
+<div id="cliente-detail-fab" data-base-url="@BuildListUrl()" data-auto-nav="@(ShowFactbox ? "true" : "false")" class="hidden fixed left-4 top-1/2 z-40 -translate-y-1/2 lg:left-72">
     <a id="cliente-detail-fab-link" href="#" class="btn-press flex items-center gap-2 rounded-full bg-brand-600 pl-4 pr-5 py-3 text-sm font-semibold text-white shadow-xl hover:bg-brand-700">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-5"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>
         Ver detalles
@@ -316,6 +318,8 @@
         ("email", "Correo"),
         ("telefono", "Teléfono"),
         ("direccion", "Dirección"),
+        ("sector", "Sector"),
+        ("pais", "País"),
     ];
 
     [SupplyParameterFromQuery(Name = "nombre")] private string? SearchNombre { get; set; }
@@ -323,6 +327,8 @@
     [SupplyParameterFromQuery(Name = "email")] private string? SearchEmail { get; set; }
     [SupplyParameterFromQuery(Name = "telefono")] private string? SearchTelefono { get; set; }
     [SupplyParameterFromQuery(Name = "direccion")] private string? SearchDireccion { get; set; }
+    [SupplyParameterFromQuery(Name = "sector")] private string? SearchSector { get; set; }
+    [SupplyParameterFromQuery(Name = "pais")] private string? SearchPais { get; set; }
     [SupplyParameterFromQuery(Name = "filters")] private string? FiltersRaw { get; set; }
     [SupplyParameterFromQuery(Name = "addField")] private string? AddField { get; set; }
     [SupplyParameterFromQuery(Name = "view")] private string? View { get; set; }
@@ -352,10 +358,11 @@
         await LoadAsync();
         if(Ok is not null){(messageType, message)=Ok switch {"created"=>("success","Cliente creado satisfactoriamente."),"updated"=>("success","Cliente modificado satisfactoriamente."),"deleted"=>("success","Cliente eliminado satisfactoriamente."),"report-select-required"=>("warning","Seleccione al menos un cliente para generar el reporte."),"report-no-data"=>("warning","No hay datos para generar el reporte solicitado."),_ =>("info",null)};}
     }
-    private async Task LoadAsync(){try{clientes=await ClienteApiClient.ListAsync(new ClienteSearchFilter(EmptyAsNull(SearchNombre), GetActiveValue("apellido", SearchApellido), GetActiveValue("email", SearchEmail), GetActiveValue("telefono", SearchTelefono), GetActiveValue("direccion", SearchDireccion)));} catch(Exception ex){Logger.LogWarning(ex,"Could not load clientes from API."); message="No fue posible cargar los clientes."; messageType="danger";}}
+    private async Task LoadAsync(){try{clientes=await ClienteApiClient.ListAsync(new ClienteSearchFilter(EmptyAsNull(SearchNombre), GetActiveValue("apellido", SearchApellido), GetActiveValue("email", SearchEmail), GetActiveValue("telefono", SearchTelefono), GetActiveValue("direccion", SearchDireccion), GetActiveValue("sector", SearchSector), GetActiveValue("pais", SearchPais)));} catch(Exception ex){Logger.LogWarning(ex,"Could not load clientes from API."); message="No fue posible cargar los clientes."; messageType="danger";}}
     private async Task DeleteAsync(){if(!DeleteId.HasValue){modalError="No se pudo identificar el cliente. Intente de nuevo."; return;} var result=await ClienteApiClient.DeleteAsync(DeleteId.Value); if(result.Succeeded) Nav.NavigateTo(BuildListUrl(ok:"deleted")); else modalError=result.Message;}
     private string? GetActiveValue(string key, string? value) => ActiveFilterFields.Contains(key) ? EmptyAsNull(value) : null;
-    private string? GetFieldValue(string key) => key switch { "apellido" => SearchApellido, "email" => SearchEmail, "telefono" => SearchTelefono, "direccion" => SearchDireccion, _ => null };
+    private string? GetFieldValue(string key) => key switch { "apellido" => SearchApellido, "email" => SearchEmail, "telefono" => SearchTelefono, "direccion" => SearchDireccion, "sector" => SearchSector, "pais" => SearchPais, _ => null };
+    private static string DireccionDisplay(ClienteResponse cliente) => string.IsNullOrWhiteSpace(cliente.DireccionLinea1) ? "—" : (string.IsNullOrWhiteSpace(cliente.DireccionLinea2) ? cliente.DireccionLinea1 : $"{cliente.DireccionLinea1}, {cliente.DireccionLinea2}");
     private static List<string> ParseActiveFields(string? raw) => string.IsNullOrWhiteSpace(raw) ? [] : [.. raw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Where(f => FilterableFields.Any(field => field.Key == f)).Distinct()];
     private string BuildListUrl(Guid? deleteId = null, bool? showFilters = null, string? ok = null, string? view = null, bool? report = null, Guid? focusId = null, IReadOnlyList<string>? activeFiltersOverride = null)
     {
@@ -366,6 +373,8 @@
         if (activeFields.Contains("email")) AddParameter(parameters,"email",SearchEmail);
         if (activeFields.Contains("telefono")) AddParameter(parameters,"telefono",SearchTelefono);
         if (activeFields.Contains("direccion")) AddParameter(parameters,"direccion",SearchDireccion);
+        if (activeFields.Contains("sector")) AddParameter(parameters,"sector",SearchSector);
+        if (activeFields.Contains("pais")) AddParameter(parameters,"pais",SearchPais);
         if (activeFields.Count > 0) parameters.Add($"filters={Uri.EscapeDataString(string.Join(",", activeFields))}");
         AddParameter(parameters,"view", view ?? View);
         if(showFilters ?? ShowFilters) parameters.Add("showFilters=true");

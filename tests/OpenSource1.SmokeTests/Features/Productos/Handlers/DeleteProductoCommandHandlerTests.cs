@@ -4,6 +4,7 @@ using OpenSource1.Application.Data.UnitOfWork;
 using OpenSource1.Application.Features.Productos.Commands;
 using OpenSource1.Application.Features.Productos.Handlers;
 using OpenSource1.Core.Entities;
+using OpenSource1.Core.ValueObjects;
 
 namespace OpenSource1.SmokeTests.Features.Productos.Handlers;
 
@@ -26,7 +27,7 @@ public class DeleteProductoCommandHandlerTests
     [Fact]
     public async Task Handle_RemovesAndSaves_WhenProductoExists()
     {
-        var entity = new Producto { Codigo = "COD", Nombre = "Test", Precio = 1, Stock = 1, Categoria = "Base" };
+        var entity = new Producto { Codigo = "COD", Nombre = "Test", Precio = 1, Stock = 1, Categoria = new("BASE", "Base"), UnidadMedida = UnidadMedida.Of("UND") };
         var repo = new Mock<IGenericRepository<Producto>>();
         repo.Setup(r => r.GetByIdAsync(It.IsAny<object[]>(), It.IsAny<CancellationToken>())).ReturnsAsync(entity);
 

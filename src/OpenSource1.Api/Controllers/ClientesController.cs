@@ -6,6 +6,7 @@ using OpenSource1.Application.Features.Clientes.Commands;
 using OpenSource1.Application.Features.Clientes.Dtos;
 using OpenSource1.Application.Features.Clientes.Queries;
 using OpenSource1.Application.Security;
+using OpenSource1.Core.ValueObjects;
 
 namespace OpenSource1.Api.Controllers;
 
@@ -22,10 +23,12 @@ public sealed class ClientesController(ISender sender) : ControllerBase
         [FromQuery] string? email,
         [FromQuery] string? telefono,
         [FromQuery] string? direccion,
+        [FromQuery] string? sector,
+        [FromQuery] string? pais,
         CancellationToken cancellationToken)
     {
         var result = await sender.Send(
-            new ListClientesQuery(new ClienteSearchCriteria(nombre, apellido, email, telefono, direccion)),
+            new ListClientesQuery(new ClienteSearchCriteria(nombre, apellido, email, telefono, direccion, sector, pais)),
             cancellationToken);
 
         return Ok(result);
@@ -49,13 +52,15 @@ public sealed class ClientesController(ISender sender) : ControllerBase
     {
         if (string.IsNullOrWhiteSpace(request.Nombre) ||
             string.IsNullOrWhiteSpace(request.Apellido) ||
-            string.IsNullOrWhiteSpace(request.Email))
+            string.IsNullOrWhiteSpace(request.Email) ||
+            !EsDireccionValida(request.DireccionLinea1, request.DireccionLinea2) ||
+            !EsPaisValido(request.PaisCodigo))
         {
             return BadRequest();
         }
 
         var result = await sender.Send(
-            new CreateClienteCommand(request.Nombre, request.Apellido, request.Email, request.Telefono, request.Direccion, request.ImagePath),
+            new CreateClienteCommand(request.Nombre, request.Apellido, request.Email, request.Telefono, request.DireccionLinea1, request.DireccionLinea2, request.Sector, request.PaisCodigo, request.ImagePath),
             cancellationToken);
 
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
@@ -70,13 +75,15 @@ public sealed class ClientesController(ISender sender) : ControllerBase
     {
         if (string.IsNullOrWhiteSpace(request.Nombre) ||
             string.IsNullOrWhiteSpace(request.Apellido) ||
-            string.IsNullOrWhiteSpace(request.Email))
+            string.IsNullOrWhiteSpace(request.Email) ||
+            !EsDireccionValida(request.DireccionLinea1, request.DireccionLinea2) ||
+            !EsPaisValido(request.PaisCodigo))
         {
             return BadRequest();
         }
 
         var result = await sender.Send(
-            new UpdateClienteCommand(id, request.Nombre, request.Apellido, request.Email, request.Telefono, request.Direccion, request.ImagePath),
+            new UpdateClienteCommand(id, request.Nombre, request.Apellido, request.Email, request.Telefono, request.DireccionLinea1, request.DireccionLinea2, request.Sector, request.PaisCodigo, request.ImagePath),
             cancellationToken);
 
         return result is null ? NotFound() : Ok(result);
@@ -91,7 +98,13 @@ public sealed class ClientesController(ISender sender) : ControllerBase
         var deleted = await sender.Send(new DeleteClienteCommand(id), cancellationToken);
         return deleted ? NoContent() : NotFound();
     }
+
+    private static bool EsDireccionValida(string? linea1, string? linea2) =>
+        !string.IsNullOrWhiteSpace(linea1) || string.IsNullOrWhiteSpace(linea2);
+
+    private static bool EsPaisValido(string? codigo) =>
+        string.IsNullOrWhiteSpace(codigo) || Pais.EsCodigoValido(codigo);
 }
 
-public sealed record CreateClienteRequest(string Nombre, string Apellido, string Email, string? Telefono, string? Direccion, string? ImagePath = null);
-public sealed record UpdateClienteRequest(string Nombre, string Apellido, string Email, string? Telefono, string? Direccion, string? ImagePath = null);
+public sealed record CreateClienteRequest(string Nombre, string Apellido, string Email, string? Telefono, string? DireccionLinea1, string? DireccionLinea2, string? Sector, string? PaisCodigo, string? ImagePath = null);
+public sealed record UpdateClienteRequest(string Nombre, string Apellido, string Email, string? Telefono, string? DireccionLinea1, string? DireccionLinea2, string? Sector, string? PaisCodigo, string? ImagePath = null);

@@ -79,6 +79,16 @@ public sealed class ClienteApiClient(HttpClient httpClient, ILogger<ClienteApiCl
             parameters.Add($"direccion={Uri.EscapeDataString(filter.Direccion.Trim())}");
         }
 
+        if (!string.IsNullOrWhiteSpace(filter.Sector))
+        {
+            parameters.Add($"sector={Uri.EscapeDataString(filter.Sector.Trim())}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter.Pais))
+        {
+            parameters.Add($"pais={Uri.EscapeDataString(filter.Pais.Trim())}");
+        }
+
         return parameters.Count == 0 ? "api/clientes" : $"api/clientes?{string.Join("&", parameters)}";
     }
 

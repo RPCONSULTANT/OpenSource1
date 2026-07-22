@@ -107,7 +107,9 @@ else
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div class="rounded-xl border border-slate-100 bg-slate-50 px-4 py-4 dark:border-slate-700/60 dark:bg-slate-900/40"><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Correo</p><p class="mt-1 text-sm text-slate-700 break-all dark:text-slate-300">@cliente.Email</p></div>
                         <div class="rounded-xl border border-slate-100 bg-slate-50 px-4 py-4 dark:border-slate-700/60 dark:bg-slate-900/40"><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Teléfono</p><p class="mt-1 text-sm text-slate-700 dark:text-slate-300">@(string.IsNullOrWhiteSpace(cliente.Telefono) ? "No indicado" : cliente.Telefono)</p></div>
-                        <div class="rounded-xl border border-slate-100 bg-slate-50 px-4 py-4 md:col-span-2 dark:border-slate-700/60 dark:bg-slate-900/40"><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Dirección</p><p class="mt-1 text-sm text-slate-700 dark:text-slate-300">@(string.IsNullOrWhiteSpace(cliente.Direccion) ? "No indicada" : cliente.Direccion)</p></div>
+                        <div class="rounded-xl border border-slate-100 bg-slate-50 px-4 py-4 dark:border-slate-700/60 dark:bg-slate-900/40"><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Sector</p><p class="mt-1 text-sm text-slate-700 dark:text-slate-300">@(string.IsNullOrWhiteSpace(cliente.Sector) ? "No indicado" : cliente.Sector)</p></div>
+                        <div class="rounded-xl border border-slate-100 bg-slate-50 px-4 py-4 dark:border-slate-700/60 dark:bg-slate-900/40"><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">País</p><p class="mt-1 text-sm text-slate-700 dark:text-slate-300">@(string.IsNullOrWhiteSpace(cliente.PaisNombre) ? "No indicado" : cliente.PaisNombre)</p></div>
+                        <div class="rounded-xl border border-slate-100 bg-slate-50 px-4 py-4 md:col-span-2 dark:border-slate-700/60 dark:bg-slate-900/40"><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Dirección</p><p class="mt-1 text-sm text-slate-700 dark:text-slate-300">@(string.IsNullOrWhiteSpace(cliente.DireccionLinea1) ? "No indicada" : $"{cliente.DireccionLinea1}{(string.IsNullOrWhiteSpace(cliente.DireccionLinea2) ? "" : $", {cliente.DireccionLinea2}")}")</p></div>
                     </div>
                 </div>
             }
@@ -169,7 +171,7 @@ else
             cliente = await ClienteApiClient.GetByIdAsync(Id);
             if (cliente is not null && (Input is null || string.IsNullOrWhiteSpace(Input.Nombre)))
             {
-                Input = new ClienteEditorForm { Nombre = cliente.Nombre, Apellido = cliente.Apellido, Email = cliente.Email, Telefono = cliente.Telefono, Direccion = cliente.Direccion, ImagePath = cliente.ImagePath };
+                Input = new ClienteEditorForm { Nombre = cliente.Nombre, Apellido = cliente.Apellido, Email = cliente.Email, Telefono = cliente.Telefono, DireccionLinea1 = cliente.DireccionLinea1, DireccionLinea2 = cliente.DireccionLinea2, Sector = cliente.Sector, PaisCodigo = cliente.PaisCodigo, ImagePath = cliente.ImagePath };
             }
         }
         catch (Exception ex) { Logger.LogWarning(ex, "Could not load cliente detail."); loadError = "No fue posible cargar la ficha del cliente."; }
@@ -209,6 +211,15 @@ else
         return parameters.Count == 0 ? $"/clientes/{Id}" : $"/clientes/{Id}?{string.Join("&", parameters)}";
     }
 
-    private static ClienteInput ToInput(ClienteEditorForm form) => new(form.Nombre.Trim(), form.Apellido.Trim(), form.Email.Trim(), form.Telefono?.Trim(), form.Direccion?.Trim(), form.ImagePath);
+    private static ClienteInput ToInput(ClienteEditorForm form) => new(
+        form.Nombre.Trim(),
+        form.Apellido.Trim(),
+        form.Email.Trim(),
+        form.Telefono?.Trim(),
+        form.DireccionLinea1?.Trim(),
+        form.DireccionLinea2?.Trim(),
+        form.Sector?.Trim(),
+        form.PaisCodigo,
+        form.ImagePath);
     private sealed class DeleteConfirmForm { }
 }

@@ -14,7 +14,10 @@ public interface IProductoApiClient
 public sealed record ProductoSearchFilter(
     string? Codigo,
     string? Nombre,
-    string? Categoria,
+    string? CategoriaCodigo,
+    string? CategoriaNombre,
+    string? UnidadMedidaCodigo,
+    string? UnidadMedidaNombre,
     string? Precio,
     string? Stock);
 
@@ -23,7 +26,9 @@ public sealed record ProductoInput(
     string Nombre,
     decimal Precio,
     int Stock,
-    string Categoria,
+    string CategoriaCodigo,
+    string CategoriaNombre,
+    string UnidadMedidaCodigo,
     string? ImagePath = null);
 
 public sealed record ProductoOperationResult(bool Succeeded, string Message, Guid? EntityId = null);

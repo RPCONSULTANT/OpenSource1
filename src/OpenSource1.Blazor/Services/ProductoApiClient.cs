@@ -55,9 +55,24 @@ public sealed class ProductoApiClient(HttpClient httpClient, ILogger<ProductoApi
             parameters.Add($"nombre={Uri.EscapeDataString(filter.Nombre.Trim())}");
         }
 
-        if (!string.IsNullOrWhiteSpace(filter.Categoria))
+        if (!string.IsNullOrWhiteSpace(filter.CategoriaCodigo))
         {
-            parameters.Add($"categoria={Uri.EscapeDataString(filter.Categoria.Trim())}");
+            parameters.Add($"categoriaCodigo={Uri.EscapeDataString(filter.CategoriaCodigo.Trim())}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter.CategoriaNombre))
+        {
+            parameters.Add($"categoriaNombre={Uri.EscapeDataString(filter.CategoriaNombre.Trim())}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter.UnidadMedidaCodigo))
+        {
+            parameters.Add($"unidadMedidaCodigo={Uri.EscapeDataString(filter.UnidadMedidaCodigo.Trim())}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter.UnidadMedidaNombre))
+        {
+            parameters.Add($"unidadMedidaNombre={Uri.EscapeDataString(filter.UnidadMedidaNombre.Trim())}");
         }
 
         if (!string.IsNullOrWhiteSpace(filter.Precio))

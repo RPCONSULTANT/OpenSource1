@@ -24,12 +24,12 @@ public sealed class ClientesApiTests : IClassFixture<PostgresTestFixture>
         Assert.Equal(HttpStatusCode.Unauthorized, anonymousResponse.StatusCode);
 
         var forbiddenClient = CreateClient("Supervisor");
-        var forbidden = await forbiddenClient.PostAsJsonAsync("/api/clientes", new { nombre = "A", apellido = "B", email = "a@test.local", telefono = "", direccion = "" });
+        var forbidden = await forbiddenClient.PostAsJsonAsync("/api/clientes", new { nombre = "A", apellido = "B", email = "a@test.local", telefono = "", direccionLinea1 = "" });
         Assert.Equal(HttpStatusCode.Forbidden, forbidden.StatusCode);
 
         var client = CreateClient("Administrador");
         var email = $"juan-{Guid.NewGuid():N}@test.local";
-        var create = await client.PostAsJsonAsync("/api/clientes", new { nombre = "Juan", apellido = "Perez", email, telefono = "809-000-0000", direccion = "Calle 1" });
+        var create = await client.PostAsJsonAsync("/api/clientes", new { nombre = "Juan", apellido = "Perez", email, telefono = "809-000-0000", direccionLinea1 = "Calle 1" });
         Assert.Equal(HttpStatusCode.Created, create.StatusCode);
 
         var body = await create.Content.ReadAsStringAsync();
@@ -37,7 +37,7 @@ public sealed class ClientesApiTests : IClassFixture<PostgresTestFixture>
 
         Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/clientes")).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await client.GetAsync($"/api/clientes/{created}")).StatusCode);
-        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/clientes/{created}", new { nombre = "Juan", apellido = "Perez", email, telefono = "809-111-1111", direccion = "Calle 2" })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/clientes/{created}", new { nombre = "Juan", apellido = "Perez", email, telefono = "809-111-1111", direccionLinea1 = "Calle 2" })).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/api/clientes/{Guid.NewGuid()}")).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await client.DeleteAsync($"/api/clientes/{Guid.NewGuid()}")).StatusCode);
 

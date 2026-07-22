@@ -67,7 +67,8 @@
                     <div><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Código</p><p class="mt-1 text-slate-700 dark:text-slate-300">@factProducto.Codigo</p></div>
                     <div><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Precio</p><p class="mt-1 text-slate-700 dark:text-slate-300">@factProducto.Precio.ToString("N2")</p></div>
                     <div><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Stock</p><p class="mt-1 text-slate-700 dark:text-slate-300">@factProducto.Stock</p></div>
-                    <div><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Categoría</p><p class="mt-1 text-slate-700 dark:text-slate-300">@factProducto.Categoria</p></div>
+                    <div><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Categoría</p><p class="mt-1 text-slate-700 dark:text-slate-300">@factProducto.CategoriaNombre (@factProducto.CategoriaCodigo)</p></div>
+                    <div><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Unidad de medida</p><p class="mt-1 text-slate-700 dark:text-slate-300">@factProducto.UnidadMedidaNombre (@factProducto.UnidadMedidaCodigo)</p></div>
                 </div>
             }
         </div>
@@ -130,7 +131,7 @@
                                     <td class="px-4 py-3 text-slate-700 dark:text-slate-300">@producto.Nombre</td>
                                     <td class="px-4 py-3 text-slate-700 dark:text-slate-300">@producto.Precio.ToString("N2")</td>
                                     <td class="px-4 py-3 text-slate-700 dark:text-slate-300">@producto.Stock</td>
-                                    <td class="px-4 py-3 text-slate-700 dark:text-slate-300">@producto.Categoria</td>
+                                    <td class="px-4 py-3 text-slate-700 dark:text-slate-300">@producto.CategoriaNombre</td>
                                     <td class="px-4 py-3 text-right">
                                         <div class="flex items-center justify-end gap-2">
                                             <a href="/productos/@producto.Id" class="btn-press inline-flex items-center justify-center size-9 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700/60" title="Ver ficha">👁</a>
@@ -164,7 +165,7 @@
                             <div class="grid min-w-0 flex-1 grid-cols-1 gap-3 text-sm sm:grid-cols-3">
                                 <div class="min-w-0 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5 dark:border-slate-700/60 dark:bg-slate-900/40"><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Precio</p><p class="mt-1 truncate text-slate-700 dark:text-slate-300">@producto.Precio.ToString("N2")</p></div>
                                 <div class="min-w-0 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5 dark:border-slate-700/60 dark:bg-slate-900/40"><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Stock</p><p class="mt-1 truncate text-slate-700 dark:text-slate-300">@producto.Stock</p></div>
-                                <div class="min-w-0 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5 dark:border-slate-700/60 dark:bg-slate-900/40"><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Categoría</p><p class="mt-1 truncate text-slate-700 dark:text-slate-300" title="@producto.Categoria">@producto.Categoria</p></div>
+                                <div class="min-w-0 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5 dark:border-slate-700/60 dark:bg-slate-900/40"><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Categoría</p><p class="mt-1 truncate text-slate-700 dark:text-slate-300" title="@producto.CategoriaNombre">@producto.CategoriaNombre</p></div>
                             </div>
                             <div class="flex shrink-0 items-center gap-2">
                                 <label class="inline-flex items-center justify-center size-9 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 cursor-pointer dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700/60" title="Seleccionar"><input type="checkbox" name="SelectedIds" value="@producto.Id" checked="@(producto.Id == FocusProductoId)" onchange="@EntityFabOnChange" class="size-4 rounded border-slate-300 text-brand-600 focus:ring-brand-600 dark:border-slate-600" /></label>
@@ -234,7 +235,7 @@
 }
 </div>
 
-<div id="producto-detail-fab" data-base-url="@BuildListUrl()" data-auto-nav="@(ShowFactbox ? "true" : "false")" class="hidden fixed left-4 top-1/2 z-40 -translate-y-1/2">
+<div id="producto-detail-fab" data-base-url="@BuildListUrl()" data-auto-nav="@(ShowFactbox ? "true" : "false")" class="hidden fixed left-4 top-1/2 z-40 -translate-y-1/2 lg:left-72">
     <a id="producto-detail-fab-link" href="#" class="btn-press flex items-center gap-2 rounded-full bg-brand-600 pl-4 pr-5 py-3 text-sm font-semibold text-white shadow-xl hover:bg-brand-700">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-5"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>
         Ver detalles
@@ -303,14 +304,20 @@
     private static readonly (string Key, string Label)[] FilterableFields =
     [
         ("codigo", "Código"),
-        ("categoria", "Categoría"),
+        ("categoriaCodigo", "Código de categoría"),
+        ("categoriaNombre", "Nombre de categoría"),
+        ("unidadMedidaCodigo", "Código de unidad"),
+        ("unidadMedidaNombre", "Nombre de unidad"),
         ("precio", "Precio"),
         ("stock", "Stock"),
     ];
 
     [SupplyParameterFromQuery(Name = "nombre")] private string? SearchNombre { get; set; }
     [SupplyParameterFromQuery(Name = "codigo")] private string? SearchCodigo { get; set; }
-    [SupplyParameterFromQuery(Name = "categoria")] private string? SearchCategoria { get; set; }
+    [SupplyParameterFromQuery(Name = "categoriaCodigo")] private string? SearchCategoriaCodigo { get; set; }
+    [SupplyParameterFromQuery(Name = "categoriaNombre")] private string? SearchCategoriaNombre { get; set; }
+    [SupplyParameterFromQuery(Name = "unidadMedidaCodigo")] private string? SearchUnidadMedidaCodigo { get; set; }
+    [SupplyParameterFromQuery(Name = "unidadMedidaNombre")] private string? SearchUnidadMedidaNombre { get; set; }
     [SupplyParameterFromQuery(Name = "precio")] private string? SearchPrecio { get; set; }
     [SupplyParameterFromQuery(Name = "stock")] private string? SearchStock { get; set; }
     [SupplyParameterFromQuery(Name = "filters")] private string? FiltersRaw { get; set; }
@@ -342,10 +349,10 @@
         await LoadAsync();
         if(Ok is not null){(messageType, message)=Ok switch {"created"=>("success","Producto creado satisfactoriamente."),"updated"=>("success","Producto modificado satisfactoriamente."),"deleted"=>("success","Producto eliminado satisfactoriamente."),"report-select-required"=>("warning","Seleccione al menos un producto para generar el reporte."),"report-no-data"=>("warning","No hay datos para generar el reporte solicitado."),_ =>("info",null)};}
     }
-    private async Task LoadAsync(){try{productos=await ProductoApiClient.ListAsync(new ProductoSearchFilter(GetActiveValue("codigo", SearchCodigo), EmptyAsNull(SearchNombre), GetActiveValue("categoria", SearchCategoria), GetActiveValue("precio", SearchPrecio), GetActiveValue("stock", SearchStock)));} catch(Exception ex){Logger.LogWarning(ex,"Could not load productos from API."); message="No fue posible cargar los productos."; messageType="danger";}}
+    private async Task LoadAsync(){try{productos=await ProductoApiClient.ListAsync(new ProductoSearchFilter(GetActiveValue("codigo", SearchCodigo), EmptyAsNull(SearchNombre), GetActiveValue("categoriaCodigo", SearchCategoriaCodigo), GetActiveValue("categoriaNombre", SearchCategoriaNombre), GetActiveValue("unidadMedidaCodigo", SearchUnidadMedidaCodigo), GetActiveValue("unidadMedidaNombre", SearchUnidadMedidaNombre), GetActiveValue("precio", SearchPrecio), GetActiveValue("stock", SearchStock)));} catch(Exception ex){Logger.LogWarning(ex,"Could not load productos from API."); message="No fue posible cargar los productos."; messageType="danger";}}
     private async Task DeleteAsync(){if(!DeleteId.HasValue){modalError="No se pudo identificar el producto. Intente de nuevo."; return;} var result=await ProductoApiClient.DeleteAsync(DeleteId.Value); if(result.Succeeded) Nav.NavigateTo(BuildListUrl(ok:"deleted")); else modalError=result.Message;}
     private string? GetActiveValue(string key, string? value) => ActiveFilterFields.Contains(key) ? EmptyAsNull(value) : null;
-    private string? GetFieldValue(string key) => key switch { "codigo" => SearchCodigo, "categoria" => SearchCategoria, "precio" => SearchPrecio, "stock" => SearchStock, _ => null };
+    private string? GetFieldValue(string key) => key switch { "codigo" => SearchCodigo, "categoriaCodigo" => SearchCategoriaCodigo, "categoriaNombre" => SearchCategoriaNombre, "unidadMedidaCodigo" => SearchUnidadMedidaCodigo, "unidadMedidaNombre" => SearchUnidadMedidaNombre, "precio" => SearchPrecio, "stock" => SearchStock, _ => null };
     private static List<string> ParseActiveFields(string? raw) => string.IsNullOrWhiteSpace(raw) ? [] : [.. raw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Where(f => FilterableFields.Any(field => field.Key == f)).Distinct()];
     private string BuildListUrl(Guid? deleteId=null, bool? showFilters=null, string? ok=null, string? view=null, bool? report=null, Guid? focusId=null, IReadOnlyList<string>? activeFiltersOverride=null)
     {
@@ -353,7 +360,10 @@
         var parameters=new List<string>();
         AddParameter(parameters,"nombre",SearchNombre);
         if (activeFields.Contains("codigo")) AddParameter(parameters,"codigo",SearchCodigo);
-        if (activeFields.Contains("categoria")) AddParameter(parameters,"categoria",SearchCategoria);
+        if (activeFields.Contains("categoriaCodigo")) AddParameter(parameters,"categoriaCodigo",SearchCategoriaCodigo);
+        if (activeFields.Contains("categoriaNombre")) AddParameter(parameters,"categoriaNombre",SearchCategoriaNombre);
+        if (activeFields.Contains("unidadMedidaCodigo")) AddParameter(parameters,"unidadMedidaCodigo",SearchUnidadMedidaCodigo);
+        if (activeFields.Contains("unidadMedidaNombre")) AddParameter(parameters,"unidadMedidaNombre",SearchUnidadMedidaNombre);
         if (activeFields.Contains("precio")) AddParameter(parameters,"precio",SearchPrecio);
         if (activeFields.Contains("stock")) AddParameter(parameters,"stock",SearchStock);
         if (activeFields.Count > 0) parameters.Add($"filters={Uri.EscapeDataString(string.Join(",", activeFields))}");
