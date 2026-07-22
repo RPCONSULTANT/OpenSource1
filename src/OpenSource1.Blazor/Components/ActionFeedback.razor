@@ -1,0 +1,38 @@
+@* ActionFeedback – mensaje visual posterior a acciones create/update/delete. *@
+@if (!string.IsNullOrWhiteSpace(Message))
+{
+    <div class="action-feedback @ContainerClass" role="status" aria-live="polite">
+        <span class="action-feedback-icon @IconClass" aria-hidden="true">
+            @if (Type == "success")
+            {
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-6 action-checkmark">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75 10.5 18.75 19.5 5.25" />
+                </svg>
+            }
+            else
+            {
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-6">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m0 3.75h.007v.008H12V16.5Zm9-4.5a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                </svg>
+            }
+        </span>
+        <div>
+            <p class="text-sm font-bold">@Title</p>
+            <p class="mt-0.5 text-sm">@Message</p>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public string Type { get; set; } = "success";
+    [Parameter] public string Title { get; set; } = "Acción completada";
+    [Parameter] public string? Message { get; set; }
+
+    private string ContainerClass => Type == "success"
+        ? "border-green-200 bg-green-50 text-green-900 dark:border-green-500/30 dark:bg-green-500/10 dark:text-green-400"
+        : "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400";
+
+    private string IconClass => Type == "success"
+        ? "bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400"
+        : "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400";
+}

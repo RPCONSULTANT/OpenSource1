@@ -22,6 +22,9 @@ secrets.json
 .opencode/
 opencode.json
 
+# Local multi-root workspace (references machine-specific paths, e.g. ~/.codex)
+OpenSource1.code-workspace
+
 # Logs
 *.log
 

@@ -1,5 +1,6 @@
-﻿<!DOCTYPE html>
-<html lang="es">
+﻿@inject IHttpContextAccessor HttpContextAccessor
+<!DOCTYPE html>
+<html lang="es" class="@(IsDarkMode ? "dark" : "")">
 
 <head>
     <meta charset="utf-8" />
@@ -8,8 +9,11 @@
     <ResourcePreloader />
     <!-- Tailwind CSS Play CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js (gráficos de dashboard) -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
     <script>
         tailwind.config = {
+            darkMode: 'class',
             theme: {
                 extend: {
                     colors: {
@@ -78,9 +82,17 @@
     <HeadOutlet />
 </head>
 
-<body class="bg-slate-50 font-sans text-slate-800 antialiased">
+<body class="bg-slate-50 font-sans text-slate-800 antialiased dark:bg-slate-900 dark:text-slate-100">
+    <div id="nav-progress-bar" class="blazor-loading-bar" style="width:0;opacity:0;" aria-hidden="true"></div>
     <Routes />
+    <LoadingOverlay />
     <script src="@Assets["_framework/blazor.web.js"]"></script>
+    <script src="@Assets["app.interactions.js"]"></script>
+    <script src="@Assets["app.charts.js"]"></script>
 </body>
 
 </html>
+
+@code {
+    private bool IsDarkMode => HttpContextAccessor.HttpContext?.Request.Cookies["axionerp-theme"] == "dark";
+}

@@ -5,11 +5,13 @@ using OpenSource1.Application.Features.Entradas.Commands;
 using OpenSource1.Application.Features.Entradas.Dtos;
 using OpenSource1.Application.Features.Entradas.Queries;
 using OpenSource1.Application.Security;
+using System;
 
 namespace OpenSource1.Api.Controllers;
 
 [ApiController]
 [Route("api/entradas")]
+[Obsolete("Modulo de prueba obsoleto. No usar Entradas para nuevos desarrollos.")]
 public sealed class EntradasController(ISender sender) : ControllerBase
 {
     [HttpGet]

@@ -1,9 +1,11 @@
 using System.Net;
 using System.Net.Http.Json;
 using OpenSource1.Application.Features.Entradas.Dtos;
+using System;
 
 namespace OpenSource1.Blazor.Services;
 
+[Obsolete("Modulo de prueba obsoleto. No usar Entradas para nuevos desarrollos.")]
 public sealed class EntradaApiClient(HttpClient httpClient, ILogger<EntradaApiClient> logger) : IEntradaApiClient
 {
     public async Task<IReadOnlyList<EntradaResponse>> ListAsync(CancellationToken cancellationToken = default)

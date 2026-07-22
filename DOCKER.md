@@ -1,230 +1,126 @@
-# 🐳 Guía de despliegue local con Docker
+# Guía de despliegue local con Docker
 
-Instrucciones para levantar el stack completo de **OpenSource1** en tu máquina usando Docker Compose.
+Instrucciones para levantar **OpenSource1 / AxionERP** con Docker Compose.
 
----
+## Prerrequisitos
 
-## Prerequisitos
+| Herramienta | Versión mínima |
+| --- | --- |
+| Docker Desktop o Docker Engine | 24.x |
+| Docker Compose | v2.x |
+| Git | cualquiera |
 
-| Herramienta | Versión mínima | Instalación |
-|-------------|---------------|-------------|
-| **Docker Desktop** (Windows/macOS) o **Docker Engine** (Linux) | 24.x | https://docs.docker.com/get-docker/ |
-| **Docker Compose** | v2.x (incluido en Docker Desktop) | https://docs.docker.com/compose/install/ |
-| **Git** | cualquiera | https://git-scm.com/ |
+No necesitas instalar .NET SDK ni PostgreSQL local para esta ruta; todo corre dentro de contenedores.
 
-> **Nota:** No necesitas instalar .NET SDK, SQL Server ni ningún otro runtime; todo corre dentro de contenedores.
+## Stack
 
----
-
-## Estructura del stack
-
-```
-┌─────────────────────────────────────────────┐
-│  Tu navegador  →  http://localhost:8080      │  ← Blazor Web App
-│  Tu cliente    →  http://localhost:8081      │  ← REST API (JWT)
-│  SQL Client    →  localhost:1433             │  ← SQL Server
-└─────────────────────────────────────────────┘
+```txt
+Navegador  -> http://localhost:8080  -> Blazor Web App
+Cliente API -> http://localhost:8081 -> ASP.NET Core REST API
+DB Client  -> localhost:5432         -> PostgreSQL
 ```
 
-| Servicio     | Puerto local | Imagen                  | Descripción             |
-|--------------|-------------|-------------------------|-------------------------|
-| `blazor`     | `8080`      | `opensource1-blazor:local` | Blazor Web App (UI)  |
-| `api`        | `8081`      | `opensource1-api:local`    | ASP.NET Core Web API |
-| `sqlserver`  | `1433`      | `mcr.microsoft.com/mssql/server:2022-latest` | Base de datos |
+| Servicio | Puerto local | Imagen | Descripción |
+| --- | --- | --- | --- |
+| `blazor` | `8080` | `ggeasy75/opensource:blazor` | UI Blazor Static SSR |
+| `api` | `8081` | `ggeasy75/opensource:api` | API ASP.NET Core con JWT |
+| `postgres` | `5432` | `postgres:17-alpine` | Base de datos PostgreSQL |
 
----
-
-## Paso 1 – Clonar el repositorio
-
-```bash
-git clone https://github.com/RPCONSULTANT/OpenSource1.git
-cd OpenSource1
-```
-
----
-
-## Paso 2 – Crear el archivo `.env`
-
-Copia el archivo de ejemplo y completa las variables:
+## Crear `.env`
 
 ```bash
 cp .env.example .env
 ```
 
-Abre `.env` y establece tus contraseñas:
+Variables requeridas:
 
 ```env
-# Contraseña del SA de SQL Server (mín. 8 chars, mayúscula, número y símbolo)
-MSSQL_SA_PASSWORD=Tu_Contrasena_Segura123
-
-# Contraseña que se usará al crear los usuarios semilla (admin/supervisor/ejecutor)
-AUTH_SEED_DEFAULT_PASSWORD=OtraContrasena_Segura456
+POSTGRES_PASSWORD=Change_this_postgres_password_12345
+JWT_SIGNING_KEY=Change_this_local_jwt_signing_key_1234567890
+AUTH_SEED_DEFAULT_PASSWORD=Change_this_seed_password_12345
 ```
 
-> ⚠️ **Nunca** subas tu `.env` real al repositorio. Está en `.gitignore`.
+Nunca subas tu `.env` real al repositorio.
 
----
-
-## Paso 3 – Construir las imágenes
+## Levantar el sistema
 
 ```bash
 docker compose build
-```
-
-Esto compila los proyectos .NET dentro de contenedores multistage.  
-La primera vez puede tardar **2–5 minutos** mientras descarga las capas base.
-
----
-
-## Paso 4 – Levantar el stack
-
-```bash
 docker compose up -d
-```
-
-El flag `-d` ejecuta los contenedores en segundo plano (detached).
-
-Verificar que los tres servicios estén corriendo:
-
-```bash
 docker compose ps
 ```
 
-Deberías ver algo como:
+El contenedor `postgres` crea las bases mediante `init-postgres.sh`:
 
-```
-NAME                  STATUS          PORTS
-test-blazor-1         running         0.0.0.0:8080->8080/tcp
-test-api-1            running         0.0.0.0:8081->8081/tcp
-test-sqlserver-1      running         0.0.0.0:1433->1433/tcp
-```
+- `AxionERP_App`
+- `AxionERP_Identity`
 
----
+La API aplica migraciones al arrancar en Docker con `Database__ApplyMigrationsOnStartup=true`.
 
-## Paso 5 – Acceder a la aplicación
+## URLs
 
-| URL | Descripción |
-|-----|-------------|
-| http://localhost:8080 | **Blazor Web App** (interfaz de usuario) |
-| http://localhost:8081/scalar/v1 | **Scalar API Explorer** (explorador visual del API) |
-| http://localhost:8081/openapi/v1.json | Especificación OpenAPI en JSON |
-| http://localhost:8081/api/auth/login | Endpoint de autenticación (POST) |
+| URL | Uso |
+| --- | --- |
+| http://localhost:8080 | Blazor Web App |
+| http://localhost:8081/scalar/v1 | Scalar API Explorer |
+| http://localhost:8081/openapi/v1.json | OpenAPI JSON |
+| http://localhost:8081/api/auth/login | Login API, método POST |
 
-### Usuarios semilla disponibles
+## Usuarios semilla
 
-| Usuario       | Contraseña                    | Rol            | Permisos                        |
-|---------------|-------------------------------|----------------|---------------------------------|
-| `admin`       | valor de `AUTH_SEED_DEFAULT_PASSWORD` | Administrador  | Consultar, Agregar, Modificar, Eliminar |
-| `supervisor`  | valor de `AUTH_SEED_DEFAULT_PASSWORD` | Supervisor     | Consultar, Modificar            |
-| `ejecutor`    | valor de `AUTH_SEED_DEFAULT_PASSWORD` | Ejecutor       | Consultar, Agregar              |
-
----
+| Usuario | Contraseña | Rol |
+| --- | --- | --- |
+| `admin` | valor de `AUTH_SEED_DEFAULT_PASSWORD` | Administrador |
+| `supervisor` | valor de `AUTH_SEED_DEFAULT_PASSWORD` | Supervisor |
+| `ejecutor` | valor de `AUTH_SEED_DEFAULT_PASSWORD` | Ejecutor |
 
 ## Comandos útiles
 
-### Ver logs en tiempo real
-
 ```bash
-# todos los servicios
 docker compose logs -f
-
-# solo el Blazor
-docker compose logs -f blazor
-
-# solo el API
 docker compose logs -f api
-```
-
-### Reiniciar un servicio individual
-
-```bash
-docker compose restart blazor
+docker compose logs -f blazor
 docker compose restart api
-```
-
-### Reconstruir e reiniciar después de cambios en el código
-
-```bash
-docker compose build blazor && docker compose up -d blazor
-```
-
-### Detener el stack (conserva los datos)
-
-```bash
-docker compose stop
-```
-
-### Detener y eliminar contenedores (conserva volúmenes/datos)
-
-```bash
-docker compose down
-```
-
-### Eliminar todo incluyendo la base de datos (¡datos borrados!)
-
-```bash
+docker compose restart blazor
+docker compose down --remove-orphans
 docker compose down -v
 ```
-
----
 
 ## Solución de problemas
 
 ### Puerto ocupado
 
-Si el puerto `8080` o `8081` ya está en uso:
-
-```bash
-# Linux/macOS
-sudo lsof -i :8080
-
-# Windows PowerShell
-netstat -ano | findstr :8080
-```
-
-Cambia el puerto en `docker-compose.yml`:
+Si `8080`, `8081` o `5432` están ocupados, cambia el puerto izquierdo en `docker-compose.yml`.
 
 ```yaml
 ports:
-  - "9090:8080"   # usa 9090 en tu host en lugar de 8080
+  - "9090:8080"
 ```
 
-### El API tarda en arrancar
+### PostgreSQL tarda en estar listo
 
-SQL Server puede necesitar ~20 segundos en inicializarse. El API tiene un `healthcheck` y reintentos configurados; espera hasta que `docker compose ps` muestre `healthy` en el servicio `sqlserver`.
+El servicio `postgres` usa `pg_isready` como healthcheck. Espera hasta que `docker compose ps` muestre el contenedor saludable antes de probar la API.
 
-### Error de permisos en Linux
+### Ver configuración activa sin exponer secretos
 
 ```bash
-sudo usermod -aG docker $USER
-newgrp docker
+docker compose exec api env | grep -v PASSWORD | grep -v KEY
 ```
-
-### Ver variables de entorno activas en un contenedor
-
-```bash
-docker compose exec api env | grep -v PASSWORD
-```
-
----
 
 ## Arquitectura del proyecto
 
-```
+```txt
 OpenSource1/
-├── src/
-│   ├── OpenSource1.Core/           # Entidades y contratos de dominio
-│   ├── OpenSource1.Application/    # CQRS, MediatR, servicios de aplicación
-│   ├── OpenSource1.Infrastructure/ # EF Core, Dapper, Identity, JWT
-│   ├── OpenSource1.Api/            # ASP.NET Core Web API (controladores)
-│   └── OpenSource1.Blazor/         # Blazor Web App (Static SSR, Tailwind CSS)
+├── src/OpenSource1.Core/
+├── src/OpenSource1.Application/
+├── src/OpenSource1.Infrastructure/
+├── src/OpenSource1.Api/
+├── src/OpenSource1.Blazor/
 ├── docker-compose.yml
 ├── Dockerfile.api
 ├── Dockerfile.blazor
-├── .env.example
+├── init-postgres.sh
 └── test.slnx
 ```
 
----
-
-*Documentación generada para OpenSource1 · Blazor Web App + API JWT + SQL Server · 2026*
+Documentación para OpenSource1 · Blazor Static SSR + API JWT + PostgreSQL · 2026

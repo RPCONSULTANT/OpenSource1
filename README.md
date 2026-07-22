@@ -58,9 +58,59 @@ Actualmente el proyecto cuenta con:
 - CRUD de entradas.
 - CRUD de configuraciones de aplicación.
 - Gestión de usuarios, roles y estado activo/inactivo.
+- Gestión de clientes con buscadores, filtros, reportes y Excel.
+- Gestión de productos con buscadores, filtros, dashboards, reportes y Excel.
 - Registro, login, logout, recuperación y cambio de contraseña.
 - Menú principal con opciones según rol.
+- Dashboard principal y dashboards por módulo.
+- Bitácora operativa.
+- Reportería histórica y exportación a Excel.
 - Validaciones y mensajes en español.
+
+## Entregable 3
+
+La **Etapa III — Integración Total del Sistema** se encuentra documentada en:
+
+- [`docs/ENTREGABLE-3.md`](docs/ENTREGABLE-3.md)
+
+Carpeta sugerida para capturas del documento:
+
+- [`docs/screenshots/entregable-3/`](docs/screenshots/entregable-3/)
+
+### Resumen de cumplimiento
+
+| Requerimiento Etapa III | Estado |
+| --- | --- |
+| Menú principal | Implementado |
+| Login integrado | Implementado |
+| Detección de roles | Implementado |
+| Permisos por rol | Implementado |
+| CRUD de usuarios | Implementado |
+| CRUD de clientes | Implementado |
+| CRUD de productos | Implementado |
+| Consultas y filtros | Implementado |
+| Reportes PDF | Implementado |
+| Exportación a Excel | Implementado |
+| Dashboard | Implementado |
+| Bitácora | Implementado |
+| Validaciones | Implementado |
+| Integración BD | Implementado |
+
+### Matriz principal de seguridad
+
+| Módulo / Acción | Admin | Supervisor | Ejecutor |
+| --- | --- | --- | --- |
+| Usuarios | Sí | No | No |
+| Clientes | Sí | Sí | Sí |
+| Productos | Sí | Sí | Sí |
+| Eliminar | Sí | No | No |
+
+Políticas efectivas del sistema:
+
+- `CanConsult`: Administrador, Supervisor, Ejecutor
+- `CanAdd`: Administrador, Ejecutor
+- `CanModify`: Administrador, Supervisor
+- `CanDelete`: Administrador
 
 ## Cumplimiento del entregable 1
 
@@ -143,7 +193,7 @@ Endpoints principales:
 | `POST /api/auth/reset-password` | Restablecimiento de contraseña. |
 | `POST /api/auth/change-password` | Cambio de contraseña autenticado. |
 
-> Nota: en ambiente local el token de recuperación puede mostrarse en pantalla para fines de demostración. En producción debe enviarse por correo.
+> Nota: el token de recuperación no debe mostrarse en pantalla. En producción debe enviarse por correo o por otro canal seguro. En desarrollo, use herramientas internas o logs controlados si necesita probar el flujo.
 
 ## Estructura del repositorio
 
@@ -235,6 +285,13 @@ docker compose down -v
 ## Ejecución sin Docker
 
 Requiere PostgreSQL local y cadenas de conexión configuradas por variables de entorno, user-secrets o `appsettings.Development.json`.
+
+Ejemplo de variables de entorno para PostgreSQL local:
+
+```bash
+export ConnectionStrings__DefaultConnection="Host=localhost;Port=5432;Database=AxionERP_App;Username=Rainiery;Password=<tu-password>"
+export ConnectionStrings__IdentityConnection="Host=localhost;Port=5432;Database=AxionERP_Identity;Username=Rainiery;Password=<tu-password>"
+```
 
 Restaurar y compilar:
 

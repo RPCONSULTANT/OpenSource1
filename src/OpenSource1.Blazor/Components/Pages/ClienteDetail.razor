@@ -1,0 +1,225 @@
+@page "/clientes/{Id:guid}"
+@attribute [Authorize(Policy = ApplicationPolicies.CanConsult)]
+@using Microsoft.AspNetCore.Authorization
+@using OpenSource1.Application.Features.Clientes.Dtos
+@using OpenSource1.Application.Security
+@using OpenSource1.Blazor.Services
+@inject IClienteApiClient ClienteApiClient
+@inject IHttpContextAccessor HttpContextAccessor
+@inject IFileStorageService FileStorageService
+@inject IAuthorizationService AuthorizationService
+@inject ILogger<ClienteDetail> Logger
+@inject NavigationManager Nav
+
+<PageTitle>Ficha cliente – AxionERP</PageTitle>
+
+<div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+    <div>
+        <p class="text-xs font-bold tracking-widest uppercase text-brand-600 mb-1">Ficha</p>
+        <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight dark:text-slate-100">Cliente</h1>
+        <p class="text-sm text-slate-500 mt-1 dark:text-slate-400">Vista detallada, edición dinámica y eliminación desde ficha.</p>
+    </div>
+    <div class="flex items-center gap-3">
+        <a href="/clientes" class="btn-press rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700/60">Volver al listado</a>
+        @if (cliente is not null && !EditMode && canModify)
+        {
+            <a href="@BuildDetailUrl(edit: true)" class="btn-press inline-flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-amber-600">Editar</a>
+        }
+    </div>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(message))
+{
+    <div class="mb-6">@(messageType == "success" ? (RenderFragment)(@<ActionFeedback Type="success" Message="@message" />) : @<MessageBox Type="@messageType" Message="@message" />)</div>
+}
+
+@if (loadError is not null)
+{
+    <MessageBox Type="danger" Message="@loadError" />
+}
+else if (cliente is null)
+{
+    <div class="rounded-2xl border border-slate-200 bg-white px-8 py-12 text-center text-slate-400 shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-500"><p class="font-semibold text-slate-500 dark:text-slate-400">No se encontró el cliente solicitado.</p></div>
+}
+else
+{
+    <div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden max-w-5xl dark:border-slate-700 dark:bg-slate-800">
+        <div class="px-6 py-4 border-b border-slate-100 bg-slate-50 flex items-start justify-between gap-4 dark:border-slate-700/60 dark:bg-slate-900/40">
+            <div>
+                <h2 class="text-xl font-extrabold text-slate-900 dark:text-slate-100">@cliente.Nombre @cliente.Apellido</h2>
+                <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">ID: <span class="font-semibold text-slate-700 dark:text-slate-300">@cliente.Id</span></p>
+            </div>
+            <div class="flex items-center gap-2">
+                @if (!EditMode && canModify)
+                {
+                    <a href="@BuildDetailUrl(edit: true)" class="btn-press inline-flex items-center justify-center size-9 rounded-lg border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100" title="Editar ficha"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z" /></svg></a>
+                }
+                @if (canDelete)
+                {
+                    <a href="@BuildDetailUrl(delete: true)" class="btn-press inline-flex items-center justify-center size-9 rounded-lg border border-red-200 bg-red-50 text-red-700 hover:bg-red-100" title="Eliminar cliente"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79" /></svg></a>
+                }
+            </div>
+        </div>
+        <div class="px-6 py-6">
+            @if (EditMode && canModify)
+            {
+                <EditForm Model="Input" FormName="cliente-edit" OnValidSubmit="SaveAsync" Enhance="true" enctype="multipart/form-data">
+                    <DataAnnotationsValidator />
+                    <div class="mb-6 grid grid-cols-1 md:grid-cols-[220px_1fr] gap-6 items-start">
+                        <div>
+                            <p class="text-sm font-semibold text-slate-700 mb-2 dark:text-slate-300">Imagen actual</p>
+                            @if (!string.IsNullOrWhiteSpace(Input?.ImagePath))
+                            {
+                                <img src="@Input.ImagePath" alt="Imagen del cliente" class="h-40 w-40 rounded-2xl object-cover border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900/40" />
+                            }
+                            else
+                            {
+                                <div class="flex h-40 w-40 items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 text-slate-400 text-sm dark:border-slate-600 dark:bg-slate-900/40 dark:text-slate-500">Sin imagen</div>
+                            }
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-slate-700 mb-1.5 dark:text-slate-300">Cambiar imagen</label>
+                            <input type="file" name="ClientImage" accept=".jpg,.jpeg,.png,.webp" class="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300" />
+                            <p class="mt-1 text-xs text-slate-400 dark:text-slate-500">Formatos permitidos: JPG, PNG, WEBP. Máximo 2 MB.</p>
+                        </div>
+                    </div>
+                    <ClienteFields Model="Input!" Prefix="Input" />
+                    <div class="mt-6 flex flex-wrap items-center gap-3">
+                        <button type="submit" class="btn-press inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-700">Guardar cambios</button>
+                        <a href="@BuildDetailUrl()" class="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700/60">Cancelar</a>
+                    </div>
+                </EditForm>
+            }
+            else
+            {
+                <div class="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-6 items-start">
+                    <div>
+                        <p class="text-sm font-semibold text-slate-700 mb-2 dark:text-slate-300">Imagen</p>
+                        @if (!string.IsNullOrWhiteSpace(cliente.ImagePath))
+                        {
+                            <img src="@cliente.ImagePath" alt="Imagen del cliente" class="h-40 w-40 rounded-2xl object-cover border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900/40" />
+                        }
+                        else
+                        {
+                            <div class="flex h-40 w-40 items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 text-slate-400 text-sm dark:border-slate-600 dark:bg-slate-900/40 dark:text-slate-500">Sin imagen</div>
+                        }
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="rounded-xl border border-slate-100 bg-slate-50 px-4 py-4 dark:border-slate-700/60 dark:bg-slate-900/40"><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Correo</p><p class="mt-1 text-sm text-slate-700 break-all dark:text-slate-300">@cliente.Email</p></div>
+                        <div class="rounded-xl border border-slate-100 bg-slate-50 px-4 py-4 dark:border-slate-700/60 dark:bg-slate-900/40"><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Teléfono</p><p class="mt-1 text-sm text-slate-700 dark:text-slate-300">@(string.IsNullOrWhiteSpace(cliente.Telefono) ? "No indicado" : cliente.Telefono)</p></div>
+                        <div class="rounded-xl border border-slate-100 bg-slate-50 px-4 py-4 dark:border-slate-700/60 dark:bg-slate-900/40"><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Sector</p><p class="mt-1 text-sm text-slate-700 dark:text-slate-300">@(string.IsNullOrWhiteSpace(cliente.Sector) ? "No indicado" : cliente.Sector)</p></div>
+                        <div class="rounded-xl border border-slate-100 bg-slate-50 px-4 py-4 dark:border-slate-700/60 dark:bg-slate-900/40"><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">País</p><p class="mt-1 text-sm text-slate-700 dark:text-slate-300">@(string.IsNullOrWhiteSpace(cliente.PaisNombre) ? "No indicado" : cliente.PaisNombre)</p></div>
+                        <div class="rounded-xl border border-slate-100 bg-slate-50 px-4 py-4 md:col-span-2 dark:border-slate-700/60 dark:bg-slate-900/40"><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Dirección</p><p class="mt-1 text-sm text-slate-700 dark:text-slate-300">@(string.IsNullOrWhiteSpace(cliente.DireccionLinea1) ? "No indicada" : $"{cliente.DireccionLinea1}{(string.IsNullOrWhiteSpace(cliente.DireccionLinea2) ? "" : $", {cliente.DireccionLinea2}")}")</p></div>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@if (DeleteMode && cliente is not null && canDelete)
+{
+    <ConfirmDialog Title="Confirmar eliminación" Message="Esta acción eliminará el cliente desde su ficha y no se puede deshacer." Variant="danger" CancelHref="@BuildDetailUrl(edit: EditMode)">
+        <p class="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-semibold text-red-900">@cliente.Nombre @cliente.Apellido</p>
+        @if (!string.IsNullOrWhiteSpace(deleteError))
+        {
+            <div class="mt-4"><MessageBox Type="warning" Message="@deleteError" /></div>
+        }
+        <EditForm Model="DeleteInput" FormName="cliente-delete" OnValidSubmit="DeleteAsync" class="mt-4" Enhance="true">
+            <button type="submit" class="btn-press rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700">Sí, eliminar</button>
+            <a href="@BuildDetailUrl(edit: EditMode)" class="btn-press ml-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700/60">Cancelar</a>
+        </EditForm>
+    </ConfirmDialog>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+    [SupplyParameterFromQuery(Name = "edit")] private bool EditMode { get; set; }
+    [SupplyParameterFromQuery(Name = "delete")] private bool DeleteMode { get; set; }
+    [SupplyParameterFromQuery(Name = "ok")] private string? Ok { get; set; }
+    [SupplyParameterFromForm(FormName = "cliente-edit")] private ClienteEditorForm? Input { get; set; }
+    [SupplyParameterFromForm(FormName = "cliente-delete")] private DeleteConfirmForm? DeleteInput { get; set; }
+    private ClienteResponse? cliente;
+    private string? message;
+    private string messageType = "info";
+    private string? loadError;
+    private string? deleteError;
+    private bool canModify;
+    private bool canDelete;
+    [CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        DeleteInput ??= new();
+        if (AuthenticationStateTask is not null)
+        {
+            var user = (await AuthenticationStateTask).User;
+            canModify = (await AuthorizationService.AuthorizeAsync(user, ApplicationPolicies.CanModify)).Succeeded;
+            canDelete = (await AuthorizationService.AuthorizeAsync(user, ApplicationPolicies.CanDelete)).Succeeded;
+        }
+        await LoadAsync();
+        if (Ok is not null)
+        {
+            (messageType, message) = Ok switch { "created" => ("success", "Cliente creado satisfactoriamente."), "updated" => ("success", "Cliente modificado satisfactoriamente."), _ => ("info", null) };
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            cliente = await ClienteApiClient.GetByIdAsync(Id);
+            if (cliente is not null && (Input is null || string.IsNullOrWhiteSpace(Input.Nombre)))
+            {
+                Input = new ClienteEditorForm { Nombre = cliente.Nombre, Apellido = cliente.Apellido, Email = cliente.Email, Telefono = cliente.Telefono, DireccionLinea1 = cliente.DireccionLinea1, DireccionLinea2 = cliente.DireccionLinea2, Sector = cliente.Sector, PaisCodigo = cliente.PaisCodigo, ImagePath = cliente.ImagePath };
+            }
+        }
+        catch (Exception ex) { Logger.LogWarning(ex, "Could not load cliente detail."); loadError = "No fue posible cargar la ficha del cliente."; }
+    }
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            var httpContext = HttpContextAccessor.HttpContext ?? throw new InvalidOperationException("No hay HttpContext disponible para cargar la imagen.");
+            Input!.ImagePath = await FileStorageService.SaveClientImageAsync(httpContext, "ClientImage", Input.ImagePath);
+            var result = await ClienteApiClient.UpdateAsync(Id, ToInput(Input));
+            if (result.Succeeded) { Nav.NavigateTo(BuildDetailUrl(ok: "updated")); return; }
+            message = result.Message; messageType = "warning";
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not update cliente detail/image.");
+            message = ex is InvalidOperationException ? ex.Message : "No fue posible actualizar el cliente.";
+            messageType = "danger";
+        }
+    }
+
+    private async Task DeleteAsync()
+    {
+        var result = await ClienteApiClient.DeleteAsync(Id);
+        if (result.Succeeded) { Nav.NavigateTo("/clientes?ok=deleted"); return; }
+        deleteError = result.Message;
+    }
+
+    private string BuildDetailUrl(bool edit = false, bool delete = false, string? ok = null)
+    {
+        var parameters = new List<string>();
+        if (edit) parameters.Add("edit=true");
+        if (delete) parameters.Add("delete=true");
+        if (!string.IsNullOrWhiteSpace(ok)) parameters.Add($"ok={Uri.EscapeDataString(ok)}");
+        return parameters.Count == 0 ? $"/clientes/{Id}" : $"/clientes/{Id}?{string.Join("&", parameters)}";
+    }
+
+    private static ClienteInput ToInput(ClienteEditorForm form) => new(
+        form.Nombre.Trim(),
+        form.Apellido.Trim(),
+        form.Email.Trim(),
+        form.Telefono?.Trim(),
+        form.DireccionLinea1?.Trim(),
+        form.DireccionLinea2?.Trim(),
+        form.Sector?.Trim(),
+        form.PaisCodigo,
+        form.ImagePath);
+    private sealed class DeleteConfirmForm { }
+}
