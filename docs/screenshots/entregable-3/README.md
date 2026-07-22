@@ -1,6 +1,6 @@
 # Evidencia visual del Entregable 3
 
-Capturas generadas con Playwright CLI sobre AxionERP ejecutándose mediante Docker Compose. Todas corresponden a navegación real a 1440 px de ancho. Las confirmaciones destructivas fueron abiertas, pero no aceptadas.
+Capturas generadas con Playwright CLI sobre AxionERP ejecutándose mediante Docker Compose. Todas corresponden a navegación real a 1280 o 1440 px de ancho. Las confirmaciones destructivas fueron abiertas, pero no aceptadas.
 
 | Archivo | Rol | Escenario |
 | --- | --- | --- |
@@ -39,5 +39,17 @@ Capturas generadas con Playwright CLI sobre AxionERP ejecutándose mediante Dock
 | `33-ejecutor-productos.png` | Ejecutor | Productos con consulta/alta y sin modificación/eliminación. |
 | `34-ejecutor-producto-alta.png` | Ejecutor | Alta de producto permitida, formulario no enviado. |
 | `35-ejecutor-acceso-denegado.png` | Ejecutor | Ruta de Bitácora rechazada. |
+| `36-supervisor-clientes-sin-agregar-eliminar.png` | Supervisor | Clientes en vista completa: consulta y edición visibles; alta y eliminación ausentes. |
+| `37-supervisor-modificar-cliente-permitido.png` | Supervisor | Formulario de modificación permitido, sin guardar cambios. |
+| `38-supervisor-productos-sin-agregar-eliminar.png` | Supervisor | Productos en vista completa: consulta y edición visibles; alta y eliminación ausentes. |
+| `39-supervisor-alta-cliente-denegada.png` | Supervisor | Acceso GET directo a alta de Cliente rechazado. |
+| `40-supervisor-usuarios-denegado.png` | Supervisor | Acceso GET directo a Usuarios rechazado. |
+| `41-ejecutor-clientes-solo-consultar-agregar.png` | Ejecutor | Clientes en vista completa: consulta y alta visibles; edición y eliminación ausentes. |
+| `42-ejecutor-alta-cliente-permitida.png` | Ejecutor | Formulario de alta de Cliente permitido, no enviado. |
+| `43-ejecutor-productos-solo-consultar-agregar.png` | Ejecutor | Productos en vista completa: consulta y alta visibles; edición y eliminación ausentes. |
+| `44-ejecutor-alta-producto-permitida.png` | Ejecutor | Formulario de alta de Producto permitido, no enviado. |
+| `45-ejecutor-edicion-cliente-no-habilitada.png` | Ejecutor | GET directo con `edit=true` mantiene ficha sin controles de edición. |
+| `46-ejecutor-usuarios-denegado.png` | Ejecutor | Acceso GET directo a Usuarios rechazado. |
+| `47-ejecutor-bitacora-denegada.png` | Ejecutor | Acceso GET directo a Bitácora rechazado. |
 
 No se almacenan contraseñas, tokens ni otros secretos en las imágenes o en este inventario.

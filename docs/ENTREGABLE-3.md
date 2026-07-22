@@ -49,7 +49,7 @@ No se ejecutaron eliminaciones ni cambios de estado sobre registros semilla. Las
 | Acceso a datos | Entity Framework Core y Dapper |
 | Orquestación | Docker Compose |
 | Automatización | Playwright CLI sobre Chromium |
-| Resolución de captura | 1440 x 1000 px como base; altura extendida en páginas largas |
+| Resolución de captura | 1280 o 1440 px de ancho; altura extendida en páginas largas |
 
 ### 3.3 Procedimiento
 
@@ -142,6 +142,97 @@ Las políticas `CanConsult`, `CanAdd`, `CanModify` y `CanDelete` formalizan esta
 ![Acceso denegado al Ejecutor](screenshots/entregable-3/35-ejecutor-acceso-denegado.png)
 
 *Figura 5. Intento directo del Ejecutor sobre Bitácora, rechazado por autorización.*
+
+### 7.3 Evidencia de pruebas de autorización por rol
+
+Se ejecutó una segunda ronda de pruebas sobre el despliegue real para comprobar cada permiso de Supervisor y Ejecutor de forma explícita. La verificación combinó tres niveles: controles visibles o ausentes en la interfaz, navegación directa mediante rutas GET seguras y solicitudes autenticadas a la API. Los JWT se mantuvieron únicamente en memoria durante la automatización y no se almacenaron en capturas ni documentos.
+
+Las pruebas de API permitidas que podrían alterar datos se enviaron deliberadamente con un cuerpo vacío y un identificador inexistente. Por ello, un resultado `400 Bad Request` significa que la solicitud superó la autorización y fue detenida por validación antes de ejecutar el caso de uso; no se creó ni modificó ningún registro.
+
+#### Supervisor
+
+| Capacidad esperada | Evidencia UI o HTTP | Resultado observado | Estado |
+| --- | --- | --- | --- |
+| Consultar Clientes | Listado real con dos registros y rol visible | Página cargada; `GET /api/clientes` devolvió `200` | Conforme |
+| Consultar Productos | Listado real con dos registros y rol visible | Página cargada; `GET /api/productos` devolvió `200` | Conforme |
+| Modificar | Iconos de edición y formulario de cliente visibles | Ruta de edición cargada; `PUT` de prueba llegó a validación y devolvió `400` | Conforme |
+| No agregar | Botón **Nuevo** ausente y acceso directo a `/clientes/new` | Redirección a **Acceso denegado**; `POST` de Clientes y Productos devolvió `403` | Conforme |
+| No eliminar | Acciones de papelera ausentes | `DELETE` de Clientes y Productos devolvió `403` | Conforme |
+| No acceder a Usuarios | Opción ausente del menú y acceso directo a `/admin/users` | Redirección a **Acceso denegado**; `GET /api/users` devolvió `403` | Conforme |
+
+![Supervisor consulta clientes sin alta ni eliminación](screenshots/entregable-3/36-supervisor-clientes-sin-agregar-eliminar.png)
+
+*Figura 5a. Supervisor en Clientes: consulta y edición visibles; no aparecen Nuevo ni Eliminar.*
+
+![Supervisor modifica cliente](screenshots/entregable-3/37-supervisor-modificar-cliente-permitido.png)
+
+*Figura 5b. Formulario de modificación disponible para Supervisor, abierto sin guardar cambios.*
+
+![Supervisor consulta productos sin alta ni eliminación](screenshots/entregable-3/38-supervisor-productos-sin-agregar-eliminar.png)
+
+*Figura 5c. Supervisor en Productos: consulta y modificación disponibles, sin alta ni eliminación.*
+
+![Alta de cliente denegada al Supervisor](screenshots/entregable-3/39-supervisor-alta-cliente-denegada.png)
+
+*Figura 5d. Acceso directo del Supervisor a la ruta segura GET `/clientes/new`, rechazado por autorización.*
+
+![Usuarios denegado al Supervisor](screenshots/entregable-3/40-supervisor-usuarios-denegado.png)
+
+*Figura 5e. Acceso directo del Supervisor a `/admin/users`, rechazado por autorización.*
+
+#### Ejecutor
+
+| Capacidad esperada | Evidencia UI o HTTP | Resultado observado | Estado |
+| --- | --- | --- | --- |
+| Consultar Clientes | Listado real con dos registros y rol visible | Página cargada; `GET /api/clientes` devolvió `200` | Conforme |
+| Consultar Productos | Listado real con dos registros y rol visible | Página cargada; `GET /api/productos` devolvió `200` | Conforme |
+| Agregar | Botón **Nuevo** y formularios de alta visibles | Rutas de alta cargaron; `POST` llegó a validación y devolvió `400` | Conforme |
+| No modificar | Iconos de edición ausentes; GET con `?edit=true` conserva ficha de solo lectura | `PUT` de Clientes y Productos devolvió `403` | Conforme |
+| No eliminar | Acciones de papelera ausentes | `DELETE` de Clientes y Productos devolvió `403` | Conforme |
+| No acceder a Usuarios | Opción ausente del menú y acceso directo a `/admin/users` | Redirección a **Acceso denegado**; `GET /api/users` devolvió `403` | Conforme |
+| No acceder a Bitácora | Opción ausente del menú y acceso directo a `/bitacora` | Redirección a **Acceso denegado** | Conforme |
+
+![Ejecutor consulta clientes y puede agregar](screenshots/entregable-3/41-ejecutor-clientes-solo-consultar-agregar.png)
+
+*Figura 5f. Ejecutor en Clientes: consulta y alta disponibles; edición y eliminación ausentes.*
+
+![Alta de cliente permitida al Ejecutor](screenshots/entregable-3/42-ejecutor-alta-cliente-permitida.png)
+
+*Figura 5g. Formulario de alta de Cliente disponible para Ejecutor, abierto sin enviarlo.*
+
+![Ejecutor consulta productos y puede agregar](screenshots/entregable-3/43-ejecutor-productos-solo-consultar-agregar.png)
+
+*Figura 5h. Ejecutor en Productos: consulta y alta disponibles; edición y eliminación ausentes.*
+
+![Alta de producto permitida al Ejecutor](screenshots/entregable-3/44-ejecutor-alta-producto-permitida.png)
+
+*Figura 5i. Formulario de alta de Producto disponible para Ejecutor, abierto sin enviarlo.*
+
+![Edición no habilitada al Ejecutor](screenshots/entregable-3/45-ejecutor-edicion-cliente-no-habilitada.png)
+
+*Figura 5j. El parámetro directo `?edit=true` no habilita el formulario ni controles de modificación al Ejecutor.*
+
+![Usuarios denegado al Ejecutor](screenshots/entregable-3/46-ejecutor-usuarios-denegado.png)
+
+*Figura 5k. Acceso directo del Ejecutor a `/admin/users`, rechazado por autorización.*
+
+![Bitácora denegada al Ejecutor](screenshots/entregable-3/47-ejecutor-bitacora-denegada.png)
+
+*Figura 5l. Acceso directo del Ejecutor a `/bitacora`, rechazado por autorización.*
+
+#### Resumen de estados de API
+
+| Solicitud no destructiva | Supervisor | Ejecutor |
+| --- | ---: | ---: |
+| `GET /api/clientes` | `200` | `200` |
+| `GET /api/productos` | `200` | `200` |
+| `POST /api/clientes` con cuerpo vacío | `403` | `400` autorizado, rechazado por validación |
+| `POST /api/productos` con cuerpo vacío | `403` | `400` autorizado, rechazado por validación |
+| `PUT /api/clientes/{id-inexistente}` con cuerpo vacío | `400` autorizado, rechazado por validación | `403` |
+| `PUT /api/productos/{id-inexistente}` con cuerpo vacío | `400` autorizado, rechazado por validación | `403` |
+| `DELETE /api/clientes/{id-inexistente}` | `403` | `403` |
+| `DELETE /api/productos/{id-inexistente}` | `403` | `403` |
+| `GET /api/users` | `403` | `403` |
 
 ## 8. Integración del inicio de sesión
 
@@ -322,9 +413,9 @@ No se incluyen credenciales ni valores secretos en este informe. El archivo `.en
 ### 18.1 Resultado cuantitativo de la sesión
 
 - Tres roles autenticados y recorridos.
-- Treinta y cinco capturas PNG generadas sobre la aplicación real.
+- Cuarenta y siete capturas PNG generadas sobre la aplicación real.
 - Tres módulos de mantenimiento inspeccionados.
-- Dos rutas no autorizadas comprobadas explícitamente.
+- Cuatro rutas UI no autorizadas comprobadas explícitamente, además de nueve combinaciones de autorización por rol verificadas en la API.
 - Tres diálogos destructivos y un cambio de estado observados sin ejecutar la acción final.
 - Cero registros creados, modificados o eliminados durante la captura.
 
@@ -352,4 +443,4 @@ La evidencia fue producida mediante navegación automatizada sobre el despliegue
 
 ## Anexo A. Inventario de evidencia
 
-El inventario completo, con rol y escenario de cada una de las 35 imágenes, se encuentra en [`docs/screenshots/entregable-3/README.md`](screenshots/entregable-3/README.md).
+El inventario completo, con rol y escenario de cada una de las 47 imágenes, se encuentra en [`docs/screenshots/entregable-3/README.md`](screenshots/entregable-3/README.md).
