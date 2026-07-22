@@ -3,6 +3,7 @@ using OpenSource1.Application.Data.UnitOfWork;
 using OpenSource1.Application.Features.Productos.Commands;
 using OpenSource1.Application.Features.Productos.Dtos;
 using OpenSource1.Core.Entities;
+using OpenSource1.Core.ValueObjects;
 
 namespace OpenSource1.Application.Features.Productos.Handlers;
 
@@ -13,7 +14,13 @@ public sealed class UpdateProductoCommandHandler(IUnitOfWork unitOfWork) : IRequ
         var repo = unitOfWork.Repository<Producto>();
         var entity = await repo.GetByIdAsync(new object[] { request.Id }, cancellationToken);
         if (entity is null) return null;
-        entity.Codigo = request.Codigo.Trim(); entity.Nombre = request.Nombre.Trim(); entity.Precio = request.Precio; entity.Stock = request.Stock; entity.Categoria = request.Categoria.Trim(); entity.ImagePath = request.ImagePath;
+        entity.Codigo = request.Codigo.Trim();
+        entity.Nombre = request.Nombre.Trim();
+        entity.Precio = request.Precio;
+        entity.Stock = request.Stock;
+        entity.Categoria = new CategoriaProducto(request.CategoriaCodigo, request.CategoriaNombre);
+        entity.UnidadMedida = UnidadMedida.Of(request.UnidadMedidaCodigo);
+        entity.ImagePath = request.ImagePath;
         repo.Update(entity); await unitOfWork.SaveChangesAsync(cancellationToken); return CreateProductoCommandHandler.ToResponse(entity);
     }
 }

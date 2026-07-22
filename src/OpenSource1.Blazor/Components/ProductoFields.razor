@@ -21,10 +21,27 @@
             <ValidationMessage For="() => Model.Stock" />
         </div>
     </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+            <label class="block text-sm font-semibold text-slate-700 mb-1.5">Código de categoría <span class="text-red-500">*</span></label>
+            <input type="text" name="@($"{Prefix}.CategoriaCodigo")" value="@Model.CategoriaCodigo" placeholder="ej: ELEC" class="block w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20" />
+            <ValidationMessage For="() => Model.CategoriaCodigo" />
+        </div>
+        <div>
+            <label class="block text-sm font-semibold text-slate-700 mb-1.5">Nombre de categoría <span class="text-red-500">*</span></label>
+            <input type="text" name="@($"{Prefix}.CategoriaNombre")" value="@Model.CategoriaNombre" placeholder="ej: Electrónica" class="block w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20" />
+            <ValidationMessage For="() => Model.CategoriaNombre" />
+        </div>
+    </div>
     <div>
-        <label class="block text-sm font-semibold text-slate-700 mb-1.5">Categoría <span class="text-red-500">*</span></label>
-        <input type="text" name="@($"{Prefix}.Categoria")" value="@Model.Categoria" placeholder="Categoría del producto" class="block w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20" />
-        <ValidationMessage For="() => Model.Categoria" />
+        <label class="block text-sm font-semibold text-slate-700 mb-1.5">Unidad de medida <span class="text-red-500">*</span></label>
+        <select name="@($"{Prefix}.UnidadMedidaCodigo")" class="block w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20">
+            @foreach (var unidad in OpenSource1.Core.ValueObjects.UnidadMedida.Catalogo)
+            {
+                <option value="@unidad.Codigo" selected="@(unidad.Codigo == Model.UnidadMedidaCodigo)">@unidad.Nombre (@unidad.Codigo)</option>
+            }
+        </select>
+        <ValidationMessage For="() => Model.UnidadMedidaCodigo" />
     </div>
 </div>
 

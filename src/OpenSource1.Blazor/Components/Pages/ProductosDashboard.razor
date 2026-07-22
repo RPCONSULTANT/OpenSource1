@@ -1,0 +1,158 @@
+@page "/dashboard/productos"
+@attribute [Authorize(Policy = ApplicationPolicies.CanConsult)]
+@using System.Globalization
+@using Microsoft.AspNetCore.Authorization
+@using OpenSource1.Application.Security
+@using OpenSource1.Blazor.Components
+@using OpenSource1.Blazor.Services
+@inject IProductoApiClient ProductoApiClient
+@inject ILogger<ProductosDashboard> Logger
+
+<PageTitle>Panel de Productos – AxionERP</PageTitle>
+
+<div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between animate-fade-in">
+    <div>
+        <p class="mb-1 text-xs font-bold uppercase tracking-widest text-brand-600">Panel de detalle</p>
+        <h1 class="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">Productos</h1>
+        <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Vista en profundidad del inventario: distribución, existencias críticas y evolución de altas.</p>
+    </div>
+    <a href="/productos" class="btn-press inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700/60">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" /></svg>
+        Volver al listado
+    </a>
+</div>
+
+@if (loadError is not null)
+{
+    <div class="mb-6"><MessageBox Type="warning" Message="@loadError" /></div>
+}
+else
+{
+    <div class="grid grid-cols-2 gap-4 mb-8 lg:grid-cols-4 animate-slide-up">
+        <div class="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+            <p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Total productos</p>
+            <p class="mt-1 text-2xl font-extrabold text-slate-900 dark:text-slate-100">@total</p>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+            <p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Categorías</p>
+            <p class="mt-1 text-2xl font-extrabold text-slate-900 dark:text-slate-100">@porCategoria.Count</p>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+            <p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Sin stock</p>
+            <p class="mt-1 text-2xl font-extrabold @(sinStock > 0 ? "text-red-600 dark:text-red-400" : "text-slate-900 dark:text-slate-100")">@sinStock</p>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+            <p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Valor de inventario</p>
+            <p class="mt-1 text-2xl font-extrabold text-slate-900 dark:text-slate-100">@valorInventario.ToString("C0", CultureInfo.GetCultureInfo("es-DO"))</p>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 gap-5 mb-8 lg:grid-cols-2 animate-slide-up">
+        <div class="rounded-2xl border border-slate-200 bg-white shadow-sm p-5 dark:border-slate-700 dark:bg-slate-800">
+            <h2 class="mb-4 text-sm font-bold uppercase tracking-wide text-slate-700 dark:text-slate-300">Productos por categoría</h2>
+            @if (porCategoria.Count > 0)
+            {
+                <ChartCanvas Id="chart-productos-categoria" Type="doughnut" Labels="@porCategoria.Keys.ToList()"
+                             Datasets="@(new List<ChartDataset> { new("Productos", porCategoria.Values.Select(v => (double)v).ToList(), porCategoria.Keys.Select((_, i) => ChartPalette.Pick(i)).ToList()) })" />
+            }
+            else
+            {
+                <p class="text-sm text-slate-400">Sin datos suficientes para graficar.</p>
+            }
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-white shadow-sm p-5 dark:border-slate-700 dark:bg-slate-800">
+            <h2 class="mb-4 text-sm font-bold uppercase tracking-wide text-slate-700 dark:text-slate-300">Menor existencia (top 10)</h2>
+            @if (menorStock.Count > 0)
+            {
+                <ChartCanvas Id="chart-productos-stock" Type="bar" Labels="@menorStock.Select(p => p.Nombre).ToList()"
+                             Datasets="@(new List<ChartDataset> { new("Stock", menorStock.Select(p => (double)p.Stock).ToList(), [ChartPalette.Pick(2)]) })" />
+            }
+            else
+            {
+                <p class="text-sm text-slate-400">Sin datos suficientes para graficar.</p>
+            }
+        </div>
+    </div>
+
+    <div class="rounded-2xl border border-slate-200 bg-white shadow-sm p-5 mb-8 animate-slide-up dark:border-slate-700 dark:bg-slate-800">
+        <h2 class="mb-4 text-sm font-bold uppercase tracking-wide text-slate-700 dark:text-slate-300">Altas por mes (últimos 6 meses)</h2>
+        <ChartCanvas Id="chart-productos-altas" Type="bar" Labels="@altasPorMes.Keys.ToList()"
+                     Datasets="@(new List<ChartDataset> { new("Productos nuevos", altasPorMes.Values.Select(v => (double)v).ToList(), [ChartPalette.Pick(0)]) })" />
+    </div>
+
+    <div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden animate-slide-up dark:border-slate-700 dark:bg-slate-800">
+        <div class="border-b border-slate-100 bg-slate-50 px-5 py-3 dark:border-slate-700/60 dark:bg-slate-900/40"><h2 class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Resumen por categoría</h2></div>
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="text-left text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                    <th class="px-5 py-2.5">Categoría</th>
+                    <th class="px-5 py-2.5">Cantidad</th>
+                    <th class="px-5 py-2.5">Stock total</th>
+                    <th class="px-5 py-2.5">Precio promedio</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 dark:divide-slate-700/60">
+                @foreach (var fila in resumenCategoria)
+                {
+                    <tr>
+                        <td class="px-5 py-2.5 font-semibold text-slate-800 dark:text-slate-200">@fila.Categoria</td>
+                        <td class="px-5 py-2.5 text-slate-600 dark:text-slate-400">@fila.Cantidad</td>
+                        <td class="px-5 py-2.5 text-slate-600 dark:text-slate-400">@fila.StockTotal</td>
+                        <td class="px-5 py-2.5 text-slate-600 dark:text-slate-400">@fila.PrecioPromedio.ToString("C2", CultureInfo.GetCultureInfo("es-DO"))</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private int total;
+    private int sinStock;
+    private decimal valorInventario;
+    private Dictionary<string, int> porCategoria = [];
+    private Dictionary<string, int> altasPorMes = [];
+    private List<Application.Features.Productos.Dtos.ProductoResponse> menorStock = [];
+    private List<ResumenCategoriaRow> resumenCategoria = [];
+    private string? loadError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var productos = await ProductoApiClient.ListAsync();
+
+            total = productos.Count;
+            sinStock = productos.Count(p => p.Stock <= 0);
+            valorInventario = productos.Sum(p => p.Precio * p.Stock);
+
+            porCategoria = productos
+                .GroupBy(p => p.CategoriaCodigo)
+                .OrderByDescending(g => g.Count())
+                .ToDictionary(g => g.First().CategoriaNombre, g => g.Count());
+
+            menorStock = productos.OrderBy(p => p.Stock).Take(10).ToList();
+
+            var culture = CultureInfo.GetCultureInfo("es-ES");
+            var hoy = DateTime.UtcNow;
+            altasPorMes = Enumerable.Range(0, 6)
+                .Select(offset => new DateTime(hoy.Year, hoy.Month, 1).AddMonths(-5 + offset))
+                .ToDictionary(
+                    mes => culture.TextInfo.ToTitleCase(mes.ToString("MMM yyyy", culture)),
+                    mes => productos.Count(p => p.CreatedAtUtc.Year == mes.Year && p.CreatedAtUtc.Month == mes.Month));
+
+            resumenCategoria = productos
+                .GroupBy(p => p.CategoriaCodigo)
+                .Select(g => new ResumenCategoriaRow(g.First().CategoriaNombre, g.Count(), g.Sum(p => p.Stock), g.Average(p => p.Precio)))
+                .OrderByDescending(r => r.Cantidad)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not load productos dashboard data.");
+            loadError = "No fue posible cargar el panel de productos en este momento.";
+        }
+    }
+
+    private sealed record ResumenCategoriaRow(string Categoria, int Cantidad, int StockTotal, decimal PrecioPromedio);
+}

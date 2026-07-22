@@ -1,5 +1,6 @@
 @page "/admin/users"
 @attribute [Authorize(Roles = ApplicationRoles.Administrator)]
+@using System.ComponentModel.DataAnnotations
 @using OpenSource1.Application.Security
 @using OpenSource1.Application.Features.Users.Dtos
 @using OpenSource1.Blazor.Services
@@ -9,17 +10,51 @@
 <PageTitle>Gestión de Usuarios – AxionERP</PageTitle>
 
 <!-- ── Encabezado ── -->
-<div class="flex items-center justify-between mb-6 animate-fade-in">
+<div class="flex items-center justify-between mb-6 animate-fade-in flex-wrap gap-3">
     <div>
-        <h1 class="text-xl font-extrabold text-slate-900 flex items-center gap-2">
+        <h1 class="text-xl font-extrabold text-slate-900 flex items-center gap-2 dark:text-slate-100">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-6 text-brand-600">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
             </svg>
             Gestión de Usuarios
         </h1>
-        <p class="text-sm text-slate-500 mt-0.5">Seleccione un usuario para administrar sus roles y estado.</p>
+        <p class="text-sm text-slate-500 mt-0.5 dark:text-slate-400">Busque, filtre y administre roles y estado de los usuarios.</p>
     </div>
+    <a href="/admin/users?new=true" class="btn-press inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+        Nuevo usuario
+    </a>
 </div>
+
+<!-- ── Buscador y filtros ── -->
+<form method="get" action="/admin/users" data-enhance class="mb-6 rounded-2xl border border-slate-200 bg-white shadow-sm p-4 flex flex-wrap items-end gap-3 animate-slide-up dark:border-slate-700 dark:bg-slate-800">
+    <div class="flex-1 min-w-[14rem]">
+        <label class="block text-xs font-semibold text-slate-700 mb-1 dark:text-slate-300">Buscar</label>
+        <input type="text" name="search" value="@Search" placeholder="Nombre o correo" class="block w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-600/20 dark:border-slate-600 dark:bg-slate-900/40 dark:text-slate-200" />
+    </div>
+    <div class="w-44">
+        <label class="block text-xs font-semibold text-slate-700 mb-1 dark:text-slate-300">Rol</label>
+        <select name="role" class="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200">
+            <option value="" selected="@(string.IsNullOrEmpty(Role))">Todos</option>
+            @foreach (var role in ApplicationRoles.All)
+            {
+                <option value="@role" selected="@(Role == role)">@role</option>
+            }
+        </select>
+    </div>
+    <div class="w-40">
+        <label class="block text-xs font-semibold text-slate-700 mb-1 dark:text-slate-300">Estado</label>
+        <select name="isActive" class="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200">
+            <option value="" selected="@(IsActiveFilter is null)">Todos</option>
+            <option value="true" selected="@(IsActiveFilter == true)">Activo</option>
+            <option value="false" selected="@(IsActiveFilter == false)">Inactivo</option>
+        </select>
+    </div>
+    <div class="flex items-center gap-2">
+        <button type="submit" class="btn-press rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700">Buscar</button>
+        <a href="/admin/users" class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700/60">Limpiar</a>
+    </div>
+</form>
 
 <!-- ── Feedback global ── -->
 @if (feedbackMessage is not null)
@@ -46,7 +81,7 @@ else if (users is null)
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 animate-pulse">
         @for (int i = 0; i < 6; i++)
         {
-            <div class="rounded-2xl border border-slate-200 bg-white shadow-sm p-5">
+            <div class="rounded-2xl border border-slate-200 bg-white shadow-sm p-5 dark:border-slate-700 dark:bg-slate-800">
                 <div class="flex items-center gap-3 mb-4">
                     <div class="size-12 rounded-full bg-slate-200 shrink-0"></div>
                     <div class="flex-1 space-y-2">
@@ -62,7 +97,7 @@ else if (users is null)
 }
 else if (users.Count == 0)
 {
-    <div class="rounded-2xl border border-slate-200 bg-white shadow-sm px-8 py-12 text-center text-slate-400">
+    <div class="rounded-2xl border border-slate-200 bg-white shadow-sm px-8 py-12 text-center text-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-500">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-12 mx-auto mb-3 text-slate-300">
             <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
         </svg>
@@ -75,16 +110,16 @@ else
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 animate-slide-up">
         @foreach (var user in users)
         {
-            <div class="group rounded-2xl border border-slate-200 bg-white shadow-sm hover:shadow-md hover:border-brand-200 transition-all duration-200 flex flex-col">
+            <div class="group rounded-2xl border border-slate-200 bg-white shadow-sm hover:shadow-md hover:border-brand-200 transition-all duration-200 flex flex-col dark:border-slate-700 dark:bg-slate-800">
                 <div class="p-5 flex-1">
                     <!-- Avatar + nombre -->
                     <div class="flex items-center gap-3 mb-3">
-                        <div class="flex size-12 items-center justify-center rounded-full bg-brand-100 text-brand-700 font-bold text-lg shrink-0 group-hover:bg-brand-200 transition-colors">
+                        <div class="flex size-12 items-center justify-center rounded-full bg-brand-100 text-brand-700 font-bold text-lg shrink-0 group-hover:bg-brand-200 transition-colors dark:text-brand-400">
                             @(user.FullName.Length > 0 ? user.FullName[0].ToString().ToUpper() : "?")
                         </div>
                         <div class="min-w-0">
-                            <p class="font-semibold text-slate-900 truncate">@user.FullName</p>
-                            <p class="text-xs text-slate-400 truncate">@user.Email</p>
+                            <p class="font-semibold text-slate-900 truncate dark:text-slate-100">@user.FullName</p>
+                            <p class="text-xs text-slate-400 truncate dark:text-slate-500">@user.Email</p>
                         </div>
                     </div>
 
@@ -110,20 +145,20 @@ else
                     <div class="flex flex-wrap gap-1.5 min-h-[1.5rem]">
                         @if (user.Roles.Count == 0)
                         {
-                            <span class="text-xs text-slate-400 italic">Sin rol asignado</span>
+                            <span class="text-xs text-slate-400 italic dark:text-slate-500">Sin rol asignado</span>
                         }
                         else
                         {
                             @foreach (var role in user.Roles)
                             {
-                                <span class="inline-flex items-center rounded-full bg-brand-100 px-2.5 py-0.5 text-xs font-semibold text-brand-800">@role</span>
+                                <span class="inline-flex items-center rounded-full bg-brand-100 px-2.5 py-0.5 text-xs font-semibold text-brand-800 dark:text-brand-400">@role</span>
                             }
                         }
                     </div>
                 </div>
 
                 <!-- Acción: ir al perfil -->
-                <div class="border-t border-slate-100 px-5 py-3">
+                <div class="border-t border-slate-100 px-5 py-3 dark:border-slate-700/60">
                     <a href="/admin/users/@user.Id"
                        class="flex w-full items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 active:scale-95 transition-all duration-150">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4">
@@ -137,17 +172,67 @@ else
     </div>
 }
 
+@if (IsNewUser)
+{
+    <ConfirmDialog Title="Nuevo usuario" Message="Complete los datos para crear una cuenta. Podrá asignarle un rol luego desde su perfil." Variant="success" CancelHref="/admin/users">
+        @if (createError is not null)
+        {
+            <div class="mb-4"><MessageBox Type="danger" Message="@createError" /></div>
+        }
+        <EditForm Model="CreateInput" FormName="create-user" OnValidSubmit="CreateUserAsync" class="space-y-4">
+            <DataAnnotationsValidator />
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1.5 dark:text-slate-300">Nombre completo</label>
+                <InputText @bind-Value="CreateInput!.FullName" class="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200" />
+                <ValidationMessage For="() => CreateInput!.FullName" />
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1.5 dark:text-slate-300">Correo electrónico</label>
+                <InputText @bind-Value="CreateInput!.Email" class="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200" />
+                <ValidationMessage For="() => CreateInput!.Email" />
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1.5 dark:text-slate-300">Contraseña</label>
+                <InputText @bind-Value="CreateInput!.Password" type="password" class="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200" />
+                <ValidationMessage For="() => CreateInput!.Password" />
+            </div>
+            <div class="flex items-center gap-3 pt-2">
+                <button type="submit" class="btn-press rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700">Crear usuario</button>
+                <a href="/admin/users" class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700/60">Cancelar</a>
+            </div>
+        </EditForm>
+    </ConfirmDialog>
+}
+
 @code {
     private IReadOnlyList<UserSummaryResponse>? users;
     private string? loadError;
     private string feedbackType = "success";
     private string? feedbackMessage;
+    private string? createError;
 
     [SupplyParameterFromQuery(Name = "ok")]
     private string? OkMessage { get; set; }
 
     [SupplyParameterFromQuery(Name = "err")]
     private string? ErrMessage { get; set; }
+
+    [SupplyParameterFromQuery(Name = "search")]
+    private string? Search { get; set; }
+
+    [SupplyParameterFromQuery(Name = "role")]
+    private string? Role { get; set; }
+
+    [SupplyParameterFromQuery(Name = "isActive")]
+    private bool? IsActiveFilter { get; set; }
+
+    [SupplyParameterFromQuery(Name = "new")]
+    private bool IsNewUser { get; set; }
+
+    [SupplyParameterFromForm(FormName = "create-user")]
+    private CreateUserModel? CreateInput { get; set; }
+
+    protected override void OnInitialized() => CreateInput ??= new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -162,10 +247,38 @@ else
             feedbackMessage = Uri.UnescapeDataString(ErrMessage);
         }
 
-        var (result, error) = await UserAdminApi.ListUsersAsync();
+        var (result, error) = await UserAdminApi.ListUsersAsync(Search, Role, IsActiveFilter);
         if (error is not null)
             loadError = error;
         else
             users = result;
+    }
+
+    private async Task CreateUserAsync()
+    {
+        var input = CreateInput!;
+        var (success, error) = await UserAdminApi.CreateAsync(input.Email, input.FullName, input.Password);
+        if (success)
+        {
+            Nav.NavigateTo($"/admin/users?ok={Uri.EscapeDataString("Usuario creado satisfactoriamente.")}", forceLoad: false);
+        }
+        else
+        {
+            createError = error ?? "No se pudo crear el usuario.";
+        }
+    }
+
+    private sealed class CreateUserModel
+    {
+        [Required(ErrorMessage = "El nombre completo es requerido.")]
+        public string FullName { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "El correo es requerido.")]
+        [EmailAddress(ErrorMessage = "Ingrese un correo válido.")]
+        public string Email { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "La contraseña es requerida.")]
+        [MinLength(6, ErrorMessage = "La contraseña debe tener al menos 6 caracteres.")]
+        public string Password { get; set; } = string.Empty;
     }
 }

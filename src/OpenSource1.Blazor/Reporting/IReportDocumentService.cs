@@ -7,4 +7,8 @@ public interface IReportDocumentService
 {
     ReportFile GenerateClientesReport(IReadOnlyList<ClienteResponse> clientes, string title);
     ReportFile GenerateProductosReport(IReadOnlyList<ProductoResponse> productos, string title);
+    ReportFile GenerateClientesExcel(IReadOnlyList<ClienteResponse> clientes, string title);
+    ReportFile GenerateProductosExcel(IReadOnlyList<ProductoResponse> productos, string title);
+    ReportFile GenerateClientesRawExcel(IReadOnlyList<ClienteResponse> clientes);
+    ReportFile GenerateProductosRawExcel(IReadOnlyList<ProductoResponse> productos);
 }

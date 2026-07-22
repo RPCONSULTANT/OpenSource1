@@ -40,16 +40,35 @@ public sealed class UserAdminService(
         return result.Succeeded ? (true, Array.Empty<string>()) : (false, result.Errors.Select(e => e.Description).ToArray());
     }
 
-    public async Task<IReadOnlyList<UserSummaryResponse>> ListUsersAsync(CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<UserSummaryResponse>> ListUsersAsync(
+        string? search = null, string? role = null, bool? isActive = null, CancellationToken cancellationToken = default)
     {
-        var users = await userManager.Users
-            .OrderBy(u => u.FullName)
-            .ToListAsync(cancellationToken);
+        var query = userManager.Users.AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim();
+            query = query.Where(u =>
+                (u.FullName != null && EF.Functions.ILike(u.FullName, $"%{term}%")) ||
+                (u.Email != null && EF.Functions.ILike(u.Email, $"%{term}%")));
+        }
+
+        if (isActive.HasValue)
+        {
+            query = query.Where(u => u.IsActive == isActive.Value);
+        }
+
+        var users = await query.OrderBy(u => u.FullName).ToListAsync(cancellationToken);
 
         var result = new List<UserSummaryResponse>(users.Count);
         foreach (var user in users)
         {
             var roles = await userManager.GetRolesAsync(user);
+            if (!string.IsNullOrWhiteSpace(role) && !roles.Contains(role, StringComparer.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
             result.Add(new UserSummaryResponse(
                 user.Id,
                 user.FullName ?? user.UserName ?? string.Empty,
@@ -59,6 +78,37 @@ public sealed class UserAdminService(
         }
 
         return result;
+    }
+
+    public async Task<(bool Success, IReadOnlyList<string> Errors)> UpdateUserAsync(
+        string userId, UpdateUserRequest request, CancellationToken cancellationToken = default)
+    {
+        var user = await userManager.FindByIdAsync(userId);
+        if (user is null)
+            return (false, ["Usuario no encontrado."]);
+
+        if (string.IsNullOrWhiteSpace(request.FullName))
+            return (false, ["El nombre completo es requerido."]);
+
+        user.FullName = request.FullName.Trim();
+        var result = await userManager.UpdateAsync(user);
+        return result.Succeeded
+            ? (true, Array.Empty<string>())
+            : (false, result.Errors.Select(e => e.Description).ToArray());
+    }
+
+    public async Task<(bool Success, IReadOnlyList<string> Errors)> ResetPasswordAsync(
+        string userId, AdminResetPasswordRequest request, CancellationToken cancellationToken = default)
+    {
+        var user = await userManager.FindByIdAsync(userId);
+        if (user is null)
+            return (false, ["Usuario no encontrado."]);
+
+        var token = await userManager.GeneratePasswordResetTokenAsync(user);
+        var result = await userManager.ResetPasswordAsync(user, token, request.NewPassword);
+        return result.Succeeded
+            ? (true, Array.Empty<string>())
+            : (false, result.Errors.Select(e => e.Description).ToArray());
     }
 
     public async Task<(bool Success, IReadOnlyList<string> Errors)> AssignRoleAsync(

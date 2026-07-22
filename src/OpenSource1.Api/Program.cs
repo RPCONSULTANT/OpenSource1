@@ -37,6 +37,7 @@ builder.Host.UseSerilog((context, services, configuration) => configuration
         retainedFileCountLimit: 7,
         outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {SourceContext}: {Message:lj}{NewLine}{Exception}"));
 
+builder.Services.AddHttpContextAccessor();
 builder.Services.AddApplicationData(builder.Configuration);
 builder.Services.AddApplicationIdentity(builder.Configuration);
 builder.Services.AddApplicationServices();

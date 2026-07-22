@@ -1,3 +1,4 @@
+using ClosedXML.Excel;
 using OpenSource1.Application.Features.Clientes.Dtos;
 using OpenSource1.Application.Features.Productos.Dtos;
 using QuestPDF.Fluent;
@@ -49,7 +50,7 @@ public sealed class QuestPdfReportDocumentService : IReportDocumentService
                         BodyCell(table, cliente.Apellido);
                         BodyCell(table, cliente.Email);
                         BodyCell(table, cliente.Telefono ?? "—");
-                        BodyCell(table, cliente.Direccion ?? "—");
+                        BodyCell(table, DireccionDisplay(cliente.DireccionLinea1, cliente.DireccionLinea2));
                     }
                 });
 
@@ -105,7 +106,7 @@ public sealed class QuestPdfReportDocumentService : IReportDocumentService
                         BodyCell(table, producto.Nombre);
                         BodyCell(table, producto.Precio.ToString("N2"));
                         BodyCell(table, producto.Stock.ToString());
-                        BodyCell(table, producto.Categoria);
+                        BodyCell(table, producto.CategoriaNombre);
                     }
                 });
 
@@ -118,6 +119,187 @@ public sealed class QuestPdfReportDocumentService : IReportDocumentService
         }).GeneratePdf();
 
         return new ReportFile($"productos-{DateTime.UtcNow:yyyyMMddHHmmss}.pdf", "application/pdf", pdf);
+    }
+
+    public ReportFile GenerateClientesExcel(IReadOnlyList<ClienteResponse> clientes, string title)
+    {
+        using var workbook = new XLWorkbook();
+        var sheet = workbook.Worksheets.Add("Clientes");
+
+        sheet.Cell(1, 1).Value = title;
+        sheet.Range(1, 1, 1, 5).Merge().Style.Font.SetBold().Font.SetFontSize(14);
+        sheet.Cell(2, 1).Value = $"Fecha de generación: {DateTimeOffset.Now:dd/MM/yyyy HH:mm}";
+        sheet.Range(2, 1, 2, 5).Merge();
+
+        string[] headers = ["Nombre", "Apellido", "Correo", "Teléfono", "Dirección"];
+        for (var i = 0; i < headers.Length; i++)
+        {
+            var cell = sheet.Cell(4, i + 1);
+            cell.Value = headers[i];
+            cell.Style.Font.SetBold().Fill.SetBackgroundColor(XLColor.FromHtml("#F1F5F9"));
+        }
+
+        var row = 5;
+        foreach (var cliente in clientes)
+        {
+            sheet.Cell(row, 1).Value = cliente.Nombre;
+            sheet.Cell(row, 2).Value = cliente.Apellido;
+            sheet.Cell(row, 3).Value = cliente.Email;
+            sheet.Cell(row, 4).Value = cliente.Telefono ?? "—";
+            sheet.Cell(row, 5).Value = DireccionDisplay(cliente.DireccionLinea1, cliente.DireccionLinea2);
+            row++;
+        }
+
+        sheet.Columns().AdjustToContents();
+
+        using var stream = new MemoryStream();
+        workbook.SaveAs(stream);
+        return new ReportFile(
+            $"clientes-{DateTime.UtcNow:yyyyMMddHHmmss}.xlsx",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            stream.ToArray());
+    }
+
+    public ReportFile GenerateProductosExcel(IReadOnlyList<ProductoResponse> productos, string title)
+    {
+        using var workbook = new XLWorkbook();
+        var sheet = workbook.Worksheets.Add("Productos");
+
+        sheet.Cell(1, 1).Value = title;
+        sheet.Range(1, 1, 1, 5).Merge().Style.Font.SetBold().Font.SetFontSize(14);
+        sheet.Cell(2, 1).Value = $"Fecha de generación: {DateTimeOffset.Now:dd/MM/yyyy HH:mm}";
+        sheet.Range(2, 1, 2, 5).Merge();
+
+        string[] headers = ["Código", "Nombre", "Precio", "Stock", "Categoría"];
+        for (var i = 0; i < headers.Length; i++)
+        {
+            var cell = sheet.Cell(4, i + 1);
+            cell.Value = headers[i];
+            cell.Style.Font.SetBold().Fill.SetBackgroundColor(XLColor.FromHtml("#F1F5F9"));
+        }
+
+        var row = 5;
+        foreach (var producto in productos)
+        {
+            sheet.Cell(row, 1).Value = producto.Codigo;
+            sheet.Cell(row, 2).Value = producto.Nombre;
+            sheet.Cell(row, 3).Value = producto.Precio;
+            sheet.Cell(row, 4).Value = producto.Stock;
+            sheet.Cell(row, 5).Value = producto.CategoriaNombre;
+            row++;
+        }
+
+        sheet.Columns().AdjustToContents();
+
+        using var stream = new MemoryStream();
+        workbook.SaveAs(stream);
+        return new ReportFile(
+            $"productos-{DateTime.UtcNow:yyyyMMddHHmmss}.xlsx",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            stream.ToArray());
+    }
+
+    public ReportFile GenerateClientesRawExcel(IReadOnlyList<ClienteResponse> clientes)
+    {
+        using var workbook = new XLWorkbook();
+        var sheet = workbook.Worksheets.Add("Clientes");
+
+        string[] headers = ["Id", "Nombre", "Apellido", "Email", "Telefono", "DireccionLinea1", "DireccionLinea2", "Sector", "PaisCodigo", "PaisNombre", "ImagePath", "CreatedAtUtc", "UpdatedAtUtc", "CreatedBy", "UpdatedBy"];
+        for (var i = 0; i < headers.Length; i++)
+        {
+            var cell = sheet.Cell(1, i + 1);
+            cell.Value = headers[i];
+            cell.Style.Font.SetBold().Fill.SetBackgroundColor(XLColor.FromHtml("#F1F5F9"));
+        }
+
+        var row = 2;
+        foreach (var cliente in clientes)
+        {
+            sheet.Cell(row, 1).Value = cliente.Id.ToString();
+            sheet.Cell(row, 2).Value = cliente.Nombre;
+            sheet.Cell(row, 3).Value = cliente.Apellido;
+            sheet.Cell(row, 4).Value = cliente.Email;
+            sheet.Cell(row, 5).Value = cliente.Telefono ?? string.Empty;
+            sheet.Cell(row, 6).Value = cliente.DireccionLinea1 ?? string.Empty;
+            sheet.Cell(row, 7).Value = cliente.DireccionLinea2 ?? string.Empty;
+            sheet.Cell(row, 8).Value = cliente.Sector ?? string.Empty;
+            sheet.Cell(row, 9).Value = cliente.PaisCodigo ?? string.Empty;
+            sheet.Cell(row, 10).Value = cliente.PaisNombre ?? string.Empty;
+            sheet.Cell(row, 11).Value = cliente.ImagePath ?? string.Empty;
+            sheet.Cell(row, 12).Value = cliente.CreatedAtUtc;
+            if (cliente.UpdatedAtUtc is { } updatedAt)
+            {
+                sheet.Cell(row, 13).Value = updatedAt;
+            }
+            sheet.Cell(row, 14).Value = cliente.CreatedBy;
+            sheet.Cell(row, 15).Value = cliente.UpdatedBy ?? string.Empty;
+            row++;
+        }
+
+        sheet.Columns().AdjustToContents();
+
+        using var stream = new MemoryStream();
+        workbook.SaveAs(stream);
+        return new ReportFile(
+            $"clientes-crudo-{DateTime.UtcNow:yyyyMMddHHmmss}.xlsx",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            stream.ToArray());
+    }
+
+    public ReportFile GenerateProductosRawExcel(IReadOnlyList<ProductoResponse> productos)
+    {
+        using var workbook = new XLWorkbook();
+        var sheet = workbook.Worksheets.Add("Productos");
+
+        string[] headers = ["Id", "Codigo", "Nombre", "Precio", "Stock", "CategoriaCodigo", "CategoriaNombre", "UnidadMedidaCodigo", "UnidadMedidaNombre", "ImagePath", "CreatedAtUtc", "UpdatedAtUtc", "CreatedBy", "UpdatedBy"];
+        for (var i = 0; i < headers.Length; i++)
+        {
+            var cell = sheet.Cell(1, i + 1);
+            cell.Value = headers[i];
+            cell.Style.Font.SetBold().Fill.SetBackgroundColor(XLColor.FromHtml("#F1F5F9"));
+        }
+
+        var row = 2;
+        foreach (var producto in productos)
+        {
+            sheet.Cell(row, 1).Value = producto.Id.ToString();
+            sheet.Cell(row, 2).Value = producto.Codigo;
+            sheet.Cell(row, 3).Value = producto.Nombre;
+            sheet.Cell(row, 4).Value = producto.Precio;
+            sheet.Cell(row, 5).Value = producto.Stock;
+            sheet.Cell(row, 6).Value = producto.CategoriaCodigo;
+            sheet.Cell(row, 7).Value = producto.CategoriaNombre;
+            sheet.Cell(row, 8).Value = producto.UnidadMedidaCodigo;
+            sheet.Cell(row, 9).Value = producto.UnidadMedidaNombre;
+            sheet.Cell(row, 10).Value = producto.ImagePath ?? string.Empty;
+            sheet.Cell(row, 11).Value = producto.CreatedAtUtc;
+            if (producto.UpdatedAtUtc is { } updatedAt)
+            {
+                sheet.Cell(row, 12).Value = updatedAt;
+            }
+            sheet.Cell(row, 13).Value = producto.CreatedBy;
+            sheet.Cell(row, 14).Value = producto.UpdatedBy ?? string.Empty;
+            row++;
+        }
+
+        sheet.Columns().AdjustToContents();
+
+        using var stream = new MemoryStream();
+        workbook.SaveAs(stream);
+        return new ReportFile(
+            $"productos-crudo-{DateTime.UtcNow:yyyyMMddHHmmss}.xlsx",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            stream.ToArray());
+    }
+
+    private static string DireccionDisplay(string? linea1, string? linea2)
+    {
+        if (string.IsNullOrWhiteSpace(linea1))
+        {
+            return "—";
+        }
+
+        return string.IsNullOrWhiteSpace(linea2) ? linea1 : $"{linea1}, {linea2}";
     }
 
     private static void HeaderCell(IContainer container, string text)

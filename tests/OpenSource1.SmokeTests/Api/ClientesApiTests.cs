@@ -24,12 +24,12 @@ public sealed class ClientesApiTests : IClassFixture<PostgresTestFixture>
         Assert.Equal(HttpStatusCode.Unauthorized, anonymousResponse.StatusCode);
 
         var forbiddenClient = CreateClient("Supervisor");
-        var forbidden = await forbiddenClient.PostAsJsonAsync("/api/clientes", new { nombreCompleto = "A", documentoIdentidad = $"DOC-{Guid.NewGuid():N}", email = "a@test.local", telefono = "", direccion = "", activo = true });
+        var forbidden = await forbiddenClient.PostAsJsonAsync("/api/clientes", new { nombre = "A", apellido = "B", email = "a@test.local", telefono = "", direccionLinea1 = "" });
         Assert.Equal(HttpStatusCode.Forbidden, forbidden.StatusCode);
 
         var client = CreateClient("Administrador");
-        var documento = $"DOC-{Guid.NewGuid():N}";
-        var create = await client.PostAsJsonAsync("/api/clientes", new { nombreCompleto = "Juan Perez", documentoIdentidad = documento, email = "juan@test.local", telefono = "809-000-0000", direccion = "Calle 1", activo = true });
+        var email = $"juan-{Guid.NewGuid():N}@test.local";
+        var create = await client.PostAsJsonAsync("/api/clientes", new { nombre = "Juan", apellido = "Perez", email, telefono = "809-000-0000", direccionLinea1 = "Calle 1" });
         Assert.Equal(HttpStatusCode.Created, create.StatusCode);
 
         var body = await create.Content.ReadAsStringAsync();
@@ -37,10 +37,14 @@ public sealed class ClientesApiTests : IClassFixture<PostgresTestFixture>
 
         Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/clientes")).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await client.GetAsync($"/api/clientes/{created}")).StatusCode);
-        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/clientes/{created}", new { nombreCompleto = "Juan Perez", documentoIdentidad = documento, email = "juan2@test.local", telefono = "809-111-1111", direccion = "Calle 2", activo = false })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/clientes/{created}", new { nombre = "Juan", apellido = "Perez", email, telefono = "809-111-1111", direccionLinea1 = "Calle 2" })).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/api/clientes/{Guid.NewGuid()}")).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await client.DeleteAsync($"/api/clientes/{Guid.NewGuid()}")).StatusCode);
-        Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"/api/clientes/{created}")).StatusCode);
+
+        Assert.Equal(HttpStatusCode.Forbidden, (await CreateClient("Supervisor").DeleteAsync($"/api/clientes/{created}")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await CreateClient("Ejecutor").DeleteAsync($"/api/clientes/{created}")).StatusCode);
+
+        Assert.Equal(HttpStatusCode.NoContent, (await CreateClient("Administrador").DeleteAsync($"/api/clientes/{created}")).StatusCode);
     }
 
     private HttpClient CreateClient(string role)

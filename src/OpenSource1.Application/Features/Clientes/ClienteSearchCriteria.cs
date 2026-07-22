@@ -5,4 +5,6 @@ public sealed record ClienteSearchCriteria(
     string? Apellido,
     string? Email,
     string? Telefono,
-    string? Direccion);
+    string? DireccionLinea1,
+    string? Sector,
+    string? PaisNombre);

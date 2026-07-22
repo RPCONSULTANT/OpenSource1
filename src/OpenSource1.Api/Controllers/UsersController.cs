@@ -12,12 +12,16 @@ namespace OpenSource1.Api.Controllers;
 [Authorize(Roles = ApplicationRoles.Administrator)]
 public sealed class UsersController(IUserAdminService userAdminService) : ControllerBase
 {
-    /// <summary>Lista todos los usuarios del sistema con sus roles.</summary>
+    /// <summary>Lista los usuarios del sistema con sus roles, con búsqueda y filtros opcionales.</summary>
     [HttpGet]
     [ProducesResponseType<IReadOnlyList<UserSummaryResponse>>(StatusCodes.Status200OK)]
-    public async Task<ActionResult<IReadOnlyList<UserSummaryResponse>>> List(CancellationToken cancellationToken)
+    public async Task<ActionResult<IReadOnlyList<UserSummaryResponse>>> List(
+        [FromQuery] string? search,
+        [FromQuery] string? role,
+        [FromQuery] bool? isActive,
+        CancellationToken cancellationToken)
     {
-        var users = await userAdminService.ListUsersAsync(cancellationToken);
+        var users = await userAdminService.ListUsersAsync(search, role, isActive, cancellationToken);
         return Ok(users);
     }
 
@@ -40,6 +44,30 @@ public sealed class UsersController(IUserAdminService userAdminService) : Contro
         if (!success)
             return BadRequest(new AuthErrorResponse("No se pudo crear el usuario.", errors));
         return CreatedAtAction(nameof(GetById), new { userId = request.Email }, new { message = "Usuario creado." });
+    }
+
+    /// <summary>Actualiza el nombre completo de un usuario.</summary>
+    [HttpPut("{userId}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType<AuthErrorResponse>(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> Update(string userId, UpdateUserRequest request, CancellationToken cancellationToken)
+    {
+        var (success, errors) = await userAdminService.UpdateUserAsync(userId, request, cancellationToken);
+        if (!success)
+            return BadRequest(new AuthErrorResponse("No se pudo actualizar el usuario.", errors));
+        return NoContent();
+    }
+
+    /// <summary>Restablece la contraseña de un usuario (acción administrativa).</summary>
+    [HttpPost("{userId}/reset-password")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType<AuthErrorResponse>(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ResetPassword(string userId, AdminResetPasswordRequest request, CancellationToken cancellationToken)
+    {
+        var (success, errors) = await userAdminService.ResetPasswordAsync(userId, request, cancellationToken);
+        if (!success)
+            return BadRequest(new AuthErrorResponse("No se pudo restablecer la contraseña.", errors));
+        return NoContent();
     }
 
     /// <summary>Asigna un rol a un usuario.</summary>

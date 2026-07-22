@@ -3,6 +3,7 @@ using OpenSource1.Application.Data.UnitOfWork;
 using OpenSource1.Application.Features.Clientes.Commands;
 using OpenSource1.Application.Features.Clientes.Dtos;
 using OpenSource1.Core.Entities;
+using OpenSource1.Core.ValueObjects;
 
 namespace OpenSource1.Application.Features.Clientes.Handlers;
 
@@ -10,11 +11,38 @@ public sealed class CreateClienteCommandHandler(IUnitOfWork unitOfWork) : IReque
 {
     public async Task<ClienteResponse> Handle(CreateClienteCommand request, CancellationToken cancellationToken)
     {
-        var entity = new Cliente { Nombre = request.Nombre.Trim(), Apellido = request.Apellido.Trim(), Email = request.Email.Trim(), Telefono = request.Telefono?.Trim(), Direccion = request.Direccion?.Trim(), ImagePath = request.ImagePath };
+        var entity = new Cliente
+        {
+            Nombre = request.Nombre.Trim(),
+            Apellido = request.Apellido.Trim(),
+            Email = request.Email.Trim(),
+            Telefono = request.Telefono?.Trim(),
+            Direccion = string.IsNullOrWhiteSpace(request.DireccionLinea1) ? null : new DireccionCliente(request.DireccionLinea1, request.DireccionLinea2),
+            Sector = string.IsNullOrWhiteSpace(request.Sector) ? null : new Sector(request.Sector),
+            Pais = string.IsNullOrWhiteSpace(request.PaisCodigo) ? null : Pais.Of(request.PaisCodigo),
+            ImagePath = request.ImagePath
+        };
         await unitOfWork.Repository<Cliente>().AddAsync(entity, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return ToResponse(entity);
     }
 
-    public static ClienteResponse ToResponse(Cliente x) => new() { Id = x.Id, Nombre = x.Nombre, Apellido = x.Apellido, Email = x.Email, Telefono = x.Telefono, Direccion = x.Direccion, ImagePath = x.ImagePath, CreatedAtUtc = x.CreatedAtUtc.UtcDateTime, UpdatedAtUtc = x.UpdatedAtUtc?.UtcDateTime };
+    public static ClienteResponse ToResponse(Cliente x) => new()
+    {
+        Id = x.Id,
+        Nombre = x.Nombre,
+        Apellido = x.Apellido,
+        Email = x.Email,
+        Telefono = x.Telefono,
+        DireccionLinea1 = x.Direccion?.Linea1,
+        DireccionLinea2 = x.Direccion?.Linea2,
+        Sector = x.Sector?.Nombre,
+        PaisCodigo = x.Pais?.Codigo,
+        PaisNombre = x.Pais?.Nombre,
+        ImagePath = x.ImagePath,
+        CreatedAtUtc = x.CreatedAtUtc.UtcDateTime,
+        UpdatedAtUtc = x.UpdatedAtUtc?.UtcDateTime,
+        CreatedBy = x.CreatedBy,
+        UpdatedBy = x.UpdatedBy
+    };
 }

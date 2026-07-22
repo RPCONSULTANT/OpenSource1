@@ -1,159 +1,223 @@
 @inherits LayoutComponentBase
+@inject IHttpContextAccessor HttpContextAccessor
 
-<!-- ====== NAVBAR ====== -->
-<header class="sticky top-0 z-50 bg-white/95 backdrop-blur border-b border-slate-200 shadow-sm">
-    <nav class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8" role="navigation" aria-label="Menú principal">
-        <div class="flex h-16 items-center justify-between gap-4">
+<!-- ====== SIDEBAR TOGGLE (solo controla el drawer en móvil, vía CSS puro) ====== -->
+<input type="checkbox" id="sidebar-toggle" class="peer hidden" aria-hidden="true" />
 
-            <!-- ── Brand ── -->
-            <NavLink href="" Match="NavLinkMatch.All"
-                     class="flex items-center gap-2.5 shrink-0 group">
-                <div class="flex size-9 items-center justify-center rounded-xl bg-brand-600 shadow-md group-hover:bg-brand-700 transition-colors">
-                    <!-- heroicon: building-office-2 -->
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-                         stroke-width="1.8" stroke="white" class="size-5">
-                        <path stroke-linecap="round" stroke-linejoin="round"
-                              d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3.75h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Z" />
-                    </svg>
-                </div>
-                <div class="leading-tight">
-                    <span class="block font-extrabold text-slate-900 text-base tracking-tight group-hover:text-brand-600 transition-colors">AxionERP</span>
-                    <span class="block text-[10px] font-medium text-slate-400 tracking-wide uppercase">Gestión Empresarial</span>
-                </div>
-            </NavLink>
-
-            <!-- ── Nav links (centro) ── -->
-            <div class="hidden md:flex items-center gap-1">
-                <NavLink href="" Match="NavLinkMatch.All"
-                         class="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-all duration-150"
-                         ActiveClass="bg-brand-50 text-brand-700 font-semibold">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="m2.25 12 8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
-                    </svg>
-                    Inicio
-                </NavLink>
-
-                <AuthorizeView Roles="@ApplicationRoles.Administrator">
-                    <Authorized>
-                        <NavLink href="admin/users"
-                                 class="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-all duration-150"
-                                 ActiveClass="bg-brand-50 text-brand-700 font-semibold">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
-                            </svg>
-                            Usuarios
-                        </NavLink>
-                    </Authorized>
-                </AuthorizeView>
-
-                <AuthorizeView>
-                    <Authorized>
-                        <NavLink href="clientes"
-                                 class="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-all duration-150"
-                                 ActiveClass="bg-brand-50 text-brand-700 font-semibold">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
-                            </svg>
-                            Clientes
-                        </NavLink>
-                        <NavLink href="productos"
-                                 class="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-all duration-150"
-                                 ActiveClass="bg-brand-50 text-brand-700 font-semibold">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="m21 7.5-9-5.25L3 7.5m18 0-9 5.25m9-5.25v9l-9 5.25m0-9L3 7.5m9 5.25v9M3 7.5v9l9 5.25" />
-                            </svg>
-                            Productos
-                        </NavLink>
-                        <NavLink href="reporteria"
-                                 class="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-all duration-150"
-                                 ActiveClass="bg-brand-50 text-brand-700 font-semibold">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 21V5.25A2.25 2.25 0 0 0 17.25 3H6.75A2.25 2.25 0 0 0 4.5 5.25V21m15 0h-15m15 0h1.125a1.125 1.125 0 1 0 0-2.25H19.5M4.5 21H3.375a1.125 1.125 0 1 1 0-2.25H4.5m3-13.5h9m-9 4.5h9m-9 4.5h5.25" />
-                            </svg>
-                            Reportería
-                        </NavLink>
-                    </Authorized>
-                </AuthorizeView>
-            </div>
-
-            <!-- ── Sesión ── -->
-            <div class="flex items-center gap-2 shrink-0">
-                <AuthorizeView>
-                    <Authorized Context="auth">
-                        <div class="hidden sm:flex flex-col items-end leading-tight mr-1">
-                            <span class="text-sm font-semibold text-slate-800">@auth.User.Identity?.Name</span>
-                            <span class="text-xs text-brand-600 font-medium">
-                                @string.Join(", ", auth.User.FindAll(System.Security.Claims.ClaimTypes.Role).Select(c => c.Value))
-                            </span>
-                        </div>
-                        <NavLink href="account/profile"
-                                  title="Mi perfil"
-                                  class="hidden sm:flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-brand-50 hover:text-brand-700 hover:border-brand-200 transition-all duration-150 shadow-sm"
-                                  ActiveClass="bg-brand-50 text-brand-700 border-brand-200">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
-                            </svg>
-                            Perfil
-                        </NavLink>
-                        <form action="/account/logout" method="post" data-enhance>
-                            <AntiforgeryToken />
-                            <button type="submit"
-                                    class="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all duration-150 shadow-sm">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" />
-                                </svg>
-                                Salir
-                            </button>
-                        </form>
-                    </Authorized>
-                    <NotAuthorized>
-                        <NavLink href="account/login"
-                                 class="flex items-center gap-1.5 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 transition-all duration-150 shadow-sm">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 9V5.25A2.25 2.25 0 0 1 10.5 3h6a2.25 2.25 0 0 1 2.25 2.25v13.5A2.25 2.25 0 0 1 16.5 21h-6a2.25 2.25 0 0 1-2.25-2.25V15M12 9l3 3m0 0-3 3m3-3H2.25" />
-                            </svg>
-                            Iniciar Sesión
-                        </NavLink>
-                    </NotAuthorized>
-                </AuthorizeView>
-            </div>
-
+<!-- ====== BARRA SUPERIOR (solo móvil/tablet) ====== -->
+<header class="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-slate-200 bg-white/95 px-4 py-3 shadow-sm backdrop-blur lg:hidden dark:border-slate-700 dark:bg-slate-900/95">
+    <label for="sidebar-toggle" class="flex size-9 cursor-pointer items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800" aria-label="Abrir menú de navegación">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5M3.75 17.25h16.5" />
+        </svg>
+    </label>
+    <NavLink href="" Match="NavLinkMatch.All" class="flex items-center gap-2">
+        <div class="flex size-8 items-center justify-center rounded-lg bg-brand-600">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="white" class="size-4">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3.75h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Z" />
+            </svg>
         </div>
-    </nav>
+        <span class="text-sm font-extrabold text-slate-900 dark:text-slate-100">AxionERP</span>
+    </NavLink>
+    <span class="size-9" aria-hidden="true"></span>
 </header>
 
-<!-- ====== CONTENIDO ====== -->
-<main class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 min-h-[calc(100vh-130px)]">
-    <ErrorBoundary>
-        <ChildContent>@Body</ChildContent>
-        <ErrorContent>
-            <div class="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700" role="alert">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-5 mt-0.5 shrink-0">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="m9.75 9.75 4.5 4.5m0-4.5-4.5 4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                </svg>
-                Ocurrió un error inesperado. Actualice la página e intente nuevamente.
-            </div>
-        </ErrorContent>
-    </ErrorBoundary>
-</main>
+<!-- ====== FONDO OSCURO (solo móvil, cierra el drawer al tocarlo) ====== -->
+<label for="sidebar-toggle" class="fixed inset-0 z-40 hidden bg-slate-900/50 peer-checked:block lg:hidden" aria-hidden="true"></label>
 
-<!-- ====== FOOTER ====== -->
-<footer class="border-t border-slate-200 bg-white">
-    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-5 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400">
-        <div class="flex items-center gap-2">
+<!-- ====== SIDEBAR ====== -->
+<aside class="fixed inset-y-0 left-0 z-50 flex w-72 -translate-x-full flex-col bg-white transition-transform duration-200 ease-out peer-checked:translate-x-0 lg:w-64 border-r border-slate-200 dark:border-slate-700 dark:bg-slate-900 @(SidebarCollapsed ? "" : "lg:translate-x-0")">
+
+    <!-- Brand -->
+    <div class="flex items-center justify-between gap-2.5 border-b border-slate-100 px-5 py-5 dark:border-slate-800">
+        <NavLink href="" Match="NavLinkMatch.All" class="flex items-center gap-2.5 group min-w-0">
+            <div class="flex size-9 shrink-0 items-center justify-center rounded-xl bg-brand-600 shadow-md transition-colors group-hover:bg-brand-700">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="white" class="size-5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3.75h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Z" />
+                </svg>
+            </div>
+            <div class="min-w-0 leading-tight">
+                <span class="block truncate text-base font-extrabold tracking-tight text-slate-900 transition-colors group-hover:text-brand-600 dark:text-slate-100">AxionERP</span>
+                <span class="block truncate text-[10px] font-medium uppercase tracking-wide text-slate-400">Gestión Empresarial</span>
+            </div>
+        </NavLink>
+        <button type="button" title="Ocultar menú"
+                onclick="(function(){document.cookie='axionerp-sidebar=collapsed; path=/; max-age=31536000; samesite=lax';location.reload();})()"
+                class="hidden shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition-colors hover:bg-slate-100 lg:flex size-8 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M18.75 19.5 12 12.75 18.75 6M11.25 19.5 4.5 12.75 11.25 6" />
+            </svg>
+        </button>
+    </div>
+
+    <!-- Nav links -->
+    <nav class="flex-1 space-y-1 overflow-y-auto px-3 py-4" role="navigation" aria-label="Menú principal">
+        <NavLink href="" Match="NavLinkMatch.All"
+                 class="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-all duration-150 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+                 ActiveClass="bg-brand-50 text-brand-700 font-semibold dark:bg-brand-500/10 dark:text-brand-400">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4 shrink-0">
+                <path stroke-linecap="round" stroke-linejoin="round" d="m2.25 12 8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
+            </svg>
+            Inicio
+        </NavLink>
+
+        <AuthorizeView Roles="@ApplicationRoles.Administrator">
+            <Authorized>
+                <NavLink href="admin/users"
+                         class="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-all duration-150 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+                         ActiveClass="bg-brand-50 text-brand-700 font-semibold dark:bg-brand-500/10 dark:text-brand-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4 shrink-0">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
+                    </svg>
+                    Usuarios
+                </NavLink>
+            </Authorized>
+        </AuthorizeView>
+
+        <AuthorizeView Policy="@ApplicationPolicies.CanConsult">
+            <Authorized>
+                <NavLink href="clientes"
+                         class="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-all duration-150 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+                         ActiveClass="bg-brand-50 text-brand-700 font-semibold dark:bg-brand-500/10 dark:text-brand-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4 shrink-0">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
+                    </svg>
+                    Clientes
+                </NavLink>
+                <NavLink href="productos"
+                         class="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-all duration-150 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+                         ActiveClass="bg-brand-50 text-brand-700 font-semibold dark:bg-brand-500/10 dark:text-brand-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4 shrink-0">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m21 7.5-9-5.25L3 7.5m18 0-9 5.25m9-5.25v9l-9 5.25m0-9L3 7.5m9 5.25v9M3 7.5v9l9 5.25" />
+                    </svg>
+                    Productos
+                </NavLink>
+                <NavLink href="reporteria"
+                         class="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-all duration-150 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+                         ActiveClass="bg-brand-50 text-brand-700 font-semibold dark:bg-brand-500/10 dark:text-brand-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4 shrink-0">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 21V5.25A2.25 2.25 0 0 0 17.25 3H6.75A2.25 2.25 0 0 0 4.5 5.25V21m15 0h-15m15 0h1.125a1.125 1.125 0 1 0 0-2.25H19.5M4.5 21H3.375a1.125 1.125 0 1 1 0-2.25H4.5m3-13.5h9m-9 4.5h9m-9 4.5h5.25" />
+                    </svg>
+                    Reportería
+                </NavLink>
+            </Authorized>
+        </AuthorizeView>
+
+        <AuthorizeView Roles="@($"{ApplicationRoles.Administrator},{ApplicationRoles.Supervisor}")">
+            <Authorized>
+                <NavLink href="bitacora"
+                         class="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-all duration-150 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+                         ActiveClass="bg-brand-50 text-brand-700 font-semibold dark:bg-brand-500/10 dark:text-brand-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4 shrink-0">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.75a5.25 5.25 0 0 1 6.775-5.025.75.75 0 0 1 .313 1.248l-3.32 3.319c.063.475.276.934.641 1.299.365.365.824.578 1.3.64l3.318-3.319a.75.75 0 0 1 1.248.313 5.25 5.25 0 0 1-5.472 6.756c-1.018-.086-1.87.1-2.309.634L7.344 21.3A3.298 3.298 0 1 1 2.7 16.657l8.684-7.151c.533-.44.72-1.291.634-2.309A5.342 5.342 0 0 1 12 6.75ZM4.117 19.125a.75.75 0 0 1 .75-.75h.008a.75.75 0 0 1 .75.75v.008a.75.75 0 0 1-.75.75h-.008a.75.75 0 0 1-.75-.75v-.008Z" />
+                    </svg>
+                    Bitácora
+                </NavLink>
+            </Authorized>
+        </AuthorizeView>
+    </nav>
+
+    <!-- Sesión (abajo del sidebar) -->
+    <div class="space-y-2 border-t border-slate-100 px-3 py-4 dark:border-slate-800">
+        <button type="button" title="Cambiar tema"
+                onclick="(function(btn){var next=document.documentElement.classList.contains('dark')?'light':'dark';document.cookie='axionerp-theme='+next+'; path=/; max-age=31536000; samesite=lax';location.reload();})(this)"
+                class="flex w-full items-center gap-2.5 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-600 shadow-sm transition-all duration-150 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="hidden size-4 shrink-0 dark:block">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" />
+            </svg>
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4 shrink-0 dark:hidden">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.718 9.718 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" />
+            </svg>
+            <span class="dark:hidden">Modo oscuro</span>
+            <span class="hidden dark:inline">Modo claro</span>
+        </button>
+
+        <AuthorizeView>
+            <Authorized Context="auth">
+                <div class="flex items-center gap-2.5 rounded-lg px-3 py-2">
+                    <div class="flex size-8 shrink-0 items-center justify-center rounded-full bg-brand-100 text-xs font-bold text-brand-700 dark:bg-brand-500/15 dark:text-brand-400">
+                        @(auth.User.Identity?.Name?.Length > 0 ? auth.User.Identity!.Name![..1].ToUpperInvariant() : "?")
+                    </div>
+                    <div class="min-w-0 leading-tight">
+                        <p class="truncate text-sm font-semibold text-slate-800 dark:text-slate-200">@auth.User.Identity?.Name</p>
+                        <p class="truncate text-xs font-medium text-brand-600 dark:text-brand-400">
+                            @string.Join(", ", auth.User.FindAll(System.Security.Claims.ClaimTypes.Role).Select(c => c.Value))
+                        </p>
+                    </div>
+                </div>
+                <NavLink href="account/profile"
+                          class="flex items-center gap-2.5 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-600 shadow-sm transition-all duration-150 hover:border-brand-200 hover:bg-brand-50 hover:text-brand-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                          ActiveClass="bg-brand-50 text-brand-700 border-brand-200 dark:bg-brand-500/10 dark:text-brand-400 dark:border-brand-500/30">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4 shrink-0">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+                    </svg>
+                    Perfil
+                </NavLink>
+                <form action="/account/logout" method="post" data-enhance>
+                    <AntiforgeryToken />
+                    <button type="submit"
+                            class="flex w-full items-center gap-2.5 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-600 shadow-sm transition-all duration-150 hover:border-red-200 hover:bg-red-50 hover:text-red-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-red-500/10 dark:hover:text-red-400">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4 shrink-0">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" />
+                        </svg>
+                        Salir
+                    </button>
+                </form>
+            </Authorized>
+            <NotAuthorized>
+                <NavLink href="account/login"
+                         class="flex items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-150 hover:bg-brand-700">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 9V5.25A2.25 2.25 0 0 1 10.5 3h6a2.25 2.25 0 0 1 2.25 2.25v13.5A2.25 2.25 0 0 1 16.5 21h-6a2.25 2.25 0 0 1-2.25-2.25V15M12 9l3 3m0 0-3 3m3-3H2.25" />
+                    </svg>
+                    Iniciar Sesión
+                </NavLink>
+            </NotAuthorized>
+        </AuthorizeView>
+    </div>
+</aside>
+
+@if (SidebarCollapsed)
+{
+    <button type="button" title="Mostrar menú"
+            onclick="(function(){document.cookie='axionerp-sidebar=expanded; path=/; max-age=31536000; samesite=lax';location.reload();})()"
+            class="fixed left-3 top-1/2 z-40 hidden size-10 -translate-y-1/2 items-center justify-center rounded-full bg-brand-600 text-white shadow-lg transition-colors hover:bg-brand-700 lg:flex">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4">
+            <path stroke-linecap="round" stroke-linejoin="round" d="m5.25 4.5 7.5 7.5-7.5 7.5m6-15 7.5 7.5-7.5 7.5" />
+        </svg>
+    </button>
+}
+
+<!-- ====== CONTENIDO + FOOTER ====== -->
+<div class="flex min-h-screen flex-col @(SidebarCollapsed ? "" : "lg:pl-64")">
+
+    <main class="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6 lg:px-8">
+        <ErrorBoundary>
+            <ChildContent>@Body</ChildContent>
+            <ErrorContent>
+                <div class="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400" role="alert">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-5 mt-0.5 shrink-0">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m9.75 9.75 4.5 4.5m0-4.5-4.5 4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                    </svg>
+                    Ocurrió un error inesperado. Actualice la página e intente nuevamente.
+                </div>
+            </ErrorContent>
+        </ErrorBoundary>
+    </main>
+
+    <footer class="border-t border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
+        <div class="mx-auto flex max-w-7xl items-center justify-center gap-2 px-4 py-5 text-xs text-slate-400 sm:px-6 lg:px-8">
             <div class="flex size-6 items-center justify-center rounded-md bg-brand-600">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="white" class="size-3.5">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3.75h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Z" />
                 </svg>
             </div>
-            <span class="font-semibold text-slate-500">AxionERP</span>
+            <span class="font-semibold text-slate-500 dark:text-slate-300">AxionERP</span>
             <span>&copy; 2026 — Sistema Integral de Gestión Empresarial</span>
         </div>
-        <span class="flex items-center gap-1.5">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-3.5 text-brand-400">
-                <path stroke-linecap="round" stroke-linejoin="round" d="m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z" />
-            </svg>
-            Blazor SSR · API JWT · PostgreSQL · .NET 10
-        </span>
-    </div>
-</footer>
+    </footer>
+</div>
+
+@code {
+    private bool SidebarCollapsed => HttpContextAccessor.HttpContext?.Request.Cookies["axionerp-sidebar"] == "collapsed";
+}

@@ -13,10 +13,10 @@
 <div class="mb-6 flex items-center justify-between gap-4">
     <div>
         <p class="text-xs font-bold tracking-widest uppercase text-brand-600 mb-1">Ficha</p>
-        <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">Crear cliente</h1>
-        <p class="text-sm text-slate-500 mt-1">Complete nombre, apellido, teléfono, correo y dirección.</p>
+        <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight dark:text-slate-100">Crear cliente</h1>
+        <p class="text-sm text-slate-500 mt-1 dark:text-slate-400">Complete nombre, apellido, teléfono, correo y dirección.</p>
     </div>
-    <a href="/clientes" class="btn-press rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Volver al listado</a>
+    <a href="/clientes" class="btn-press rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700/60">Volver al listado</a>
 </div>
 
 @if (!string.IsNullOrWhiteSpace(message))
@@ -24,20 +24,20 @@
     <div class="mb-6"><MessageBox Type="@messageType" Message="@message" /></div>
 }
 
-<div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden max-w-4xl">
-    <div class="px-6 py-4 border-b border-slate-100 bg-slate-50"><h2 class="text-sm font-bold text-slate-800 uppercase tracking-wide">Nueva ficha</h2></div>
+<div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden max-w-4xl dark:border-slate-700 dark:bg-slate-800">
+    <div class="px-6 py-4 border-b border-slate-100 bg-slate-50 dark:border-slate-700/60 dark:bg-slate-900/40"><h2 class="text-sm font-bold text-slate-800 uppercase tracking-wide dark:text-slate-200">Nueva ficha</h2></div>
     <div class="px-6 py-6">
         <EditForm Model="Input" FormName="cliente-new" OnValidSubmit="CreateAsync" Enhance="true" enctype="multipart/form-data">
             <DataAnnotationsValidator />
             <div class="mb-6">
-                <label class="block text-sm font-semibold text-slate-700 mb-1.5">Imagen del cliente</label>
-                <input type="file" name="ClientImage" accept=".jpg,.jpeg,.png,.webp" class="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm" />
-                <p class="mt-1 text-xs text-slate-400">Formatos permitidos: JPG, PNG, WEBP. Máximo 2 MB.</p>
+                <label class="block text-sm font-semibold text-slate-700 mb-1.5 dark:text-slate-300">Imagen del cliente</label>
+                <input type="file" name="ClientImage" accept=".jpg,.jpeg,.png,.webp" class="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300" />
+                <p class="mt-1 text-xs text-slate-400 dark:text-slate-500">Formatos permitidos: JPG, PNG, WEBP. Máximo 2 MB.</p>
             </div>
             <ClienteFields Model="Input!" Prefix="Input" />
             <div class="mt-6 flex flex-wrap items-center gap-3">
                 <button type="submit" class="btn-press inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-700">Guardar cliente</button>
-                <a href="/clientes" class="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50">Cancelar</a>
+                <a href="/clientes" class="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700/60">Cancelar</a>
             </div>
         </EditForm>
     </div>
@@ -76,5 +76,14 @@
         }
     }
 
-    private static ClienteInput ToInput(ClienteEditorForm form) => new(form.Nombre.Trim(), form.Apellido.Trim(), form.Email.Trim(), form.Telefono?.Trim(), form.Direccion?.Trim(), form.ImagePath);
+    private static ClienteInput ToInput(ClienteEditorForm form) => new(
+        form.Nombre.Trim(),
+        form.Apellido.Trim(),
+        form.Email.Trim(),
+        form.Telefono?.Trim(),
+        form.DireccionLinea1?.Trim(),
+        form.DireccionLinea2?.Trim(),
+        form.Sector?.Trim(),
+        form.PaisCodigo,
+        form.ImagePath);
 }

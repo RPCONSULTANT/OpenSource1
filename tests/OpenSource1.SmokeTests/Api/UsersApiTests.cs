@@ -39,11 +39,33 @@ public sealed class UsersApiTests : IClassFixture<PostgresTestFixture>
         var remove = await admin.PostAsJsonAsync("/api/users/remove-role", new { userId, role = "Supervisor" });
         Assert.Equal(HttpStatusCode.NoContent, remove.StatusCode);
 
+        var update = await admin.PutAsJsonAsync($"/api/users/{userId}", new { fullName = "Test User Updated" });
+        Assert.Equal(HttpStatusCode.NoContent, update.StatusCode);
+
+        var searchByName = JsonDocument.Parse(await (await admin.GetAsync("/api/users?search=Updated")).Content.ReadAsStringAsync()).RootElement;
+        Assert.Contains(searchByName.EnumerateArray(), x => x.GetProperty("id").GetString() == userId);
+
+        var resetPassword = await admin.PostAsJsonAsync($"/api/users/{userId}/reset-password", new { newPassword = "NuevaPassword123" });
+        Assert.Equal(HttpStatusCode.NoContent, resetPassword.StatusCode);
+
         var toggle = await admin.PostAsJsonAsync($"/api/users/{userId}/toggle-active", new { });
         Assert.Equal(HttpStatusCode.NoContent, toggle.StatusCode);
 
         var delete = await admin.DeleteAsync($"/api/users/{userId}");
         Assert.Equal(HttpStatusCode.NoContent, delete.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("Supervisor")]
+    [InlineData("Ejecutor")]
+    public async Task NonAdmin_Cannot_Access_Users(string role)
+    {
+        var client = CreateClient(role);
+
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/users")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await client.PostAsJsonAsync("/api/users", new { email = $"blocked-{Guid.NewGuid():N}@test.local", fullName = "Blocked", password = "Password123" })).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.DeleteAsync($"/api/users/{Guid.NewGuid()}")).StatusCode);
     }
 
     [Fact]
@@ -60,13 +82,13 @@ public sealed class UsersApiTests : IClassFixture<PostgresTestFixture>
         Assert.Equal(HttpStatusCode.BadRequest, toggle.StatusCode);
     }
 
-    private HttpClient CreateClient()
+    private HttpClient CreateClient(string role = "Administrador")
     {
         _client.DefaultRequestHeaders.Remove("X-Test-Anonymous");
         _client.DefaultRequestHeaders.Remove("X-Test-User");
         _client.DefaultRequestHeaders.Remove("X-Test-Roles");
-        _client.DefaultRequestHeaders.Add("X-Test-User", "admin");
-        _client.DefaultRequestHeaders.Add("X-Test-Roles", "Administrador");
+        _client.DefaultRequestHeaders.Add("X-Test-User", role.ToLowerInvariant());
+        _client.DefaultRequestHeaders.Add("X-Test-Roles", role);
         return _client;
     }
 }
