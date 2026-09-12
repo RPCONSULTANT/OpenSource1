@@ -6,7 +6,7 @@ using OpenSource1.Core.Common;
 
 namespace OpenSource1.Infrastructure.Data.Queries;
 
-public sealed class DapperProductoReadRepository(IDbConnectionFactory connectionFactory) : IProductoReadRepository
+public sealed class DapperProductoReadRepository(IDbSession session) : IProductoReadRepository
 {
     private static readonly ColumnasPermitidas ColumnasPermitidas = new(
         "Codigo", "Nombre", "CategoriaCodigo", "CategoriaNombre", "UnidadMedidaCodigo", "UnidadMedidaNombre", "Precio", "Stock");
@@ -18,8 +18,8 @@ public sealed class DapperProductoReadRepository(IDbConnectionFactory connection
             FROM "Productos"
             WHERE "Id" = @Id
             """;
-        using var connection = await connectionFactory.CreateOpenConnectionAsync(cancellationToken);
-        return await connection.QuerySingleOrDefaultAsync<ProductoResponse>(new CommandDefinition(sql, new { Id = id }, cancellationToken: cancellationToken));
+        await session.EnsureOpenAsync(cancellationToken);
+        return await session.Connection.QuerySingleOrDefaultAsync<ProductoResponse>(new CommandDefinition(sql, new { Id = id }, session.CurrentTransaction, cancellationToken: cancellationToken));
     }
 
     public async Task<IReadOnlyList<ProductoResponse>> ListAsync(ProductoSearchCriteria search, CancellationToken cancellationToken = default)
@@ -60,8 +60,8 @@ public sealed class DapperProductoReadRepository(IDbConnectionFactory connection
 
         sql += Environment.NewLine + "ORDER BY \"CreatedAtUtc\" DESC";
 
-        using var connection = await connectionFactory.CreateOpenConnectionAsync(cancellationToken);
-        var result = await connection.QueryAsync<ProductoResponse>(new CommandDefinition(sql, parameters, cancellationToken: cancellationToken));
+        await session.EnsureOpenAsync(cancellationToken);
+        var result = await session.Connection.QueryAsync<ProductoResponse>(new CommandDefinition(sql, parameters, session.CurrentTransaction, cancellationToken: cancellationToken));
         return result.AsList();
     }
 }

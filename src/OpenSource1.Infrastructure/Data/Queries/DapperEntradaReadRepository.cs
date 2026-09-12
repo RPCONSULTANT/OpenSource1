@@ -5,7 +5,7 @@ using OpenSource1.Application.Features.Entradas.Dtos;
 
 namespace OpenSource1.Infrastructure.Data.Queries;
 
-public sealed class DapperEntradaReadRepository(IDbConnectionFactory connectionFactory) : IEntradaReadRepository
+public sealed class DapperEntradaReadRepository(IDbSession session) : IEntradaReadRepository
 {
     public async Task<EntradaResponse?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
@@ -15,9 +15,9 @@ public sealed class DapperEntradaReadRepository(IDbConnectionFactory connectionF
             WHERE "Id" = @Id
             """;
 
-        using var connection = await connectionFactory.CreateOpenConnectionAsync(cancellationToken);
-        var command = new CommandDefinition(sql, new { Id = id }, cancellationToken: cancellationToken);
-        return await connection.QuerySingleOrDefaultAsync<EntradaResponse>(command);
+        await session.EnsureOpenAsync(cancellationToken);
+        var command = new CommandDefinition(sql, new { Id = id }, session.CurrentTransaction, cancellationToken: cancellationToken);
+        return await session.Connection.QuerySingleOrDefaultAsync<EntradaResponse>(command);
     }
 
     public async Task<IReadOnlyList<EntradaResponse>> ListAsync(CancellationToken cancellationToken = default)
@@ -28,9 +28,9 @@ public sealed class DapperEntradaReadRepository(IDbConnectionFactory connectionF
             ORDER BY "CreatedAtUtc" DESC
             """;
 
-        using var connection = await connectionFactory.CreateOpenConnectionAsync(cancellationToken);
-        var command = new CommandDefinition(sql, cancellationToken: cancellationToken);
-        var result = await connection.QueryAsync<EntradaResponse>(command);
+        await session.EnsureOpenAsync(cancellationToken);
+        var command = new CommandDefinition(sql, transaction: session.CurrentTransaction, cancellationToken: cancellationToken);
+        var result = await session.Connection.QueryAsync<EntradaResponse>(command);
         return result.AsList();
     }
 }

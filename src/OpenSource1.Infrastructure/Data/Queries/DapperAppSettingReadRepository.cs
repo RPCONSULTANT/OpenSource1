@@ -5,7 +5,7 @@ using OpenSource1.Application.Features.AppSettings.Dtos;
 
 namespace OpenSource1.Infrastructure.Data.Queries;
 
-public sealed class DapperAppSettingReadRepository(IDbConnectionFactory connectionFactory) : IAppSettingReadRepository
+public sealed class DapperAppSettingReadRepository(IDbSession session) : IAppSettingReadRepository
 {
     public async Task<AppSettingResponse?> GetByKeyAsync(string key, CancellationToken cancellationToken = default)
     {
@@ -15,9 +15,9 @@ public sealed class DapperAppSettingReadRepository(IDbConnectionFactory connecti
             WHERE "Key" = @Key
             """;
 
-        using var connection = await connectionFactory.CreateOpenConnectionAsync(cancellationToken);
-        var command = new CommandDefinition(sql, new { Key = key }, cancellationToken: cancellationToken);
-        return await connection.QuerySingleOrDefaultAsync<AppSettingResponse>(command);
+        await session.EnsureOpenAsync(cancellationToken);
+        var command = new CommandDefinition(sql, new { Key = key }, session.CurrentTransaction, cancellationToken: cancellationToken);
+        return await session.Connection.QuerySingleOrDefaultAsync<AppSettingResponse>(command);
     }
 
     public async Task<IReadOnlyList<AppSettingResponse>> ListAsync(CancellationToken cancellationToken = default)
@@ -28,9 +28,9 @@ public sealed class DapperAppSettingReadRepository(IDbConnectionFactory connecti
             ORDER BY "Key"
             """;
 
-        using var connection = await connectionFactory.CreateOpenConnectionAsync(cancellationToken);
-        var command = new CommandDefinition(sql, cancellationToken: cancellationToken);
-        var settings = await connection.QueryAsync<AppSettingResponse>(command);
+        await session.EnsureOpenAsync(cancellationToken);
+        var command = new CommandDefinition(sql, transaction: session.CurrentTransaction, cancellationToken: cancellationToken);
+        var settings = await session.Connection.QueryAsync<AppSettingResponse>(command);
         return settings.AsList();
     }
 }
