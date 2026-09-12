@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using OpenSource1.Application.Security;
 
@@ -12,18 +13,19 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddApplicationIdentity(this IServiceCollection services, IConfiguration configuration)
     {
-        services.Configure<JwtOptions>(configuration.GetSection(JwtOptions.SectionName));
+        // Validación diferida a ValidateOnStart(): corre cuando el host arranca, no durante el
+        // registro de servicios. Esto importa para WebApplicationFactory (tests de integración):
+        // la configuración de prueba (incluida una SigningKey válida) se fusiona en el builder
+        // recién al construir el host, después de que este método ya se ejecutó. Validar aquí de
+        // forma síncrona leería siempre los appsettings*.json reales (placeholder de 21
+        // caracteres) y fallaría incluso cuando la configuración de test es válida.
+        services.AddOptions<JwtOptions>()
+            .Bind(configuration.GetSection(JwtOptions.SectionName))
+            .Validate(o => !string.IsNullOrWhiteSpace(o.SigningKey) && o.SigningKey.Length >= 32,
+                "JWT signing key must contain at least 32 characters.")
+            .ValidateOnStart();
+
         services.Configure<UserSeedOptions>(configuration.GetSection(UserSeedOptions.SectionName));
-
-        var jwtOptions = configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>()
-            ?? throw new InvalidOperationException("JWT configuration section was not found.");
-
-        if (string.IsNullOrWhiteSpace(jwtOptions.SigningKey) || jwtOptions.SigningKey.Length < 32)
-        {
-            throw new InvalidOperationException("JWT signing key must contain at least 32 characters.");
-        }
-
-        var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.SigningKey));
 
         services
             .AddIdentity<Usuario, IdentityRole>(options =>
@@ -54,15 +56,26 @@ public static class DependencyInjection
             {
                 options.RequireHttpsMetadata = false;
                 options.SaveToken = true;
+            });
+
+        // Resuelve JwtOptions vía DI (IOptions<JwtOptions>) en vez de cerrar sobre el valor leído
+        // de forma eager arriba: para cuando esto se evalúa (primera vez que se pide
+        // JwtBearerOptions, en el arranque del host o en la primera request autenticada), la
+        // configuración de test ya está fusionada, así que la SigningKey usada aquí es la misma
+        // que valida ValidateOnStart().
+        services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
+            .Configure<IOptions<JwtOptions>>((options, jwtOptions) =>
+            {
+                var jwt = jwtOptions.Value;
                 options.TokenValidationParameters = new TokenValidationParameters
                 {
                     ValidateIssuer = true,
                     ValidateAudience = true,
                     ValidateIssuerSigningKey = true,
                     ValidateLifetime = true,
-                    ValidIssuer = jwtOptions.Issuer,
-                    ValidAudience = jwtOptions.Audience,
-                    IssuerSigningKey = signingKey,
+                    ValidIssuer = jwt.Issuer,
+                    ValidAudience = jwt.Audience,
+                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.SigningKey)),
                     ClockSkew = TimeSpan.FromMinutes(1)
                 };
             });
