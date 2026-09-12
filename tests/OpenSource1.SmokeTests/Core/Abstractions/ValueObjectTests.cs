@@ -35,4 +35,36 @@ public class ValueObjectTests
         Assert.True(nulo == null);
         Assert.False(new Codigo("KG") == null);
     }
+
+    [Fact]
+    public void OperadorDesigualdad_FuncionaCorrectamente()
+    {
+        Assert.True(new Codigo("KG") != new Nombre("KG"));
+        Assert.True(new Codigo("KG") != new Codigo("L"));
+        Assert.False(new Codigo("KG") != new Codigo("KG"));
+        Codigo? nulo = null;
+        Assert.True(nulo != new Codigo("KG"));
+        Assert.False(nulo != null);
+    }
+
+    [Fact]
+    public void IgualesValoresGeneranMismoHashCode()
+    {
+        var vo1 = new Codigo("KG");
+        var vo2 = new Codigo("KG");
+
+        Assert.Equal(vo1.GetHashCode(), vo2.GetHashCode());
+    }
+
+    [Fact]
+    public void ValueObjectFuncionaComoClaveEnDictionary()
+    {
+        var dict = new Dictionary<Codigo, string>
+        {
+            { new Codigo("KG"), "Kilogramo" }
+        };
+
+        Assert.True(dict.ContainsKey(new Codigo("KG")));
+        Assert.Equal("Kilogramo", dict[new Codigo("KG")]);
+    }
 }

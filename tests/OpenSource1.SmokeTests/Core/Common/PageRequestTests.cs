@@ -42,4 +42,16 @@ public class PageRequestTests
     {
         Assert.Equal(0, new PagedResult<int>([], 1, 20, 0).TotalPaginas);
     }
+
+    [Fact]
+    public void Vacio_CreaResultadoVacioConservandoPaginacion()
+    {
+        var peticion = new PageRequest(3, 25);
+        var resultado = PagedResult<string>.Vacio(peticion);
+
+        Assert.Empty(resultado.Items);
+        Assert.Equal(0, resultado.Total);
+        Assert.Equal(3, resultado.Pagina);
+        Assert.Equal(25, resultado.TamanoPagina);
+    }
 }

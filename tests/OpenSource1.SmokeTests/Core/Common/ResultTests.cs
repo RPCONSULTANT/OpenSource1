@@ -34,17 +34,52 @@ public class ResultTests
     }
 
     [Fact]
-    public void ResultGenerico_FalloNoTieneValor()
+    public void ResultGenerico_FalloAlLeerValor_Lanza()
     {
         var resultado = Result<int>.Fallo(new Error("x", "y"));
 
         Assert.False(resultado.EsExito);
-        Assert.Equal(default, resultado.Valor);
+        var ex = Assert.Throws<InvalidOperationException>(() => resultado.Valor);
+        Assert.Contains("x", ex.Message);
+    }
+
+    [Fact]
+    public void ResultGenerico_DistingueExitoConCeroDeFallo()
+    {
+        var exitoConCero = Result<int>.Exito(0);
+        var fallo = Result<int>.Fallo(new Error("x", "y"));
+
+        Assert.True(exitoConCero.TryObtenerValor(out var valor));
+        Assert.Equal(0, valor);
+        Assert.False(fallo.TryObtenerValor(out _));
+    }
+
+    [Fact]
+    public void ResultGenerico_PropagaErroresDeOtroResultado()
+    {
+        var origen = Result.Fallo(new Error("producto.no_encontrado", "No existe.", "Id"));
+        var propagado = Result<decimal>.Fallo(origen);
+
+        Assert.False(propagado.EsExito);
+        Assert.Equal("producto.no_encontrado", propagado.Errores[0].Codigo);
+        Assert.Equal("Id", propagado.Errores[0].Campo);
+    }
+
+    [Fact]
+    public void ResultGenerico_PropagarDesdeExito_Lanza()
+    {
+        Assert.Throws<ArgumentException>(() => Result<int>.Fallo(Result.Exito()));
     }
 
     [Fact]
     public void Fallo_SinErrores_Lanza()
     {
         Assert.Throws<ArgumentException>(() => Result.Fallo());
+    }
+
+    [Fact]
+    public void ResultGenerico_FalloSinErrores_Lanza()
+    {
+        Assert.Throws<ArgumentException>(() => Result<int>.Fallo());
     }
 }
