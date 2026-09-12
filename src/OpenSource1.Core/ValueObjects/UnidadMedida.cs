@@ -1,4 +1,5 @@
 using OpenSource1.Core.Abstractions;
+using OpenSource1.Core.Common;
 
 namespace OpenSource1.Core.ValueObjects;
 
@@ -35,12 +36,18 @@ public sealed class UnidadMedida : ValueObject
 
     public static UnidadMedida Of(string codigo)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(codigo);
+        if (string.IsNullOrWhiteSpace(codigo))
+        {
+            throw new ErroresDeDominioException(new Error(
+                "unidad_medida.codigo_requerido", "El código de unidad de medida es obligatorio.", nameof(codigo)));
+        }
+
         var normalizado = codigo.Trim().ToUpperInvariant();
 
         if (!Nombres.TryGetValue(normalizado, out var nombre))
         {
-            throw new ArgumentException($"Código de unidad de medida no reconocido: '{codigo}'.", nameof(codigo));
+            throw new ErroresDeDominioException(new Error(
+                "unidad_medida.codigo_invalido", $"Código de unidad de medida no reconocido: '{codigo}'.", nameof(codigo)));
         }
 
         return new UnidadMedida(normalizado, nombre);

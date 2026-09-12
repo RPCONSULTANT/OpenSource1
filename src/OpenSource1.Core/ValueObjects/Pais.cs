@@ -1,4 +1,5 @@
 using OpenSource1.Core.Abstractions;
+using OpenSource1.Core.Common;
 
 namespace OpenSource1.Core.ValueObjects;
 
@@ -35,12 +36,18 @@ public sealed class Pais : ValueObject
 
     public static Pais Of(string codigo)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(codigo);
+        if (string.IsNullOrWhiteSpace(codigo))
+        {
+            throw new ErroresDeDominioException(new Error(
+                "pais.codigo_requerido", "El código de país es obligatorio.", nameof(codigo)));
+        }
+
         var normalizado = codigo.Trim().ToUpperInvariant();
 
         if (!Nombres.TryGetValue(normalizado, out var nombre))
         {
-            throw new ArgumentException($"Código de país no reconocido: '{codigo}'.", nameof(codigo));
+            throw new ErroresDeDominioException(new Error(
+                "pais.codigo_invalido", $"Código de país no reconocido: '{codigo}'.", nameof(codigo)));
         }
 
         return new Pais(normalizado, nombre);
