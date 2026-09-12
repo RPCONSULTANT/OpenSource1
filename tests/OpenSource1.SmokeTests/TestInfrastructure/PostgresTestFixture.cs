@@ -104,7 +104,8 @@ public sealed class PostgresTestFixture : IAsyncLifetime
                     ["Jwt:Issuer"] = "OpenSource1.Tests",
                     ["Jwt:Audience"] = "OpenSource1.Tests",
                     ["Jwt:SigningKey"] = "TestSigningKey_ChangeMe_1234567890",
-                    ["Jwt:ExpirationMinutes"] = "60"
+                    ["Jwt:ExpirationMinutes"] = "60",
+                    ["Cors:AllowedOrigins:0"] = "http://localhost:5110"
                 });
             });
 
