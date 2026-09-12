@@ -7,6 +7,9 @@ namespace OpenSource1.Infrastructure.Data.Queries;
 
 public sealed class DapperProductoReadRepository(IDbConnectionFactory connectionFactory) : IProductoReadRepository
 {
+    private static readonly ColumnasPermitidas ColumnasPermitidas = new(
+        "Codigo", "Nombre", "CategoriaCodigo", "CategoriaNombre", "UnidadMedidaCodigo", "UnidadMedidaNombre", "Precio", "Stock");
+
     public async Task<ProductoResponse?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         const string sql = """
@@ -28,16 +31,26 @@ public sealed class DapperProductoReadRepository(IDbConnectionFactory connection
         var filters = new List<string>();
         var parameters = new DynamicParameters();
 
-        FilterExpressionBuilder.AddTextFilter(filters, parameters, "Codigo", search.Codigo);
-        FilterExpressionBuilder.AddTextFilter(filters, parameters, "Nombre", search.Nombre);
-        FilterExpressionBuilder.AddTextFilter(filters, parameters, "CategoriaCodigo", search.CategoriaCodigo);
-        FilterExpressionBuilder.AddTextFilter(filters, parameters, "CategoriaNombre", search.CategoriaNombre);
-        FilterExpressionBuilder.AddTextFilter(filters, parameters, "UnidadMedidaCodigo", search.UnidadMedidaCodigo);
-        FilterExpressionBuilder.AddTextFilter(filters, parameters, "UnidadMedidaNombre", search.UnidadMedidaNombre);
-        FilterExpressionBuilder.AddExactFilter(filters, parameters, "Precio", search.Precio,
+        FilterExpressionBuilder.AddTextFilter(filters, parameters, ColumnasPermitidas, "Codigo", search.Codigo);
+        FilterExpressionBuilder.AddTextFilter(filters, parameters, ColumnasPermitidas, "Nombre", search.Nombre);
+        FilterExpressionBuilder.AddTextFilter(filters, parameters, ColumnasPermitidas, "CategoriaCodigo", search.CategoriaCodigo);
+        FilterExpressionBuilder.AddTextFilter(filters, parameters, ColumnasPermitidas, "CategoriaNombre", search.CategoriaNombre);
+        FilterExpressionBuilder.AddTextFilter(filters, parameters, ColumnasPermitidas, "UnidadMedidaCodigo", search.UnidadMedidaCodigo);
+        FilterExpressionBuilder.AddTextFilter(filters, parameters, ColumnasPermitidas, "UnidadMedidaNombre", search.UnidadMedidaNombre);
+
+        var precioResult = FilterExpressionBuilder.AddExactFilter(filters, parameters, ColumnasPermitidas, "Precio", search.Precio,
             static term => (decimal.TryParse(term, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var value), value));
-        FilterExpressionBuilder.AddExactFilter(filters, parameters, "Stock", search.Stock,
+        if (precioResult.EsFallo)
+        {
+            throw new ArgumentException(precioResult.Errores[0].Mensaje, nameof(search));
+        }
+
+        var stockResult = FilterExpressionBuilder.AddExactFilter(filters, parameters, ColumnasPermitidas, "Stock", search.Stock,
             static term => (int.TryParse(term, out var value), value));
+        if (stockResult.EsFallo)
+        {
+            throw new ArgumentException(stockResult.Errores[0].Mensaje, nameof(search));
+        }
 
         if (filters.Count > 0)
         {

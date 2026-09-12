@@ -7,6 +7,9 @@ namespace OpenSource1.Infrastructure.Data.Queries;
 
 public sealed class DapperClienteReadRepository(IDbConnectionFactory connectionFactory) : IClienteReadRepository
 {
+    private static readonly ColumnasPermitidas ColumnasPermitidas = new(
+        "Nombre", "Apellido", "Email", "Telefono", "DireccionLinea1", "Sector", "PaisNombre");
+
     public async Task<ClienteResponse?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         const string sql = """
@@ -28,13 +31,13 @@ public sealed class DapperClienteReadRepository(IDbConnectionFactory connectionF
         var filters = new List<string>();
         var parameters = new DynamicParameters();
 
-        FilterExpressionBuilder.AddTextFilter(filters, parameters, "Nombre", search.Nombre);
-        FilterExpressionBuilder.AddTextFilter(filters, parameters, "Apellido", search.Apellido);
-        FilterExpressionBuilder.AddTextFilter(filters, parameters, "Email", search.Email);
-        FilterExpressionBuilder.AddTextFilter(filters, parameters, "Telefono", search.Telefono);
-        FilterExpressionBuilder.AddTextFilter(filters, parameters, "DireccionLinea1", search.DireccionLinea1);
-        FilterExpressionBuilder.AddTextFilter(filters, parameters, "Sector", search.Sector);
-        FilterExpressionBuilder.AddTextFilter(filters, parameters, "PaisNombre", search.PaisNombre);
+        FilterExpressionBuilder.AddTextFilter(filters, parameters, ColumnasPermitidas, "Nombre", search.Nombre);
+        FilterExpressionBuilder.AddTextFilter(filters, parameters, ColumnasPermitidas, "Apellido", search.Apellido);
+        FilterExpressionBuilder.AddTextFilter(filters, parameters, ColumnasPermitidas, "Email", search.Email);
+        FilterExpressionBuilder.AddTextFilter(filters, parameters, ColumnasPermitidas, "Telefono", search.Telefono);
+        FilterExpressionBuilder.AddTextFilter(filters, parameters, ColumnasPermitidas, "DireccionLinea1", search.DireccionLinea1);
+        FilterExpressionBuilder.AddTextFilter(filters, parameters, ColumnasPermitidas, "Sector", search.Sector);
+        FilterExpressionBuilder.AddTextFilter(filters, parameters, ColumnasPermitidas, "PaisNombre", search.PaisNombre);
 
         if (filters.Count > 0)
         {
