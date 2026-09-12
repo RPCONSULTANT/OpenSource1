@@ -14,7 +14,18 @@ public sealed class CategoriaProducto : ValueObject
     /// <param name="nombreCampoNombre">
     /// Igual que <paramref name="nombreCampoCodigo"/> pero para <paramref name="nombre"/>.
     /// </param>
-    public CategoriaProducto(string codigo, string nombre, string? nombreCampoCodigo = null, string? nombreCampoNombre = null)
+    /// <remarks>
+    /// Esta sobrecarga de dos parámetros existe para que EF Core pueda enlazar el
+    /// constructor del <c>ComplexProperty</c> (que solo mapea <c>Codigo</c>/<c>Nombre</c>).
+    /// No usar valores por defecto en los <c>nombreCampo*</c> de la sobrecarga completa
+    /// evita ambigüedad de resolución de sobrecarga por número de argumentos.
+    /// </remarks>
+    public CategoriaProducto(string codigo, string nombre)
+        : this(codigo, nombre, null, null)
+    {
+    }
+
+    public CategoriaProducto(string codigo, string nombre, string? nombreCampoCodigo, string? nombreCampoNombre)
     {
         if (string.IsNullOrWhiteSpace(codigo))
         {

@@ -10,7 +10,18 @@ public sealed class Sector : ValueObject
     /// Nombre del campo tal como lo conoce el llamante (p. ej. <c>nameof(request.Sector)</c>).
     /// Si no se indica se usa <c>nameof(nombre)</c> como respaldo.
     /// </param>
-    public Sector(string nombre, string? nombreCampo = null)
+    /// <remarks>
+    /// Esta sobrecarga de un parámetro existe para que EF Core pueda enlazar el
+    /// constructor del <c>ComplexProperty</c> (que solo mapea <c>Nombre</c>). No usar un
+    /// valor por defecto en <paramref name="nombreCampo"/> de la sobrecarga completa evita
+    /// ambigüedad de resolución de sobrecarga por número de argumentos.
+    /// </remarks>
+    public Sector(string nombre)
+        : this(nombre, null)
+    {
+    }
+
+    public Sector(string nombre, string? nombreCampo)
     {
         if (string.IsNullOrWhiteSpace(nombre))
         {

@@ -11,7 +11,18 @@ public sealed class DireccionCliente : ValueObject
     /// Nombre del campo de <paramref name="linea1"/> tal como lo conoce el llamante (p. ej.
     /// <c>nameof(request.DireccionLinea1)</c>). Si no se indica se usa <c>nameof(linea1)</c>.
     /// </param>
-    public DireccionCliente(string linea1, string? linea2, string? nombreCampoLinea1 = null)
+    /// <remarks>
+    /// Esta sobrecarga de dos parámetros existe para que EF Core pueda enlazar el
+    /// constructor del <c>ComplexProperty</c> (que solo mapea <c>Linea1</c>/<c>Linea2</c>).
+    /// No usar un valor por defecto en <paramref name="nombreCampoLinea1"/> de la sobrecarga
+    /// completa evita ambigüedad de resolución de sobrecarga por número de argumentos.
+    /// </remarks>
+    public DireccionCliente(string linea1, string? linea2)
+        : this(linea1, linea2, null)
+    {
+    }
+
+    public DireccionCliente(string linea1, string? linea2, string? nombreCampoLinea1)
     {
         if (string.IsNullOrWhiteSpace(linea1))
         {
