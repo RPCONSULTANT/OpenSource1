@@ -23,6 +23,9 @@ internal sealed class ColumnasPermitidas
             throw new ArgumentException($"Columna no permitida: '{columna}'.", nameof(columna));
         }
 
-        return $"\"{columna}\"";
+        // Defensa en profundidad: aunque la allow-list solo se puebla con literales de código,
+        // duplicar comillas internas es la forma correcta de escapar identificadores en
+        // PostgreSQL si alguna vez una columna válida contuviera una.
+        return $"\"{columna.Replace("\"", "\"\"")}\"";
     }
 }

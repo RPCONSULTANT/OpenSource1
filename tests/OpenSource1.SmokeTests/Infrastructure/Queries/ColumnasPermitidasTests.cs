@@ -19,6 +19,14 @@ public class ColumnasPermitidasTests
         Assert.Equal("\"Nombre\"", Permitidas.Citar("Nombre"));
     }
 
+    [Fact]
+    public void Citar_EscapaComillasInternasDuplicandolas()
+    {
+        var permitidas = new ColumnasPermitidas("Nombre\"Raro");
+
+        Assert.Equal("\"Nombre\"\"Raro\"", permitidas.Citar("Nombre\"Raro"));
+    }
+
     [Theory]
     [InlineData("Nombre\"; DROP TABLE \"Clientes")]
     [InlineData("1=1")]
