@@ -241,6 +241,30 @@ AUTH_SEED_DEFAULT_PASSWORD=Password123
 
 No subir el archivo `.env` real al repositorio.
 
+### Configuración de `OpenSource1.Api` (obligatoria en un clon nuevo)
+
+`src/OpenSource1.Api/appsettings.json` **no está versionado** (contiene marcadores de
+secreto y se ignora vía `.gitignore` para evitar volver a comprometer credenciales). Sin
+este archivo la API no arranca. Crearlo a partir de la plantilla:
+
+```bash
+cp src/OpenSource1.Api/appsettings.Example.json src/OpenSource1.Api/appsettings.json
+```
+
+Rellenar los valores marcados como `__SET_IN_USER_SECRETS__` con User Secrets (no editar
+los placeholders en el propio `appsettings.json` con valores reales):
+
+```bash
+cd src/OpenSource1.Api
+dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=localhost;Port=5432;Database=AxionERP_App;Username=Rainiery;Password=<tu-password>"
+dotnet user-secrets set "ConnectionStrings:IdentityConnection" "Host=localhost;Port=5432;Database=AxionERP_Identity;Username=Rainiery;Password=<tu-password>"
+dotnet user-secrets set "Jwt:SigningKey" "<tu-clave-de-firma-jwt>"
+```
+
+User Secrets tiene prioridad sobre `appsettings.json` en `Development`, así que los
+placeholders `__SET_IN_USER_SECRETS__` nunca llegan a usarse en tiempo de ejecución una
+vez configurados.
+
 ## Ejecución con Docker Compose
 
 Levantar el sistema:
