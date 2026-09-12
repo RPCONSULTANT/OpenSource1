@@ -2,6 +2,7 @@ using Dapper;
 using OpenSource1.Application.Data;
 using OpenSource1.Application.Features.Productos;
 using OpenSource1.Application.Features.Productos.Dtos;
+using OpenSource1.Core.Common;
 
 namespace OpenSource1.Infrastructure.Data.Queries;
 
@@ -42,14 +43,14 @@ public sealed class DapperProductoReadRepository(IDbConnectionFactory connection
             static term => (decimal.TryParse(term, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var value), value));
         if (precioResult.EsFallo)
         {
-            throw new ArgumentException(precioResult.Errores[0].Mensaje, nameof(search));
+            throw new ErroresDeDominioException(precioResult.Errores[0]);
         }
 
         var stockResult = FilterExpressionBuilder.AddExactFilter(filters, parameters, ColumnasPermitidas, "Stock", search.Stock,
             static term => (int.TryParse(term, out var value), value));
         if (stockResult.EsFallo)
         {
-            throw new ArgumentException(stockResult.Errores[0].Mensaje, nameof(search));
+            throw new ErroresDeDominioException(stockResult.Errores[0]);
         }
 
         if (filters.Count > 0)

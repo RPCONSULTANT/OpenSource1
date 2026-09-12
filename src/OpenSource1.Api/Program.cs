@@ -1,6 +1,7 @@
 using FluentValidation;
 using FluentValidation.AspNetCore;
 using Microsoft.AspNetCore.Mvc;
+using OpenSource1.Api.Infrastructure;
 using OpenSource1.Application.Security;
 using OpenSource1.Application.Services;
 using OpenSource1.Application.Services.Auth.Dtos;
@@ -61,6 +62,7 @@ builder.Services.AddCors(options =>
 
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddProblemDetails();
 
 // ── FluentValidation ────────────────────────────────────────────────────────
@@ -100,6 +102,7 @@ app.UseSerilogRequestLogging(options =>
     options.MessageTemplate = "HTTP {RequestMethod} {RequestPath} responded {StatusCode} in {Elapsed:0.0}ms";
 });
 app.UseHttpsRedirection();
+app.UseExceptionHandler();   // FALTA HOY: sin esto, AddProblemDetails no hace nada ante excepciones. Va antes de UseStatusCodePages.
 app.UseStatusCodePages(async statusCodeContext =>
 {
     var response = statusCodeContext.HttpContext.Response;
