@@ -40,10 +40,10 @@ public sealed class UsersController(IUserAdminService userAdminService) : Contro
     [ProducesResponseType<AuthErrorResponse>(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Create(CreateUserRequest request, CancellationToken cancellationToken)
     {
-        var (success, errors) = await userAdminService.CreateUserAsync(request, cancellationToken);
+        var (success, userId, errors) = await userAdminService.CreateUserAsync(request, cancellationToken);
         if (!success)
             return BadRequest(new AuthErrorResponse("No se pudo crear el usuario.", errors));
-        return CreatedAtAction(nameof(GetById), new { userId = request.Email }, new { message = "Usuario creado." });
+        return CreatedAtAction(nameof(GetById), new { userId }, new { message = "Usuario creado." });
     }
 
     /// <summary>Actualiza el nombre completo de un usuario.</summary>
