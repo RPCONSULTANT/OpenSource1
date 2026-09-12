@@ -265,6 +265,18 @@ User Secrets tiene prioridad sobre `appsettings.json` en `Development`, así que
 placeholders `__SET_IN_USER_SECRETS__` nunca llegan a usarse en tiempo de ejecución una
 vez configurados.
 
+`src/OpenSource1.Api/appsettings.Development.json` tampoco está versionado, por el mismo
+motivo (tenía las mismas credenciales de ejemplo hardcodeadas). Es opcional: si no existe,
+la API arranca igual con `appsettings.json` + User Secrets, solo se pierde el ajuste de
+`Jwt:ExpirationMinutes: 120` propio de Development. Para recrearlo:
+
+```bash
+cp src/OpenSource1.Api/appsettings.Development.Example.json src/OpenSource1.Api/appsettings.Development.json
+```
+
+Ya trae los mismos placeholders `__SET_IN_USER_SECRETS__`; los User Secrets configurados
+arriba también aplican aquí (misma `UserSecretsId`, no hace falta repetir el comando).
+
 ## Ejecución con Docker Compose
 
 Levantar el sistema:
