@@ -34,4 +34,13 @@ public class UnidadMedidaTests
         Assert.Equal("codigo", error.Campo);
         Assert.Contains("XYZ", error.Mensaje);
     }
+
+    [Fact]
+    public void Of_ConNombreCampoExplicito_UsaEseNombreEnLugarDelParametro()
+    {
+        var excepcion = Assert.Throws<ErroresDeDominioException>(() => UnidadMedida.Of("", "UnidadMedidaCodigo"));
+
+        var error = Assert.Single(excepcion.Errores);
+        Assert.Equal("UnidadMedidaCodigo", error.Campo);
+    }
 }

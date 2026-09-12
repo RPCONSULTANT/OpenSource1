@@ -23,4 +23,14 @@ public class DireccionClienteTests
         Assert.Equal("direccion.linea1_requerida", error.Codigo);
         Assert.Equal("linea1", error.Campo);
     }
+
+    [Fact]
+    public void Constructor_ConNombreCampoExplicito_UsaEseNombreEnLugarDelParametro()
+    {
+        var excepcion = Assert.Throws<ErroresDeDominioException>(
+            () => new DireccionCliente("   ", null, "DireccionLinea1"));
+
+        var error = Assert.Single(excepcion.Errores);
+        Assert.Equal("DireccionLinea1", error.Campo);
+    }
 }

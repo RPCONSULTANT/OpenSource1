@@ -34,4 +34,22 @@ public class PaisTests
         Assert.Equal("codigo", error.Campo);
         Assert.Contains("XX", error.Mensaje);
     }
+
+    [Fact]
+    public void Of_ConNombreCampoExplicito_UsaEseNombreEnLugarDelParametro()
+    {
+        var excepcion = Assert.Throws<ErroresDeDominioException>(() => Pais.Of("", "PaisCodigo"));
+
+        var error = Assert.Single(excepcion.Errores);
+        Assert.Equal("PaisCodigo", error.Campo);
+    }
+
+    [Fact]
+    public void Of_ConCodigoInvalidoYNombreCampoExplicito_UsaEseNombreEnLugarDelParametro()
+    {
+        var excepcion = Assert.Throws<ErroresDeDominioException>(() => Pais.Of("XX", "PaisCodigo"));
+
+        var error = Assert.Single(excepcion.Errores);
+        Assert.Equal("PaisCodigo", error.Campo);
+    }
 }

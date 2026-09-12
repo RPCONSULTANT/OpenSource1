@@ -42,4 +42,20 @@ public class UsuarioValidationTests
         Assert.Equal("usuario.nombre_completo_requerido", error.Codigo);
         Assert.Equal("fullName", error.Campo);
     }
+
+    [Fact]
+    public void Constructor_ConNombresDeCampoExplicitos_UsanEsosNombresEnLugarDeLosParametros()
+    {
+        var excepcionUserName = Assert.Throws<ErroresDeDominioException>(
+            () => new Usuario("   ", "user@mail.com", "Nombre Completo", "UserName", "Email", "FullName"));
+        Assert.Equal("UserName", Assert.Single(excepcionUserName.Errores).Campo);
+
+        var excepcionEmail = Assert.Throws<ErroresDeDominioException>(
+            () => new Usuario("rainiery", "   ", "Nombre Completo", "UserName", "Email", "FullName"));
+        Assert.Equal("Email", Assert.Single(excepcionEmail.Errores).Campo);
+
+        var excepcionFullName = Assert.Throws<ErroresDeDominioException>(
+            () => new Usuario("rainiery", "user@mail.com", "   ", "UserName", "Email", "FullName"));
+        Assert.Equal("FullName", Assert.Single(excepcionFullName.Errores).Campo);
+    }
 }

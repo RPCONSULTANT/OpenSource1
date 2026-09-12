@@ -18,8 +18,8 @@ public sealed class UpdateProductoCommandHandler(IUnitOfWork unitOfWork) : IRequ
         entity.Nombre = request.Nombre.Trim();
         entity.Precio = request.Precio;
         entity.Stock = request.Stock;
-        entity.Categoria = new CategoriaProducto(request.CategoriaCodigo, request.CategoriaNombre);
-        entity.UnidadMedida = UnidadMedida.Of(request.UnidadMedidaCodigo);
+        entity.Categoria = new CategoriaProducto(request.CategoriaCodigo, request.CategoriaNombre, nameof(request.CategoriaCodigo), nameof(request.CategoriaNombre));
+        entity.UnidadMedida = UnidadMedida.Of(request.UnidadMedidaCodigo, nameof(request.UnidadMedidaCodigo));
         entity.ImagePath = request.ImagePath;
         repo.Update(entity); await unitOfWork.SaveChangesAsync(cancellationToken); return CreateProductoCommandHandler.ToResponse(entity);
     }

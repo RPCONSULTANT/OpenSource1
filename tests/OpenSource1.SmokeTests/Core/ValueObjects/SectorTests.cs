@@ -22,4 +22,13 @@ public class SectorTests
         Assert.Equal("sector.nombre_requerido", error.Codigo);
         Assert.Equal("nombre", error.Campo);
     }
+
+    [Fact]
+    public void Constructor_ConNombreCampoExplicito_UsaEseNombreEnLugarDelParametro()
+    {
+        var excepcion = Assert.Throws<ErroresDeDominioException>(() => new Sector("   ", "Sector"));
+
+        var error = Assert.Single(excepcion.Errores);
+        Assert.Equal("Sector", error.Campo);
+    }
 }

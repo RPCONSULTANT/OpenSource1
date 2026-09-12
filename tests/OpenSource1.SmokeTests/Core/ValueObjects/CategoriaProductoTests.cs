@@ -33,4 +33,24 @@ public class CategoriaProductoTests
         Assert.Equal("categoria_producto.nombre_requerido", error.Codigo);
         Assert.Equal("nombre", error.Campo);
     }
+
+    [Fact]
+    public void Constructor_ConCodigoVacioYNombreCampoExplicito_UsaEseNombreEnLugarDelParametro()
+    {
+        var excepcion = Assert.Throws<ErroresDeDominioException>(
+            () => new CategoriaProducto("  ", "General", "CategoriaCodigo", "CategoriaNombre"));
+
+        var error = Assert.Single(excepcion.Errores);
+        Assert.Equal("CategoriaCodigo", error.Campo);
+    }
+
+    [Fact]
+    public void Constructor_ConNombreVacioYNombreCampoExplicito_UsaEseNombreEnLugarDelParametro()
+    {
+        var excepcion = Assert.Throws<ErroresDeDominioException>(
+            () => new CategoriaProducto("GEN", "  ", "CategoriaCodigo", "CategoriaNombre"));
+
+        var error = Assert.Single(excepcion.Errores);
+        Assert.Equal("CategoriaNombre", error.Campo);
+    }
 }

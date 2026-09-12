@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
@@ -41,6 +42,82 @@ public class GlobalExceptionHandlerTests
         Assert.Contains("\"Precio\"", cuerpo);
         Assert.Contains("El valor 'abc' no es válido para el filtro 'Precio'.", cuerpo);
         Assert.DoesNotContain("<html", cuerpo, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task TryHandleAsync_ConVariosErroresDelMismoCampo_LosFusionaEnUnArray()
+    {
+        var handler = CrearHandler(entornoDesarrollo: false);
+
+        var excepcion = new ErroresDeDominioException(
+        [
+            new Error("cliente.email_invalido", "El email no tiene un formato válido.", "Email"),
+            new Error("cliente.email_duplicado", "Ya existe un cliente con ese email.", "Email"),
+        ]);
+
+        var httpContext = new DefaultHttpContext
+        {
+            Response = { Body = new MemoryStream() },
+        };
+
+        await handler.TryHandleAsync(httpContext, excepcion, CancellationToken.None);
+
+        var errores = await LeerErroresAsync(httpContext);
+        Assert.Single(errores.EnumerateObject());
+        var mensajesEmail = errores.GetProperty("Email");
+        Assert.Equal(2, mensajesEmail.GetArrayLength());
+        Assert.Equal("El email no tiene un formato válido.", mensajesEmail[0].GetString());
+        Assert.Equal("Ya existe un cliente con ese email.", mensajesEmail[1].GetString());
+    }
+
+    [Fact]
+    public async Task TryHandleAsync_ConErroresDeCamposDistintos_UsaClavesSeparadas()
+    {
+        var handler = CrearHandler(entornoDesarrollo: false);
+
+        var excepcion = new ErroresDeDominioException(
+        [
+            new Error("cliente.email_invalido", "El email no es válido.", "Email"),
+            new Error("cliente.pais_invalido", "El país no es válido.", "PaisCodigo"),
+        ]);
+
+        var httpContext = new DefaultHttpContext
+        {
+            Response = { Body = new MemoryStream() },
+        };
+
+        await handler.TryHandleAsync(httpContext, excepcion, CancellationToken.None);
+
+        var errores = await LeerErroresAsync(httpContext);
+        Assert.Equal(2, errores.EnumerateObject().Count());
+        Assert.Single(errores.GetProperty("Email").EnumerateArray());
+        Assert.Single(errores.GetProperty("PaisCodigo").EnumerateArray());
+    }
+
+    [Fact]
+    public async Task TryHandleAsync_ConErrorDeCampoNulo_CaeBajoClaveVaciaSinColisionar()
+    {
+        var handler = CrearHandler(entornoDesarrollo: false);
+
+        var excepcion = new ErroresDeDominioException(
+        [
+            new Error("cliente.regla_general", "Regla de negocio general violada.", null),
+            new Error("cliente.email_invalido", "El email no es válido.", "Email"),
+        ]);
+
+        var httpContext = new DefaultHttpContext
+        {
+            Response = { Body = new MemoryStream() },
+        };
+
+        await handler.TryHandleAsync(httpContext, excepcion, CancellationToken.None);
+
+        var errores = await LeerErroresAsync(httpContext);
+        Assert.Equal(2, errores.EnumerateObject().Count());
+        Assert.True(errores.TryGetProperty("", out var claveVacia));
+        var mensajesClaveVacia = Assert.Single(claveVacia.EnumerateArray());
+        Assert.Equal("Regla de negocio general violada.", mensajesClaveVacia.GetString());
+        Assert.Single(errores.GetProperty("Email").EnumerateArray());
     }
 
     [Fact]
@@ -102,6 +179,14 @@ public class GlobalExceptionHandlerTests
         httpContext.Response.Body.Seek(0, SeekOrigin.Begin);
         using var reader = new StreamReader(httpContext.Response.Body);
         return await reader.ReadToEndAsync();
+    }
+
+    /// <summary>Parsea el cuerpo y devuelve la propiedad "errors" del ValidationProblemDetails.</summary>
+    private static async Task<JsonElement> LeerErroresAsync(DefaultHttpContext httpContext)
+    {
+        var cuerpo = await LeerCuerpoAsync(httpContext);
+        using var documento = JsonDocument.Parse(cuerpo);
+        return documento.RootElement.GetProperty("errors").Clone();
     }
 
     private sealed class FakeHostEnvironment : IHostEnvironment

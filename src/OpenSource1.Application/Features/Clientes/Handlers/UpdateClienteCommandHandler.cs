@@ -18,9 +18,9 @@ public sealed class UpdateClienteCommandHandler(IUnitOfWork unitOfWork) : IReque
         entity.Apellido = request.Apellido.Trim();
         entity.Email = request.Email.Trim();
         entity.Telefono = request.Telefono?.Trim();
-        entity.Direccion = string.IsNullOrWhiteSpace(request.DireccionLinea1) ? null : new DireccionCliente(request.DireccionLinea1, request.DireccionLinea2);
-        entity.Sector = string.IsNullOrWhiteSpace(request.Sector) ? null : new Sector(request.Sector);
-        entity.Pais = string.IsNullOrWhiteSpace(request.PaisCodigo) ? null : Pais.Of(request.PaisCodigo);
+        entity.Direccion = string.IsNullOrWhiteSpace(request.DireccionLinea1) ? null : new DireccionCliente(request.DireccionLinea1, request.DireccionLinea2, nameof(request.DireccionLinea1));
+        entity.Sector = string.IsNullOrWhiteSpace(request.Sector) ? null : new Sector(request.Sector, nameof(request.Sector));
+        entity.Pais = string.IsNullOrWhiteSpace(request.PaisCodigo) ? null : Pais.Of(request.PaisCodigo, nameof(request.PaisCodigo));
         entity.ImagePath = request.ImagePath;
         repo.Update(entity); await unitOfWork.SaveChangesAsync(cancellationToken); return CreateClienteCommandHandler.ToResponse(entity);
     }
