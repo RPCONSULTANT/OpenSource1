@@ -46,21 +46,17 @@ builder.Services.AddCors(options =>
 {
     var corsOptions = builder.Configuration.GetSection(CorsOptions.SectionName).Get<CorsOptions>() ?? new CorsOptions();
 
-    options.AddPolicy(CorsOptions.PolicyName, policy =>
+    if (corsOptions.AllowedOrigins.Length == 0)
     {
-        if (corsOptions.AllowedOrigins.Length > 0)
-        {
-            policy.WithOrigins(corsOptions.AllowedOrigins)
-                .AllowAnyHeader()
-                .AllowAnyMethod();
-        }
-        else
-        {
-            policy.AllowAnyOrigin()
-                .AllowAnyHeader()
-                .AllowAnyMethod();
-        }
-    });
+        throw new InvalidOperationException(
+            "La sección 'Cors:AllowedOrigins' está vacía. Configure los orígenes permitidos; " +
+            "no se permite el fallback a AllowAnyOrigin.");
+    }
+
+    options.AddPolicy(CorsOptions.PolicyName, policy =>
+        policy.WithOrigins(corsOptions.AllowedOrigins)
+            .AllowAnyHeader()
+            .AllowAnyMethod());
 });
 
 builder.Services.AddControllers();
