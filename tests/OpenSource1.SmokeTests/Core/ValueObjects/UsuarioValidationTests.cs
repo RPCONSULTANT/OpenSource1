@@ -14,7 +14,7 @@ public class UsuarioValidationTests
     public void Constructor_ConUserNameVacio_LanzaErroresDeDominioConCampoUserName()
     {
         var excepcion = Assert.Throws<ErroresDeDominioException>(
-            () => new Usuario("   ", "user@mail.com", "Nombre Completo"));
+            () => Usuario.Of("   ", "user@mail.com", "Nombre Completo"));
 
         var error = Assert.Single(excepcion.Errores);
         Assert.Equal("usuario.username_requerido", error.Codigo);
@@ -25,7 +25,7 @@ public class UsuarioValidationTests
     public void Constructor_ConEmailVacio_LanzaErroresDeDominioConCampoEmail()
     {
         var excepcion = Assert.Throws<ErroresDeDominioException>(
-            () => new Usuario("rainiery", "   ", "Nombre Completo"));
+            () => Usuario.Of("rainiery", "   ", "Nombre Completo"));
 
         var error = Assert.Single(excepcion.Errores);
         Assert.Equal("usuario.email_requerido", error.Codigo);
@@ -36,7 +36,7 @@ public class UsuarioValidationTests
     public void Constructor_ConFullNameVacio_LanzaErroresDeDominioConCampoFullName()
     {
         var excepcion = Assert.Throws<ErroresDeDominioException>(
-            () => new Usuario("rainiery", "user@mail.com", "   "));
+            () => Usuario.Of("rainiery", "user@mail.com", "   "));
 
         var error = Assert.Single(excepcion.Errores);
         Assert.Equal("usuario.nombre_completo_requerido", error.Codigo);
@@ -47,15 +47,15 @@ public class UsuarioValidationTests
     public void Constructor_ConNombresDeCampoExplicitos_UsanEsosNombresEnLugarDeLosParametros()
     {
         var excepcionUserName = Assert.Throws<ErroresDeDominioException>(
-            () => new Usuario("   ", "user@mail.com", "Nombre Completo", "UserName", "Email", "FullName"));
+            () => Usuario.Of("   ", "user@mail.com", "Nombre Completo", "UserName", "Email", "FullName"));
         Assert.Equal("UserName", Assert.Single(excepcionUserName.Errores).Campo);
 
         var excepcionEmail = Assert.Throws<ErroresDeDominioException>(
-            () => new Usuario("rainiery", "   ", "Nombre Completo", "UserName", "Email", "FullName"));
+            () => Usuario.Of("rainiery", "   ", "Nombre Completo", "UserName", "Email", "FullName"));
         Assert.Equal("Email", Assert.Single(excepcionEmail.Errores).Campo);
 
         var excepcionFullName = Assert.Throws<ErroresDeDominioException>(
-            () => new Usuario("rainiery", "user@mail.com", "   ", "UserName", "Email", "FullName"));
+            () => Usuario.Of("rainiery", "user@mail.com", "   ", "UserName", "Email", "FullName"));
         Assert.Equal("FullName", Assert.Single(excepcionFullName.Errores).Campo);
     }
 }

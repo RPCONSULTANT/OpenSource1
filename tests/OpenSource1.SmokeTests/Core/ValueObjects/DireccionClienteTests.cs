@@ -8,7 +8,7 @@ public class DireccionClienteTests
     [Fact]
     public void Constructor_ConLinea1Valida_NormalizaLineas()
     {
-        var direccion = new DireccionCliente(" Calle 1 ", " Apto 2 ");
+        var direccion = DireccionCliente.Of(" Calle 1 ", " Apto 2 ");
 
         Assert.Equal("Calle 1", direccion.Linea1);
         Assert.Equal("Apto 2", direccion.Linea2);
@@ -17,7 +17,7 @@ public class DireccionClienteTests
     [Fact]
     public void Constructor_ConLinea1Vacia_LanzaErroresDeDominioConCampoLinea1()
     {
-        var excepcion = Assert.Throws<ErroresDeDominioException>(() => new DireccionCliente("   ", null));
+        var excepcion = Assert.Throws<ErroresDeDominioException>(() => DireccionCliente.Of("   ", null));
 
         var error = Assert.Single(excepcion.Errores);
         Assert.Equal("direccion.linea1_requerida", error.Codigo);
@@ -28,7 +28,7 @@ public class DireccionClienteTests
     public void Constructor_ConNombreCampoExplicito_UsaEseNombreEnLugarDelParametro()
     {
         var excepcion = Assert.Throws<ErroresDeDominioException>(
-            () => new DireccionCliente("   ", null, "DireccionLinea1"));
+            () => DireccionCliente.Of("   ", null, "DireccionLinea1"));
 
         var error = Assert.Single(excepcion.Errores);
         Assert.Equal("DireccionLinea1", error.Campo);

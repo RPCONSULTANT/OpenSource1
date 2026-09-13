@@ -5,6 +5,17 @@ namespace OpenSource1.Core.ValueObjects;
 
 public sealed class Usuario : ValueObject
 {
+    private Usuario(string userName, string email, string fullName)
+    {
+        UserName = userName;
+        Email = email;
+        FullName = fullName;
+    }
+
+    public string UserName { get; }
+    public string Email { get; }
+    public string FullName { get; }
+
     /// <param name="userName">Nombre de usuario.</param>
     /// <param name="email">Correo electrónico.</param>
     /// <param name="fullName">Nombre completo.</param>
@@ -14,7 +25,7 @@ public sealed class Usuario : ValueObject
     /// </param>
     /// <param name="nombreCampoEmail">Igual que <paramref name="nombreCampoUserName"/> pero para <paramref name="email"/>.</param>
     /// <param name="nombreCampoFullName">Igual que <paramref name="nombreCampoUserName"/> pero para <paramref name="fullName"/>.</param>
-    public Usuario(
+    public static Usuario Of(
         string userName,
         string email,
         string fullName,
@@ -40,14 +51,8 @@ public sealed class Usuario : ValueObject
                 "usuario.nombre_completo_requerido", "El nombre completo es obligatorio.", nombreCampoFullName ?? nameof(fullName)));
         }
 
-        UserName = userName.Trim();
-        Email = email.Trim().ToLowerInvariant();
-        FullName = fullName.Trim();
+        return new Usuario(userName.Trim(), email.Trim().ToLowerInvariant(), fullName.Trim());
     }
-
-    public string UserName { get; }
-    public string Email { get; }
-    public string FullName { get; }
 
     protected override IEnumerable<object?> GetEqualityComponents()
     {

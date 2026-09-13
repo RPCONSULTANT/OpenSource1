@@ -17,8 +17,8 @@ public sealed class CreateClienteCommandHandler(IUnitOfWork unitOfWork) : IReque
             Apellido = request.Apellido.Trim(),
             Email = request.Email.Trim(),
             Telefono = request.Telefono?.Trim(),
-            Direccion = string.IsNullOrWhiteSpace(request.DireccionLinea1) ? null : new DireccionCliente(request.DireccionLinea1, request.DireccionLinea2, nameof(request.DireccionLinea1)),
-            Sector = string.IsNullOrWhiteSpace(request.Sector) ? null : new Sector(request.Sector, nameof(request.Sector)),
+            Direccion = string.IsNullOrWhiteSpace(request.DireccionLinea1) ? null : DireccionCliente.Of(request.DireccionLinea1, request.DireccionLinea2, nameof(request.DireccionLinea1)),
+            Sector = string.IsNullOrWhiteSpace(request.Sector) ? null : Sector.Of(request.Sector, nameof(request.Sector)),
             Pais = string.IsNullOrWhiteSpace(request.PaisCodigo) ? null : Pais.Of(request.PaisCodigo, nameof(request.PaisCodigo)),
             ImagePath = request.ImagePath
         };
