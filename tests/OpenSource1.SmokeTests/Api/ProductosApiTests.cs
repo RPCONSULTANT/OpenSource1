@@ -2,6 +2,8 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
+using OpenSource1.Application.Features.Productos.Dtos;
+using OpenSource1.Core.Common;
 using OpenSource1.SmokeTests.TestInfrastructure;
 
 namespace OpenSource1.SmokeTests.Api;
@@ -34,6 +36,13 @@ public sealed class ProductosApiTests : IClassFixture<PostgresTestFixture>
 
         var created = JsonDocument.Parse(await create.Content.ReadAsStringAsync()).RootElement.GetProperty("id").GetGuid();
 
+        var list = await client.GetAsync("/api/productos");
+        Assert.Equal(HttpStatusCode.OK, list.StatusCode);
+        var paged = await list.Content.ReadFromJsonAsync<PagedResult<ProductoResponse>>();
+        Assert.NotNull(paged);
+        Assert.Contains(paged!.Items, p => p.Id == created);
+        Assert.True(paged.Total >= 1);
+
         Assert.Equal(HttpStatusCode.OK, (await client.GetAsync($"/api/productos/{created}")).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/productos/{created}", new { codigo, nombre = "Prod 2", categoriaCodigo = "GEN", categoriaNombre = "General", unidadMedidaCodigo = "UND", precio = 11m, stock = 7 })).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/api/productos/{Guid.NewGuid()}")).StatusCode);
@@ -42,6 +51,50 @@ public sealed class ProductosApiTests : IClassFixture<PostgresTestFixture>
         Assert.Equal(HttpStatusCode.Forbidden, (await CreateClient("Ejecutor").DeleteAsync($"/api/productos/{created}")).StatusCode);
 
         Assert.Equal(HttpStatusCode.NoContent, (await CreateClient("Administrador").DeleteAsync($"/api/productos/{created}")).StatusCode);
+    }
+
+    [Fact]
+    public async Task List_RespetaElTamanoDePaginaYDevuelveElTotal()
+    {
+        var client = CreateClient("Administrador");
+
+        for (var i = 0; i < 3; i++)
+        {
+            var codigo = $"PAG-{Guid.NewGuid():N}";
+            var create = await client.PostAsJsonAsync("/api/productos", new { codigo, nombre = $"ProdPag{i}", categoriaCodigo = "GEN", categoriaNombre = "General", unidadMedidaCodigo = "UND", precio = 1m, stock = 1 });
+            Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+        }
+
+        var response = await client.GetAsync("/api/productos?tamanoPagina=2&pagina=1");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var paged = await response.Content.ReadFromJsonAsync<PagedResult<ProductoResponse>>();
+        Assert.NotNull(paged);
+        Assert.Equal(2, paged!.Items.Count);
+        Assert.True(paged.Total >= 3);
+        Assert.True(paged.TotalPaginas >= 2);
+    }
+
+    [Fact]
+    public async Task List_FiltroDePrecioInvalido_Devuelve400SinLanzar()
+    {
+        var client = CreateClient("Administrador");
+
+        var response = await client.GetAsync("/api/productos?precio=no-es-un-numero");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task List_ColumnaDeOrdenNoPermitida_CaeAlOrdenPorDefectoSinRomper()
+    {
+        var client = CreateClient("Administrador");
+
+        var response = await client.GetAsync("/api/productos?ordenarPor=" + Uri.EscapeDataString("\"; DROP TABLE \"Productos") + "&tamanoPagina=10");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var paged = await response.Content.ReadFromJsonAsync<PagedResult<ProductoResponse>>();
+        Assert.NotNull(paged);
     }
 
     private HttpClient CreateClient(string role)
