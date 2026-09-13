@@ -24,6 +24,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.Property(setting => setting.CreatedBy).HasMaxLength(100).IsRequired();
             entity.Property(setting => setting.UpdatedBy).HasMaxLength(100);
             entity.HasIndex(setting => setting.Key).IsUnique();
+            entity.Property<uint>("xmin").HasColumnName("xmin").IsRowVersion();
         });
 
         modelBuilder.Entity<Entrada>(entity =>
@@ -36,6 +37,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.Property(e => e.Estado).HasMaxLength(50).IsRequired();
             entity.Property(e => e.CreatedBy).HasMaxLength(100).IsRequired();
             entity.Property(e => e.UpdatedBy).HasMaxLength(100);
+            entity.Property<uint>("xmin").HasColumnName("xmin").IsRowVersion();
         });
 
         modelBuilder.Entity<Cliente>(entity =>
@@ -49,6 +51,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.Property(x => x.ImagePath).HasMaxLength(500);
             entity.Property(x => x.CreatedBy).HasMaxLength(100).IsRequired();
             entity.Property(x => x.UpdatedBy).HasMaxLength(100);
+            entity.Property<uint>("xmin").HasColumnName("xmin").IsRowVersion();
 
             entity.ComplexProperty(x => x.Direccion, direccion =>
             {
@@ -77,6 +80,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.Property(x => x.CreatedBy).HasMaxLength(100).IsRequired();
             entity.Property(x => x.UpdatedBy).HasMaxLength(100);
             entity.HasIndex(x => x.Codigo).IsUnique();
+            entity.Property<uint>("xmin").HasColumnName("xmin").IsRowVersion();
 
             entity.ComplexProperty(x => x.Categoria, categoria =>
             {

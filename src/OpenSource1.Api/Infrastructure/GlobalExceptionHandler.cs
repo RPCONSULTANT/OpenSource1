@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using OpenSource1.Core.Common;
 
 namespace OpenSource1.Api.Infrastructure;
@@ -42,9 +43,27 @@ public sealed class GlobalExceptionHandler(
             });
         }
 
-        // Task 1.9 (lote posterior): mapear DbUpdateConcurrencyException a 409
-        // ("El registro fue modificado por otro usuario."). No implementado aquí a propósito.
-        // if (exception is DbUpdateConcurrencyException) { ... }
+        if (exception is DbUpdateConcurrencyException concurrencia)
+        {
+            logger.LogWarning(
+                concurrencia,
+                "Conflicto de concurrencia optimista: el registro fue modificado por otro usuario.");
+
+            var problemaConcurrencia = new ProblemDetails
+            {
+                Status = StatusCodes.Status409Conflict,
+                Title = "El registro fue modificado por otro usuario.",
+            };
+
+            httpContext.Response.StatusCode = StatusCodes.Status409Conflict;
+
+            return await problemDetailsService.TryWriteAsync(new ProblemDetailsContext
+            {
+                HttpContext = httpContext,
+                Exception = exception,
+                ProblemDetails = problemaConcurrencia,
+            });
+        }
 
         logger.LogError(exception, "Excepción no controlada.");
 

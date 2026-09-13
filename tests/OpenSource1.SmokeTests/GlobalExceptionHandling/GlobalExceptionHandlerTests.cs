@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
@@ -118,6 +119,28 @@ public class GlobalExceptionHandlerTests
         var mensajesClaveVacia = Assert.Single(claveVacia.EnumerateArray());
         Assert.Equal("Regla de negocio general violada.", mensajesClaveVacia.GetString());
         Assert.Single(errores.GetProperty("Email").EnumerateArray());
+    }
+
+    [Fact]
+    public async Task TryHandleAsync_ConDbUpdateConcurrencyException_Devuelve409ConTituloEsperado()
+    {
+        var handler = CrearHandler(entornoDesarrollo: false);
+
+        var excepcion = new DbUpdateConcurrencyException("Concurrency conflict.");
+
+        var httpContext = new DefaultHttpContext
+        {
+            Response = { Body = new MemoryStream() },
+        };
+
+        var manejada = await handler.TryHandleAsync(httpContext, excepcion, CancellationToken.None);
+
+        Assert.True(manejada);
+        Assert.Equal(StatusCodes.Status409Conflict, httpContext.Response.StatusCode);
+
+        var cuerpo = await LeerCuerpoAsync(httpContext);
+        Assert.Contains("El registro fue modificado por otro usuario.", cuerpo);
+        Assert.DoesNotContain("<html", cuerpo, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
