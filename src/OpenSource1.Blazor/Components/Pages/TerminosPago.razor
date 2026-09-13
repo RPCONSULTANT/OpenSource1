@@ -188,7 +188,7 @@
             <div class="px-6 py-5">
                 @if (EditId.HasValue && UpdateInput?.Id != EditId)
                 {
-                    <MessageBox Type="warning" Message="El registro seleccionado no está en la página actual. Ajuste los filtros o la página para poder editarlo." />
+                    <MessageBox Type="warning" Message="No se encontró el término de pago seleccionado. Puede haber sido eliminado por otro usuario." />
                 }
                 <EditForm Model="UpdateInput" FormName="update-terminopago" OnValidSubmit="PrepareUpdateConfirmation">
                     <DataAnnotationsValidator />
@@ -338,15 +338,23 @@
 
         if (EditId.HasValue && UpdateInput.Id == Guid.Empty)
         {
-            var termino = terminos.FirstOrDefault(t => t.Id == EditId.Value);
-            if (termino is not null)
+            try
             {
-                UpdateInput.Id = termino.Id;
-                UpdateInput.Codigo = termino.Codigo;
-                UpdateInput.Descripcion = termino.Descripcion;
-                UpdateInput.DiasVencimiento = termino.DiasVencimiento;
-                UpdateInput.DiasDescuento = termino.DiasDescuento;
-                UpdateInput.PorcentajeDescuento = termino.PorcentajeDescuento;
+                var termino = await TerminoPagoApiClient.GetByIdAsync(EditId.Value);
+                if (termino is not null)
+                {
+                    UpdateInput.Id = termino.Id;
+                    UpdateInput.Codigo = termino.Codigo;
+                    UpdateInput.Descripcion = termino.Descripcion;
+                    UpdateInput.DiasVencimiento = termino.DiasVencimiento;
+                    UpdateInput.DiasDescuento = termino.DiasDescuento;
+                    UpdateInput.PorcentajeDescuento = termino.PorcentajeDescuento;
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Could not load termino de pago {EditId} from API.", EditId);
+                Show("danger", "No fue posible cargar el término de pago a modificar.");
             }
         }
     }

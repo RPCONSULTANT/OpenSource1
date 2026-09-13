@@ -6,6 +6,7 @@ namespace OpenSource1.Blazor.Services;
 public interface ITerminoPagoApiClient
 {
     Task<PagedResult<TerminoPagoResponse>> ListAsync(TerminoPagoSearchFilter? filter = null, PageRequest? paginacion = null, CancellationToken cancellationToken = default);
+    Task<TerminoPagoResponse?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
     Task<TerminoPagoOperationResult> CreateAsync(TerminoPagoInput input, CancellationToken cancellationToken = default);
     Task<TerminoPagoOperationResult> UpdateAsync(Guid id, TerminoPagoInput input, CancellationToken cancellationToken = default);
     Task<TerminoPagoOperationResult> DeleteAsync(Guid id, CancellationToken cancellationToken = default);

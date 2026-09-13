@@ -25,6 +25,28 @@ public sealed class TerminoPagoApiClient(HttpClient httpClient, ILogger<TerminoP
             ?? PagedResult<TerminoPagoResponse>.Vacio(paginacion ?? new PageRequest());
     }
 
+    public async Task<TerminoPagoResponse?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        using var response = await httpClient.GetAsync($"api/terminos-pago/{id}", cancellationToken);
+
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var body = await response.Content.ReadAsStringAsync(cancellationToken);
+            logger.LogWarning("TerminosPago GET BY ID returned {StatusCode}. Body: {Body}", response.StatusCode, body);
+            throw new HttpRequestException(
+                $"El servidor devolvió {(int)response.StatusCode} al obtener el término de pago.",
+                inner: null,
+                statusCode: response.StatusCode);
+        }
+
+        return await response.Content.ReadFromJsonAsync<TerminoPagoResponse>(cancellationToken);
+    }
+
     private static string BuildListUrl(TerminoPagoSearchFilter? filter, PageRequest? paginacion)
     {
         var parameters = new List<string>();
