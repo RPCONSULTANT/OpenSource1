@@ -1,3 +1,4 @@
+using FluentValidation;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -44,8 +45,33 @@ public sealed class GlobalExceptionHandler(
             });
         }
 
+        if (exception is FluentValidation.ValidationException validacion)
+        {
+            logger.LogWarning(
+                exception,
+                "ValidationException de FluentValidation no capturada en la capa correspondiente.");
+
+            var problemaValidacion = new ValidationProblemDetails(
+                validacion.Errors
+                    .GroupBy(e => e.PropertyName ?? string.Empty)
+                    .ToDictionary(g => g.Key, g => g.Select(e => e.ErrorMessage).ToArray()))
+            {
+                Status = StatusCodes.Status400BadRequest,
+                Title = "Los datos enviados no son válidos.",
+            };
+
+            httpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
+
+            return await problemDetailsService.TryWriteAsync(new ProblemDetailsContext
+            {
+                HttpContext = httpContext,
+                Exception = exception,
+                ProblemDetails = problemaValidacion,
+            });
+        }
+
         // DbUpdateConcurrencyException hereda de DbUpdateException: se comprueba primero para
-        // que no caiga en la rama de más abajo, pensada para violaciones de restricción única.
+        // que no caiga en la rama genérica de más abajo, pensada para violaciones de restricción.
         if (exception is DbUpdateConcurrencyException concurrencia)
         {
             logger.LogWarning(

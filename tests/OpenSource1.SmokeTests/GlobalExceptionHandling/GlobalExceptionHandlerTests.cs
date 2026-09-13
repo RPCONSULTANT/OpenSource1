@@ -144,6 +144,41 @@ public class GlobalExceptionHandlerTests
     }
 
     [Fact]
+    public async Task TryHandleAsync_ConValidationExceptionDeFluentValidation_Devuelve400ConCampoNombrado()
+    {
+        var handler = CrearHandler(entornoDesarrollo: false);
+
+        var excepcion = new FluentValidation.ValidationException(
+        [
+            new FluentValidation.Results.ValidationFailure("Email", "El email no tiene un formato válido."),
+            new FluentValidation.Results.ValidationFailure("Email", "El email ya está en uso."),
+            new FluentValidation.Results.ValidationFailure("Nombre", "El nombre es obligatorio."),
+        ]);
+
+        var httpContext = new DefaultHttpContext
+        {
+            Response = { Body = new MemoryStream() },
+        };
+
+        var manejada = await handler.TryHandleAsync(httpContext, excepcion, CancellationToken.None);
+
+        Assert.True(manejada);
+        Assert.Equal(StatusCodes.Status400BadRequest, httpContext.Response.StatusCode);
+
+        var cuerpo = await LeerCuerpoAsync(httpContext);
+        Assert.DoesNotContain("<html", cuerpo, StringComparison.OrdinalIgnoreCase);
+
+        using var documento = JsonDocument.Parse(cuerpo);
+        var errores = documento.RootElement.GetProperty("errors");
+        Assert.Equal(2, errores.EnumerateObject().Count());
+        var mensajesEmail = errores.GetProperty("Email");
+        Assert.Equal(2, mensajesEmail.GetArrayLength());
+        Assert.Equal("El email no tiene un formato válido.", mensajesEmail[0].GetString());
+        Assert.Equal("El email ya está en uso.", mensajesEmail[1].GetString());
+        Assert.Single(errores.GetProperty("Nombre").EnumerateArray());
+    }
+
+    [Fact]
     public async Task TryHandleAsync_ConExcepcionGenerica_Devuelve500SinDetalleEnProduccion()
     {
         var handler = CrearHandler(entornoDesarrollo: false);
