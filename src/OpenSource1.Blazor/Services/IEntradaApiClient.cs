@@ -1,4 +1,5 @@
 using OpenSource1.Application.Features.Entradas.Dtos;
+using OpenSource1.Core.Common;
 using System;
 
 namespace OpenSource1.Blazor.Services;
@@ -6,7 +7,7 @@ namespace OpenSource1.Blazor.Services;
 [Obsolete("Modulo de prueba obsoleto. No usar Entradas para nuevos desarrollos.")]
 public interface IEntradaApiClient
 {
-    Task<IReadOnlyList<EntradaResponse>> ListAsync(CancellationToken cancellationToken = default);
+    Task<PagedResult<EntradaResponse>> ListAsync(PageRequest? paginacion = null, CancellationToken cancellationToken = default);
     Task<EntradaOperationResult> CreateAsync(EntradaInput input, CancellationToken cancellationToken = default);
     Task<EntradaOperationResult> UpdateAsync(Guid id, EntradaInput input, CancellationToken cancellationToken = default);
     Task<EntradaOperationResult> DeleteAsync(Guid id, CancellationToken cancellationToken = default);

@@ -5,6 +5,7 @@
 @using OpenSource1.Application.Features.Entradas.Dtos
 @using OpenSource1.Application.Security
 @using OpenSource1.Blazor.Services
+@using OpenSource1.Core.Common
 @inject IEntradaApiClient EntradaApiClient
 @inject IAuthorizationService AuthorizationService
 @inject ILogger<Entradas> Logger
@@ -47,6 +48,7 @@
         </svg>
         <h2 class="text-sm font-semibold text-slate-700">Registros actuales</h2>
     </div>
+    <p class="px-6 pt-3 text-xs text-slate-500">@totalEntradas resultado(s) · página @Pagina de @Math.Max(totalPaginas, 1).</p>
     <div class="overflow-x-auto">
         <table class="min-w-full divide-y divide-slate-100 text-sm">
             <thead class="bg-slate-50">
@@ -89,7 +91,7 @@
                                 <div class="flex items-center justify-end gap-2">
                                     <AuthorizeView Policy="@ApplicationPolicies.CanModify">
                                         <Authorized>
-                                            <a href="/entradas?editId=@e.Id"
+                                            <a href="@BuildListUrl(editId: e.Id)"
                                                title="Editar entrada"
                                                class="inline-flex items-center justify-center size-8 rounded-lg border border-amber-200 bg-amber-50 text-amber-600 hover:bg-amber-100 hover:border-amber-300 transition-all duration-150">
                                                 <!-- heroicon: pencil-square -->
@@ -101,7 +103,7 @@
                                     </AuthorizeView>
                                     <AuthorizeView Policy="@ApplicationPolicies.CanDelete">
                                         <Authorized>
-                                            <a href="/entradas?deleteId=@e.Id"
+                                            <a href="@BuildListUrl(deleteId: e.Id)"
                                                title="Eliminar entrada"
                                                class="inline-flex items-center justify-center size-8 rounded-lg border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 hover:border-red-300 transition-all duration-150">
                                                 <!-- heroicon: trash -->
@@ -119,6 +121,22 @@
             </tbody>
         </table>
     </div>
+    @if (totalPaginas > 1)
+    {
+        <div class="flex items-center justify-between gap-3 border-t border-slate-100 px-6 py-4">
+            <p class="text-xs text-slate-500">Página @Pagina de @totalPaginas</p>
+            <div class="flex items-center gap-2">
+                @if (Pagina > 1)
+                {
+                    <a href="@BuildListUrl(pagina: Pagina - 1)" class="btn-press rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">« Anterior</a>
+                }
+                @if (Pagina < totalPaginas)
+                {
+                    <a href="@BuildListUrl(pagina: Pagina + 1)" class="btn-press rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">Siguiente »</a>
+                }
+            </div>
+        </div>
+    }
 </div>
 
 <!-- ── Formulario: Agregar (siempre visible para CanAdd) ── -->
@@ -365,6 +383,9 @@
     [SupplyParameterFromQuery(Name = "ok")]
     private string? Ok { get; set; }
 
+    [SupplyParameterFromQuery(Name = "pagina")]
+    private int Pagina { get; set; } = 1;
+
     // ── Form models ──
     [SupplyParameterFromForm(FormName = "create-entrada")]
     private EntradaForm? CreateInput { get; set; }
@@ -382,6 +403,8 @@
     private DeleteConfirmForm? DeleteInput { get; set; }
 
     private IReadOnlyList<EntradaResponse> entradas = [];
+    private long totalEntradas;
+    private int totalPaginas;
     private string? message;
     private string messageType = "info";
     private string? modalError;   // errores que se muestran dentro del modal activo
@@ -446,13 +469,29 @@
 
     private async Task LoadAsync()
     {
-        try   { entradas = await EntradaApiClient.ListAsync(); }
+        try
+        {
+            var pagina = await EntradaApiClient.ListAsync(new PageRequest(Pagina, PageRequest.TamanoPorDefecto));
+            entradas = pagina.Items;
+            totalEntradas = pagina.Total;
+            totalPaginas = pagina.TotalPaginas;
+        }
         catch (Exception ex)
         {
             Logger.LogWarning(ex, "Could not load entradas from API.");
             message     = "No fue posible cargar las entradas.";
             messageType = "danger";
         }
+    }
+
+    private string BuildListUrl(int? pagina = null, Guid? editId = null, Guid? deleteId = null)
+    {
+        var parameters = new List<string>();
+        var paginaEfectiva = pagina ?? Pagina;
+        if (paginaEfectiva > 1) parameters.Add($"pagina={paginaEfectiva}");
+        if (editId.HasValue) parameters.Add($"editId={editId.Value}");
+        if (deleteId.HasValue) parameters.Add($"deleteId={deleteId.Value}");
+        return parameters.Count == 0 ? "/entradas" : $"/entradas?{string.Join("&", parameters)}";
     }
 
     // ── Crear ────────────────────────────────────────────────

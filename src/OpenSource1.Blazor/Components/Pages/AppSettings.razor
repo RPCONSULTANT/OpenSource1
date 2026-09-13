@@ -4,6 +4,7 @@
 @using Microsoft.AspNetCore.Authorization
 @using OpenSource1.Application.Features.AppSettings.Dtos
 @using OpenSource1.Blazor.Services
+@using OpenSource1.Core.Common
 @inject IAppSettingsApiClient AppSettingsApiClient
 @inject IAuthorizationService AuthorizationService
 @inject ILogger<AppSettings> Logger
@@ -48,6 +49,7 @@
         </svg>
         <h2 class="text-sm font-semibold text-slate-700">Registros actuales</h2>
     </div>
+    <p class="px-6 pt-3 text-xs text-slate-500">@totalSettings resultado(s) · página @Pagina de @Math.Max(totalPaginas, 1).</p>
     <div class="overflow-x-auto">
         <table class="min-w-full divide-y divide-slate-100 text-sm">
             <thead class="bg-slate-50">
@@ -83,13 +85,13 @@
                                 <div class="flex items-center justify-end gap-2">
                                     @if (canModify)
                                     {
-                                        <a href="/app-settings?editKey=@Uri.EscapeDataString(setting.Key)" class="btn-press inline-flex items-center justify-center size-8 rounded-lg border border-amber-200 bg-amber-50 text-amber-600 hover:bg-amber-100" title="Editar configuración">
+                                        <a href="@BuildListUrl(editKey: setting.Key)" class="btn-press inline-flex items-center justify-center size-8 rounded-lg border border-amber-200 bg-amber-50 text-amber-600 hover:bg-amber-100" title="Editar configuración">
                                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Z" /></svg>
                                         </a>
                                     }
                                     @if (canDelete)
                                     {
-                                        <a href="/app-settings?deleteKey=@Uri.EscapeDataString(setting.Key)" class="btn-press inline-flex items-center justify-center size-8 rounded-lg border border-red-200 bg-red-50 text-red-600 hover:bg-red-100" title="Eliminar configuración">
+                                        <a href="@BuildListUrl(deleteKey: setting.Key)" class="btn-press inline-flex items-center justify-center size-8 rounded-lg border border-red-200 bg-red-50 text-red-600 hover:bg-red-100" title="Eliminar configuración">
                                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79" /></svg>
                                         </a>
                                     }
@@ -101,6 +103,22 @@
             </tbody>
         </table>
     </div>
+    @if (totalPaginas > 1)
+    {
+        <div class="flex items-center justify-between gap-3 border-t border-slate-100 px-6 py-4">
+            <p class="text-xs text-slate-500">Página @Pagina de @totalPaginas</p>
+            <div class="flex items-center gap-2">
+                @if (Pagina > 1)
+                {
+                    <a href="@BuildListUrl(pagina: Pagina - 1)" class="btn-press rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">« Anterior</a>
+                }
+                @if (Pagina < totalPaginas)
+                {
+                    <a href="@BuildListUrl(pagina: Pagina + 1)" class="btn-press rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">Siguiente »</a>
+                }
+            </div>
+        </div>
+    }
 </div>
 
 <!-- ── Formularios de operación ── -->
@@ -229,7 +247,12 @@
     [SupplyParameterFromQuery(Name = "ok")]
     private string? Ok { get; set; }
 
+    [SupplyParameterFromQuery(Name = "pagina")]
+    private int Pagina { get; set; } = 1;
+
     private IReadOnlyList<AppSettingResponse> settings = [];
+    private long totalSettings;
+    private int totalPaginas;
     private string? message;
     private string messageType = "info";
     private bool showCreateConfirmation;
@@ -289,13 +312,26 @@
     {
         try
         {
-            settings = await AppSettingsApiClient.ListAsync();
+            var pagina = await AppSettingsApiClient.ListAsync(new PageRequest(Pagina, PageRequest.TamanoPorDefecto));
+            settings = pagina.Items;
+            totalSettings = pagina.Total;
+            totalPaginas = pagina.TotalPaginas;
         }
         catch (Exception ex)
         {
             Logger.LogWarning(ex, "Could not load app settings from API.");
             Show("danger", "No fue posible cargar las configuraciones.");
         }
+    }
+
+    private string BuildListUrl(int? pagina = null, string? editKey = null, string? deleteKey = null)
+    {
+        var parameters = new List<string>();
+        var paginaEfectiva = pagina ?? Pagina;
+        if (paginaEfectiva > 1) parameters.Add($"pagina={paginaEfectiva}");
+        if (!string.IsNullOrWhiteSpace(editKey)) parameters.Add($"editKey={Uri.EscapeDataString(editKey)}");
+        if (!string.IsNullOrWhiteSpace(deleteKey)) parameters.Add($"deleteKey={Uri.EscapeDataString(deleteKey)}");
+        return parameters.Count == 0 ? "/app-settings" : $"/app-settings?{string.Join("&", parameters)}";
     }
 
     private Task PrepareCreateConfirmation() { showCreateConfirmation = true; return Task.CompletedTask; }

@@ -81,7 +81,7 @@ else
     {
         try
         {
-            var clientes = await ClienteApiClient.ListAsync();
+            var clientes = await ClienteApiClient.ListAllAsync();
             var corte = DateTime.UtcNow.AddDays(-30);
 
             total = clientes.Count;

@@ -120,7 +120,7 @@ else
     {
         try
         {
-            var productos = await ProductoApiClient.ListAsync();
+            var productos = await ProductoApiClient.ListAllAsync();
 
             total = productos.Count;
             sinStock = productos.Count(p => p.Stock <= 0);

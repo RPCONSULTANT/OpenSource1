@@ -1,14 +1,15 @@
 using System.Net;
 using System.Net.Http.Json;
 using OpenSource1.Application.Features.Productos.Dtos;
+using OpenSource1.Core.Common;
 
 namespace OpenSource1.Blazor.Services;
 
 public sealed class ProductoApiClient(HttpClient httpClient, ILogger<ProductoApiClient> logger) : IProductoApiClient
 {
-    public async Task<IReadOnlyList<ProductoResponse>> ListAsync(ProductoSearchFilter? filter = null, CancellationToken cancellationToken = default)
+    public async Task<PagedResult<ProductoResponse>> ListAsync(ProductoSearchFilter? filter = null, PageRequest? paginacion = null, CancellationToken cancellationToken = default)
     {
-        using var response = await httpClient.GetAsync(BuildListUrl(filter), cancellationToken);
+        using var response = await httpClient.GetAsync(BuildListUrl(filter, paginacion), cancellationToken);
 
         if (!response.IsSuccessStatusCode)
         {
@@ -20,7 +21,29 @@ public sealed class ProductoApiClient(HttpClient httpClient, ILogger<ProductoApi
                 statusCode: response.StatusCode);
         }
 
-        return await response.Content.ReadFromJsonAsync<IReadOnlyList<ProductoResponse>>(cancellationToken) ?? [];
+        return await response.Content.ReadFromJsonAsync<PagedResult<ProductoResponse>>(cancellationToken)
+            ?? PagedResult<ProductoResponse>.Vacio(paginacion ?? new PageRequest());
+    }
+
+    public async Task<IReadOnlyList<ProductoResponse>> ListAllAsync(ProductoSearchFilter? filter = null, CancellationToken cancellationToken = default)
+    {
+        var items = new List<ProductoResponse>();
+        var pagina = 1;
+
+        while (true)
+        {
+            var page = await ListAsync(filter, new PageRequest(pagina, PageRequest.TamanoMaximo), cancellationToken);
+            items.AddRange(page.Items);
+
+            if (page.Items.Count == 0 || items.Count >= page.Total)
+            {
+                break;
+            }
+
+            pagina++;
+        }
+
+        return items;
     }
 
     public async Task<ProductoResponse?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
@@ -36,14 +59,15 @@ public sealed class ProductoApiClient(HttpClient httpClient, ILogger<ProductoApi
         return await response.Content.ReadFromJsonAsync<ProductoResponse>(cancellationToken);
     }
 
-    private static string BuildListUrl(ProductoSearchFilter? filter)
+    private static string BuildListUrl(ProductoSearchFilter? filter, PageRequest? paginacion = null)
     {
+        var parameters = new List<string>();
+
         if (filter is null)
         {
-            return "api/productos";
+            AddPaginationParameters(parameters, paginacion);
+            return parameters.Count == 0 ? "api/productos" : $"api/productos?{string.Join("&", parameters)}";
         }
-
-        var parameters = new List<string>();
 
         if (!string.IsNullOrWhiteSpace(filter.Codigo))
         {
@@ -85,7 +109,27 @@ public sealed class ProductoApiClient(HttpClient httpClient, ILogger<ProductoApi
             parameters.Add($"stock={Uri.EscapeDataString(filter.Stock.Trim())}");
         }
 
+        AddPaginationParameters(parameters, paginacion);
+
         return parameters.Count == 0 ? "api/productos" : $"api/productos?{string.Join("&", parameters)}";
+    }
+
+    private static void AddPaginationParameters(List<string> parameters, PageRequest? paginacion)
+    {
+        if (paginacion is null)
+        {
+            return;
+        }
+
+        parameters.Add($"pagina={paginacion.Pagina}");
+        parameters.Add($"tamanoPagina={paginacion.TamanoPagina}");
+
+        if (!string.IsNullOrWhiteSpace(paginacion.OrdenarPor))
+        {
+            parameters.Add($"ordenarPor={Uri.EscapeDataString(paginacion.OrdenarPor)}");
+        }
+
+        parameters.Add($"descendente={(paginacion.Descendente ? "true" : "false")}");
     }
 
     public async Task<ProductoOperationResult> CreateAsync(ProductoInput input, CancellationToken cancellationToken = default)

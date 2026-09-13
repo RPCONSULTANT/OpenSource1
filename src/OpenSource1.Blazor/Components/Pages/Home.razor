@@ -389,8 +389,8 @@
 
         try
         {
-            var clientes = await ClienteApiClient.ListAsync();
-            var productos = await ProductoApiClient.ListAsync();
+            var clientes = await ClienteApiClient.ListAllAsync();
+            var productos = await ProductoApiClient.ListAllAsync();
 
             totalClientes = clientes.Count;
             totalProductos = productos.Count;
