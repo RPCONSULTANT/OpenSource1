@@ -83,6 +83,7 @@ public sealed class GlobalExceptionHandler(
                 Status = StatusCodes.Status409Conflict,
                 Title = "El registro fue modificado por otro usuario.",
             };
+            problemaConcurrencia.Extensions["codigo"] = "entidad.modificada_por_otro";
 
             httpContext.Response.StatusCode = StatusCodes.Status409Conflict;
 

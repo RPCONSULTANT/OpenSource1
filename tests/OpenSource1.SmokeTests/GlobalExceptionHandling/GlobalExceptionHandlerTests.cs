@@ -140,6 +140,7 @@ public class GlobalExceptionHandlerTests
 
         var cuerpo = await LeerCuerpoAsync(httpContext);
         Assert.Contains("El registro fue modificado por otro usuario.", cuerpo);
+        Assert.Contains("\"entidad.modificada_por_otro\"", cuerpo);
         Assert.DoesNotContain("<html", cuerpo, StringComparison.OrdinalIgnoreCase);
     }
 
