@@ -6,7 +6,7 @@ using OpenSource1.Application.Data;
 
 namespace OpenSource1.Infrastructure.Data;
 
-public sealed class DbSession : IDbSession
+public sealed class DbSession : IDbSession, IDisposable
 {
     private readonly NpgsqlConnection _connection;
     private NpgsqlTransaction? _transaction;
@@ -87,6 +87,17 @@ public sealed class DbSession : IDbSession
         }
 
         await _connection.DisposeAsync();
+    }
+
+    /// <summary>
+    /// Soporte para disposal síncrono (p. ej. un <c>using var</c> fuera de un contexto async).
+    /// Bloquea sobre <see cref="DisposeAsync"/> en vez de duplicar la lógica de limpieza; siempre
+    /// que haya un contexto async disponible, prefiera <c>await using</c> con
+    /// <see cref="DisposeAsync"/> directamente para no bloquear un hilo.
+    /// </summary>
+    public void Dispose()
+    {
+        DisposeAsync().AsTask().GetAwaiter().GetResult();
     }
 
     private sealed class AmbitoAnidado : IAsyncDisposable

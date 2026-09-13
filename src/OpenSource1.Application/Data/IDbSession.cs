@@ -6,7 +6,13 @@ namespace OpenSource1.Application.Data;
 /// Posee la única conexión física del scope. EF Core y Dapper la comparten, de modo que
 /// una transacción abierta aquí es visible para ambos.
 /// </summary>
-public interface IDbSession : IAsyncDisposable
+/// <summary>
+/// También implementa <see cref="IDisposable"/> (además de <see cref="IAsyncDisposable"/>) para
+/// soportar un <c>using</c> síncrono (p. ej. un <c>BackgroundService</c> o un scope creado fuera
+/// de un contexto async). La implementación bloquea sobre el camino async: prefiera siempre
+/// <see cref="IAsyncDisposable.DisposeAsync"/> cuando haya un contexto async disponible.
+/// </summary>
+public interface IDbSession : IAsyncDisposable, IDisposable
 {
     DbConnection Connection { get; }
     DbTransaction? CurrentTransaction { get; }
