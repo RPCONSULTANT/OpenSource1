@@ -56,6 +56,7 @@ namespace OpenSource1.SmokeTests.Infrastructure;
 ///    aparte, por referencia, en <see cref="ApplicationDbContext_UsaLaMismaConexionQueElDbSession"/>,
 ///    sin tocar <c>.Model</c>.
 /// </summary>
+[Collection(PostgresCollection.Name)]
 public sealed class DbSessionTests : IClassFixture<PostgresTestFixture>, IAsyncLifetime
 {
     private readonly PostgresTestFixture _fixture;

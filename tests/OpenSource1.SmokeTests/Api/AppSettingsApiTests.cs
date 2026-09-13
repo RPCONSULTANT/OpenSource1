@@ -7,6 +7,7 @@ using OpenSource1.SmokeTests.TestInfrastructure;
 
 namespace OpenSource1.SmokeTests.Api;
 
+[Collection(PostgresCollection.Name)]
 public sealed class AppSettingsApiTests : IClassFixture<PostgresTestFixture>
 {
     private readonly HttpClient _client;

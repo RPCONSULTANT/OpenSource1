@@ -8,6 +8,21 @@ using OpenSource1.Api;
 
 namespace OpenSource1.SmokeTests.TestInfrastructure;
 
+/// <summary>
+/// Agrupa todas las clases de test que usan <see cref="PostgresTestFixture"/> en una única
+/// colección xUnit con <c>DisableParallelization = true</c>, de modo que se ejecuten en
+/// serie en vez de competir por el mismo nombre de contenedor Docker y el mismo puerto fijos
+/// (<c>opensource1-tests-postgres</c>, 65432). Cada clase conserva su propia instancia del
+/// fixture vía <c>IClassFixture&lt;PostgresTestFixture&gt;</c> (un contenedor propio, creado y
+/// destruido por clase); esta colección solo serializa el orden de ejecución entre clases.
+/// Decorar cada clase que consuma el fixture con <c>[Collection(Name)]</c>.
+/// </summary>
+[CollectionDefinition(Name, DisableParallelization = true)]
+public sealed class PostgresCollection
+{
+    public const string Name = "Postgres";
+}
+
 public sealed class PostgresTestFixture : IAsyncLifetime
 {
     private const string ContainerName = "opensource1-tests-postgres";
