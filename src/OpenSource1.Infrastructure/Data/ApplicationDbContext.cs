@@ -9,6 +9,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<Entrada>    Entradas    => Set<Entrada>();
     public DbSet<Cliente>    Clientes    => Set<Cliente>();
     public DbSet<Producto>   Productos   => Set<Producto>();
+    public DbSet<TerminoPago> TerminosPago => Set<TerminoPago>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -115,6 +116,27 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                 unidad.Property(u => u.Codigo).HasColumnName("UnidadMedidaCodigo").HasMaxLength(10).IsRequired();
                 unidad.Property(u => u.Nombre).HasColumnName("UnidadMedidaNombre").HasMaxLength(50).IsRequired();
             });
+        });
+
+        modelBuilder.Entity<TerminoPago>(entity =>
+        {
+            entity.ToTable("TerminosPago");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Codigo).HasMaxLength(20).IsRequired();
+            entity.Property(x => x.Descripcion).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.PorcentajeDescuento).HasPrecision(9, 5);
+            entity.Property(x => x.CreatedBy).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.UpdatedBy).HasMaxLength(100);
+            // Índice único parcial desde el primer momento (Hallazgo 1 de la revisión final de la
+            // Fase 0-1): sin el filtro "IsDeleted = false", el HasQueryFilter de abajo oculta la
+            // fila borrada lógicamente del chequeo de existencia, pero un INSERT posterior con el
+            // mismo Código sigue chocando contra el índice único a nivel de Postgres.
+            entity.HasIndex(x => x.Codigo).IsUnique().HasFilter("\"IsDeleted\" = false");
+            entity.HasIndex(x => x.CreatedAtUtc).HasDatabaseName("IX_TerminosPago_CreatedAtUtc");
+            entity.Property<uint>("xmin").HasColumnName("xmin").IsRowVersion();
+            entity.Property(x => x.IsDeleted).HasDefaultValue(false);
+            entity.Property(x => x.DeletedBy).HasMaxLength(100);
+            entity.HasQueryFilter(x => !x.IsDeleted);
         });
     }
 }
