@@ -8,6 +8,7 @@ using OpenSource1.Application.Features.Clientes;
 using OpenSource1.Application.Features.AppSettings;
 using OpenSource1.Application.Features.Entradas;
 using OpenSource1.Application.Features.Productos;
+using OpenSource1.Application.Features.TerminosPago;
 using OpenSource1.Application.Features.Users;
 using OpenSource1.Application.Services.Auth;
 using OpenSource1.Application.Services.Settings;
@@ -53,6 +54,7 @@ public static class DependencyInjection
         services.AddScoped<IEntradaReadRepository, DapperEntradaReadRepository>();
         services.AddScoped<IClienteReadRepository, DapperClienteReadRepository>();
         services.AddScoped<IProductoReadRepository, DapperProductoReadRepository>();
+        services.AddScoped<ITerminoPagoReadRepository, DapperTerminoPagoReadRepository>();
         services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
         services.AddScoped<IUnitOfWork, OpenSource1.Infrastructure.Data.UnitOfWork.UnitOfWork>();
         services.AddScoped<IAppSettingService, AppSettingService>();
