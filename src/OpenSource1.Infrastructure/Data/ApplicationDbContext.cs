@@ -10,6 +10,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<Cliente>    Clientes    => Set<Cliente>();
     public DbSet<Producto>   Productos   => Set<Producto>();
     public DbSet<TerminoPago> TerminosPago => Set<TerminoPago>();
+    public DbSet<Serie>      Series       => Set<Serie>();
+    public DbSet<LineaSerie> LineasSerie  => Set<LineaSerie>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -137,6 +139,46 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.Property(x => x.IsDeleted).HasDefaultValue(false);
             entity.Property(x => x.DeletedBy).HasMaxLength(100);
             entity.HasQueryFilter(x => !x.IsDeleted);
+        });
+
+        modelBuilder.Entity<Serie>(entity =>
+        {
+            entity.ToTable("Series");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Codigo).HasMaxLength(20).IsRequired();
+            entity.Property(x => x.Descripcion).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.CreatedBy).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.UpdatedBy).HasMaxLength(100);
+            // Mismo patrón de índice único parcial que TerminoPago/Producto: ver comentario allí.
+            entity.HasIndex(x => x.Codigo).IsUnique().HasFilter("\"IsDeleted\" = false");
+            entity.HasIndex(x => x.CreatedAtUtc).HasDatabaseName("IX_Series_CreatedAtUtc");
+            entity.Property<uint>("xmin").HasColumnName("xmin").IsRowVersion();
+            entity.Property(x => x.IsDeleted).HasDefaultValue(false);
+            entity.Property(x => x.DeletedBy).HasMaxLength(100);
+            entity.HasQueryFilter(x => !x.IsDeleted);
+        });
+
+        modelBuilder.Entity<LineaSerie>(entity =>
+        {
+            entity.ToTable("LineasSerie");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.NumeroInicial).HasMaxLength(50).IsRequired();
+            entity.Property(x => x.NumeroFinal).HasMaxLength(50).IsRequired();
+            entity.Property(x => x.UltimoNumeroUsado).HasMaxLength(50).IsRequired();
+            entity.Property(x => x.CreatedBy).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.UpdatedBy).HasMaxLength(100);
+            entity.HasIndex(x => x.CreatedAtUtc).HasDatabaseName("IX_LineasSerie_CreatedAtUtc");
+            entity.HasIndex(x => x.SerieId).HasDatabaseName("IX_LineasSerie_SerieId");
+            entity.Property<uint>("xmin").HasColumnName("xmin").IsRowVersion();
+            entity.Property(x => x.IsDeleted).HasDefaultValue(false);
+            entity.Property(x => x.DeletedBy).HasMaxLength(100);
+            entity.HasQueryFilter(x => !x.IsDeleted);
+
+            // Nunca se borra una Serie con líneas asociadas: Restrict en vez de Cascade.
+            entity.HasOne<Serie>()
+                .WithMany()
+                .HasForeignKey(x => x.SerieId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
     }
 }
