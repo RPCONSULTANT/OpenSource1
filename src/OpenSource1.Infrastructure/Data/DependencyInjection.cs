@@ -55,6 +55,7 @@ public static class DependencyInjection
         services.AddScoped<IClienteReadRepository, DapperClienteReadRepository>();
         services.AddScoped<IProductoReadRepository, DapperProductoReadRepository>();
         services.AddScoped<ITerminoPagoReadRepository, DapperTerminoPagoReadRepository>();
+        services.AddScoped<IGeneradorNumeroDocumento, GeneradorNumeroDocumento>();
         services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
         services.AddScoped<IUnitOfWork, OpenSource1.Infrastructure.Data.UnitOfWork.UnitOfWork>();
         services.AddScoped<IAppSettingService, AppSettingService>();
