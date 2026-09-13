@@ -32,9 +32,9 @@ public sealed class PermisosTests
     }
 
     [Fact]
-    public void All_Recolecta_Exactamente_Los_20_Permisos_Del_Catalogo_Sin_Duplicados()
+    public void All_Recolecta_Exactamente_Los_26_Permisos_Del_Catalogo_Sin_Duplicados()
     {
-        // 4 módulos con CRUD completo (socio, producto, almacen, cuenta, setup = 5 * 4 = 20)
+        // 5 recursos con CRUD completo (socio, producto, almacen, cuenta, setup = 5 * 4 = 20)
         // + 2 (diario: capturar/postear) + 2 (factura: capturar/emitir) + 2 (cobro:
         // registrar/aplicar) = 26.
         Assert.Equal(26, Permisos.All.Count);
