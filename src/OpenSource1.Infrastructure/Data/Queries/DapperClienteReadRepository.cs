@@ -57,7 +57,7 @@ public sealed class DapperClienteReadRepository(IDbSession session) : IClienteRe
             SELECT "Id", "Nombre", "Apellido", "Email", "Telefono", "DireccionLinea1", "DireccionLinea2", "Sector", "PaisCodigo", "PaisNombre", "ImagePath", "CreatedAtUtc", "UpdatedAtUtc", "CreatedBy", "UpdatedBy"
             FROM "Clientes"
             {whereSql}
-            ORDER BY {ordenSql} {direccionSql}
+            ORDER BY {ordenSql} {direccionSql}, "Id" ASC
             LIMIT @TamanoPagina OFFSET @Offset
             """;
 

@@ -70,7 +70,7 @@ public sealed class DapperProductoReadRepository(IDbSession session) : IProducto
             SELECT "Id", "Codigo", "Nombre", "Precio", "Stock", "CategoriaCodigo", "CategoriaNombre", "UnidadMedidaCodigo", "UnidadMedidaNombre", "ImagePath", "CreatedAtUtc", "UpdatedAtUtc", "CreatedBy", "UpdatedBy"
             FROM "Productos"
             {whereSql}
-            ORDER BY {ordenSql} {direccionSql}
+            ORDER BY {ordenSql} {direccionSql}, "Id" ASC
             LIMIT @TamanoPagina OFFSET @Offset
             """;
 

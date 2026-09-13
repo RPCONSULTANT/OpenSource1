@@ -41,7 +41,7 @@ public sealed class DapperEntradaReadRepository(IDbSession session) : IEntradaRe
             SELECT "Id", "Titulo", "Descripcion", "Tipo", "Estado", "CreatedAtUtc", "UpdatedAtUtc"
             FROM "Entradas"
             WHERE "IsDeleted" = false
-            ORDER BY {ordenSql} {direccionSql}
+            ORDER BY {ordenSql} {direccionSql}, "Id" ASC
             LIMIT @TamanoPagina OFFSET @Offset
             """;
 

@@ -41,7 +41,7 @@ public sealed class DapperAppSettingReadRepository(IDbSession session) : IAppSet
             SELECT "Id", "Key", "Value", "Description", "CreatedAtUtc", "UpdatedAtUtc"
             FROM "AppSettings"
             WHERE "IsDeleted" = false
-            ORDER BY {ordenSql} {direccionSql}
+            ORDER BY {ordenSql} {direccionSql}, "Id" ASC
             LIMIT @TamanoPagina OFFSET @Offset
             """;
 
