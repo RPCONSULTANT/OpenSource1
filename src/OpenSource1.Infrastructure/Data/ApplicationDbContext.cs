@@ -23,7 +23,12 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.Property(setting => setting.Description).HasMaxLength(500);
             entity.Property(setting => setting.CreatedBy).HasMaxLength(100).IsRequired();
             entity.Property(setting => setting.UpdatedBy).HasMaxLength(100);
-            entity.HasIndex(setting => setting.Key).IsUnique();
+            // Filtro parcial: excluye las filas borradas logicamente para que una Key pueda
+            // reutilizarse tras un soft delete. Sin el filtro, el HasQueryFilter de abajo oculta
+            // la fila fantasma de los chequeos de existencia (que sí respetan el filtro global),
+            // pero el INSERT de un registro nuevo con la misma Key sigue chocando contra el
+            // indice unico a nivel de Postgres, que no sabe nada del filtro de EF.
+            entity.HasIndex(setting => setting.Key).IsUnique().HasFilter("\"IsDeleted\" = false");
             entity.HasIndex(setting => setting.CreatedAtUtc).HasDatabaseName("IX_AppSettings_CreatedAtUtc");
             entity.Property<uint>("xmin").HasColumnName("xmin").IsRowVersion();
             entity.Property(setting => setting.IsDeleted).HasDefaultValue(false);
@@ -92,7 +97,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.Property(x => x.Precio).HasPrecision(18, 2);
             entity.Property(x => x.CreatedBy).HasMaxLength(100).IsRequired();
             entity.Property(x => x.UpdatedBy).HasMaxLength(100);
-            entity.HasIndex(x => x.Codigo).IsUnique();
+            // Mismo filtro parcial que AppSettings.Key: ver comentario de arriba.
+            entity.HasIndex(x => x.Codigo).IsUnique().HasFilter("\"IsDeleted\" = false");
             entity.HasIndex(x => x.CreatedAtUtc).HasDatabaseName("IX_Productos_CreatedAtUtc");
             entity.Property<uint>("xmin").HasColumnName("xmin").IsRowVersion();
             entity.Property(x => x.IsDeleted).HasDefaultValue(false);

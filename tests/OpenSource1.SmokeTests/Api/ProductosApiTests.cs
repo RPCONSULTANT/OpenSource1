@@ -86,6 +86,52 @@ public sealed class ProductosApiTests : IClassFixture<PostgresTestFixture>
     }
 
     [Fact]
+    public async Task Create_TrasBorrarElMismoCodigo_NoChocaConElIndiceUnico_YDevuelve201()
+    {
+        // Hallazgo 1, mismo mecanismo que AppSettings.Key pero en un módulo vivo: verificado
+        // contra Postgres real que borrar (soft delete) y recrear con el mismo Codigo ya no
+        // choca contra "IX_Productos_Codigo" gracias al índice único parcial "IsDeleted = false".
+        var client = CreateClient("Administrador");
+        var codigo = $"DEL-{Guid.NewGuid():N}";
+
+        var create = await client.PostAsJsonAsync("/api/productos", new { codigo, nombre = "Original", categoriaCodigo = "GEN", categoriaNombre = "General", unidadMedidaCodigo = "UND", precio = 10m, stock = 1 });
+        Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+        var createdId = JsonDocument.Parse(await create.Content.ReadAsStringAsync()).RootElement.GetProperty("id").GetGuid();
+
+        var delete = await client.DeleteAsync($"/api/productos/{createdId}");
+        Assert.Equal(HttpStatusCode.NoContent, delete.StatusCode);
+
+        var recreate = await client.PostAsJsonAsync("/api/productos", new { codigo, nombre = "Recreado", categoriaCodigo = "GEN", categoriaNombre = "General", unidadMedidaCodigo = "UND", precio = 12m, stock = 2 });
+
+        Assert.Equal(HttpStatusCode.Created, recreate.StatusCode);
+        Assert.NotEqual(HttpStatusCode.InternalServerError, recreate.StatusCode);
+    }
+
+    [Fact]
+    public async Task Create_ConCodigoDuplicadoActivo_Devuelve409EnVezDe500()
+    {
+        // Hallazgo 1, parte 2: ProductosController.Create no hace un chequeo de existencia previo
+        // (a diferencia de AppSettingsController), así que un Codigo duplicado siempre llegó hasta
+        // el INSERT y violaba "IX_Productos_Codigo" directamente. Antes del fix a
+        // GlobalExceptionHandler, el DbUpdateException resultante (con Npgsql.PostgresException
+        // SqlState 23505 como InnerException, confirmado contra Postgres real) no tenía rama
+        // dedicada y cae como 500 desnudo. Con el fix, se traduce a 409.
+        var client = CreateClient("Administrador");
+        var codigo = $"DUP-{Guid.NewGuid():N}";
+
+        var primero = await client.PostAsJsonAsync("/api/productos", new { codigo, nombre = "Primero", categoriaCodigo = "GEN", categoriaNombre = "General", unidadMedidaCodigo = "UND", precio = 10m, stock = 1 });
+        Assert.Equal(HttpStatusCode.Created, primero.StatusCode);
+
+        var duplicado = await client.PostAsJsonAsync("/api/productos", new { codigo, nombre = "Segundo", categoriaCodigo = "GEN", categoriaNombre = "General", unidadMedidaCodigo = "UND", precio = 10m, stock = 1 });
+
+        Assert.Equal(HttpStatusCode.Conflict, duplicado.StatusCode);
+        Assert.NotEqual(HttpStatusCode.InternalServerError, duplicado.StatusCode);
+
+        var cuerpo = await duplicado.Content.ReadAsStringAsync();
+        Assert.Contains("entidad.codigo_duplicado", cuerpo);
+    }
+
+    [Fact]
     public async Task List_ColumnaDeOrdenNoPermitida_CaeAlOrdenPorDefectoSinRomper()
     {
         var client = CreateClient("Administrador");

@@ -75,6 +75,35 @@ public sealed class AppSettingsApiTests : IClassFixture<PostgresTestFixture>
     }
 
     [Fact]
+    public async Task Create_TrasBorrarLaMismaKey_NoChocaConElIndiceUnico_YDevuelve201()
+    {
+        // Hallazgo 1: el filtro global de EF (!IsDeleted) oculta la fila borrada logicamente del
+        // chequeo de existencia, así que sin el índice único parcial el INSERT de abajo chocaba
+        // contra "IX_AppSettings_Key" (todavía ocupado por la fila fantasma) y producía un
+        // DbUpdateException sin capturar -> 500 desnudo. Verificado contra Postgres real: antes
+        // del fix (índice único simple + sin rama de GlobalExceptionHandler) esta prueba fallaba
+        // con 500; con el índice parcial "IsDeleted = false" la recreación ya ni siquiera choca
+        // con la restricción.
+        var key = $"test.setting.borrada.{Guid.NewGuid():N}";
+
+        var create = await _client.PostAsJsonAsync("/api/app-settings", new { key, value = "uno", description = (string?)null });
+        Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+
+        var delete = await _client.DeleteAsync($"/api/app-settings/{key}");
+        Assert.Equal(HttpStatusCode.NoContent, delete.StatusCode);
+
+        var recreate = await _client.PostAsJsonAsync("/api/app-settings", new { key, value = "dos", description = (string?)null });
+
+        Assert.Equal(HttpStatusCode.Created, recreate.StatusCode);
+        Assert.NotEqual(HttpStatusCode.InternalServerError, recreate.StatusCode);
+
+        var get = await _client.GetAsync($"/api/app-settings/{key}");
+        Assert.Equal(HttpStatusCode.OK, get.StatusCode);
+        var response = await get.Content.ReadFromJsonAsync<AppSettingResponse>();
+        Assert.Equal("dos", response!.Value);
+    }
+
+    [Fact]
     public async Task List_ColumnaDeOrdenNoPermitida_CaeAlOrdenPorDefectoSinRomper()
     {
         var response = await _client.GetAsync("/api/app-settings?ordenarPor=" + Uri.EscapeDataString("\"; DROP TABLE \"AppSettings") + "&tamanoPagina=10");
