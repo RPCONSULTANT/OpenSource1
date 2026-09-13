@@ -30,8 +30,13 @@ internal static class FilterExpressionBuilder
             foreach (var term in group)
             {
                 var paramName = $"{column}Text{index++}";
-                var likeValue = term.Contains('*') ? term.Replace('*', '%') : $"%{term}%";
-                orClauses.Add($"{columnaCitada} ILIKE @{paramName}");
+                // Escapa los metacaracteres de LIKE/ILIKE (\, %, _) del término del usuario ANTES
+                // de aplicar el "*" -> "%" de nuestra sintaxis de glob, para que un término como
+                // "50%" busque el literal "50%" en vez de tratar el "%" como comodín. "*" no es
+                // metacaracter de LIKE, así que escapar antes no le afecta.
+                var termEscapado = EscaparMetacaracteresLike(term);
+                var likeValue = termEscapado.Contains('*') ? termEscapado.Replace('*', '%') : $"%{termEscapado}%";
+                orClauses.Add($"{columnaCitada} ILIKE @{paramName} ESCAPE '\\'");
                 parameters.Add(paramName, likeValue);
             }
 
@@ -81,6 +86,14 @@ internal static class FilterExpressionBuilder
         filters.Add(Wrap(groupClauses, "AND"));
         return Result.Exito();
     }
+
+    /// <summary>
+    /// Escapa <c>\</c>, <c>%</c> y <c>_</c> con <c>\</c> para que ILIKE los trate como literales
+    /// en vez de metacaracteres del patrón. El backslash se escapa primero para no escapar dos
+    /// veces los backslashes que introducen los reemplazos de <c>%</c> y <c>_</c>.
+    /// </summary>
+    private static string EscaparMetacaracteresLike(string valor) =>
+        valor.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_");
 
     private static List<List<string>> ParseGroups(string? rawValue)
     {

@@ -63,6 +63,52 @@ public class FilterExpressionBuilderTests
     }
 
     [Fact]
+    public void AddTextFilter_TerminoConPorcentaje_EscapaElMetacaracterEnElParametroYUsaEscapeEnElSql()
+    {
+        // Hallazgo 8: un usuario que busca literalmente "50%" no debe obtener el "%" interpretado
+        // como comodín de LIKE/ILIKE.
+        var filtros = new List<string>();
+        var parametros = new DynamicParameters();
+
+        FilterExpressionBuilder.AddTextFilter(filtros, parametros, Permitidas, "Nombre", "50%");
+
+        Assert.Single(filtros);
+        Assert.Contains("ESCAPE '\\'", filtros[0]);
+
+        var nombreParametro = Assert.Single(parametros.ParameterNames);
+        var valor = parametros.Get<string>(nombreParametro);
+        Assert.Equal("%50\\%%", valor);
+    }
+
+    [Fact]
+    public void AddTextFilter_TerminoConGuionBajoYBackslash_EscapaAmbos()
+    {
+        var filtros = new List<string>();
+        var parametros = new DynamicParameters();
+
+        FilterExpressionBuilder.AddTextFilter(filtros, parametros, Permitidas, "Nombre", "a_b\\c");
+
+        var nombreParametro = Assert.Single(parametros.ParameterNames);
+        var valor = parametros.Get<string>(nombreParametro);
+        Assert.Equal("%a\\_b\\\\c%", valor);
+    }
+
+    [Fact]
+    public void AddTextFilter_TerminoConAsteriscoYPorcentajeLiteral_EscapaSoloElLiteral()
+    {
+        // El "*" sigue funcionando como comodín de nuestra sintaxis de glob (-> "%"); el "%"
+        // literal del término del usuario se escapa independientemente de eso.
+        var filtros = new List<string>();
+        var parametros = new DynamicParameters();
+
+        FilterExpressionBuilder.AddTextFilter(filtros, parametros, Permitidas, "Nombre", "*50%*");
+
+        var nombreParametro = Assert.Single(parametros.ParameterNames);
+        var valor = parametros.Get<string>(nombreParametro);
+        Assert.Equal("%50\\%%", valor);
+    }
+
+    [Fact]
     public void AddExactFilter_ColumnaMaliciosa_NuncaLlegaAlSqlGenerado()
     {
         const string columnaMaliciosa = "Precio\"; DROP TABLE \"Productos";

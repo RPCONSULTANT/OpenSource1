@@ -132,6 +132,36 @@ public sealed class ProductosApiTests : IClassFixture<PostgresTestFixture>
     }
 
     [Fact]
+    public async Task List_FiltroConPorcentajeLiteral_NoLoTrataComoComodinContraPostgresReal()
+    {
+        // Hallazgo 8: sin escapar los metacaracteres de ILIKE, un "%" literal en el término de
+        // búsqueda se interpreta como comodín. Se arma un falso positivo a propósito: sin el fix,
+        // buscar "{sufijo}50%off" se traduce en el patrón "%{sufijo}50%off%", cuyo "%" interno
+        // hace de comodín y coincide con cualquier cosa que tenga "{sufijo}50" seguido en algún
+        // punto por "off" (como "{sufijo}50XXXoff"), no solo con el literal "{sufijo}50%off".
+        var client = CreateClient("Administrador");
+        var sufijo = Guid.NewGuid().ToString("N")[..8];
+        var nombreConPorcentajeLiteral = $"{sufijo}50%off";
+        var nombreFalsoPositivoSinEscape = $"{sufijo}50XXXoff";
+
+        foreach (var nombre in new[] { nombreConPorcentajeLiteral, nombreFalsoPositivoSinEscape })
+        {
+            var codigo = $"PCT-{Guid.NewGuid():N}";
+            var create = await client.PostAsJsonAsync("/api/productos", new { codigo, nombre, categoriaCodigo = "GEN", categoriaNombre = "General", unidadMedidaCodigo = "UND", precio = 1m, stock = 1 });
+            Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+        }
+
+        var filtroCodificado = Uri.EscapeDataString(nombreConPorcentajeLiteral);
+        var response = await client.GetAsync($"/api/productos?nombre={filtroCodificado}&tamanoPagina=50");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var paged = await response.Content.ReadFromJsonAsync<PagedResult<ProductoResponse>>();
+        Assert.NotNull(paged);
+        Assert.Contains(paged!.Items, p => p.Nombre == nombreConPorcentajeLiteral);
+        Assert.DoesNotContain(paged.Items, p => p.Nombre == nombreFalsoPositivoSinEscape);
+    }
+
+    [Fact]
     public async Task List_ColumnaDeOrdenNoPermitida_CaeAlOrdenPorDefectoSinRomper()
     {
         var client = CreateClient("Administrador");
