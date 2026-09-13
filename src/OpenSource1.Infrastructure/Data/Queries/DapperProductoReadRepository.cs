@@ -9,7 +9,7 @@ namespace OpenSource1.Infrastructure.Data.Queries;
 public sealed class DapperProductoReadRepository(IDbSession session) : IProductoReadRepository
 {
     private static readonly ColumnasPermitidas ColumnasPermitidas = new(
-        "Codigo", "Nombre", "CategoriaCodigo", "CategoriaNombre", "UnidadMedidaCodigo", "UnidadMedidaNombre", "Precio", "Stock");
+        "Codigo", "Nombre", "CategoriaCodigo", "CategoriaNombre", "UnidadMedidaCodigo", "UnidadMedidaNombre", "Precio", "Stock", "CreatedAtUtc");
 
     public async Task<ProductoResponse?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
@@ -22,12 +22,10 @@ public sealed class DapperProductoReadRepository(IDbSession session) : IProducto
         return await session.Connection.QuerySingleOrDefaultAsync<ProductoResponse>(new CommandDefinition(sql, new { Id = id }, session.CurrentTransaction, cancellationToken: cancellationToken));
     }
 
-    public async Task<IReadOnlyList<ProductoResponse>> ListAsync(ProductoSearchCriteria search, CancellationToken cancellationToken = default)
+    public async Task<Result<PagedResult<ProductoResponse>>> ListAsync(
+        ProductoSearchCriteria search, PageRequest paginacion, CancellationToken cancellationToken = default)
     {
-        var sql = """
-            SELECT "Id", "Codigo", "Nombre", "Precio", "Stock", "CategoriaCodigo", "CategoriaNombre", "UnidadMedidaCodigo", "UnidadMedidaNombre", "ImagePath", "CreatedAtUtc", "UpdatedAtUtc", "CreatedBy", "UpdatedBy"
-            FROM "Productos"
-            """;
+        var pagina = paginacion.Normalizar();
 
         var filters = new List<string>();
         var parameters = new DynamicParameters();
@@ -43,25 +41,47 @@ public sealed class DapperProductoReadRepository(IDbSession session) : IProducto
             static term => (decimal.TryParse(term, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var value), value));
         if (precioResult.EsFallo)
         {
-            throw new ErroresDeDominioException(precioResult.Errores[0]);
+            return Result<PagedResult<ProductoResponse>>.Fallo(precioResult);
         }
 
         var stockResult = FilterExpressionBuilder.AddExactFilter(filters, parameters, ColumnasPermitidas, "Stock", search.Stock,
             static term => (int.TryParse(term, out var value), value));
         if (stockResult.EsFallo)
         {
-            throw new ErroresDeDominioException(stockResult.Errores[0]);
+            return Result<PagedResult<ProductoResponse>>.Fallo(stockResult);
         }
 
-        if (filters.Count > 0)
-        {
-            sql += Environment.NewLine + "WHERE " + string.Join(" AND ", filters);
-        }
+        var whereSql = filters.Count > 0 ? Environment.NewLine + "WHERE " + string.Join(" AND ", filters) : string.Empty;
 
-        sql += Environment.NewLine + "ORDER BY \"CreatedAtUtc\" DESC";
+        var ordenColumna = ColumnasPermitidas.EsValida(pagina.OrdenarPor) ? pagina.OrdenarPor! : "CreatedAtUtc";
+        var ordenSql = ColumnasPermitidas.Citar(ordenColumna);
+        var direccionSql = pagina.Descendente ? "DESC" : "ASC";
+
+        parameters.Add("TamanoPagina", pagina.TamanoPagina);
+        parameters.Add("Offset", pagina.Offset);
+
+        var countSql = $"""
+            SELECT COUNT(*) FROM "Productos"
+            {whereSql}
+            """;
+
+        var pageSql = $"""
+            SELECT "Id", "Codigo", "Nombre", "Precio", "Stock", "CategoriaCodigo", "CategoriaNombre", "UnidadMedidaCodigo", "UnidadMedidaNombre", "ImagePath", "CreatedAtUtc", "UpdatedAtUtc", "CreatedBy", "UpdatedBy"
+            FROM "Productos"
+            {whereSql}
+            ORDER BY {ordenSql} {direccionSql}
+            LIMIT @TamanoPagina OFFSET @Offset
+            """;
 
         await session.EnsureOpenAsync(cancellationToken);
-        var result = await session.Connection.QueryAsync<ProductoResponse>(new CommandDefinition(sql, parameters, session.CurrentTransaction, cancellationToken: cancellationToken));
-        return result.AsList();
+
+        var total = await session.Connection.ExecuteScalarAsync<long>(
+            new CommandDefinition(countSql, parameters, session.CurrentTransaction, cancellationToken: cancellationToken));
+
+        var items = await session.Connection.QueryAsync<ProductoResponse>(
+            new CommandDefinition(pageSql, parameters, session.CurrentTransaction, cancellationToken: cancellationToken));
+
+        return Result<PagedResult<ProductoResponse>>.Exito(
+            new PagedResult<ProductoResponse>(items.AsList(), pagina.Pagina, pagina.TamanoPagina, total));
     }
 }

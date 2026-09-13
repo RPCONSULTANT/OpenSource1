@@ -2,6 +2,7 @@ using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using OpenSource1.Application.Data.Repositories;
 using OpenSource1.Core.Abstractions;
+using OpenSource1.Core.Common;
 using OpenSource1.Infrastructure.Data;
 
 namespace OpenSource1.Infrastructure.Data.Repositories;
@@ -38,6 +39,25 @@ public sealed class GenericRepository<TEntity>(ApplicationDbContext dbContext) :
         }
 
         return await query.ToListAsync(cancellationToken);
+    }
+
+    public async Task<PagedResult<TEntity>> ListPagedAsync(
+        Expression<Func<TEntity, bool>>? predicate,
+        PageRequest paginacion,
+        CancellationToken cancellationToken = default)
+    {
+        var pagina = paginacion.Normalizar();
+        var query = Query();
+
+        if (predicate is not null)
+        {
+            query = query.Where(predicate);
+        }
+
+        var total = await query.CountAsync(cancellationToken);
+        var items = await query.Skip(pagina.Offset).Take(pagina.TamanoPagina).ToListAsync(cancellationToken);
+
+        return new PagedResult<TEntity>(items, pagina.Pagina, pagina.TamanoPagina, total);
     }
 
     public async Task AddAsync(TEntity entity, CancellationToken cancellationToken = default)
