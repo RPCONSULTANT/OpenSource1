@@ -24,6 +24,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.Property(setting => setting.CreatedBy).HasMaxLength(100).IsRequired();
             entity.Property(setting => setting.UpdatedBy).HasMaxLength(100);
             entity.HasIndex(setting => setting.Key).IsUnique();
+            entity.HasIndex(setting => setting.CreatedAtUtc).HasDatabaseName("IX_AppSettings_CreatedAtUtc");
             entity.Property<uint>("xmin").HasColumnName("xmin").IsRowVersion();
             entity.Property(setting => setting.IsDeleted).HasDefaultValue(false);
             entity.Property(setting => setting.DeletedBy).HasMaxLength(100);
@@ -40,6 +41,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.Property(e => e.Estado).HasMaxLength(50).IsRequired();
             entity.Property(e => e.CreatedBy).HasMaxLength(100).IsRequired();
             entity.Property(e => e.UpdatedBy).HasMaxLength(100);
+            entity.HasIndex(e => e.CreatedAtUtc).HasDatabaseName("IX_Entradas_CreatedAtUtc");
             entity.Property<uint>("xmin").HasColumnName("xmin").IsRowVersion();
             entity.Property(e => e.IsDeleted).HasDefaultValue(false);
             entity.Property(e => e.DeletedBy).HasMaxLength(100);
@@ -57,6 +59,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.Property(x => x.ImagePath).HasMaxLength(500);
             entity.Property(x => x.CreatedBy).HasMaxLength(100).IsRequired();
             entity.Property(x => x.UpdatedBy).HasMaxLength(100);
+            entity.HasIndex(x => x.CreatedAtUtc).HasDatabaseName("IX_Clientes_CreatedAtUtc");
+            entity.HasIndex(x => x.Email).HasDatabaseName("IX_Clientes_Email");
             entity.Property<uint>("xmin").HasColumnName("xmin").IsRowVersion();
             entity.Property(x => x.IsDeleted).HasDefaultValue(false);
             entity.Property(x => x.DeletedBy).HasMaxLength(100);
@@ -89,6 +93,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.Property(x => x.CreatedBy).HasMaxLength(100).IsRequired();
             entity.Property(x => x.UpdatedBy).HasMaxLength(100);
             entity.HasIndex(x => x.Codigo).IsUnique();
+            entity.HasIndex(x => x.CreatedAtUtc).HasDatabaseName("IX_Productos_CreatedAtUtc");
             entity.Property<uint>("xmin").HasColumnName("xmin").IsRowVersion();
             entity.Property(x => x.IsDeleted).HasDefaultValue(false);
             entity.Property(x => x.DeletedBy).HasMaxLength(100);
