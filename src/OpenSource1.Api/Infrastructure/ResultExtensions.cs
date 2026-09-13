@@ -4,11 +4,14 @@ using OpenSource1.Core.Common;
 namespace OpenSource1.Api.Infrastructure;
 
 /// <summary>
-/// Primer puente entre <see cref="Result"/>/<see cref="Result{T}"/> y las respuestas HTTP de la
-/// API. Todavía no tiene consumidores: ningún handler ni controller ha migrado a Result (eso es
-/// la Task 1.5b y fases posteriores). Traduce solo el camino de fallo — el de éxito depende de
-/// cada endpoint (código de estado, forma del cuerpo, Location, etc.) y se sigue construyendo a
-/// mano en el controller.
+/// Puente entre <see cref="Result"/>/<see cref="Result{T}"/> y las respuestas HTTP de la API.
+/// Hoy la consumen los controllers cuyos handlers ya devuelven <c>Result</c>/<c>Result&lt;T&gt;</c>
+/// (por ejemplo <c>AppSettingsController</c>, <c>ClientesController</c>, <c>EntradasController</c>,
+/// <c>ProductosController</c>, en sus acciones de listado). Los comandos de Cliente/Producto
+/// siguen sin migrar a <c>ICommand&lt;T&gt;</c>/<c>IQuery&lt;T&gt;</c> a propósito (fase
+/// posterior, tras el renombrado a SocioDeNegocio). Traduce solo el camino de fallo — el de éxito
+/// depende de cada endpoint (código de estado, forma del cuerpo, Location, etc.) y se sigue
+/// construyendo a mano en el controller.
 /// </summary>
 public static class ResultExtensions
 {

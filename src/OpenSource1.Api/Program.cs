@@ -102,7 +102,7 @@ app.UseSerilogRequestLogging(options =>
     options.MessageTemplate = "HTTP {RequestMethod} {RequestPath} responded {StatusCode} in {Elapsed:0.0}ms";
 });
 app.UseHttpsRedirection();
-app.UseExceptionHandler();   // FALTA HOY: sin esto, AddProblemDetails no hace nada ante excepciones. Va antes de UseStatusCodePages.
+app.UseExceptionHandler();   // Requisito de AddProblemDetails: sin este middleware no produce nada ante excepciones. Debe ir antes de UseStatusCodePages.
 app.UseStatusCodePages(async statusCodeContext =>
 {
     var response = statusCodeContext.HttpContext.Response;
