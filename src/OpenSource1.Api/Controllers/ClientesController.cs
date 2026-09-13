@@ -1,11 +1,13 @@
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using OpenSource1.Api.Infrastructure;
 using OpenSource1.Application.Features.Clientes;
 using OpenSource1.Application.Features.Clientes.Commands;
 using OpenSource1.Application.Features.Clientes.Dtos;
 using OpenSource1.Application.Features.Clientes.Queries;
 using OpenSource1.Application.Security;
+using OpenSource1.Core.Common;
 using OpenSource1.Core.ValueObjects;
 
 namespace OpenSource1.Api.Controllers;
@@ -16,8 +18,8 @@ public sealed class ClientesController(ISender sender) : ControllerBase
 {
     [HttpGet]
     [Authorize(Policy = ApplicationPolicies.CanConsult)]
-    [ProducesResponseType<IReadOnlyList<ClienteResponse>>(StatusCodes.Status200OK)]
-    public async Task<ActionResult<IReadOnlyList<ClienteResponse>>> List(
+    [ProducesResponseType<PagedResult<ClienteResponse>>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> List(
         [FromQuery] string? nombre,
         [FromQuery] string? apellido,
         [FromQuery] string? email,
@@ -25,13 +27,19 @@ public sealed class ClientesController(ISender sender) : ControllerBase
         [FromQuery] string? direccion,
         [FromQuery] string? sector,
         [FromQuery] string? pais,
-        CancellationToken cancellationToken)
+        [FromQuery] int pagina = 1,
+        [FromQuery] int tamanoPagina = PageRequest.TamanoPorDefecto,
+        [FromQuery] string? ordenarPor = null,
+        [FromQuery] bool descendente = true,
+        CancellationToken cancellationToken = default)
     {
         var result = await sender.Send(
-            new ListClientesQuery(new ClienteSearchCriteria(nombre, apellido, email, telefono, direccion, sector, pais)),
+            new ListClientesQuery(
+                new ClienteSearchCriteria(nombre, apellido, email, telefono, direccion, sector, pais),
+                new PageRequest(pagina, tamanoPagina, ordenarPor, descendente)),
             cancellationToken);
 
-        return Ok(result);
+        return result.EsFallo ? result.ToActionResult() : Ok(result.Valor);
     }
 
     [HttpGet("{id:guid}")]
