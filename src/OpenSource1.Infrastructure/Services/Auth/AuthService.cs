@@ -272,6 +272,16 @@ public sealed class AuthService(
             permissions.UnionWith([ApplicationPolicies.CanAdd, ApplicationPolicies.CanConsult]);
         }
 
+        // Permisos finos por recurso (catálogo modulo.recurso.accion, Permisos.*): se añaden al
+        // MISMO array, bajo el MISMO claim "permission" que las 4 políticas coarse de arriba.
+        // Blazor (Login.razor / Program.cs) itera genéricamente sobre este array sin distinguir
+        // su origen, así que ambas familias conviven sin romper el flujo existente — no se crea
+        // un claim "permiso" (español) separado.
+        foreach (var rol in roleSet)
+        {
+            permissions.UnionWith(PermisosPorRol.ParaRol(rol));
+        }
+
         return permissions.Order().ToArray();
     }
 

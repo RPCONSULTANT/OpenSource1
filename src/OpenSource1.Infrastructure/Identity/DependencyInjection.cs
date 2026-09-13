@@ -1,5 +1,6 @@
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -91,6 +92,16 @@ public static class DependencyInjection
             options.AddPolicy(ApplicationPolicies.CanDelete, policy =>
                 policy.RequireRole(ApplicationRoles.Administrator));
         });
+
+        // Catálogo de permisos finos por recurso (Permisos.*), resuelto al vuelo para nombres de
+        // política "permiso:<permiso>". El registro va DESPUÉS de AddAuthorization(...) arriba:
+        // AddAuthorization ya registró (vía TryAddSingleton) un DefaultAuthorizationPolicyProvider;
+        // este AddSingleton posterior lo sustituye como IAuthorizationPolicyProvider activo
+        // ("último registro gana" al resolver un servicio único), y PermissionPolicyProvider a su
+        // vez delega en un DefaultAuthorizationPolicyProvider propio para no romper la resolución
+        // de las 4 políticas coarse ya registradas arriba (ver comentario en PermissionPolicyProvider).
+        services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
+        services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHandler>();
 
         services.AddHostedService<IdentitySeedHostedService>();
 
