@@ -25,6 +25,9 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.Property(setting => setting.UpdatedBy).HasMaxLength(100);
             entity.HasIndex(setting => setting.Key).IsUnique();
             entity.Property<uint>("xmin").HasColumnName("xmin").IsRowVersion();
+            entity.Property(setting => setting.IsDeleted).HasDefaultValue(false);
+            entity.Property(setting => setting.DeletedBy).HasMaxLength(100);
+            entity.HasQueryFilter(setting => !setting.IsDeleted);
         });
 
         modelBuilder.Entity<Entrada>(entity =>
@@ -38,6 +41,9 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.Property(e => e.CreatedBy).HasMaxLength(100).IsRequired();
             entity.Property(e => e.UpdatedBy).HasMaxLength(100);
             entity.Property<uint>("xmin").HasColumnName("xmin").IsRowVersion();
+            entity.Property(e => e.IsDeleted).HasDefaultValue(false);
+            entity.Property(e => e.DeletedBy).HasMaxLength(100);
+            entity.HasQueryFilter(e => !e.IsDeleted);
         });
 
         modelBuilder.Entity<Cliente>(entity =>
@@ -52,6 +58,9 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.Property(x => x.CreatedBy).HasMaxLength(100).IsRequired();
             entity.Property(x => x.UpdatedBy).HasMaxLength(100);
             entity.Property<uint>("xmin").HasColumnName("xmin").IsRowVersion();
+            entity.Property(x => x.IsDeleted).HasDefaultValue(false);
+            entity.Property(x => x.DeletedBy).HasMaxLength(100);
+            entity.HasQueryFilter(x => !x.IsDeleted);
 
             entity.ComplexProperty(x => x.Direccion, direccion =>
             {
@@ -81,6 +90,9 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.Property(x => x.UpdatedBy).HasMaxLength(100);
             entity.HasIndex(x => x.Codigo).IsUnique();
             entity.Property<uint>("xmin").HasColumnName("xmin").IsRowVersion();
+            entity.Property(x => x.IsDeleted).HasDefaultValue(false);
+            entity.Property(x => x.DeletedBy).HasMaxLength(100);
+            entity.HasQueryFilter(x => !x.IsDeleted);
 
             entity.ComplexProperty(x => x.Categoria, categoria =>
             {

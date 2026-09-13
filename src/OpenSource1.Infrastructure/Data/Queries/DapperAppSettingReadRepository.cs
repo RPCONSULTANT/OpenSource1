@@ -15,7 +15,7 @@ public sealed class DapperAppSettingReadRepository(IDbSession session) : IAppSet
         const string sql = """
             SELECT "Id", "Key", "Value", "Description", "CreatedAtUtc", "UpdatedAtUtc"
             FROM "AppSettings"
-            WHERE "Key" = @Key
+            WHERE "Key" = @Key AND "IsDeleted" = false
             """;
 
         await session.EnsureOpenAsync(cancellationToken);
@@ -34,11 +34,13 @@ public sealed class DapperAppSettingReadRepository(IDbSession session) : IAppSet
 
         const string countSql = """
             SELECT COUNT(*) FROM "AppSettings"
+            WHERE "IsDeleted" = false
             """;
 
         var pageSql = $"""
             SELECT "Id", "Key", "Value", "Description", "CreatedAtUtc", "UpdatedAtUtc"
             FROM "AppSettings"
+            WHERE "IsDeleted" = false
             ORDER BY {ordenSql} {direccionSql}
             LIMIT @TamanoPagina OFFSET @Offset
             """;

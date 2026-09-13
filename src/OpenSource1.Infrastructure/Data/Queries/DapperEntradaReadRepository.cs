@@ -15,7 +15,7 @@ public sealed class DapperEntradaReadRepository(IDbSession session) : IEntradaRe
         const string sql = """
             SELECT "Id", "Titulo", "Descripcion", "Tipo", "Estado", "CreatedAtUtc", "UpdatedAtUtc"
             FROM "Entradas"
-            WHERE "Id" = @Id
+            WHERE "Id" = @Id AND "IsDeleted" = false
             """;
 
         await session.EnsureOpenAsync(cancellationToken);
@@ -34,11 +34,13 @@ public sealed class DapperEntradaReadRepository(IDbSession session) : IEntradaRe
 
         const string countSql = """
             SELECT COUNT(*) FROM "Entradas"
+            WHERE "IsDeleted" = false
             """;
 
         var pageSql = $"""
             SELECT "Id", "Titulo", "Descripcion", "Tipo", "Estado", "CreatedAtUtc", "UpdatedAtUtc"
             FROM "Entradas"
+            WHERE "IsDeleted" = false
             ORDER BY {ordenSql} {direccionSql}
             LIMIT @TamanoPagina OFFSET @Offset
             """;

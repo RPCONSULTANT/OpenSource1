@@ -55,6 +55,14 @@ public sealed class UnitOfWork(
 
         foreach (var entry in dbContext.ChangeTracker.Entries<IAuditableEntity>())
         {
+            if (entry.State == EntityState.Deleted && entry.Entity is ISoftDeletable softDeletable)
+            {
+                entry.State = EntityState.Modified;
+                softDeletable.IsDeleted = true;
+                softDeletable.DeletedAtUtc = now;
+                softDeletable.DeletedBy = currentUser;
+            }
+
             if (entry.State == EntityState.Added)
             {
                 entry.Entity.CreatedAtUtc = now;

@@ -16,7 +16,7 @@ public sealed class DapperProductoReadRepository(IDbSession session) : IProducto
         const string sql = """
             SELECT "Id", "Codigo", "Nombre", "Precio", "Stock", "CategoriaCodigo", "CategoriaNombre", "UnidadMedidaCodigo", "UnidadMedidaNombre", "ImagePath", "CreatedAtUtc", "UpdatedAtUtc", "CreatedBy", "UpdatedBy"
             FROM "Productos"
-            WHERE "Id" = @Id
+            WHERE "Id" = @Id AND "IsDeleted" = false
             """;
         await session.EnsureOpenAsync(cancellationToken);
         return await session.Connection.QuerySingleOrDefaultAsync<ProductoResponse>(new CommandDefinition(sql, new { Id = id }, session.CurrentTransaction, cancellationToken: cancellationToken));
@@ -51,7 +51,8 @@ public sealed class DapperProductoReadRepository(IDbSession session) : IProducto
             return Result<PagedResult<ProductoResponse>>.Fallo(stockResult);
         }
 
-        var whereSql = filters.Count > 0 ? Environment.NewLine + "WHERE " + string.Join(" AND ", filters) : string.Empty;
+        filters.Insert(0, "\"IsDeleted\" = false");
+        var whereSql = Environment.NewLine + "WHERE " + string.Join(" AND ", filters);
 
         var ordenColumna = ColumnasPermitidas.EsValida(pagina.OrdenarPor) ? pagina.OrdenarPor! : "CreatedAtUtc";
         var ordenSql = ColumnasPermitidas.Citar(ordenColumna);

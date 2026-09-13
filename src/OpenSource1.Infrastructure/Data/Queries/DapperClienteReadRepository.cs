@@ -16,7 +16,7 @@ public sealed class DapperClienteReadRepository(IDbSession session) : IClienteRe
         const string sql = """
             SELECT "Id", "Nombre", "Apellido", "Email", "Telefono", "DireccionLinea1", "DireccionLinea2", "Sector", "PaisCodigo", "PaisNombre", "ImagePath", "CreatedAtUtc", "UpdatedAtUtc", "CreatedBy", "UpdatedBy"
             FROM "Clientes"
-            WHERE "Id" = @Id
+            WHERE "Id" = @Id AND "IsDeleted" = false
             """;
         await session.EnsureOpenAsync(cancellationToken);
         return await session.Connection.QuerySingleOrDefaultAsync<ClienteResponse>(new CommandDefinition(sql, new { Id = id }, session.CurrentTransaction, cancellationToken: cancellationToken));
@@ -38,7 +38,8 @@ public sealed class DapperClienteReadRepository(IDbSession session) : IClienteRe
         FilterExpressionBuilder.AddTextFilter(filters, parameters, ColumnasPermitidas, "Sector", search.Sector);
         FilterExpressionBuilder.AddTextFilter(filters, parameters, ColumnasPermitidas, "PaisNombre", search.PaisNombre);
 
-        var whereSql = filters.Count > 0 ? Environment.NewLine + "WHERE " + string.Join(" AND ", filters) : string.Empty;
+        filters.Insert(0, "\"IsDeleted\" = false");
+        var whereSql = Environment.NewLine + "WHERE " + string.Join(" AND ", filters);
 
         var ordenColumna = ColumnasPermitidas.EsValida(pagina.OrdenarPor) ? pagina.OrdenarPor! : "CreatedAtUtc";
         var ordenSql = ColumnasPermitidas.Citar(ordenColumna);
