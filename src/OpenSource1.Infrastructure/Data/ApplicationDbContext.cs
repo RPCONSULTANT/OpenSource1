@@ -7,7 +7,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 {
     public DbSet<AppSetting> AppSettings => Set<AppSetting>();
     public DbSet<Entrada>    Entradas    => Set<Entrada>();
-    public DbSet<Cliente>    Clientes    => Set<Cliente>();
+    public DbSet<SocioDeNegocio> SociosNegocio => Set<SocioDeNegocio>();
     public DbSet<Producto>   Productos   => Set<Producto>();
     public DbSet<TerminoPago> TerminosPago => Set<TerminoPago>();
     public DbSet<UnidadMedida> UnidadesMedida => Set<UnidadMedida>();
@@ -59,9 +59,9 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.HasQueryFilter(e => !e.IsDeleted);
         });
 
-        modelBuilder.Entity<Cliente>(entity =>
+        modelBuilder.Entity<SocioDeNegocio>(entity =>
         {
-            entity.ToTable("Clientes");
+            entity.ToTable("SociosNegocio");
             entity.HasKey(x => x.Id);
             entity.Property(x => x.Nombre).HasMaxLength(100).IsRequired();
             entity.Property(x => x.Apellido).HasMaxLength(100).IsRequired();
@@ -70,8 +70,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.Property(x => x.ImagePath).HasMaxLength(500);
             entity.Property(x => x.CreatedBy).HasMaxLength(100).IsRequired();
             entity.Property(x => x.UpdatedBy).HasMaxLength(100);
-            entity.HasIndex(x => x.CreatedAtUtc).HasDatabaseName("IX_Clientes_CreatedAtUtc");
-            entity.HasIndex(x => x.Email).HasDatabaseName("IX_Clientes_Email");
+            entity.HasIndex(x => x.CreatedAtUtc).HasDatabaseName("IX_SociosNegocio_CreatedAtUtc");
+            entity.HasIndex(x => x.Email).HasDatabaseName("IX_SociosNegocio_Email");
             entity.Property<uint>("xmin").HasColumnName("xmin").IsRowVersion();
             entity.Property(x => x.IsDeleted).HasDefaultValue(false);
             entity.Property(x => x.DeletedBy).HasMaxLength(100);

@@ -9,7 +9,7 @@ public sealed class DeleteClienteCommandHandler(IUnitOfWork unitOfWork) : IReque
 {
     public async Task<bool> Handle(DeleteClienteCommand request, CancellationToken cancellationToken)
     {
-        var repo = unitOfWork.Repository<Cliente>();
+        var repo = unitOfWork.Repository<SocioDeNegocio>();
         var entity = await repo.GetByIdAsync(new object[] { request.Id }, cancellationToken);
         if (entity is null) return false;
         repo.Remove(entity); await unitOfWork.SaveChangesAsync(cancellationToken); return true;

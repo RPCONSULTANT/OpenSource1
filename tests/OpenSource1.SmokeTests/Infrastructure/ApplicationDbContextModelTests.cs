@@ -25,7 +25,7 @@ public sealed class ApplicationDbContextModelTests
         var modelo = contexto.Model;
 
         Assert.NotNull(modelo);
-        Assert.NotNull(modelo.FindEntityType(typeof(OpenSource1.Core.Entities.Cliente)));
+        Assert.NotNull(modelo.FindEntityType(typeof(OpenSource1.Core.Entities.SocioDeNegocio)));
         Assert.NotNull(modelo.FindEntityType(typeof(OpenSource1.Core.Entities.Producto)));
     }
 }

@@ -12,14 +12,14 @@ public class CreateClienteCommandHandlerTests
     [Fact]
     public async Task Handle_AddsEntity_SavesAndReturnsMappedResponse()
     {
-        var repo = new Mock<IGenericRepository<Cliente>>();
-        Cliente? added = null;
-        repo.Setup(r => r.AddAsync(It.IsAny<Cliente>(), It.IsAny<CancellationToken>()))
-            .Callback<Cliente, CancellationToken>((entity, _) => added = entity)
+        var repo = new Mock<IGenericRepository<SocioDeNegocio>>();
+        SocioDeNegocio? added = null;
+        repo.Setup(r => r.AddAsync(It.IsAny<SocioDeNegocio>(), It.IsAny<CancellationToken>()))
+            .Callback<SocioDeNegocio, CancellationToken>((entity, _) => added = entity)
             .Returns(Task.CompletedTask);
 
         var unitOfWork = new Mock<IUnitOfWork>();
-        unitOfWork.Setup(u => u.Repository<Cliente>()).Returns(repo.Object);
+        unitOfWork.Setup(u => u.Repository<SocioDeNegocio>()).Returns(repo.Object);
         unitOfWork.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
 
         var handler = new CreateClienteCommandHandler(unitOfWork.Object);

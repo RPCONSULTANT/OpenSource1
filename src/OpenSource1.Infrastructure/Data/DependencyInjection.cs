@@ -63,7 +63,7 @@ public static class DependencyInjection
 
         services.AddScoped<IAppSettingReadRepository, DapperAppSettingReadRepository>();
         services.AddScoped<IEntradaReadRepository, DapperEntradaReadRepository>();
-        services.AddScoped<IClienteReadRepository, DapperClienteReadRepository>();
+        services.AddScoped<IClienteReadRepository, DapperSocioNegocioReadRepository>();
         services.AddScoped<IProductoReadRepository, DapperProductoReadRepository>();
         services.AddScoped<ITerminoPagoReadRepository, DapperTerminoPagoReadRepository>();
         services.AddScoped<IUnidadMedidaReadRepository, DapperUnidadMedidaReadRepository>();

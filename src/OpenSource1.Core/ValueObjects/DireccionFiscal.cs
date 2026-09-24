@@ -3,9 +3,9 @@ using OpenSource1.Core.Common;
 
 namespace OpenSource1.Core.ValueObjects;
 
-public sealed class DireccionCliente : ValueObject
+public sealed class DireccionFiscal : ValueObject
 {
-    private DireccionCliente(string linea1, string? linea2)
+    private DireccionFiscal(string linea1, string? linea2)
     {
         Linea1 = linea1;
         Linea2 = linea2;
@@ -21,7 +21,7 @@ public sealed class DireccionCliente : ValueObject
     /// <c>nameof(request.DireccionLinea1)</c>). El value object no conoce la forma del DTO que lo
     /// invoca, así que si no se indica se usa <c>nameof(linea1)</c> como respaldo.
     /// </param>
-    public static DireccionCliente Of(string linea1, string? linea2, string? nombreCampoLinea1 = null)
+    public static DireccionFiscal Of(string linea1, string? linea2, string? nombreCampoLinea1 = null)
     {
         var campo = nombreCampoLinea1 ?? nameof(linea1);
 
@@ -33,7 +33,7 @@ public sealed class DireccionCliente : ValueObject
 
         var linea2Normalizada = string.IsNullOrWhiteSpace(linea2) ? null : linea2.Trim();
 
-        return new DireccionCliente(linea1.Trim(), linea2Normalizada);
+        return new DireccionFiscal(linea1.Trim(), linea2Normalizada);
     }
 
     protected override IEnumerable<object?> GetEqualityComponents()

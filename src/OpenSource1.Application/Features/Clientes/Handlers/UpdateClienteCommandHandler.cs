@@ -11,14 +11,14 @@ public sealed class UpdateClienteCommandHandler(IUnitOfWork unitOfWork) : IReque
 {
     public async Task<ClienteResponse?> Handle(UpdateClienteCommand request, CancellationToken cancellationToken)
     {
-        var repo = unitOfWork.Repository<Cliente>();
+        var repo = unitOfWork.Repository<SocioDeNegocio>();
         var entity = await repo.GetByIdAsync(new object[] { request.Id }, cancellationToken);
         if (entity is null) return null;
         entity.Nombre = request.Nombre.Trim();
         entity.Apellido = request.Apellido.Trim();
         entity.Email = request.Email.Trim();
         entity.Telefono = request.Telefono?.Trim();
-        entity.Direccion = string.IsNullOrWhiteSpace(request.DireccionLinea1) ? null : DireccionCliente.Of(request.DireccionLinea1, request.DireccionLinea2, nameof(request.DireccionLinea1));
+        entity.Direccion = string.IsNullOrWhiteSpace(request.DireccionLinea1) ? null : DireccionFiscal.Of(request.DireccionLinea1, request.DireccionLinea2, nameof(request.DireccionLinea1));
         entity.Sector = string.IsNullOrWhiteSpace(request.Sector) ? null : Sector.Of(request.Sector, nameof(request.Sector));
         entity.Pais = string.IsNullOrWhiteSpace(request.PaisCodigo) ? null : Pais.Of(request.PaisCodigo, nameof(request.PaisCodigo));
         entity.ImagePath = request.ImagePath;

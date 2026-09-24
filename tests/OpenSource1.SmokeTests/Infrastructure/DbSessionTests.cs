@@ -41,7 +41,7 @@ namespace OpenSource1.SmokeTests.Infrastructure;
 /// (<c>UseNpgsql(session.Connection)</c>), contra su propia tabla. La propiedad que Task 1.5
 /// introduce — misma conexión, misma transacción, visible para Dapper — es agnóstica al modelo de
 /// entidades: se cumple o no se cumple independientemente de si el modelo es Entrada o esta tabla
-/// de prueba. (El bug histórico de constructor sin enlazar en <c>DireccionCliente</c> que en su
+/// de prueba. (El bug histórico de constructor sin enlazar en <c>DireccionFiscal</c> que en su
 /// momento impedía construir <c>ApplicationDbContext.Model</c> se corrigió con el patrón factory +
 /// constructor privado de la Task de estandarización de value objects; ver
 /// <see cref="ApplicationDbContextModelTests"/>, que ejerce ese modelo completo directamente.) El

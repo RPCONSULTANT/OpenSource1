@@ -3,12 +3,12 @@ using OpenSource1.Core.ValueObjects;
 
 namespace OpenSource1.SmokeTests.Core.ValueObjects;
 
-public class DireccionClienteTests
+public class DireccionFiscalTests
 {
     [Fact]
     public void Constructor_ConLinea1Valida_NormalizaLineas()
     {
-        var direccion = DireccionCliente.Of(" Calle 1 ", " Apto 2 ");
+        var direccion = DireccionFiscal.Of(" Calle 1 ", " Apto 2 ");
 
         Assert.Equal("Calle 1", direccion.Linea1);
         Assert.Equal("Apto 2", direccion.Linea2);
@@ -17,7 +17,7 @@ public class DireccionClienteTests
     [Fact]
     public void Constructor_ConLinea1Vacia_LanzaErroresDeDominioConCampoLinea1()
     {
-        var excepcion = Assert.Throws<ErroresDeDominioException>(() => DireccionCliente.Of("   ", null));
+        var excepcion = Assert.Throws<ErroresDeDominioException>(() => DireccionFiscal.Of("   ", null));
 
         var error = Assert.Single(excepcion.Errores);
         Assert.Equal("direccion.linea1_requerida", error.Codigo);
@@ -28,7 +28,7 @@ public class DireccionClienteTests
     public void Constructor_ConNombreCampoExplicito_UsaEseNombreEnLugarDelParametro()
     {
         var excepcion = Assert.Throws<ErroresDeDominioException>(
-            () => DireccionCliente.Of("   ", null, "DireccionLinea1"));
+            () => DireccionFiscal.Of("   ", null, "DireccionLinea1"));
 
         var error = Assert.Single(excepcion.Errores);
         Assert.Equal("DireccionLinea1", error.Campo);

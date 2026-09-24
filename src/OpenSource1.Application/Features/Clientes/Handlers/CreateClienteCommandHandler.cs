@@ -11,23 +11,23 @@ public sealed class CreateClienteCommandHandler(IUnitOfWork unitOfWork) : IReque
 {
     public async Task<ClienteResponse> Handle(CreateClienteCommand request, CancellationToken cancellationToken)
     {
-        var entity = new Cliente
+        var entity = new SocioDeNegocio
         {
             Nombre = request.Nombre.Trim(),
             Apellido = request.Apellido.Trim(),
             Email = request.Email.Trim(),
             Telefono = request.Telefono?.Trim(),
-            Direccion = string.IsNullOrWhiteSpace(request.DireccionLinea1) ? null : DireccionCliente.Of(request.DireccionLinea1, request.DireccionLinea2, nameof(request.DireccionLinea1)),
+            Direccion = string.IsNullOrWhiteSpace(request.DireccionLinea1) ? null : DireccionFiscal.Of(request.DireccionLinea1, request.DireccionLinea2, nameof(request.DireccionLinea1)),
             Sector = string.IsNullOrWhiteSpace(request.Sector) ? null : Sector.Of(request.Sector, nameof(request.Sector)),
             Pais = string.IsNullOrWhiteSpace(request.PaisCodigo) ? null : Pais.Of(request.PaisCodigo, nameof(request.PaisCodigo)),
             ImagePath = request.ImagePath
         };
-        await unitOfWork.Repository<Cliente>().AddAsync(entity, cancellationToken);
+        await unitOfWork.Repository<SocioDeNegocio>().AddAsync(entity, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return ToResponse(entity);
     }
 
-    public static ClienteResponse ToResponse(Cliente x) => new()
+    public static ClienteResponse ToResponse(SocioDeNegocio x) => new()
     {
         Id = x.Id,
         Nombre = x.Nombre,

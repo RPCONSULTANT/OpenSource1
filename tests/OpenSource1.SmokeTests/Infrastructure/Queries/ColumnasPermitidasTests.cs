@@ -28,7 +28,7 @@ public class ColumnasPermitidasTests
     }
 
     [Theory]
-    [InlineData("Nombre\"; DROP TABLE \"Clientes")]
+    [InlineData("Nombre\"; DROP TABLE \"SociosNegocio")]
     [InlineData("1=1")]
     [InlineData("")]
     public void Citar_RechazaColumnasNoPermitidas(string columna)

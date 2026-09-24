@@ -6,7 +6,7 @@ using OpenSource1.Core.Common;
 
 namespace OpenSource1.Infrastructure.Data.Queries;
 
-public sealed class DapperClienteReadRepository(IDbSession session) : IClienteReadRepository
+public sealed class DapperSocioNegocioReadRepository(IDbSession session) : IClienteReadRepository
 {
     private static readonly ColumnasPermitidas ColumnasPermitidas = new(
         "Nombre", "Apellido", "Email", "Telefono", "DireccionLinea1", "Sector", "PaisNombre", "CreatedAtUtc");
@@ -15,7 +15,7 @@ public sealed class DapperClienteReadRepository(IDbSession session) : IClienteRe
     {
         const string sql = """
             SELECT "Id", "Nombre", "Apellido", "Email", "Telefono", "DireccionLinea1", "DireccionLinea2", "Sector", "PaisCodigo", "PaisNombre", "ImagePath", "CreatedAtUtc", "UpdatedAtUtc", "CreatedBy", "UpdatedBy"
-            FROM "Clientes"
+            FROM "SociosNegocio"
             WHERE "Id" = @Id AND "IsDeleted" = false
             """;
         await session.EnsureOpenAsync(cancellationToken);
@@ -49,13 +49,13 @@ public sealed class DapperClienteReadRepository(IDbSession session) : IClienteRe
         parameters.Add("Offset", pagina.Offset);
 
         var countSql = $"""
-            SELECT COUNT(*) FROM "Clientes"
+            SELECT COUNT(*) FROM "SociosNegocio"
             {whereSql}
             """;
 
         var pageSql = $"""
             SELECT "Id", "Nombre", "Apellido", "Email", "Telefono", "DireccionLinea1", "DireccionLinea2", "Sector", "PaisCodigo", "PaisNombre", "ImagePath", "CreatedAtUtc", "UpdatedAtUtc", "CreatedBy", "UpdatedBy"
-            FROM "Clientes"
+            FROM "SociosNegocio"
             {whereSql}
             ORDER BY {ordenSql} {direccionSql}, "Id" ASC
             LIMIT @TamanoPagina OFFSET @Offset
