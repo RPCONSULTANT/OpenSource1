@@ -199,7 +199,36 @@ public sealed class GeneradorNumeroDocumentoTests : IClassFixture<PostgresTestFi
         await session.RollbackAsync();
     }
 
-    private async Task SembrarSerieAsync(string codigo, DateOnly fechaInicial)
+    [Fact]
+    public async Task SiguienteAsync_SerieAgotada_DevuelveFallo()
+    {
+        var codigoSerie = $"AGOT{Guid.NewGuid():N}"[..12];
+        var fecha = new DateOnly(2026, 1, 1);
+
+        // Rango de un solo número, ya usado: el siguiente (00002) excede NumeroFinal (00001).
+        await SembrarSerieAsync(codigoSerie, fecha, numeroInicial: "00001", numeroFinal: "00001", ultimoNumeroUsado: "00001");
+
+        await using var scope = _provider.CreateAsyncScope();
+        var session = scope.ServiceProvider.GetRequiredService<IDbSession>();
+        var generador = scope.ServiceProvider.GetRequiredService<IGeneradorNumeroDocumento>();
+
+        await session.EnsureOpenAsync();
+        await using var tx = await session.BeginTransactionAsync();
+
+        var resultado = await generador.SiguienteAsync(codigoSerie, fecha);
+
+        Assert.True(resultado.EsFallo);
+        Assert.Equal("numeracion.serie_agotada", resultado.Errores[0].Codigo);
+
+        await session.RollbackAsync();
+    }
+
+    private async Task SembrarSerieAsync(
+        string codigo,
+        DateOnly fechaInicial,
+        string numeroInicial = "00001",
+        string numeroFinal = "00100",
+        string ultimoNumeroUsado = "00000")
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseNpgsql(_fixture.AppConnectionString)
@@ -220,9 +249,9 @@ public sealed class GeneradorNumeroDocumentoTests : IClassFixture<PostgresTestFi
         var linea = new LineaSerie
         {
             SerieId = serie.Id,
-            NumeroInicial = "00001",
-            NumeroFinal = "00100",
-            UltimoNumeroUsado = "00000",
+            NumeroInicial = numeroInicial,
+            NumeroFinal = numeroFinal,
+            UltimoNumeroUsado = ultimoNumeroUsado,
             FechaInicial = fechaInicial,
             Incremento = 1,
             Bloqueada = false,
