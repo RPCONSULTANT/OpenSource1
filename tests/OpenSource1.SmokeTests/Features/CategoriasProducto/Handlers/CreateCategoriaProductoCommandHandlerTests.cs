@@ -53,6 +53,19 @@ public class CreateCategoriaProductoCommandHandlerTests
         fake.UnitOfWork.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
+    [Fact]
+    public async Task Handle_ReturnsFallo_WhenPadreEstaBorradoLogicamente()
+    {
+        var fake = new CategoriaProductoRepoFake();
+        var padre = fake.Agregar("ALIM");
+        fake.Borrar(padre);
+        var handler = new CreateCategoriaProductoCommandHandler(fake.UnitOfWork.Object);
+
+        var result = await handler.Handle(new CreateCategoriaProductoCommand("LACT", "Lácteos", padre.Id), default);
+
+        Assert.Equal("categoria_producto.padre_no_encontrado", Assert.Single(result.Errores).Codigo);
+    }
+
     [Theory]
     [InlineData("", "Nombre")]
     [InlineData("CODIGO-DE-CATEGORIA-MUY-LARGO-XXXX", "Nombre")]

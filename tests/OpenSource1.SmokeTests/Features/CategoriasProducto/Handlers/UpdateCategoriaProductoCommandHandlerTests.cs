@@ -77,6 +77,21 @@ public class UpdateCategoriaProductoCommandHandlerTests
     }
 
     [Fact]
+    public async Task Handle_ReturnsFallo_WhenPadreEstaBorradoLogicamente()
+    {
+        var fake = new CategoriaProductoRepoFake();
+        var padre = fake.Agregar("ALIM");
+        var entity = fake.Agregar("LACT");
+        fake.Borrar(padre);
+        var handler = new UpdateCategoriaProductoCommandHandler(fake.UnitOfWork.Object);
+
+        var result = await handler.Handle(new UpdateCategoriaProductoCommand(entity.Id, "LACT", "Lácteos", padre.Id), default);
+
+        AssertRechazadoSinGuardar(result.Errores, "categoria_producto.padre_no_encontrado", fake);
+        Assert.Null(entity.CategoriaPadreId);
+    }
+
+    [Fact]
     public async Task Handle_ReturnsFallo_WhenCicloDeDosNiveles()
     {
         // B es hija de A; hacer que A tenga por padre a B cerraría A→B→A.

@@ -49,4 +49,19 @@ public class DeleteCategoriaProductoCommandHandlerTests
         fake.Repo.Verify(r => r.Remove(It.IsAny<CategoriaProducto>()), Times.Never);
         fake.UnitOfWork.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
+
+    [Fact]
+    public async Task Handle_RemovesAndSaves_WhenLosUnicosHijosYaEstanBorradosLogicamente()
+    {
+        var fake = new CategoriaProductoRepoFake();
+        var padre = fake.Agregar("ALIM");
+        var hijo = fake.Agregar("LACT", padre.Id);
+        fake.Borrar(hijo);
+        var handler = new DeleteCategoriaProductoCommandHandler(fake.UnitOfWork.Object);
+
+        var result = await handler.Handle(new DeleteCategoriaProductoCommand(padre.Id), default);
+
+        Assert.True(result.EsExito);
+        fake.Repo.Verify(r => r.Remove(padre), Times.Once);
+    }
 }

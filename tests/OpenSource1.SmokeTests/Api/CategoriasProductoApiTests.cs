@@ -2,6 +2,9 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
+using OpenSource1.Core.Entities;
+using OpenSource1.Infrastructure.Data;
 using OpenSource1.Application.Features.CategoriasProducto.Dtos;
 using OpenSource1.Core.Common;
 using OpenSource1.SmokeTests.TestInfrastructure;
@@ -12,10 +15,12 @@ namespace OpenSource1.SmokeTests.Api;
 public sealed class CategoriasProductoApiTests : IClassFixture<PostgresTestFixture>
 {
     private const string Ruta = "/api/categorias-producto";
+    private readonly PostgresTestFixture _fixture;
     private readonly HttpClient _client;
 
     public CategoriasProductoApiTests(PostgresTestFixture fixture)
     {
+        _fixture = fixture;
         var factory = fixture.CreateFactory();
         _client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
     }
@@ -145,6 +150,54 @@ public sealed class CategoriasProductoApiTests : IClassFixture<PostgresTestFixtu
             Ruta, new { codigo = CodigoUnico("Y"), nombre = "Hija de borrada", categoriaPadreId = padre.Id });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Update_ConPadreBorrado_Devuelve400()
+    {
+        var client = CreateClient("Administrador");
+        var padre = await Crear(client, CodigoUnico("UB"));
+        var otra = await Crear(client, CodigoUnico("UO"));
+        Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"{Ruta}/{padre.Id}")).StatusCode);
+
+        var response = await client.PutAsJsonAsync($"{Ruta}/{otra.Id}", new { codigo = otra.Codigo, nombre = otra.Nombre, categoriaPadreId = padre.Id });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var errores = (await response.Content.ReadFromJsonAsync<JsonDocument>())!.RootElement.GetProperty("errors");
+        Assert.True(errores.TryGetProperty("CategoriaPadreId", out _));
+    }
+
+    [Fact(Timeout = 30_000)]
+    public async Task Update_HaciaUnCicloPreexistenteEnLaBase_TerminaConRespuestaControlada_SinColgarse()
+    {
+        // Ciclo X↔Y metido saltándose el handler (dato corrupto). Recorrer la cadena de padres sin
+        // conjunto de visitados giraría para siempre; el Timeout hace que ese bucle falle en vez de colgar la suite.
+        Guid xId;
+        await using (var contexto = new ApplicationDbContext(
+            new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(_fixture.AppConnectionString).Options))
+        {
+            var x = new CategoriaProducto { Codigo = CodigoUnico("CX"), Nombre = "X" };
+            contexto.CategoriasProducto.Add(x);
+            await contexto.SaveChangesAsync();
+            var y = new CategoriaProducto { Codigo = CodigoUnico("CY"), Nombre = "Y", CategoriaPadreId = x.Id };
+            contexto.CategoriasProducto.Add(y);
+            await contexto.SaveChangesAsync();
+            x.CategoriaPadreId = y.Id;
+            await contexto.SaveChangesAsync();
+            xId = x.Id;
+        }
+
+        var client = CreateClient("Administrador");
+        var z = await Crear(client, CodigoUnico("CZ"));
+
+        // Z no pertenece al ciclo: colgarla de X es válido y debe responder, no colgarse.
+        var hacia = await client.PutAsJsonAsync($"{Ruta}/{z.Id}", new { codigo = z.Codigo, nombre = z.Nombre, categoriaPadreId = xId });
+        Assert.Equal(HttpStatusCode.OK, hacia.StatusCode);
+
+        // Cerrar un ciclo nuevo (X con padre Z, que ya cuelga de X) sigue detectándose.
+        var x2 = await client.GetFromJsonAsync<CategoriaProductoResponse>($"{Ruta}/{xId}");
+        var cierra = await client.PutAsJsonAsync($"{Ruta}/{xId}", new { codigo = x2!.Codigo, nombre = x2.Nombre, categoriaPadreId = z.Id });
+        Assert.Equal(HttpStatusCode.BadRequest, cierra.StatusCode);
     }
 
     [Fact]
