@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using OpenSource1.Application.Services.Inventario;
+using OpenSource1.Core.Common;
 using OpenSource1.Core.Entities;
 using OpenSource1.Core.ValueObjects;
 using OpenSource1.Infrastructure.Data;
@@ -112,17 +113,21 @@ public sealed class ConversionUnidadMedidaServiceTests : IClassFixture<PostgresT
     [Fact]
     public async Task ConvertirABase_UnidadBaseBorradaDelCatalogo_DevuelveUnidadBaseNoEncontrada()
     {
-        // Borrado lógico simulado a mano (IsDeleted = true): un DbContext crudo no pasa por el
-        // borrado lógico del UnitOfWork. Solo esta prueba usa PAQ, y el seed se verifica ignorando
-        // el filtro global, así que no afecta a las demás.
         var (producto, cja) = await SembrarAsync("PAQ", "CJA", 4m);
-        await using (var contexto = NuevoContexto())
-        {
-            (await contexto.UnidadesMedida.SingleAsync(u => u.Codigo == "PAQ")).IsDeleted = true;
-            await contexto.SaveChangesAsync();
-        }
 
-        var resultado = await ConvertirAsync(producto, cja, 1m);
+        // Borrado lógico simulado a mano (IsDeleted = true): un DbContext crudo no pasa por el
+        // borrado lógico del UnitOfWork. Se restaura al final para no alterar el catálogo
+        // sembrado que verifican otras pruebas de esta clase.
+        await CambiarBorradoPaqAsync(true);
+        Result<decimal> resultado;
+        try
+        {
+            resultado = await ConvertirAsync(producto, cja, 1m);
+        }
+        finally
+        {
+            await CambiarBorradoPaqAsync(false);
+        }
 
         Assert.True(resultado.EsFallo);
         Assert.Equal("conversion.unidad_base_no_encontrada", resultado.Errores[0].Codigo);
@@ -156,14 +161,18 @@ public sealed class ConversionUnidadMedidaServiceTests : IClassFixture<PostgresT
     }
 
     [Fact]
-    public async Task ElCatalogoSemilla_ContieneLasDiezUnidadesIniciales()
+    public async Task ElCatalogoSemilla_ContieneLasDiezUnidadesIniciales_ConNombreDecimalesYNoBorradas()
     {
         await using var contexto = NuevoContexto();
-        var codigos = await contexto.UnidadesMedida.IgnoreQueryFilters().Select(u => u.Codigo).ToListAsync();
+        // IgnoreQueryFilters para poder comprobar la columna IsDeleted de las filas sembradas.
+        var filas = await contexto.UnidadesMedida.IgnoreQueryFilters().ToListAsync();
 
-        foreach (var esperado in new[] { "UND", "KG", "GR", "LT", "ML", "CJA", "DOC", "PAQ", "MT", "LB" })
+        foreach (var (codigo, nombre, decimales) in UnidadesMedidaSemilla.Catalogo)
         {
-            Assert.Contains(esperado, codigos);
+            var fila = Assert.Single(filas, u => u.Codigo == codigo);
+            Assert.Equal(nombre, fila.Nombre);
+            Assert.Equal(decimales, fila.Decimales);
+            Assert.False(fila.IsDeleted);
         }
     }
 
@@ -213,7 +222,15 @@ public sealed class ConversionUnidadMedidaServiceTests : IClassFixture<PostgresT
         await reasociado.SaveChangesAsync();
     }
 
-    private async Task<OpenSource1.Core.Common.Result<decimal>> ConvertirAsync(Guid productoId, Guid unidadId, decimal cantidad)
+    private async Task CambiarBorradoPaqAsync(bool borrado)
+    {
+        await using var contexto = NuevoContexto();
+        var paq = await contexto.UnidadesMedida.IgnoreQueryFilters().SingleAsync(u => u.Codigo == "PAQ");
+        paq.IsDeleted = borrado;
+        await contexto.SaveChangesAsync();
+    }
+
+    private async Task<Result<decimal>> ConvertirAsync(Guid productoId, Guid unidadId, decimal cantidad)
     {
         await using var scope = _provider.CreateAsyncScope();
         var servicio = scope.ServiceProvider.GetRequiredService<IConversionUnidadMedidaService>();

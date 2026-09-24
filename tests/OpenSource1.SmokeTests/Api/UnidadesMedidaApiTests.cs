@@ -2,6 +2,9 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
+using OpenSource1.Core.Entities;
+using OpenSource1.Infrastructure.Data;
 using OpenSource1.Application.Features.UnidadesMedida.Dtos;
 using OpenSource1.Core.Common;
 using OpenSource1.SmokeTests.TestInfrastructure;
@@ -11,10 +14,12 @@ namespace OpenSource1.SmokeTests.Api;
 [Collection(PostgresCollection.Name)]
 public sealed class UnidadesMedidaApiTests : IClassFixture<PostgresTestFixture>
 {
+    private readonly PostgresTestFixture _fixture;
     private readonly HttpClient _client;
 
     public UnidadesMedidaApiTests(PostgresTestFixture fixture)
     {
+        _fixture = fixture;
         var factory = fixture.CreateFactory();
         _client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
     }
@@ -166,11 +171,67 @@ public sealed class UnidadesMedidaApiTests : IClassFixture<PostgresTestFixture>
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         var paged = await response.Content.ReadFromJsonAsync<PagedResult<UnidadMedidaResponse>>();
-        var codigos = paged!.Items.Select(x => x.Codigo).ToList();
-        foreach (var esperado in new[] { "UND", "KG", "GR", "LT", "ML", "CJA", "DOC", "PAQ", "MT", "LB" })
+        foreach (var (codigo, nombre, decimales) in UnidadesMedidaSemilla.Catalogo)
         {
-            Assert.Contains(esperado, codigos);
+            var unidad = Assert.Single(paged!.Items, x => x.Codigo == codigo);
+            Assert.Equal(nombre, unidad.Nombre);
+            Assert.Equal(decimales, unidad.Decimales);
         }
+    }
+
+    [Fact]
+    public async Task Update_ACodigoDuplicado_Devuelve409()
+    {
+        var client = CreateClient("Administrador");
+        var codigoA = $"A{Guid.NewGuid():N}"[..10];
+        var codigoB = $"B{Guid.NewGuid():N}"[..10];
+
+        Assert.Equal(HttpStatusCode.Created,
+            (await client.PostAsJsonAsync("/api/unidades-medida", new { codigo = codigoA, nombre = "Uno", decimales = 0 })).StatusCode);
+        var segunda = await client.PostAsJsonAsync("/api/unidades-medida", new { codigo = codigoB, nombre = "Dos", decimales = 0 });
+        Assert.Equal(HttpStatusCode.Created, segunda.StatusCode);
+        var idB = (await segunda.Content.ReadFromJsonAsync<UnidadMedidaResponse>())!.Id;
+
+        var update = await client.PutAsJsonAsync($"/api/unidades-medida/{idB}", new { codigo = codigoA, nombre = "Dos", decimales = 0 });
+
+        Assert.Equal(HttpStatusCode.Conflict, update.StatusCode);
+    }
+
+    [Fact]
+    public async Task Delete_DeUnidadAsociadaAUnProducto_Devuelve409ConCodigoEnUsoConflicto()
+    {
+        var client = CreateClient("Administrador");
+        var codigoUnidad = $"U{Guid.NewGuid():N}"[..10];
+        var createUnidad = await client.PostAsJsonAsync("/api/unidades-medida", new { codigo = codigoUnidad, nombre = "En uso", decimales = 0 });
+        Assert.Equal(HttpStatusCode.Created, createUnidad.StatusCode);
+        var unidadId = (await createUnidad.Content.ReadFromJsonAsync<UnidadMedidaResponse>())!.Id;
+
+        var createProducto = await client.PostAsJsonAsync("/api/productos", new
+        {
+            codigo = $"P-{Guid.NewGuid():N}", nombre = "Prod", categoriaCodigo = "GEN", categoriaNombre = "General",
+            unidadMedidaCodigo = "UND", precio = 1m, stock = 1
+        });
+        Assert.Equal(HttpStatusCode.Created, createProducto.StatusCode);
+        var productoId = JsonDocument.Parse(await createProducto.Content.ReadAsStringAsync()).RootElement.GetProperty("id").GetGuid();
+
+        // No hay API para UnidadMedidaProducto en esta tarea (se gestiona desde Producto en la 2.9).
+        await using (var contexto = new ApplicationDbContext(
+            new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(_fixture.AppConnectionString).Options))
+        {
+            contexto.UnidadesMedidaProducto.Add(new UnidadMedidaProducto
+            {
+                ProductoId = productoId, UnidadMedidaId = unidadId, CantidadPorUnidadMedida = 12m
+            });
+            await contexto.SaveChangesAsync();
+        }
+
+        var delete = await client.DeleteAsync($"/api/unidades-medida/{unidadId}");
+
+        Assert.Equal(HttpStatusCode.Conflict, delete.StatusCode);
+        var problema = await delete.Content.ReadFromJsonAsync<JsonDocument>();
+        Assert.True(problema!.RootElement.GetProperty("errors").TryGetProperty("Id", out _));
+        // La unidad sigue existiendo.
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync($"/api/unidades-medida/{unidadId}")).StatusCode);
     }
 
     [Fact]
