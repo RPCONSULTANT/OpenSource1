@@ -1,6 +1,6 @@
-namespace OpenSource1.Application.Features.Clientes;
+namespace OpenSource1.Application.Features.SociosNegocio;
 
-public sealed record ClienteSearchCriteria(
+public sealed record SocioNegocioSearchCriteria(
     string? Nombre,
     string? Apellido,
     string? Email,

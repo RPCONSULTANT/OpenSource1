@@ -1,13 +1,13 @@
 using Moq;
 using OpenSource1.Application.Data.Repositories;
 using OpenSource1.Application.Data.UnitOfWork;
-using OpenSource1.Application.Features.Clientes.Commands;
-using OpenSource1.Application.Features.Clientes.Handlers;
+using OpenSource1.Application.Features.SociosNegocio.Commands;
+using OpenSource1.Application.Features.SociosNegocio.Handlers;
 using OpenSource1.Core.Entities;
 
-namespace OpenSource1.SmokeTests.Features.Clientes.Handlers;
+namespace OpenSource1.SmokeTests.Features.SociosNegocio.Handlers;
 
-public class CreateClienteCommandHandlerTests
+public class CreateSocioNegocioCommandHandlerTests
 {
     [Fact]
     public async Task Handle_AddsEntity_SavesAndReturnsMappedResponse()
@@ -22,8 +22,8 @@ public class CreateClienteCommandHandlerTests
         unitOfWork.Setup(u => u.Repository<SocioDeNegocio>()).Returns(repo.Object);
         unitOfWork.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
 
-        var handler = new CreateClienteCommandHandler(unitOfWork.Object);
-        var response = await handler.Handle(new CreateClienteCommand("  Juan  ", "  Perez  ", "  JP@MAIL.COM ", " 809-111 ", " Calle 1 ", null, null, null), default);
+        var handler = new CreateSocioNegocioCommandHandler(unitOfWork.Object);
+        var response = await handler.Handle(new CreateSocioNegocioCommand("  Juan  ", "  Perez  ", "  JP@MAIL.COM ", " 809-111 ", " Calle 1 ", null, null, null), default);
 
         Assert.NotNull(added);
         Assert.Equal("Juan", added!.Nombre);

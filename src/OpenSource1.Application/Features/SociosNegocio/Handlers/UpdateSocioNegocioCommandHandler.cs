@@ -1,15 +1,15 @@
 using MediatR;
 using OpenSource1.Application.Data.UnitOfWork;
-using OpenSource1.Application.Features.Clientes.Commands;
-using OpenSource1.Application.Features.Clientes.Dtos;
+using OpenSource1.Application.Features.SociosNegocio.Commands;
+using OpenSource1.Application.Features.SociosNegocio.Dtos;
 using OpenSource1.Core.Entities;
 using OpenSource1.Core.ValueObjects;
 
-namespace OpenSource1.Application.Features.Clientes.Handlers;
+namespace OpenSource1.Application.Features.SociosNegocio.Handlers;
 
-public sealed class UpdateClienteCommandHandler(IUnitOfWork unitOfWork) : IRequestHandler<UpdateClienteCommand, ClienteResponse?>
+public sealed class UpdateSocioNegocioCommandHandler(IUnitOfWork unitOfWork) : IRequestHandler<UpdateSocioNegocioCommand, SocioNegocioResponse?>
 {
-    public async Task<ClienteResponse?> Handle(UpdateClienteCommand request, CancellationToken cancellationToken)
+    public async Task<SocioNegocioResponse?> Handle(UpdateSocioNegocioCommand request, CancellationToken cancellationToken)
     {
         var repo = unitOfWork.Repository<SocioDeNegocio>();
         var entity = await repo.GetByIdAsync(new object[] { request.Id }, cancellationToken);
@@ -22,6 +22,6 @@ public sealed class UpdateClienteCommandHandler(IUnitOfWork unitOfWork) : IReque
         entity.Sector = string.IsNullOrWhiteSpace(request.Sector) ? null : Sector.Of(request.Sector, nameof(request.Sector));
         entity.Pais = string.IsNullOrWhiteSpace(request.PaisCodigo) ? null : Pais.Of(request.PaisCodigo, nameof(request.PaisCodigo));
         entity.ImagePath = request.ImagePath;
-        repo.Update(entity); await unitOfWork.SaveChangesAsync(cancellationToken); return CreateClienteCommandHandler.ToResponse(entity);
+        repo.Update(entity); await unitOfWork.SaveChangesAsync(cancellationToken); return CreateSocioNegocioCommandHandler.ToResponse(entity);
     }
 }

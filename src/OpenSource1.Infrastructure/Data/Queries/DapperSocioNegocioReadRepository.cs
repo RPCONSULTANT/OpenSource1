@@ -1,17 +1,17 @@
 using Dapper;
 using OpenSource1.Application.Data;
-using OpenSource1.Application.Features.Clientes;
-using OpenSource1.Application.Features.Clientes.Dtos;
+using OpenSource1.Application.Features.SociosNegocio;
+using OpenSource1.Application.Features.SociosNegocio.Dtos;
 using OpenSource1.Core.Common;
 
 namespace OpenSource1.Infrastructure.Data.Queries;
 
-public sealed class DapperSocioNegocioReadRepository(IDbSession session) : IClienteReadRepository
+public sealed class DapperSocioNegocioReadRepository(IDbSession session) : ISocioNegocioReadRepository
 {
     private static readonly ColumnasPermitidas ColumnasPermitidas = new(
         "Nombre", "Apellido", "Email", "Telefono", "DireccionLinea1", "Sector", "PaisNombre", "CreatedAtUtc");
 
-    public async Task<ClienteResponse?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<SocioNegocioResponse?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         const string sql = """
             SELECT "Id", "Nombre", "Apellido", "Email", "Telefono", "DireccionLinea1", "DireccionLinea2", "Sector", "PaisCodigo", "PaisNombre", "ImagePath", "CreatedAtUtc", "UpdatedAtUtc", "CreatedBy", "UpdatedBy"
@@ -19,11 +19,11 @@ public sealed class DapperSocioNegocioReadRepository(IDbSession session) : IClie
             WHERE "Id" = @Id AND "IsDeleted" = false
             """;
         await session.EnsureOpenAsync(cancellationToken);
-        return await session.Connection.QuerySingleOrDefaultAsync<ClienteResponse>(new CommandDefinition(sql, new { Id = id }, session.CurrentTransaction, cancellationToken: cancellationToken));
+        return await session.Connection.QuerySingleOrDefaultAsync<SocioNegocioResponse>(new CommandDefinition(sql, new { Id = id }, session.CurrentTransaction, cancellationToken: cancellationToken));
     }
 
-    public async Task<Result<PagedResult<ClienteResponse>>> ListAsync(
-        ClienteSearchCriteria search, PageRequest paginacion, CancellationToken cancellationToken = default)
+    public async Task<Result<PagedResult<SocioNegocioResponse>>> ListAsync(
+        SocioNegocioSearchCriteria search, PageRequest paginacion, CancellationToken cancellationToken = default)
     {
         var pagina = paginacion.Normalizar();
 
@@ -66,10 +66,10 @@ public sealed class DapperSocioNegocioReadRepository(IDbSession session) : IClie
         var total = await session.Connection.ExecuteScalarAsync<long>(
             new CommandDefinition(countSql, parameters, session.CurrentTransaction, cancellationToken: cancellationToken));
 
-        var items = await session.Connection.QueryAsync<ClienteResponse>(
+        var items = await session.Connection.QueryAsync<SocioNegocioResponse>(
             new CommandDefinition(pageSql, parameters, session.CurrentTransaction, cancellationToken: cancellationToken));
 
-        return Result<PagedResult<ClienteResponse>>.Exito(
-            new PagedResult<ClienteResponse>(items.AsList(), pagina.Pagina, pagina.TamanoPagina, total));
+        return Result<PagedResult<SocioNegocioResponse>>.Exito(
+            new PagedResult<SocioNegocioResponse>(items.AsList(), pagina.Pagina, pagina.TamanoPagina, total));
     }
 }

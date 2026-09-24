@@ -1,15 +1,15 @@
 using MediatR;
 using OpenSource1.Application.Data.UnitOfWork;
-using OpenSource1.Application.Features.Clientes.Commands;
-using OpenSource1.Application.Features.Clientes.Dtos;
+using OpenSource1.Application.Features.SociosNegocio.Commands;
+using OpenSource1.Application.Features.SociosNegocio.Dtos;
 using OpenSource1.Core.Entities;
 using OpenSource1.Core.ValueObjects;
 
-namespace OpenSource1.Application.Features.Clientes.Handlers;
+namespace OpenSource1.Application.Features.SociosNegocio.Handlers;
 
-public sealed class CreateClienteCommandHandler(IUnitOfWork unitOfWork) : IRequestHandler<CreateClienteCommand, ClienteResponse>
+public sealed class CreateSocioNegocioCommandHandler(IUnitOfWork unitOfWork) : IRequestHandler<CreateSocioNegocioCommand, SocioNegocioResponse>
 {
-    public async Task<ClienteResponse> Handle(CreateClienteCommand request, CancellationToken cancellationToken)
+    public async Task<SocioNegocioResponse> Handle(CreateSocioNegocioCommand request, CancellationToken cancellationToken)
     {
         var entity = new SocioDeNegocio
         {
@@ -27,7 +27,7 @@ public sealed class CreateClienteCommandHandler(IUnitOfWork unitOfWork) : IReque
         return ToResponse(entity);
     }
 
-    public static ClienteResponse ToResponse(SocioDeNegocio x) => new()
+    public static SocioNegocioResponse ToResponse(SocioDeNegocio x) => new()
     {
         Id = x.Id,
         Nombre = x.Nombre,

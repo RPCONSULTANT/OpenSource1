@@ -53,7 +53,7 @@ builder.Services.AddHttpClient<IEntradaApiClient, EntradaApiClient>((serviceProv
     var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<ApiClientOptions>>().Value;
     client.BaseAddress = options.BaseAddress;
 }).AddHttpMessageHandler<BearerTokenHandler>();
-builder.Services.AddHttpClient<IClienteApiClient, ClienteApiClient>((serviceProvider, client) =>
+builder.Services.AddHttpClient<ISocioNegocioApiClient, SocioNegocioApiClient>((serviceProvider, client) =>
 {
     var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<ApiClientOptions>>().Value;
     client.BaseAddress = options.BaseAddress;
@@ -173,7 +173,7 @@ app.MapPost("/account/profile/image", async (
 
 app.MapPost("/reports/clientes/selected", async (
     [FromForm] ClienteSelectionReportForm form,
-    IClienteApiClient clienteApiClient,
+    ISocioNegocioApiClient clienteApiClient,
     IReportDocumentService reportDocumentService) =>
 {
     var selectedIds = form.SelectedIds.Where(id => id != Guid.Empty).Distinct().ToArray();
@@ -182,7 +182,7 @@ app.MapPost("/reports/clientes/selected", async (
         return Results.Redirect("/clientes?ok=report-select-required");
     }
 
-    var clientes = new List<OpenSource1.Application.Features.Clientes.Dtos.ClienteResponse>();
+    var clientes = new List<OpenSource1.Application.Features.SociosNegocio.Dtos.SocioNegocioResponse>();
     foreach (var id in selectedIds)
     {
         var item = await clienteApiClient.GetByIdAsync(id);
@@ -203,7 +203,7 @@ app.MapPost("/reports/clientes/selected", async (
 
 app.MapPost("/reports/clientes/selected.xlsx", async (
     [FromForm] ClienteSelectionReportForm form,
-    IClienteApiClient clienteApiClient,
+    ISocioNegocioApiClient clienteApiClient,
     IReportDocumentService reportDocumentService) =>
 {
     var selectedIds = form.SelectedIds.Where(id => id != Guid.Empty).Distinct().ToArray();
@@ -212,7 +212,7 @@ app.MapPost("/reports/clientes/selected.xlsx", async (
         return Results.Redirect("/clientes?ok=report-select-required");
     }
 
-    var clientes = new List<OpenSource1.Application.Features.Clientes.Dtos.ClienteResponse>();
+    var clientes = new List<OpenSource1.Application.Features.SociosNegocio.Dtos.SocioNegocioResponse>();
     foreach (var id in selectedIds)
     {
         var item = await clienteApiClient.GetByIdAsync(id);
@@ -317,7 +317,7 @@ app.MapPost("/reports/productos/selected.xlsx", async (
 
 app.MapPost("/reports/clientes/history", async (
     [FromForm] ClienteHistoricalReportForm form,
-    IClienteApiClient clienteApiClient,
+    ISocioNegocioApiClient clienteApiClient,
     IReportDocumentService reportDocumentService) =>
 {
     var clientes = await clienteApiClient.ListAllAsync();
@@ -336,7 +336,7 @@ app.MapPost("/reports/clientes/history", async (
 
 app.MapPost("/reports/clientes/history.xlsx", async (
     [FromForm] ClienteHistoricalReportForm form,
-    IClienteApiClient clienteApiClient,
+    ISocioNegocioApiClient clienteApiClient,
     IReportDocumentService reportDocumentService) =>
 {
     var clientes = await clienteApiClient.ListAllAsync();
@@ -396,7 +396,7 @@ app.MapPost("/reports/productos/history.xlsx", async (
 }).RequireAuthorization(ApplicationPolicies.CanConsult);
 
 app.MapGet("/reports/clientes/raw.xlsx", async (
-    IClienteApiClient clienteApiClient,
+    ISocioNegocioApiClient clienteApiClient,
     IReportDocumentService reportDocumentService) =>
 {
     var clientes = await clienteApiClient.ListAllAsync();

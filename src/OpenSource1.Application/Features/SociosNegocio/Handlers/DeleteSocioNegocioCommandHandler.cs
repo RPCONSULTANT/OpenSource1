@@ -1,13 +1,13 @@
 using MediatR;
 using OpenSource1.Application.Data.UnitOfWork;
-using OpenSource1.Application.Features.Clientes.Commands;
+using OpenSource1.Application.Features.SociosNegocio.Commands;
 using OpenSource1.Core.Entities;
 
-namespace OpenSource1.Application.Features.Clientes.Handlers;
+namespace OpenSource1.Application.Features.SociosNegocio.Handlers;
 
-public sealed class DeleteClienteCommandHandler(IUnitOfWork unitOfWork) : IRequestHandler<DeleteClienteCommand, bool>
+public sealed class DeleteSocioNegocioCommandHandler(IUnitOfWork unitOfWork) : IRequestHandler<DeleteSocioNegocioCommand, bool>
 {
-    public async Task<bool> Handle(DeleteClienteCommand request, CancellationToken cancellationToken)
+    public async Task<bool> Handle(DeleteSocioNegocioCommand request, CancellationToken cancellationToken)
     {
         var repo = unitOfWork.Repository<SocioDeNegocio>();
         var entity = await repo.GetByIdAsync(new object[] { request.Id }, cancellationToken);

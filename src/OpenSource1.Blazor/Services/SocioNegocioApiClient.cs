@@ -1,13 +1,13 @@
 using System.Net;
 using System.Net.Http.Json;
-using OpenSource1.Application.Features.Clientes.Dtos;
+using OpenSource1.Application.Features.SociosNegocio.Dtos;
 using OpenSource1.Core.Common;
 
 namespace OpenSource1.Blazor.Services;
 
-public sealed class ClienteApiClient(HttpClient httpClient, ILogger<ClienteApiClient> logger) : IClienteApiClient
+public sealed class SocioNegocioApiClient(HttpClient httpClient, ILogger<SocioNegocioApiClient> logger) : ISocioNegocioApiClient
 {
-    public async Task<PagedResult<ClienteResponse>> ListAsync(ClienteSearchFilter? filter = null, PageRequest? paginacion = null, CancellationToken cancellationToken = default)
+    public async Task<PagedResult<SocioNegocioResponse>> ListAsync(SocioNegocioSearchFilter? filter = null, PageRequest? paginacion = null, CancellationToken cancellationToken = default)
     {
         using var response = await httpClient.GetAsync(BuildListUrl(filter, paginacion), cancellationToken);
 
@@ -21,13 +21,13 @@ public sealed class ClienteApiClient(HttpClient httpClient, ILogger<ClienteApiCl
                 statusCode: response.StatusCode);
         }
 
-        return await response.Content.ReadFromJsonAsync<PagedResult<ClienteResponse>>(cancellationToken)
-            ?? PagedResult<ClienteResponse>.Vacio(paginacion ?? new PageRequest());
+        return await response.Content.ReadFromJsonAsync<PagedResult<SocioNegocioResponse>>(cancellationToken)
+            ?? PagedResult<SocioNegocioResponse>.Vacio(paginacion ?? new PageRequest());
     }
 
-    public async Task<IReadOnlyList<ClienteResponse>> ListAllAsync(ClienteSearchFilter? filter = null, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<SocioNegocioResponse>> ListAllAsync(SocioNegocioSearchFilter? filter = null, CancellationToken cancellationToken = default)
     {
-        var items = new List<ClienteResponse>();
+        var items = new List<SocioNegocioResponse>();
         var pagina = 1;
 
         while (true)
@@ -46,9 +46,9 @@ public sealed class ClienteApiClient(HttpClient httpClient, ILogger<ClienteApiCl
         return items;
     }
 
-    public async Task<ClienteResponse?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<SocioNegocioResponse?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        using var response = await httpClient.GetAsync($"api/clientes/{id}", cancellationToken);
+        using var response = await httpClient.GetAsync($"api/socios-negocio/{id}", cancellationToken);
 
         if (response.StatusCode == HttpStatusCode.NotFound)
         {
@@ -65,17 +65,17 @@ public sealed class ClienteApiClient(HttpClient httpClient, ILogger<ClienteApiCl
                 statusCode: response.StatusCode);
         }
 
-        return await response.Content.ReadFromJsonAsync<ClienteResponse>(cancellationToken);
+        return await response.Content.ReadFromJsonAsync<SocioNegocioResponse>(cancellationToken);
     }
 
-    private static string BuildListUrl(ClienteSearchFilter? filter, PageRequest? paginacion = null)
+    private static string BuildListUrl(SocioNegocioSearchFilter? filter, PageRequest? paginacion = null)
     {
         var parameters = new List<string>();
 
         if (filter is null)
         {
             AddPaginationParameters(parameters, paginacion);
-            return parameters.Count == 0 ? "api/clientes" : $"api/clientes?{string.Join("&", parameters)}";
+            return parameters.Count == 0 ? "api/socios-negocio" : $"api/socios-negocio?{string.Join("&", parameters)}";
         }
 
         if (!string.IsNullOrWhiteSpace(filter.Apellido))
@@ -115,7 +115,7 @@ public sealed class ClienteApiClient(HttpClient httpClient, ILogger<ClienteApiCl
 
         AddPaginationParameters(parameters, paginacion);
 
-        return parameters.Count == 0 ? "api/clientes" : $"api/clientes?{string.Join("&", parameters)}";
+        return parameters.Count == 0 ? "api/socios-negocio" : $"api/socios-negocio?{string.Join("&", parameters)}";
     }
 
     private static void AddPaginationParameters(List<string> parameters, PageRequest? paginacion)
@@ -136,25 +136,25 @@ public sealed class ClienteApiClient(HttpClient httpClient, ILogger<ClienteApiCl
         parameters.Add($"descendente={(paginacion.Descendente ? "true" : "false")}");
     }
 
-    public async Task<ClienteOperationResult> CreateAsync(ClienteInput input, CancellationToken cancellationToken = default)
+    public async Task<SocioNegocioOperationResult> CreateAsync(SocioNegocioInput input, CancellationToken cancellationToken = default)
     {
-        using var response = await httpClient.PostAsJsonAsync("api/clientes", input, cancellationToken);
+        using var response = await httpClient.PostAsJsonAsync("api/socios-negocio", input, cancellationToken);
         return await ToResultAsync(response, "Cliente registrado correctamente.", cancellationToken);
     }
 
-    public async Task<ClienteOperationResult> UpdateAsync(Guid id, ClienteInput input, CancellationToken cancellationToken = default)
+    public async Task<SocioNegocioOperationResult> UpdateAsync(Guid id, SocioNegocioInput input, CancellationToken cancellationToken = default)
     {
-        using var response = await httpClient.PutAsJsonAsync($"api/clientes/{id}", input, cancellationToken);
+        using var response = await httpClient.PutAsJsonAsync($"api/socios-negocio/{id}", input, cancellationToken);
         return await ToResultAsync(response, "Cliente modificado correctamente.", cancellationToken);
     }
 
-    public async Task<ClienteOperationResult> DeleteAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<SocioNegocioOperationResult> DeleteAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        using var response = await httpClient.DeleteAsync($"api/clientes/{id}", cancellationToken);
+        using var response = await httpClient.DeleteAsync($"api/socios-negocio/{id}", cancellationToken);
         return await ToResultAsync(response, "Cliente eliminado correctamente.", cancellationToken);
     }
 
-    private async Task<ClienteOperationResult> ToResultAsync(
+    private async Task<SocioNegocioOperationResult> ToResultAsync(
         HttpResponseMessage response, string successMessage, CancellationToken cancellationToken)
     {
         if (response.IsSuccessStatusCode)
@@ -163,7 +163,7 @@ public sealed class ClienteApiClient(HttpClient httpClient, ILogger<ClienteApiCl
 
             try
             {
-                var payload = await response.Content.ReadFromJsonAsync<ClienteResponse>(cancellationToken);
+                var payload = await response.Content.ReadFromJsonAsync<SocioNegocioResponse>(cancellationToken);
                 entityId = payload?.Id;
             }
             catch
@@ -171,7 +171,7 @@ public sealed class ClienteApiClient(HttpClient httpClient, ILogger<ClienteApiCl
                 // ignore when response has no DTO body (delete/no-content)
             }
 
-            return new ClienteOperationResult(true, successMessage, entityId);
+            return new SocioNegocioOperationResult(true, successMessage, entityId);
         }
 
         var safe = response.StatusCode switch
@@ -185,6 +185,6 @@ public sealed class ClienteApiClient(HttpClient httpClient, ILogger<ClienteApiCl
 
         var body = await response.Content.ReadAsStringAsync(cancellationToken);
         logger.LogWarning("Clientes API returned {StatusCode}. Body: {Body}", response.StatusCode, body);
-        return new ClienteOperationResult(false, safe);
+        return new SocioNegocioOperationResult(false, safe);
     }
 }

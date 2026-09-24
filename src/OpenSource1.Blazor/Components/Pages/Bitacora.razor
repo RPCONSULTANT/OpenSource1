@@ -3,7 +3,7 @@
 @using Microsoft.AspNetCore.Authorization
 @using OpenSource1.Application.Security
 @using OpenSource1.Blazor.Services
-@inject IClienteApiClient ClienteApiClient
+@inject ISocioNegocioApiClient SocioNegocioApiClient
 @inject IProductoApiClient ProductoApiClient
 @inject ILogger<Bitacora> Logger
 
@@ -103,7 +103,7 @@ else
     {
         try
         {
-            var clientes = await ClienteApiClient.ListAllAsync();
+            var clientes = await SocioNegocioApiClient.ListAllAsync();
             var productos = await ProductoApiClient.ListAllAsync();
 
             entries = clientes

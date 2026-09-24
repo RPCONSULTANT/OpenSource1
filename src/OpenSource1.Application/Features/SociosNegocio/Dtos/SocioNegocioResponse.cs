@@ -1,6 +1,6 @@
-namespace OpenSource1.Application.Features.Clientes.Dtos;
+namespace OpenSource1.Application.Features.SociosNegocio.Dtos;
 
-public sealed class ClienteResponse
+public sealed class SocioNegocioResponse
 {
     public Guid Id { get; init; }
     public string Nombre { get; init; } = string.Empty;

@@ -5,7 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using OpenSource1.Application.Data;
 using OpenSource1.Application.Data.Repositories;
 using OpenSource1.Application.Data.UnitOfWork;
-using OpenSource1.Application.Features.Clientes;
+using OpenSource1.Application.Features.SociosNegocio;
 using OpenSource1.Application.Features.AppSettings;
 using OpenSource1.Application.Features.CategoriasProducto;
 using OpenSource1.Application.Features.Entradas;
@@ -63,7 +63,7 @@ public static class DependencyInjection
 
         services.AddScoped<IAppSettingReadRepository, DapperAppSettingReadRepository>();
         services.AddScoped<IEntradaReadRepository, DapperEntradaReadRepository>();
-        services.AddScoped<IClienteReadRepository, DapperSocioNegocioReadRepository>();
+        services.AddScoped<ISocioNegocioReadRepository, DapperSocioNegocioReadRepository>();
         services.AddScoped<IProductoReadRepository, DapperProductoReadRepository>();
         services.AddScoped<ITerminoPagoReadRepository, DapperTerminoPagoReadRepository>();
         services.AddScoped<IUnidadMedidaReadRepository, DapperUnidadMedidaReadRepository>();

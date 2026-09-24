@@ -1,5 +1,5 @@
 using ClosedXML.Excel;
-using OpenSource1.Application.Features.Clientes.Dtos;
+using OpenSource1.Application.Features.SociosNegocio.Dtos;
 using OpenSource1.Application.Features.Productos.Dtos;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
@@ -9,7 +9,7 @@ namespace OpenSource1.Blazor.Reporting;
 
 public sealed class QuestPdfReportDocumentService : IReportDocumentService
 {
-    public ReportFile GenerateClientesReport(IReadOnlyList<ClienteResponse> clientes, string title)
+    public ReportFile GenerateClientesReport(IReadOnlyList<SocioNegocioResponse> clientes, string title)
     {
         var now = DateTimeOffset.Now;
         var pdf = Document.Create(container =>
@@ -121,7 +121,7 @@ public sealed class QuestPdfReportDocumentService : IReportDocumentService
         return new ReportFile($"productos-{DateTime.UtcNow:yyyyMMddHHmmss}.pdf", "application/pdf", pdf);
     }
 
-    public ReportFile GenerateClientesExcel(IReadOnlyList<ClienteResponse> clientes, string title)
+    public ReportFile GenerateClientesExcel(IReadOnlyList<SocioNegocioResponse> clientes, string title)
     {
         using var workbook = new XLWorkbook();
         var sheet = workbook.Worksheets.Add("Clientes");
@@ -199,7 +199,7 @@ public sealed class QuestPdfReportDocumentService : IReportDocumentService
             stream.ToArray());
     }
 
-    public ReportFile GenerateClientesRawExcel(IReadOnlyList<ClienteResponse> clientes)
+    public ReportFile GenerateClientesRawExcel(IReadOnlyList<SocioNegocioResponse> clientes)
     {
         using var workbook = new XLWorkbook();
         var sheet = workbook.Worksheets.Add("Clientes");

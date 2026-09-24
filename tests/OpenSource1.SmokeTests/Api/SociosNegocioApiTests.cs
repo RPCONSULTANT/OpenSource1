@@ -2,18 +2,18 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
-using OpenSource1.Application.Features.Clientes.Dtos;
+using OpenSource1.Application.Features.SociosNegocio.Dtos;
 using OpenSource1.Core.Common;
 using OpenSource1.SmokeTests.TestInfrastructure;
 
 namespace OpenSource1.SmokeTests.Api;
 
 [Collection(PostgresCollection.Name)]
-public sealed class ClientesApiTests : IClassFixture<PostgresTestFixture>
+public sealed class SociosNegocioApiTests : IClassFixture<PostgresTestFixture>
 {
     private readonly HttpClient _client;
 
-    public ClientesApiTests(PostgresTestFixture fixture)
+    public SociosNegocioApiTests(PostgresTestFixture fixture)
     {
         _client = fixture.CreateFactory().CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
     }
@@ -21,39 +21,39 @@ public sealed class ClientesApiTests : IClassFixture<PostgresTestFixture>
     [Fact]
     public async Task Crud_And_Authorization_Work()
     {
-        var anon = new HttpRequestMessage(HttpMethod.Get, "/api/clientes");
+        var anon = new HttpRequestMessage(HttpMethod.Get, "/api/socios-negocio");
         anon.Headers.Add("X-Test-Anonymous", "true");
         var anonymousResponse = await _client.SendAsync(anon);
         Assert.Equal(HttpStatusCode.Unauthorized, anonymousResponse.StatusCode);
 
         var forbiddenClient = CreateClient("Supervisor");
-        var forbidden = await forbiddenClient.PostAsJsonAsync("/api/clientes", new { nombre = "A", apellido = "B", email = "a@test.local", telefono = "", direccionLinea1 = "" });
+        var forbidden = await forbiddenClient.PostAsJsonAsync("/api/socios-negocio", new { nombre = "A", apellido = "B", email = "a@test.local", telefono = "", direccionLinea1 = "" });
         Assert.Equal(HttpStatusCode.Forbidden, forbidden.StatusCode);
 
         var client = CreateClient("Administrador");
         var email = $"juan-{Guid.NewGuid():N}@test.local";
-        var create = await client.PostAsJsonAsync("/api/clientes", new { nombre = "Juan", apellido = "Perez", email, telefono = "809-000-0000", direccionLinea1 = "Calle 1" });
+        var create = await client.PostAsJsonAsync("/api/socios-negocio", new { nombre = "Juan", apellido = "Perez", email, telefono = "809-000-0000", direccionLinea1 = "Calle 1" });
         Assert.Equal(HttpStatusCode.Created, create.StatusCode);
 
         var body = await create.Content.ReadAsStringAsync();
         var created = JsonDocument.Parse(body).RootElement.GetProperty("id").GetGuid();
 
-        var list = await client.GetAsync("/api/clientes");
+        var list = await client.GetAsync("/api/socios-negocio");
         Assert.Equal(HttpStatusCode.OK, list.StatusCode);
-        var paged = await list.Content.ReadFromJsonAsync<PagedResult<ClienteResponse>>();
+        var paged = await list.Content.ReadFromJsonAsync<PagedResult<SocioNegocioResponse>>();
         Assert.NotNull(paged);
         Assert.Contains(paged!.Items, c => c.Id == created);
         Assert.True(paged.Total >= 1);
 
-        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync($"/api/clientes/{created}")).StatusCode);
-        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/clientes/{created}", new { nombre = "Juan", apellido = "Perez", email, telefono = "809-111-1111", direccionLinea1 = "Calle 2" })).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/api/clientes/{Guid.NewGuid()}")).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await client.DeleteAsync($"/api/clientes/{Guid.NewGuid()}")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync($"/api/socios-negocio/{created}")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/socios-negocio/{created}", new { nombre = "Juan", apellido = "Perez", email, telefono = "809-111-1111", direccionLinea1 = "Calle 2" })).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/api/socios-negocio/{Guid.NewGuid()}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.DeleteAsync($"/api/socios-negocio/{Guid.NewGuid()}")).StatusCode);
 
-        Assert.Equal(HttpStatusCode.Forbidden, (await CreateClient("Supervisor").DeleteAsync($"/api/clientes/{created}")).StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, (await CreateClient("Ejecutor").DeleteAsync($"/api/clientes/{created}")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await CreateClient("Supervisor").DeleteAsync($"/api/socios-negocio/{created}")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await CreateClient("Ejecutor").DeleteAsync($"/api/socios-negocio/{created}")).StatusCode);
 
-        Assert.Equal(HttpStatusCode.NoContent, (await CreateClient("Administrador").DeleteAsync($"/api/clientes/{created}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await CreateClient("Administrador").DeleteAsync($"/api/socios-negocio/{created}")).StatusCode);
     }
 
     [Fact]
@@ -64,14 +64,14 @@ public sealed class ClientesApiTests : IClassFixture<PostgresTestFixture>
         for (var i = 0; i < 3; i++)
         {
             var email = $"pag-{Guid.NewGuid():N}@test.local";
-            var create = await client.PostAsJsonAsync("/api/clientes", new { nombre = "Pag", apellido = $"Cliente{i}", email, telefono = "", direccionLinea1 = "" });
+            var create = await client.PostAsJsonAsync("/api/socios-negocio", new { nombre = "Pag", apellido = $"Cliente{i}", email, telefono = "", direccionLinea1 = "" });
             Assert.Equal(HttpStatusCode.Created, create.StatusCode);
         }
 
-        var response = await client.GetAsync("/api/clientes?tamanoPagina=2&pagina=1");
+        var response = await client.GetAsync("/api/socios-negocio?tamanoPagina=2&pagina=1");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
-        var paged = await response.Content.ReadFromJsonAsync<PagedResult<ClienteResponse>>();
+        var paged = await response.Content.ReadFromJsonAsync<PagedResult<SocioNegocioResponse>>();
         Assert.NotNull(paged);
         Assert.Equal(2, paged!.Items.Count);
         Assert.True(paged.Total >= 3);
@@ -85,10 +85,10 @@ public sealed class ClientesApiTests : IClassFixture<PostgresTestFixture>
     {
         var client = CreateClient("Administrador");
 
-        var response = await client.GetAsync("/api/clientes?ordenarPor=" + Uri.EscapeDataString("\"; DROP TABLE \"Clientes") + "&tamanoPagina=10");
+        var response = await client.GetAsync("/api/socios-negocio?ordenarPor=" + Uri.EscapeDataString("\"; DROP TABLE \"SociosNegocio") + "&tamanoPagina=10");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var paged = await response.Content.ReadFromJsonAsync<PagedResult<ClienteResponse>>();
+        var paged = await response.Content.ReadFromJsonAsync<PagedResult<SocioNegocioResponse>>();
         Assert.NotNull(paged);
     }
 

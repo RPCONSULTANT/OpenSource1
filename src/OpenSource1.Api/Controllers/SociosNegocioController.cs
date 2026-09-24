@@ -2,10 +2,10 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using OpenSource1.Api.Infrastructure;
-using OpenSource1.Application.Features.Clientes;
-using OpenSource1.Application.Features.Clientes.Commands;
-using OpenSource1.Application.Features.Clientes.Dtos;
-using OpenSource1.Application.Features.Clientes.Queries;
+using OpenSource1.Application.Features.SociosNegocio;
+using OpenSource1.Application.Features.SociosNegocio.Commands;
+using OpenSource1.Application.Features.SociosNegocio.Dtos;
+using OpenSource1.Application.Features.SociosNegocio.Queries;
 using OpenSource1.Application.Security;
 using OpenSource1.Core.Common;
 using OpenSource1.Core.ValueObjects;
@@ -13,12 +13,12 @@ using OpenSource1.Core.ValueObjects;
 namespace OpenSource1.Api.Controllers;
 
 [ApiController]
-[Route("api/clientes")]
-public sealed class ClientesController(ISender sender) : ControllerBase
+[Route("api/socios-negocio")]
+public sealed class SociosNegocioController(ISender sender) : ControllerBase
 {
     [HttpGet]
     [Authorize(Policy = ApplicationPolicies.CanConsult)]
-    [ProducesResponseType<PagedResult<ClienteResponse>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<PagedResult<SocioNegocioResponse>>(StatusCodes.Status200OK)]
     public async Task<IActionResult> List(
         [FromQuery] string? nombre,
         [FromQuery] string? apellido,
@@ -34,8 +34,8 @@ public sealed class ClientesController(ISender sender) : ControllerBase
         CancellationToken cancellationToken = default)
     {
         var result = await sender.Send(
-            new ListClientesQuery(
-                new ClienteSearchCriteria(nombre, apellido, email, telefono, direccion, sector, pais),
+            new ListSociosNegocioQuery(
+                new SocioNegocioSearchCriteria(nombre, apellido, email, telefono, direccion, sector, pais),
                 new PageRequest(pagina, tamanoPagina, ordenarPor, descendente)),
             cancellationToken);
 
@@ -44,19 +44,19 @@ public sealed class ClientesController(ISender sender) : ControllerBase
 
     [HttpGet("{id:guid}")]
     [Authorize(Policy = ApplicationPolicies.CanConsult)]
-    [ProducesResponseType<ClienteResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<SocioNegocioResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<ClienteResponse>> GetById(Guid id, CancellationToken cancellationToken)
+    public async Task<ActionResult<SocioNegocioResponse>> GetById(Guid id, CancellationToken cancellationToken)
     {
-        var item = await sender.Send(new GetClienteByIdQuery(id), cancellationToken);
+        var item = await sender.Send(new GetSocioNegocioByIdQuery(id), cancellationToken);
         return item is null ? NotFound() : Ok(item);
     }
 
     [HttpPost]
     [Authorize(Policy = ApplicationPolicies.CanAdd)]
-    [ProducesResponseType<ClienteResponse>(StatusCodes.Status201Created)]
+    [ProducesResponseType<SocioNegocioResponse>(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<ActionResult<ClienteResponse>> Create(CreateClienteRequest request, CancellationToken cancellationToken)
+    public async Task<ActionResult<SocioNegocioResponse>> Create(CreateSocioNegocioRequest request, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(request.Nombre) ||
             string.IsNullOrWhiteSpace(request.Apellido) ||
@@ -68,7 +68,7 @@ public sealed class ClientesController(ISender sender) : ControllerBase
         }
 
         var result = await sender.Send(
-            new CreateClienteCommand(request.Nombre, request.Apellido, request.Email, request.Telefono, request.DireccionLinea1, request.DireccionLinea2, request.Sector, request.PaisCodigo, request.ImagePath),
+            new CreateSocioNegocioCommand(request.Nombre, request.Apellido, request.Email, request.Telefono, request.DireccionLinea1, request.DireccionLinea2, request.Sector, request.PaisCodigo, request.ImagePath),
             cancellationToken);
 
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
@@ -76,10 +76,10 @@ public sealed class ClientesController(ISender sender) : ControllerBase
 
     [HttpPut("{id:guid}")]
     [Authorize(Policy = ApplicationPolicies.CanModify)]
-    [ProducesResponseType<ClienteResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<SocioNegocioResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<ActionResult<ClienteResponse>> Update(Guid id, UpdateClienteRequest request, CancellationToken cancellationToken)
+    public async Task<ActionResult<SocioNegocioResponse>> Update(Guid id, UpdateSocioNegocioRequest request, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(request.Nombre) ||
             string.IsNullOrWhiteSpace(request.Apellido) ||
@@ -91,7 +91,7 @@ public sealed class ClientesController(ISender sender) : ControllerBase
         }
 
         var result = await sender.Send(
-            new UpdateClienteCommand(id, request.Nombre, request.Apellido, request.Email, request.Telefono, request.DireccionLinea1, request.DireccionLinea2, request.Sector, request.PaisCodigo, request.ImagePath),
+            new UpdateSocioNegocioCommand(id, request.Nombre, request.Apellido, request.Email, request.Telefono, request.DireccionLinea1, request.DireccionLinea2, request.Sector, request.PaisCodigo, request.ImagePath),
             cancellationToken);
 
         return result is null ? NotFound() : Ok(result);
@@ -103,7 +103,7 @@ public sealed class ClientesController(ISender sender) : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
     {
-        var deleted = await sender.Send(new DeleteClienteCommand(id), cancellationToken);
+        var deleted = await sender.Send(new DeleteSocioNegocioCommand(id), cancellationToken);
         return deleted ? NoContent() : NotFound();
     }
 
@@ -114,5 +114,5 @@ public sealed class ClientesController(ISender sender) : ControllerBase
         string.IsNullOrWhiteSpace(codigo) || Pais.EsCodigoValido(codigo);
 }
 
-public sealed record CreateClienteRequest(string Nombre, string Apellido, string Email, string? Telefono, string? DireccionLinea1, string? DireccionLinea2, string? Sector, string? PaisCodigo, string? ImagePath = null);
-public sealed record UpdateClienteRequest(string Nombre, string Apellido, string Email, string? Telefono, string? DireccionLinea1, string? DireccionLinea2, string? Sector, string? PaisCodigo, string? ImagePath = null);
+public sealed record CreateSocioNegocioRequest(string Nombre, string Apellido, string Email, string? Telefono, string? DireccionLinea1, string? DireccionLinea2, string? Sector, string? PaisCodigo, string? ImagePath = null);
+public sealed record UpdateSocioNegocioRequest(string Nombre, string Apellido, string Email, string? Telefono, string? DireccionLinea1, string? DireccionLinea2, string? Sector, string? PaisCodigo, string? ImagePath = null);

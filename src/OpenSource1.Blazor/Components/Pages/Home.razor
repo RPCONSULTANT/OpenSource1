@@ -4,7 +4,7 @@
 @using OpenSource1.Application.Security
 @using OpenSource1.Blazor.Components
 @using OpenSource1.Blazor.Services
-@inject IClienteApiClient ClienteApiClient
+@inject ISocioNegocioApiClient SocioNegocioApiClient
 @inject IProductoApiClient ProductoApiClient
 @inject ILogger<Home> Logger
 @inject IAuthorizationService AuthorizationService
@@ -389,7 +389,7 @@
 
         try
         {
-            var clientes = await ClienteApiClient.ListAllAsync();
+            var clientes = await SocioNegocioApiClient.ListAllAsync();
             var productos = await ProductoApiClient.ListAllAsync();
 
             totalClientes = clientes.Count;

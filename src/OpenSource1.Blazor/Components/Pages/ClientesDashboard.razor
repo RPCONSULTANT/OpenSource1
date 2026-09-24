@@ -5,7 +5,7 @@
 @using OpenSource1.Application.Security
 @using OpenSource1.Blazor.Components
 @using OpenSource1.Blazor.Services
-@inject IClienteApiClient ClienteApiClient
+@inject ISocioNegocioApiClient SocioNegocioApiClient
 @inject ILogger<ClientesDashboard> Logger
 
 <PageTitle>Panel de Clientes – AxionERP</PageTitle>
@@ -81,7 +81,7 @@ else
     {
         try
         {
-            var clientes = await ClienteApiClient.ListAllAsync();
+            var clientes = await SocioNegocioApiClient.ListAllAsync();
             var corte = DateTime.UtcNow.AddDays(-30);
 
             total = clientes.Count;

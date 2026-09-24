@@ -2,7 +2,7 @@
 @attribute [Authorize(Policy = ApplicationPolicies.CanAdd)]
 @using Microsoft.AspNetCore.Authorization
 @using OpenSource1.Blazor.Services
-@inject IClienteApiClient ClienteApiClient
+@inject ISocioNegocioApiClient SocioNegocioApiClient
 @inject IHttpContextAccessor HttpContextAccessor
 @inject IFileStorageService FileStorageService
 @inject ILogger<ClienteNew> Logger
@@ -58,7 +58,7 @@
         {
             var httpContext = HttpContextAccessor.HttpContext ?? throw new InvalidOperationException("No hay HttpContext disponible para cargar la imagen.");
             Input!.ImagePath = await FileStorageService.SaveClientImageAsync(httpContext, "ClientImage", Input.ImagePath);
-            var result = await ClienteApiClient.CreateAsync(ToInput(Input!));
+            var result = await SocioNegocioApiClient.CreateAsync(ToInput(Input!));
             if (result.Succeeded)
             {
                 Nav.NavigateTo(result.EntityId.HasValue ? $"/clientes/{result.EntityId.Value}?ok=created" : "/clientes?ok=created");
@@ -76,7 +76,7 @@
         }
     }
 
-    private static ClienteInput ToInput(ClienteEditorForm form) => new(
+    private static SocioNegocioInput ToInput(ClienteEditorForm form) => new(
         form.Nombre.Trim(),
         form.Apellido.Trim(),
         form.Email.Trim(),
