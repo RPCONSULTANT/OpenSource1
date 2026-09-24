@@ -90,23 +90,27 @@ public sealed class TerminoPagoApiClient(HttpClient httpClient, ILogger<TerminoP
     public async Task<TerminoPagoOperationResult> CreateAsync(TerminoPagoInput input, CancellationToken cancellationToken = default)
     {
         using var response = await httpClient.PostAsJsonAsync("api/terminos-pago", input, cancellationToken);
-        return await ToResultAsync(response, "Término de pago agregado correctamente.", cancellationToken);
+        return await ToResultAsync(response, "Término de pago agregado correctamente.", ConflictoCodigoDuplicado, cancellationToken);
     }
 
     public async Task<TerminoPagoOperationResult> UpdateAsync(Guid id, TerminoPagoInput input, CancellationToken cancellationToken = default)
     {
         using var response = await httpClient.PutAsJsonAsync($"api/terminos-pago/{id}", input, cancellationToken);
-        return await ToResultAsync(response, "Término de pago modificado correctamente.", cancellationToken);
+        return await ToResultAsync(response, "Término de pago modificado correctamente.", ConflictoCodigoDuplicado, cancellationToken);
     }
 
     public async Task<TerminoPagoOperationResult> DeleteAsync(Guid id, CancellationToken cancellationToken = default)
     {
         using var response = await httpClient.DeleteAsync($"api/terminos-pago/{id}", cancellationToken);
-        return await ToResultAsync(response, "Término de pago eliminado correctamente.", cancellationToken);
+        return await ToResultAsync(
+            response, "Término de pago eliminado correctamente.",
+            "No se puede eliminar el término de pago porque está asignado a uno o más clientes.", cancellationToken);
     }
 
+    private const string ConflictoCodigoDuplicado = "Ya existe un término de pago con ese código.";
+
     private async Task<TerminoPagoOperationResult> ToResultAsync(
-        HttpResponseMessage response, string successMessage, CancellationToken cancellationToken)
+        HttpResponseMessage response, string successMessage, string conflictMessage, CancellationToken cancellationToken)
     {
         if (response.IsSuccessStatusCode)
         {
@@ -130,7 +134,7 @@ public sealed class TerminoPagoApiClient(HttpClient httpClient, ILogger<TerminoP
             HttpStatusCode.Unauthorized => "Debe iniciar sesión nuevamente.",
             HttpStatusCode.Forbidden => "No tiene permisos para realizar esta operación.",
             HttpStatusCode.NotFound => "No se encontró el término de pago indicado.",
-            HttpStatusCode.Conflict => "Ya existe un término de pago con ese código.",
+            HttpStatusCode.Conflict => conflictMessage,
             HttpStatusCode.BadRequest => "Revise los datos del formulario.",
             _ => "No fue posible completar la operación."
         };

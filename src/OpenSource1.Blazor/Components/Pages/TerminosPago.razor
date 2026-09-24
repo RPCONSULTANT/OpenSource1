@@ -19,7 +19,8 @@
     <p class="text-sm text-slate-500 mt-1">Catálogo de condiciones de pago aplicables a clientes y documentos.</p>
 </div>
 
-@if (!string.IsNullOrWhiteSpace(message))
+@* Un fallo de borrado se muestra solo dentro del diálogo (donde el usuario está mirando), no también en la página. *@
+@if (!string.IsNullOrWhiteSpace(message) && !(DeleteId.HasValue && canDelete && messageType != "success"))
 {
     <div class="mb-6">
         @if (messageType == "success")
@@ -214,6 +215,10 @@
 {
     var itemToDelete = terminos.FirstOrDefault(t => t.Id == DeleteId.Value);
     <ConfirmDialog Title="Confirmar eliminación" Message="Esta acción eliminará el término de pago seleccionado y no se puede deshacer." Variant="danger" CancelHref="/terminos-pago">
+        @if (!string.IsNullOrWhiteSpace(message) && messageType != "success")
+        {
+            <div class="mb-4"><MessageBox Type="@messageType" Message="@message" /></div>
+        }
         <p class="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-mono text-red-900">@((itemToDelete is null) ? DeleteId.Value.ToString() : $"{itemToDelete.Codigo} — {itemToDelete.Descripcion}")</p>
         <EditForm Model="DeleteInput" FormName="delete-terminopago" OnValidSubmit="DeleteAsync" class="mt-4">
             <input type="hidden" name="DeleteInput.Id" value="@DeleteId" />
