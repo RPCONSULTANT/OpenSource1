@@ -16,7 +16,7 @@ public sealed class UnidadMedidaApiClient(HttpClient httpClient, ILogger<UnidadM
             var body = await response.Content.ReadAsStringAsync(cancellationToken);
             logger.LogWarning("UnidadesMedida LIST returned {StatusCode}. Body: {Body}", response.StatusCode, body);
             throw new HttpRequestException(
-                $"El servidor devolvió {(int)response.StatusCode} al obtener los unidades de medida.",
+                $"El servidor devolvió {(int)response.StatusCode} al obtener las unidades de medida.",
                 inner: null,
                 statusCode: response.StatusCode);
         }

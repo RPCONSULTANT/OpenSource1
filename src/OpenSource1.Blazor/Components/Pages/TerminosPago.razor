@@ -158,7 +158,7 @@
                 <h2 class="text-sm font-bold text-green-800">Agregar término de pago</h2>
             </div>
             <div class="px-6 py-5">
-                <EditForm Model="SaveInput" FormName="save-terminopago" OnValidSubmit="PrepareCreateConfirmation">
+                <EditForm Model="SaveInput" FormName="save-terminopago" OnValidSubmit="CreateAsync" Enhance="true">
                     <DataAnnotationsValidator />
                     <TerminoPagoFields Model="SaveInput!" Prefix="SaveInput" />
                     <div class="mt-5">
@@ -167,7 +167,7 @@
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                             </svg>
-                            Revisar y agregar
+                            Agregar
                         </button>
                     </div>
                 </EditForm>
@@ -190,7 +190,7 @@
                 {
                     <MessageBox Type="warning" Message="No se encontró el término de pago seleccionado. Puede haber sido eliminado por otro usuario." />
                 }
-                <EditForm Model="UpdateInput" FormName="update-terminopago" OnValidSubmit="PrepareUpdateConfirmation">
+                <EditForm Model="UpdateInput" FormName="update-terminopago" OnValidSubmit="UpdateAsync" Enhance="true">
                     <DataAnnotationsValidator />
                     <input type="hidden" name="UpdateInput.Id" value="@UpdateInput!.Id" />
                     <TerminoPagoFields Model="UpdateInput!" Prefix="UpdateInput" />
@@ -200,7 +200,7 @@
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125" />
                             </svg>
-                            Revisar modificación
+                            Guardar cambios
                         </button>
                     </div>
                 </EditForm>
@@ -209,39 +209,6 @@
     }
 
 </div>
-
-@if (showCreateConfirmation)
-{
-    <ConfirmDialog Title="Confirmar creación" Message="Está a punto de crear un término de pago." Variant="success" CancelHref="/terminos-pago">
-        <p class="rounded-xl border border-green-100 bg-green-50 px-4 py-3 text-sm font-mono text-green-900">@SaveInput!.Codigo — @SaveInput.Descripcion</p>
-        <EditForm Model="ConfirmSaveInput" FormName="confirm-save-terminopago" OnValidSubmit="CreateAsync" class="mt-4">
-            <input type="hidden" name="ConfirmSaveInput.Codigo" value="@SaveInput.Codigo" />
-            <input type="hidden" name="ConfirmSaveInput.Descripcion" value="@SaveInput.Descripcion" />
-            <input type="hidden" name="ConfirmSaveInput.DiasVencimiento" value="@SaveInput.DiasVencimiento" />
-            <input type="hidden" name="ConfirmSaveInput.DiasDescuento" value="@SaveInput.DiasDescuento" />
-            <input type="hidden" name="ConfirmSaveInput.PorcentajeDescuento" value="@SaveInput.PorcentajeDescuento" />
-            <button type="submit" class="btn-press rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-green-700">Sí, crear término de pago</button>
-            <a href="/terminos-pago" class="btn-press ml-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Cancelar</a>
-        </EditForm>
-    </ConfirmDialog>
-}
-
-@if (showUpdateConfirmation)
-{
-    <ConfirmDialog Title="Confirmar modificación" Message="Está a punto de modificar un término de pago." Variant="warning" CancelHref="/terminos-pago">
-        <p class="rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm font-mono text-amber-900">@UpdateInput!.Codigo — @UpdateInput.Descripcion</p>
-        <EditForm Model="ConfirmUpdateInput" FormName="confirm-update-terminopago" OnValidSubmit="UpdateAsync" class="mt-4">
-            <input type="hidden" name="ConfirmUpdateInput.Id" value="@UpdateInput.Id" />
-            <input type="hidden" name="ConfirmUpdateInput.Codigo" value="@UpdateInput.Codigo" />
-            <input type="hidden" name="ConfirmUpdateInput.Descripcion" value="@UpdateInput.Descripcion" />
-            <input type="hidden" name="ConfirmUpdateInput.DiasVencimiento" value="@UpdateInput.DiasVencimiento" />
-            <input type="hidden" name="ConfirmUpdateInput.DiasDescuento" value="@UpdateInput.DiasDescuento" />
-            <input type="hidden" name="ConfirmUpdateInput.PorcentajeDescuento" value="@UpdateInput.PorcentajeDescuento" />
-            <button type="submit" class="btn-press rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-amber-700">Sí, guardar cambios</button>
-            <a href="/terminos-pago" class="btn-press ml-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Cancelar</a>
-        </EditForm>
-    </ConfirmDialog>
-}
 
 @if (DeleteId.HasValue && canDelete)
 {
@@ -260,14 +227,8 @@
     [SupplyParameterFromForm(FormName = "save-terminopago")]
     private TerminoPagoForm? SaveInput { get; set; }
 
-    [SupplyParameterFromForm(FormName = "confirm-save-terminopago")]
-    private TerminoPagoForm? ConfirmSaveInput { get; set; }
-
     [SupplyParameterFromForm(FormName = "update-terminopago")]
     private TerminoPagoForm? UpdateInput { get; set; }
-
-    [SupplyParameterFromForm(FormName = "confirm-update-terminopago")]
-    private TerminoPagoForm? ConfirmUpdateInput { get; set; }
 
     [SupplyParameterFromForm(FormName = "delete-terminopago")]
     private DeleteForm? DeleteInput { get; set; }
@@ -295,8 +256,6 @@
     private int totalPaginas;
     private string? message;
     private string messageType = "info";
-    private bool showCreateConfirmation;
-    private bool showUpdateConfirmation;
 
     // Permisos computados sincrónicamente en OnInitializedAsync
     private bool canAdd;
@@ -309,9 +268,7 @@
     protected override async Task OnInitializedAsync()
     {
         SaveInput ??= new();
-        ConfirmSaveInput ??= new();
         UpdateInput ??= new();
-        ConfirmUpdateInput ??= new();
         DeleteInput ??= new();
 
         if (AuthenticationStateTask is not null)
@@ -364,7 +321,21 @@
         try
         {
             var filter = new TerminoPagoSearchFilter(EmptyAsNull(SearchCodigo), EmptyAsNull(SearchDescripcion));
+            if (Pagina < 1) Pagina = 1;
             var pagina = await TerminoPagoApiClient.ListAsync(filter, new PageRequest(Pagina, PageRequest.TamanoPorDefecto));
+
+            // Normaliza una página fuera de rango (p. ej. ?pagina=2 con una sola página) para no
+            // mostrar "página 2 de 1" ni una tabla vacía con registros existentes.
+            if (pagina.TotalPaginas == 0)
+            {
+                Pagina = 1;
+            }
+            else if (Pagina > pagina.TotalPaginas)
+            {
+                Pagina = pagina.TotalPaginas;
+                pagina = await TerminoPagoApiClient.ListAsync(filter, new PageRequest(Pagina, PageRequest.TamanoPorDefecto));
+            }
+
             terminos = pagina.Items;
             totalTerminos = pagina.Total;
             totalPaginas = pagina.TotalPaginas;
@@ -393,11 +364,17 @@
         if (!string.IsNullOrWhiteSpace(value)) parameters.Add($"{key}={Uri.EscapeDataString(value)}");
     }
 
-    private Task PrepareCreateConfirmation() { showCreateConfirmation = true; return Task.CompletedTask; }
-    private Task PrepareUpdateConfirmation() { showUpdateConfirmation = true; return Task.CompletedTask; }
+    private async Task CreateAsync() => await ExecuteAsync(() => TerminoPagoApiClient.CreateAsync(ToInput(SaveInput!)), "created");
+    private async Task UpdateAsync()
+    {
+        if (UpdateInput!.Id == Guid.Empty)
+        {
+            Show("warning", "Seleccione primero un registro a modificar desde la tabla.");
+            return;
+        }
 
-    private async Task CreateAsync() => await ExecuteAsync(() => TerminoPagoApiClient.CreateAsync(ToInput(ConfirmSaveInput!)), "created");
-    private async Task UpdateAsync() => await ExecuteAsync(() => TerminoPagoApiClient.UpdateAsync(ConfirmUpdateInput!.Id, ToInput(ConfirmUpdateInput!)), "updated");
+        await ExecuteAsync(() => TerminoPagoApiClient.UpdateAsync(UpdateInput.Id, ToInput(UpdateInput)), "updated");
+    }
     private async Task DeleteAsync() => await ExecuteAsync(() => TerminoPagoApiClient.DeleteAsync(DeleteInput!.Id), "deleted");
 
     private async Task ExecuteAsync(Func<Task<TerminoPagoOperationResult>> operation, string successCode)
