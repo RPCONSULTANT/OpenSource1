@@ -15,6 +15,13 @@ internal static class CategoriaProductoJerarquia
     /// alguno de ellos tiene como padre a la categoría que se edita, asignarle ese padre
     /// crearía un ciclo (A→B→A, A→B→C→A, etc.).
     /// </summary>
+    /// <remarks>
+    /// CARRERA CONOCIDA: la validación es check-then-write, sin bloqueo. Dos <c>PUT</c> cruzados
+    /// concurrentes (A→B y B→A) pueden pasar ambos la comprobación y cerrar un ciclo (medido: 60 de 60
+    /// pares cruzados). Es aceptable en un catálogo administrativo de baja concurrencia; cerrarla
+    /// exigiría una abstracción de aislamiento/advisory lock que hoy no existe. Por eso cualquier
+    /// recorrido de árbol (aquí o futuro) DEBE usar un conjunto de visitados: la base puede contener ciclos.
+    /// </remarks>
     /// <returns>El padre resuelto (<c>null</c> si no se pidió padre) o el error de validación.</returns>
     public static async Task<(Error? Error, CategoriaProducto? Padre)> ValidarPadreAsync(
         IGenericRepository<CategoriaProducto> repository,
