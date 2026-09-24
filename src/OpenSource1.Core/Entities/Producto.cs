@@ -8,7 +8,7 @@ public sealed class Producto : BaseEntity
     public required string Nombre { get; set; }
     public decimal Precio { get; set; }
     public int Stock { get; set; }
-    public required CategoriaProducto Categoria { get; set; }
+    public required CategoriaProductoLegado Categoria { get; set; }
     public required UnidadMedidaLegado UnidadMedida { get; set; }
     public string? ImagePath { get; set; }
 }

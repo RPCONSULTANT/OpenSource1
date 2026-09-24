@@ -3,12 +3,12 @@ using OpenSource1.Core.ValueObjects;
 
 namespace OpenSource1.SmokeTests.Core.ValueObjects;
 
-public class CategoriaProductoTests
+public class CategoriaProductoLegadoTests
 {
     [Fact]
     public void Constructor_ConDatosValidos_NormalizaCodigoYNombre()
     {
-        var categoria = CategoriaProducto.Of(" gen ", " General ");
+        var categoria = CategoriaProductoLegado.Of(" gen ", " General ");
 
         Assert.Equal("GEN", categoria.Codigo);
         Assert.Equal("General", categoria.Nombre);
@@ -17,7 +17,7 @@ public class CategoriaProductoTests
     [Fact]
     public void Constructor_ConCodigoVacio_LanzaErroresDeDominioConCampoCodigo()
     {
-        var excepcion = Assert.Throws<ErroresDeDominioException>(() => CategoriaProducto.Of("  ", "General"));
+        var excepcion = Assert.Throws<ErroresDeDominioException>(() => CategoriaProductoLegado.Of("  ", "General"));
 
         var error = Assert.Single(excepcion.Errores);
         Assert.Equal("categoria_producto.codigo_requerido", error.Codigo);
@@ -27,7 +27,7 @@ public class CategoriaProductoTests
     [Fact]
     public void Constructor_ConNombreVacio_LanzaErroresDeDominioConCampoNombre()
     {
-        var excepcion = Assert.Throws<ErroresDeDominioException>(() => CategoriaProducto.Of("GEN", "  "));
+        var excepcion = Assert.Throws<ErroresDeDominioException>(() => CategoriaProductoLegado.Of("GEN", "  "));
 
         var error = Assert.Single(excepcion.Errores);
         Assert.Equal("categoria_producto.nombre_requerido", error.Codigo);
@@ -38,7 +38,7 @@ public class CategoriaProductoTests
     public void Constructor_ConCodigoVacioYNombreCampoExplicito_UsaEseNombreEnLugarDelParametro()
     {
         var excepcion = Assert.Throws<ErroresDeDominioException>(
-            () => CategoriaProducto.Of("  ", "General", "CategoriaCodigo", "CategoriaNombre"));
+            () => CategoriaProductoLegado.Of("  ", "General", "CategoriaCodigo", "CategoriaNombre"));
 
         var error = Assert.Single(excepcion.Errores);
         Assert.Equal("CategoriaCodigo", error.Campo);
@@ -48,7 +48,7 @@ public class CategoriaProductoTests
     public void Constructor_ConNombreVacioYNombreCampoExplicito_UsaEseNombreEnLugarDelParametro()
     {
         var excepcion = Assert.Throws<ErroresDeDominioException>(
-            () => CategoriaProducto.Of("GEN", "  ", "CategoriaCodigo", "CategoriaNombre"));
+            () => CategoriaProductoLegado.Of("GEN", "  ", "CategoriaCodigo", "CategoriaNombre"));
 
         var error = Assert.Single(excepcion.Errores);
         Assert.Equal("CategoriaNombre", error.Campo);

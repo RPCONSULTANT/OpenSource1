@@ -3,9 +3,11 @@ using OpenSource1.Core.Common;
 
 namespace OpenSource1.Core.ValueObjects;
 
-public sealed class CategoriaProducto : ValueObject
+// Value object heredado, sin catálogo. Se elimina en la Task 2.9, cuando Producto pase a CategoriaId.
+// (Sin [Obsolete]: generaría warnings CS0618 nuevos en los call sites de Producto.)
+public sealed class CategoriaProductoLegado : ValueObject
 {
-    private CategoriaProducto(string codigo, string nombre)
+    private CategoriaProductoLegado(string codigo, string nombre)
     {
         Codigo = codigo;
         Nombre = nombre;
@@ -23,7 +25,7 @@ public sealed class CategoriaProducto : ValueObject
     /// <param name="nombreCampoNombre">
     /// Igual que <paramref name="nombreCampoCodigo"/> pero para <paramref name="nombre"/>.
     /// </param>
-    public static CategoriaProducto Of(
+    public static CategoriaProductoLegado Of(
         string codigo, string nombre, string? nombreCampoCodigo = null, string? nombreCampoNombre = null)
     {
         if (string.IsNullOrWhiteSpace(codigo))
@@ -38,7 +40,7 @@ public sealed class CategoriaProducto : ValueObject
                 "categoria_producto.nombre_requerido", "El nombre de categoría es obligatorio.", nombreCampoNombre ?? nameof(nombre)));
         }
 
-        return new CategoriaProducto(codigo.Trim().ToUpperInvariant(), nombre.Trim());
+        return new CategoriaProductoLegado(codigo.Trim().ToUpperInvariant(), nombre.Trim());
     }
 
     protected override IEnumerable<object?> GetEqualityComponents()

@@ -256,7 +256,7 @@ public sealed class ConversionUnidadMedidaServiceTests : IClassFixture<PostgresT
             Nombre = "Producto de prueba de conversión",
             Precio = 1m,
             Stock = 0,
-            Categoria = CategoriaProducto.Of("BASE", "Base"),
+            Categoria = CategoriaProductoLegado.Of("BASE", "Base"),
             UnidadMedida = UnidadMedidaLegado.Of(codigoBase),
         };
         contexto.Productos.Add(producto);
