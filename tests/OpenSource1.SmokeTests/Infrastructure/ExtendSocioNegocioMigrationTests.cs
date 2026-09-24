@@ -35,7 +35,7 @@ public sealed class ExtendSocioNegocioMigrationTests(PostgresTestFixture fixture
             INSERT INTO "SociosNegocio" ("Id","Nombre","Apellido","Email","CreatedAtUtc","CreatedBy","IsDeleted","DeletedAtUtc","DeletedBy") VALUES
             ('33333333-3333-3333-3333-333333333333','Borrado','Cliente','borrado@test.local','2026-01-03 10:00:00+00','admin',true,'2026-02-01 10:00:00+00','admin');
             INSERT INTO "SociosNegocio" ("Id","Nombre","Apellido","Email","CreatedAtUtc","CreatedBy","IsDeleted") VALUES
-            ('44444444-4444-4444-4444-444444444444',repeat('N',100),repeat('A',100),'largo@test.local','2026-01-04 10:00:00+00','admin',false);
+            ('44444444-4444-4444-4444-444444444444',repeat('N',100),repeat('A',98) || ' B','largo@test.local','2026-01-04 10:00:00+00','admin',false);
             """);
 
         await migrador.MigrateAsync();
@@ -53,8 +53,11 @@ public sealed class ExtendSocioNegocioMigrationTests(PostgresTestFixture fixture
         Assert.Equal("Juan López", filas[1][1]);
         Assert.Equal("Borrado Cliente", filas[2][1]);
         Assert.True((bool)filas[2][4]!);
-        // Fila límite: 100 + espacio + 100 = 201 caracteres, truncada a 200 en vez de fallar.
-        Assert.Equal(200, ((string)filas[3][1]!).Length);
+        // Fila límite: 100 + espacio + 100 = 201 caracteres, truncada a 200 en vez de fallar. El carácter
+        // 200 es un espacio interior: el TRIM exterior evita que el resultado termine en espacio (199).
+        var largo = (string)filas[3][1]!;
+        Assert.Equal(199, largo.Length);
+        Assert.Equal(largo.TrimEnd(), largo);
         Assert.All(filas, f =>
         {
             Assert.Equal((short)1, f[2]);

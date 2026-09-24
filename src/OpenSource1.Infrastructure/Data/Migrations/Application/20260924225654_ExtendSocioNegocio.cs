@@ -28,9 +28,10 @@ namespace OpenSource1.Infrastructure.Data.Migrations.Application
         // se revisó explícitamente y no hay nada que quitar.
         //
         // Transformación de datos (Up):
-        //  - NombreComercial = LEFT(TRIM(Nombre || ' ' || Apellido), 200). Nombre (100) + espacio +
+        //  - NombreComercial = TRIM(LEFT(TRIM(Nombre || ' ' || Apellido), 200)). Nombre (100) + espacio +
         //    Apellido (100) puede dar 201 caracteres y NombreComercial es varchar(200): sin el LEFT el
-        //    UPDATE fallaría con datos límite.
+        //    UPDATE fallaría con datos límite. El TRIM exterior evita que el corte deje el resultado
+        //    terminando en un espacio (cuando el carácter 200 es justo un espacio interior).
         //  - Tipo = 1 (Cliente), TipoDocumentoFiscal = 9 (SinDocumento).
         //  - Codigo = LPAD(ROW_NUMBER() OVER (ORDER BY CreatedAtUtc, Id), 6, '0') sobre TODAS las filas,
         //    incluidas las borradas lógicamente (así el código nunca se reutiliza ni colisiona).
@@ -146,7 +147,7 @@ namespace OpenSource1.Infrastructure.Data.Migrations.Application
 
             migrationBuilder.Sql("""
                 UPDATE "SociosNegocio" AS s
-                SET "NombreComercial" = LEFT(TRIM(s."Nombre" || ' ' || s."Apellido"), 200),
+                SET "NombreComercial" = TRIM(LEFT(TRIM(s."Nombre" || ' ' || s."Apellido"), 200)),
                     "Tipo" = 1,
                     "TipoDocumentoFiscal" = 9,
                     "Codigo" = n."Codigo"
