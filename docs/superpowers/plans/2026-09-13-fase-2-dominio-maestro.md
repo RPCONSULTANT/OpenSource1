@@ -484,298 +484,123 @@ Patrón de la Task 2.1.
 
 ---
 
-## Task 2.5 — `SocioDeNegocio`: entidad, mapeo, migración de datos
-
-La tarea de mayor riesgo de la fase: renombra la tabla que sostiene todo el CRUD de
-Clientes ya en producción académica (Entregable 2), preservando los datos.
-
-**Files:**
-- Create: `src/OpenSource1.Core/Entities/SocioDeNegocio.cs`
-- Delete: `src/OpenSource1.Core/Entities/Cliente.cs` (tras confirmar que las Tasks 2.6-2.8
-  ya no lo referencian — hacer esta tarea de último dentro del grupo Socio, no primero)
-- Modify: `ApplicationDbContext.cs`
-- Create: migración `RenameClienteToSocioNegocio` (con transformación de datos, no solo DDL)
-
-**Interfaces:**
-- Produces: `SocioDeNegocio` entity con todos los campos de la sección 2.1 del spec
-  salvo los de grupos contables (`GrupoNegocioId`, `GrupoIvaNegocioId`,
-  `GrupoClienteContableId` — se añaden en la Fase 5, dejar los `uuid?` como columnas
-  presentes pero sin FK todavía, o mejor: **no añadirlas en esta tarea**, se agregan
-  cuando la Fase 5 tenga la tabla destino; documentarlo así en el código).
-
-- [ ] **Step 1: Entidad**
-
-```csharp
-namespace OpenSource1.Core.Entities;
-
-public enum TipoSocioNegocio { Cliente = 1, Proveedor = 2, Ambos = 3 }
-public enum TipoDocumentoFiscal { Rnc = 1, Cedula = 2, Pasaporte = 3, SinDocumento = 9 }
-public enum BloqueoSocioNegocio { Ninguno = 0, Facturacion = 1, Todo = 2 }
-
-namespace OpenSource1.Core.Entities;
-
-public sealed class SocioDeNegocio : BaseEntity
-{
-    public required string Codigo { get; set; }
-    public TipoSocioNegocio Tipo { get; set; }
-    public required string NombreComercial { get; set; }
-    public string? RazonSocial { get; set; }
-    public TipoDocumentoFiscal TipoDocumentoFiscal { get; set; } = TipoDocumentoFiscal.SinDocumento;
-    public string? NumeroDocumentoFiscal { get; set; }
-    public string? Email { get; set; }
-    public string? Telefono { get; set; }
-    public DireccionCliente? Direccion { get; set; }
-    public string? Ciudad { get; set; }
-    public Pais? Pais { get; set; }
-    public Sector? Sector { get; set; }
-    public Guid? TerminoPagoId { get; set; }
-    public decimal LimiteCredito { get; set; }
-    public BloqueoSocioNegocio Bloqueado { get; set; } = BloqueoSocioNegocio.Ninguno;
-    public string? ImagePath { get; set; }
-}
-```
-
-Nota: `DireccionCliente`/`Pais`/`Sector` son los VOs YA migrados al patrón factory
-seguro (Lote D2/fix-wave final de la Fase 0-1) — reutilízalos tal cual, no los reescribas.
-Considera si el nombre `DireccionCliente` debería renombrarse a `DireccionFiscal` (el
-spec lo llama así) — si lo haces, es un rename de tipo que toca los 2 call sites
-existentes (`CreateClienteCommandHandler`/`UpdateClienteCommandHandler`, que se
-reemplazan de todas formas en la Task 2.6) más el propio archivo del VO. Decisión: **sí,
-renómbralo** — es el momento correcto, antes de que se generalice el nombre viejo.
-
-- [ ] **Step 2: Mapeo EF**
-
-`Codigo` único parcial. `NumeroDocumentoFiscal` único parcial **doble**: por `IsDeleted`
-Y por `IS NOT NULL` a la vez —
-`HasFilter("\"IsDeleted\" = false AND \"NumeroDocumentoFiscal\" IS NOT NULL")` (el spec
-pide "único parcial WHERE IS NOT NULL"; combinarlo con el filtro de soft delete es la
-lección de la Fase 0-1, no un añadido opcional). Mismo tratamiento para `Email`.
-`TerminoPagoId` FK opcional a `TerminoPago`, `Restrict`. Los enums se guardan como
-`smallint` (`HasConversion<short>()` o el mapeo por defecto de EF para enums, que ya es
-`int` — usar `.HasConversion<short>()` explícito para que ocupe 2 bytes como pide el spec,
-aunque esto es un detalle menor, prioriza correctitud sobre tamaño de columna si hay
-conflicto).
-
-- [ ] **Step 3: Migración con transformación de datos**
-
-Generar la migración de esquema:
-
-```bash
-dotnet ef migrations add RenameClienteToSocioNegocio --project src/OpenSource1.Infrastructure --startup-project src/OpenSource1.Api --output-dir Data/Migrations/Application
-```
-
-**Revisar el `Up()` generado.** Si EF genera un `DropTable("Clientes")` +
-`CreateTable("SociosNegocio")` (porque son tipos C# distintos, no un rename detectado),
-hay que **editarlo a mano** para preservar los datos — igual que se hizo con `xmin` en la
-Fase 0-1, documentando el motivo:
-
-```csharp
-protected override void Up(MigrationBuilder migrationBuilder)
-{
-    migrationBuilder.RenameTable(name: "Clientes", newName: "SociosNegocio");
-
-    // Columnas nuevas con NOT NULL requieren un valor por defecto para las filas
-    // existentes; se rellenan en el mismo Up() con un UPDATE, luego se puede quitar el
-    // default si el modelo no lo pide.
-    migrationBuilder.AddColumn<string>(name: "Codigo", table: "SociosNegocio", type: "character varying(20)", maxLength: 20, nullable: false, defaultValue: "");
-    migrationBuilder.AddColumn<short>(name: "Tipo", table: "SociosNegocio", type: "smallint", nullable: false, defaultValue: (short)1);
-    migrationBuilder.AddColumn<string>(name: "NombreComercial", table: "SociosNegocio", type: "character varying(200)", maxLength: 200, nullable: false, defaultValue: "");
-    // ... resto de columnas nuevas, todas nullable o con default ...
-
-    migrationBuilder.Sql("""
-        UPDATE "SociosNegocio"
-        SET "NombreComercial" = TRIM(CONCAT("Nombre", ' ', "Apellido")),
-            "Tipo" = 1,
-            "TipoDocumentoFiscal" = 9,
-            "Codigo" = 'CLI-' || LPAD(ROW_NUMBER() OVER (ORDER BY "CreatedAtUtc")::text, 6, '0')
-        """);
-
-    migrationBuilder.DropColumn(name: "Nombre", table: "SociosNegocio");
-    migrationBuilder.DropColumn(name: "Apellido", table: "SociosNegocio");
-
-    migrationBuilder.CreateIndex(name: "IX_SociosNegocio_Codigo", table: "SociosNegocio", column: "Codigo", unique: true, filter: "\"IsDeleted\" = false");
-    // ... resto de índices ...
-}
-
-protected override void Down(MigrationBuilder migrationBuilder)
-{
-    // Simétrico: recompone Nombre/Apellido desde NombreComercial (best-effort, con aviso
-    // de pérdida de la separación original si el Down() se ejecuta alguna vez) y
-    // renombra la tabla de vuelta.
-}
-```
-
-El `ROW_NUMBER()` para `Codigo` es solo para no dejar duplicados en el `UNIQUE`; no tiene
-que ser el formato final de numeración de socios (eso podría usar `IGeneradorNumeroDocumento`
-de la Task 2.2 en el futuro, pero es una migración de datos histórica, no un flujo nuevo).
-
-**Verificación no negociable:** aplicar la migración contra una copia de la base con
-datos de prueba (sembrar 2-3 `Clientes` antes de migrar), confirmar que los datos
-sobreviven con `NombreComercial` poblado correctamente y `Codigo` sin duplicados.
-Confirmar `ApplicationDbContextModelTests` en verde. Generar una migración de prueba
-después (`dotnet ef migrations add ProbeSocio -o /tmp/probe`) y confirmar que sale vacía.
-
-- [ ] **Step 4: Verificar y commit**
-
-**No borrar `Cliente.cs` todavía** — se hace al final de la Task 2.6, cuando ya no haya
-ningún `using OpenSource1.Core.Entities.Cliente` en el árbol.
-
----
-
-## Task 2.6 — `SocioDeNegocio`: capa Application
-
-Reemplaza toda la feature `Features/Clientes/` por `Features/SociosNegocio/`, con los
-campos nuevos.
-
-**Files:**
-- Create: `src/OpenSource1.Application/Features/SociosNegocio/` completo (mismo layout
-  que `Features/Clientes/`: `Commands/`, `Queries/`, `Handlers/`, `Dtos/`,
-  `SocioNegocioSearchCriteria.cs`, `ISocioNegocioReadRepository.cs`)
-- Delete: `src/OpenSource1.Application/Features/Clientes/` completo
-
-**Interfaces:**
-- Produces: `CreateSocioNegocioCommand`, `UpdateSocioNegocioCommand`,
-  `DeleteSocioNegocioCommand`, `GetSocioNegocioByIdQuery`, `ListSociosNegocioQuery`,
-  `SocioNegocioResponse`, `ISocioNegocioReadRepository`. Consumidos por las Tasks 2.7 y
-  2.8, y por las Fases 4-6 (facturación referencia `SocioDeNegocio`).
-
-- [ ] **Step 1: Comandos y DTO**
-
-Replica `CreateClienteCommand`/`ClienteResponse` campo por campo, añadiendo los nuevos:
-`Codigo` (asignado por el sistema en `Create`, no recibido del cliente HTTP — se genera
-con un contador simple `SELECT COUNT(*) + 1` formateado, NO uses `IGeneradorNumeroDocumento`
-todavía salvo que quieras crear una `Serie` "SOCIOS" en la Task 2.2 para ello — decisión:
-**créala**, es consistente y evita un segundo mecanismo de numeración), `Tipo`,
-`RazonSocial`, `TipoDocumentoFiscal`, `NumeroDocumentoFiscal`, `Ciudad`, `TerminoPagoId`,
-`LimiteCredito`, `Bloqueado`.
-
-Los handlers de escritura usan `Result<SocioNegocioResponse>` en vez del tipo directo sin
-envolver que usa `Cliente` hoy — es código que se reescribe entero, así que adopta la
-convención correcta desde ahora (no repliques el patrón viejo de `ClienteResponse`
-directo). Los errores de validación de VOs siguen naciendo como
-`ErroresDeDominioException` desde los propios VOs (`Pais.Of`, etc.) — eso no cambia.
-
-- [ ] **Step 2: `ISocioNegocioReadRepository` y `SocioNegocioSearchCriteria`**
-
-Replica `IClienteReadRepository`, añadiendo filtros por `Codigo`, `Tipo`,
-`NumeroDocumentoFiscal`.
-
-- [ ] **Step 3: Handlers**
-
-Replica los 5 handlers de Clientes (`Create`/`Update`/`Delete`/`GetById`/`List`),
-adaptados a los nuevos campos y a `Result`.
-
-- [ ] **Step 4: Verificar y commit**
-
----
-
-## Task 2.7 — `SocioDeNegocio`: Infrastructure + Api
-
-**Files:**
-- Create: `src/OpenSource1.Infrastructure/Data/Queries/DapperSocioNegocioReadRepository.cs`
-- Delete: `src/OpenSource1.Infrastructure/Data/Queries/DapperClienteReadRepository.cs`
-- Modify: `src/OpenSource1.Infrastructure/Data/DependencyInjection.cs`
-- Create: `src/OpenSource1.Api/Controllers/SociosNegocioController.cs`
-- Delete: `src/OpenSource1.Api/Controllers/ClientesController.cs`
-- Delete: `tests/OpenSource1.SmokeTests/Api/ClientesApiTests.cs` → recrear como
-  `SociosNegocioApiTests.cs`
-- Delete: `tests/OpenSource1.SmokeTests/Features/Clientes/` → recrear en
-  `tests/OpenSource1.SmokeTests/Features/SociosNegocio/`
-
-**Interfaces:**
-- Consumes: todo lo de la Task 2.6.
-
-- [ ] **Step 1: Repositorio Dapper**
-
-Replica `DapperClienteReadRepository` sobre `"SociosNegocio"`, con `ColumnasPermitidas`
-ampliada (`Codigo`, `NombreComercial`, `NumeroDocumentoFiscal`, etc.).
-
-- [ ] **Step 2: Controller**
-
-Replica `ClientesController`, usando `ResultExtensions.ToActionResult()` para todo (no
-las validaciones manuales con `if`/`BadRequest()` sin cuerpo que tiene hoy — reemplázalas
-por la validación que ya hacen los VOs vía `ErroresDeDominioException`, que el
-`GlobalExceptionHandler` ya traduce a 400 con el campo).
-
-- [ ] **Step 3: Borrar `Cliente.cs` y confirmar que compila**
-
-```bash
-grep -rn "OpenSource1.Core.Entities.Cliente\b" src/ tests/ | grep -v obj/
-```
-Debe salir vacío antes de borrar el archivo. Si algo queda (Blazor, típicamente), la
-Task 2.8 lo resuelve — puede que este Step 3 se mueva al final de la Task 2.8 si el orden
-real de dependencias lo exige; usa criterio.
-
-- [ ] **Step 4: Tests de integración**
-
-Recrear `ClientesApiTests.cs` como `SociosNegocioApiTests.cs`, mismo alcance (CRUD +
-401/403/404), con Postgres real.
-
-- [ ] **Step 5: Verificar y commit**
-
-```bash
-dotnet build test.slnx
-dotnet test test.slnx
-```
-
----
-
-## Task 2.8 — `SocioDeNegocio`: Blazor
-
-**Files:**
-- Create: `src/OpenSource1.Blazor/Services/ISocioNegocioApiClient.cs` + implementación
-  (reemplaza `IClienteApiClient`/`ClienteApiClient`)
-- Delete: `src/OpenSource1.Blazor/Services/IClienteApiClient.cs`, `ClienteApiClient.cs`
-- Create: `src/OpenSource1.Blazor/Components/SocioNegocioEditorForm.cs`,
-  `SocioNegocioFields.razor` (reemplazan `ClienteEditorForm.cs`/`ClienteFields.razor`)
-- Create: páginas `SociosNegocio.razor`, `SocioNegocioDetail.razor`, `SocioNegocioNew.razor`,
-  `SociosNegocioDashboard.razor` (reemplazan las 4 de Clientes)
-- Delete: las 4 páginas de Clientes + `ClienteEditorForm.cs` + `ClienteFields.razor`
-- Modify: cualquier referencia a `ListAllAsync`/reportería/dashboards que usaba
-  `IClienteApiClient` (recordar el hallazgo de la Fase 0-1: exports/reportería/dashboards
-  dependen de `ListAllAsync` — no dejar ninguno apuntando al tipo borrado)
-- Modify: `src/OpenSource1.Blazor/Components/Routes.razor` / menú de navegación si
-  referencia "Clientes" por nombre de ruta
-
-**Restricción dura:** Static SSR, sin `@onclick`/`@rendermode` nuevos — mismo patrón que
-ya usan las páginas de Clientes/Productos.
-
-- [ ] **Step 1: `ISocioNegocioApiClient`**
-
-Replica `IClienteApiClient` (incluido `ListAllAsync` con el bucle de paginación completo
-— **no** simplificarlo a una sola página, es la corrección de la Fase 0-1).
-
-- [ ] **Step 2: Formulario y campos**
-
-Replica `ClienteEditorForm`/`ClienteFields.razor`, añadiendo los campos nuevos con las
-mismas anotaciones de validación (`[Required]`, `[MaxLength]`) que ya usa el patrón.
-
-- [ ] **Step 3: Páginas**
-
-Replica las 4 páginas de Clientes, renombradas, con las columnas/filtros nuevos donde
-aplique.
-
-- [ ] **Step 4: Barrido de referencias**
-
-```bash
-grep -rln "IClienteApiClient\|ClienteApiClient\|ClienteEditorForm\|ClienteFields\|/clientes\b" src/OpenSource1.Blazor/
-```
-Actualizar cada resultado. Prestar atención especial a `Program.cs` (exports),
-`Home.razor`, `Bitacora.razor`, cualquier dashboard — son los 12 call sites que la Fase
-0-1 ya enumeró exhaustivamente para `ListAllAsync`.
-
-- [ ] **Step 5: Verificar y commit**
-
-```bash
-dotnet build test.slnx
-dotnet test test.slnx
-```
-
-Verificación manual adicional (si el entorno lo permite): levantar la API y Blazor,
-confirmar que la navegación a la nueva sección de socios de negocio funciona sin errores
-de enrutamiento.
-
----
+## Task 2.5 — Renombre mecánico `Cliente` → `SocioDeNegocio` (SIN campos nuevos)
+
+**Reestructurada (Ruling K).** El plan original mezclaba renombre y extensión de campos en una sola
+migración con transformación de datos, y pedía quitar `Cliente` del modelo mientras 22 directorios aún
+compilaban contra él. Se separa en *expand/contract*: esta tarea es un renombre PURO, verificable por
+compilación y suite, sin cambio de comportamiento; la 2.6 añade los campos y migra los datos.
+
+**Alcance (mecánico, en TODAS las capas a la vez, para que la solución compile en cada commit):**
+- Core: `Cliente` → `SocioDeNegocio` (mismas propiedades: Nombre, Apellido, Email, Telefono, Direccion,
+  Pais, Sector, ImagePath); VO `DireccionCliente` → `DireccionFiscal` (constructor privado + `Of`; columnas
+  EF `DireccionLinea1/2` intactas).
+- Infrastructure: `DbSet` `Clientes` → `SociosNegocio`; `ToTable("SociosNegocio")`; repositorio
+  `DapperClienteReadRepository` → `DapperSocioNegocioReadRepository` (SQL sobre `"SociosNegocio"`).
+  **Migración `RenameClienteToSocioNegocio`: EF generará `DropTable`+`CreateTable` porque cambia el tipo de la
+  entidad. Debes EDITARLA A MANO para que use `RenameTable` + `RenameIndex`** (`IX_Clientes_CreatedAtUtc` →
+  `IX_SociosNegocio_CreatedAtUtc`, `IX_Clientes_Email` → `IX_SociosNegocio_Email`) y documentar el motivo en
+  la migración. Verificación no negociable: aplicar la migración anterior con 2–3 `Clientes` sembrados y
+  comprobar que sobreviven tras aplicar la nueva; una migración de prueba posterior debe salir VACÍA.
+- Application: `Features/Clientes` → `Features/SociosNegocio` (carpetas, comandos, queries, handlers, DTO
+  `SocioNegocioResponse`, `SocioNegocioSearchCriteria`, `ISocioNegocioReadRepository`).
+- Api: `ClientesController` → `SociosNegocioController`, ruta `api/socios-negocio`. Comportamiento y
+  validaciones IGUALES (no las refactorices aquí).
+- Blazor: `IClienteApiClient`/`ClienteApiClient` → `ISocioNegocioApiClient`/`SocioNegocioApiClient` apuntando a
+  `api/socios-negocio`, con los DTO renombrados. **La interfaz de usuario NO se renombra**: rutas `/clientes`,
+  etiquetas "Clientes" y nombres de páginas (`Clientes.razor`, `ClienteNew.razor`, `ClienteDetail.razor`,
+  `ClientesDashboard.razor`) se conservan; en la UI un socio de tipo cliente sigue siendo un cliente y
+  renombrar rutas arriesga enlaces, exports y reportes sin beneficio. Reportería/Excel/PDF/dashboards solo
+  cambian tipos y nombres de DTO.
+- Tests: carpetas, archivos y clases renombrados; `ClientesApiTests` → `SociosNegocioApiTests` con la ruta nueva.
+- NO cambia: columnas, validaciones, permisos, ni el JSON de respuesta salvo el nombre de la ruta.
+
+**Verificación:** build + suite completa; `ApplicationDbContextModelTests` en verde; migración con datos
+(ver arriba); y **EN EJECUCIÓN** (API + Blazor + Postgres de Docker, login `admin`/`Password123`): pega los
+estados HTTP reales del flujo de clientes ya existente — listado con filtros y paginación, alta
+(multipart), detalle, edición, eliminación, dashboard de clientes, exportación Excel y reporte PDF de
+clientes, y la página de inicio (`Home`) que los usa.
+
+## Task 2.6 — Extender `SocioDeNegocio`: campos, migración de datos y numeración
+
+**Reestructurada (Rulings K, M).** Sobre el modelo ya renombrado de la 2.5.
+
+**Campos nuevos** (sección 2.1 del spec, salvo los grupos contables, que llegan en la Fase 5):
+`Codigo` (`varchar(20)`), `Tipo` (Cliente=1/Proveedor=2/Ambos=3), `NombreComercial` (`varchar(200)`),
+`RazonSocial` (`varchar(200)`, opcional), `TipoDocumentoFiscal` (Rnc=1/Cedula=2/Pasaporte=3/SinDocumento=9),
+`NumeroDocumentoFiscal` (`varchar(20)`, opcional), `Ciudad` (`varchar(100)`), `TerminoPagoId` (FK opcional a
+`TerminosPago`, `Restrict`), `LimiteCredito` (`numeric(18,4)`, default 0), `Bloqueado`
+(Ninguno=0/Facturacion=1/Todo=2, `smallint`, default 0). Enums guardados como `smallint`. `Nombre` y
+`Apellido` se sustituyen por `NombreComercial` (dato migrado).
+
+**Decisiones:**
+- **`Email` NO pasa a único** (desvío del spec, Ruling M): dos clientes pueden compartir correo legítimamente
+  (un contacto contable) y crear el índice único puede fallar con datos existentes duplicados. Se conserva el
+  índice NO único `IX_SociosNegocio_Email`. `Email` pasa a ser OPCIONAL.
+- `NumeroDocumentoFiscal`: índice único PARCIAL `WHERE "IsDeleted" = false AND "NumeroDocumentoFiscal" IS NOT NULL`.
+- `Codigo`: índice único PARCIAL `WHERE "IsDeleted" = false`. Lo asigna el sistema, nunca el cliente HTTP, y
+  no se puede cambiar en `Update`.
+
+**Migración con transformación de datos** (genera con `dotnet ef`, edita a mano lo necesario y documéntalo):
+1. Añadir columnas nullable o con default; 2. `UPDATE`: `NombreComercial = TRIM("Nombre" || ' ' || "Apellido")`,
+   `Tipo = 1`, `TipoDocumentoFiscal = 9`, `Codigo = LPAD(ROW_NUMBER() OVER (ORDER BY "CreatedAtUtc","Id")::text, 6, '0')`
+   (sobre TODAS las filas, incluidas las borradas lógicamente); 3. endurecer a NOT NULL; 4. borrar `Nombre` y
+   `Apellido`; 5. crear los índices. `Down()` simétrico (recompone `Nombre`/`Apellido` de forma aproximada y lo
+   documenta).
+6. **Sembrar la serie `SOCIOS` con `migrationBuilder.Sql` (NO con `HasData`, porque su valor depende de los
+   datos)**: una `Serie` (`Codigo='SOCIOS'`, `PermiteHuecos=false`) y una `LineaSerie` (`NumeroInicial='000001'`,
+   `NumeroFinal='999999'`, `UltimoNumeroUsado = LPAD(<total de filas migradas>::text, 6, '0')`, `FechaInicial='2000-01-01'`,
+   `Incremento=1`), con Ids fijos, `CreatedAtUtc = now()`, `CreatedBy='system'`, `IsDeleted=false`. Así los
+   códigos nuevos continúan tras los migrados sin colisión. Como no usa `HasData`, la migración de prueba
+   posterior debe salir VACÍA.
+
+**Creación del código (primer consumidor real de la numeración de la Task 2.2):** el handler de alta abre una
+transacción con `IUnitOfWork.BeginTransactionAsync`, llama a `IGeneradorNumeroDocumento.SiguienteAsync("SOCIOS", fecha)`,
+añade la entidad y confirma con `CommitAsync`; si algo falla, el rollback devuelve el número (sin huecos). El
+generador exige transacción activa. Cubre con un test de integración: **10 altas concurrentes → 10 códigos
+distintos y consecutivos**, y un alta fallida (dato inválido tras reservar número) NO consume número.
+
+**Validación** (validador estático compartido, como `TerminosPago`): `NombreComercial` obligatorio (≤200);
+si `TipoDocumentoFiscal` ≠ SinDocumento, `NumeroDocumentoFiscal` obligatorio (≤20; SIN validar formato RNC/NCF,
+el proyecto no está localizado); `LimiteCredito` ≥ 0; `TerminoPagoId`, si viene, debe existir y no estar borrado;
+`Email`, si viene, con formato válido. Errores con el nombre del campo del DTO.
+
+**Api:** las 5 acciones con `Result<T>` y `ToActionResult()` (sustituyendo los `if`/`BadRequest()` manuales
+heredados). **Blazor, adaptación MÍNIMA para que cada flujo existente siga funcionando** (la UI de los campos
+nuevos es la 2.7): el formulario muestra un único campo "Nombre comercial" en lugar de Nombre+Apellido; los
+listados, el detalle, el dashboard y las exportaciones Excel/PDF muestran "Nombre comercial" donde mostraban
+Nombre y Apellido.
+
+**Verificación:** build + suite (`ApplicationDbContextModelTests` verde); migración aplicada con 2–3 clientes
+sembrados (sobreviven, `NombreComercial` correcto, `Codigo` sin duplicados, serie con el contador correcto);
+prueba de migración vacía; y **EN EJECUCIÓN**, los mismos flujos de la 2.5 (listado, alta multipart, detalle,
+edición, borrado, dashboard, Excel, PDF, Home) con estados HTTP reales.
+
+## Task 2.7 — `SocioDeNegocio`: interfaz de los campos nuevos
+
+**Reestructurada (Ruling K).** Sobre el backend de la 2.6.
+
+- Formulario de alta/edición (`ClienteEditorForm`/`ClienteFields.razor`, que conservan su nombre de UI): añade
+  `Tipo` (select), `RazonSocial`, `TipoDocumentoFiscal` (select), `NumeroDocumentoFiscal`, `Ciudad`,
+  `TerminoPagoId` (select poblado desde la API de `TerminosPago`), `LimiteCredito`, `Bloqueado` (select).
+- **Patrón obligatorio para los `<select>` poblados desde la API** (lección de `CategoriasProducto`): si la
+  carga de opciones falla o viene vacía, NO permitas guardar a ciegas ni pierdas el valor actual: incluye
+  siempre la opción del valor vigente y bloquea el guardado con un aviso visible cuando las opciones no
+  cargaron. Verifícalo en ejecución con un proxy que devuelva 500 y vacío.
+- Listado: filtros por `Codigo`, `Tipo` y `NumeroDocumentoFiscal`; columnas nuevas. Detalle: todos los campos.
+  El `Codigo` es de solo lectura (lo asigna el sistema).
+- Exportación Excel, reporte PDF y dashboards: incorporan `Codigo`, `Tipo` y documento fiscal donde tenga
+  sentido, sin romper lo existente.
+- Restricciones: Static SSR estricto (cero `@rendermode`/`@onclick`/`@bind` interactivo); el alta de cliente
+  conserva su envío directo `multipart`.
+- **Verificación EN EJECUCIÓN obligatoria**, con estados HTTP reales: alta con todos los campos y con los
+  mínimos, edición, documento fiscal duplicado (mensaje de conflicto, no 500), término de pago inexistente,
+  proxy 500/vacío en la carga de términos de pago, exportaciones y PDF.
+
+## Task 2.8 — (absorbida por 2.5–2.7)
+
+La antigua 2.8 (Blazor) se repartió: el renombre de tipos en Blazor va en la 2.5, la adaptación mínima en la
+2.6 y los campos nuevos en la 2.7. No hay tarea 2.8.
 
 ## Task 2.9 — `Producto`: campos nuevos, `UnidadMedidaBaseId`, `CategoriaId`
 

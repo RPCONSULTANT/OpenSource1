@@ -414,6 +414,18 @@ Con `PermiteHuecos = false` la implementación hace `SELECT ... FOR UPDATE` sobr
 `PermiteHuecos = true` no bloquea. Series de borrador con huecos, series de posteado sin
 huecos.
 
+**Desviaciones acordadas durante la ejecución de la Fase 2** (ver el plan `2026-09-13-fase-2-dominio-maestro.md`):
+
+- `Producto.Stock` se conserva como columna LEGADA en la Fase 2 y se elimina en la Fase 3, cuando existe el libro
+  de inventario que lo sustituye; quitarlo antes eliminaría el stock de las páginas y reportes ya entregados.
+- `SociosNegocio.Email` NO es único (índice no único): dos socios pueden compartir correo y el índice único
+  puede fallar con datos existentes. `NumeroDocumentoFiscal` sí es único parcial.
+- El renombre `Cliente` → `SocioDeNegocio` se ejecuta por *expand/contract*: primero un renombre mecánico en
+  todas las capas (sin campos nuevos) y después la extensión del modelo con su migración de datos. La UI
+  conserva la etiqueta "Clientes"; la ruta de la API pasa a `api/socios-negocio`.
+- Los VOs estáticos `UnidadMedida` y `CategoriaProducto` se renombran a `...Legado` en las tareas 2.3/2.4 y se
+  borran en la 2.9, cuando `Producto` pasa a las claves foráneas.
+
 **Verificación de la Fase 2:** build verde; migración aplicada sin pérdida de datos de
 `Clientes`/`Productos`; tests de conversión de unidades, de generación de números
 concurrente, y de la migración de `Cliente` → `SocioDeNegocio`.
