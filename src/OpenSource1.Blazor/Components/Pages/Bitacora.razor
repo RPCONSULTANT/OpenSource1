@@ -107,7 +107,7 @@ else
             var productos = await ProductoApiClient.ListAllAsync();
 
             entries = clientes
-                .Select(c => new BitacoraEntry("Cliente", $"{c.Nombre} {c.Apellido}",
+                .Select(c => new BitacoraEntry("Cliente", c.NombreComercial,
                     c.UpdatedAtUtc.HasValue ? "Actualizado" : "Creado",
                     c.UpdatedAtUtc.HasValue ? (c.UpdatedBy ?? c.CreatedBy) : c.CreatedBy,
                     c.UpdatedAtUtc ?? c.CreatedAtUtc))

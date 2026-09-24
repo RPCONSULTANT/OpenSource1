@@ -2,26 +2,47 @@ using MediatR;
 using OpenSource1.Application.Data.UnitOfWork;
 using OpenSource1.Application.Features.SociosNegocio.Commands;
 using OpenSource1.Application.Features.SociosNegocio.Dtos;
+using OpenSource1.Core.Common;
 using OpenSource1.Core.Entities;
-using OpenSource1.Core.ValueObjects;
 
 namespace OpenSource1.Application.Features.SociosNegocio.Handlers;
 
-public sealed class UpdateSocioNegocioCommandHandler(IUnitOfWork unitOfWork) : IRequestHandler<UpdateSocioNegocioCommand, SocioNegocioResponse?>
+/// <summary>
+/// Modificación de un socio de negocio. <c>Codigo</c> es inmutable: el comando no lo lleva y
+/// <see cref="SocioNegocioReglas.Aplicar"/> nunca lo toca.
+/// </summary>
+public sealed class UpdateSocioNegocioCommandHandler(IUnitOfWork unitOfWork)
+    : IRequestHandler<UpdateSocioNegocioCommand, Result<SocioNegocioResponse>>
 {
-    public async Task<SocioNegocioResponse?> Handle(UpdateSocioNegocioCommand request, CancellationToken cancellationToken)
+    public async Task<Result<SocioNegocioResponse>> Handle(UpdateSocioNegocioCommand request, CancellationToken cancellationToken)
     {
+        var errores = SocioNegocioValidator.Validar(request);
+        if (errores.Count > 0)
+        {
+            return Result<SocioNegocioResponse>.Fallo([.. errores]);
+        }
+
         var repo = unitOfWork.Repository<SocioNegocio>();
-        var entity = await repo.GetByIdAsync(new object[] { request.Id }, cancellationToken);
-        if (entity is null) return null;
-        entity.Nombre = request.Nombre.Trim();
-        entity.Apellido = request.Apellido.Trim();
-        entity.Email = request.Email.Trim();
-        entity.Telefono = request.Telefono?.Trim();
-        entity.Direccion = string.IsNullOrWhiteSpace(request.DireccionLinea1) ? null : DireccionFiscal.Of(request.DireccionLinea1, request.DireccionLinea2, nameof(request.DireccionLinea1));
-        entity.Sector = string.IsNullOrWhiteSpace(request.Sector) ? null : Sector.Of(request.Sector, nameof(request.Sector));
-        entity.Pais = string.IsNullOrWhiteSpace(request.PaisCodigo) ? null : Pais.Of(request.PaisCodigo, nameof(request.PaisCodigo));
-        entity.ImagePath = request.ImagePath;
-        repo.Update(entity); await unitOfWork.SaveChangesAsync(cancellationToken); return CreateSocioNegocioCommandHandler.ToResponse(entity);
+        // Consulta con seguimiento (no Find): respeta el filtro de soft delete, así un socio ya
+        // borrado responde no_encontrado en vez de modificarse/borrarse de nuevo.
+        var entity = await repo.FirstOrDefaultAsync(x => x.Id == request.Id, asTracking: true, cancellationToken: cancellationToken);
+        if (entity is null)
+        {
+            return Result<SocioNegocioResponse>.Fallo(new Error(
+                "socio_negocio.no_encontrado", "No se encontró el socio de negocio solicitado.", "Id"));
+        }
+
+        var verificacion = await SocioNegocioReglas.VerificarReferenciasAsync(unitOfWork, request, request.Id, cancellationToken);
+        if (verificacion is not null)
+        {
+            return Result<SocioNegocioResponse>.Fallo(verificacion.Value);
+        }
+
+        SocioNegocioReglas.Aplicar(entity, request);
+
+        repo.Update(entity);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return Result<SocioNegocioResponse>.Exito(CreateSocioNegocioCommandHandler.ToResponse(entity));
     }
 }

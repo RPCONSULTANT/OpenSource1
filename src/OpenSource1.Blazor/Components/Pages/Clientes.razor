@@ -89,7 +89,8 @@
                         <div class="flex h-48 items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 text-sm text-slate-400 dark:border-slate-600 dark:bg-slate-900/40 dark:text-slate-500">Sin imagen</div>
                     }
                     <div class="mt-5 space-y-4 text-sm">
-                        <div><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">General</p><p class="mt-1.5 text-base font-semibold text-slate-800 dark:text-slate-200">@factCliente.Nombre @factCliente.Apellido</p></div>
+                        <div><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">General</p><p class="mt-1.5 text-base font-semibold text-slate-800 dark:text-slate-200">@factCliente.NombreComercial</p></div>
+                        <div><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Código</p><p class="mt-1 text-slate-700 dark:text-slate-300">@factCliente.Codigo</p></div>
                         <div><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Correo</p><p class="mt-1 text-slate-700 break-all dark:text-slate-300">@factCliente.Email</p></div>
                         <div><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Teléfono</p><p class="mt-1 text-slate-700 dark:text-slate-300">@(string.IsNullOrWhiteSpace(factCliente.Telefono) ? "No indicado" : factCliente.Telefono)</p></div>
                         <div><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Dirección</p><p class="mt-1 text-slate-700 dark:text-slate-300">@DireccionDisplay(factCliente)</p></div>
@@ -140,8 +141,8 @@
                             <thead class="bg-slate-50 dark:bg-slate-900/40">
                                 <tr>
                                     <th class="px-4 py-3 text-left"><span class="sr-only">Seleccionar</span></th>
-                                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Nombre</th>
-                                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Apellido</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Código</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Nombre comercial</th>
                                     <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Correo</th>
                                     <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Teléfono</th>
                                     <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Dirección</th>
@@ -153,8 +154,8 @@
                                 {
                                     <tr @key="cliente.Id" class="hover:bg-slate-50 dark:hover:bg-slate-700/60">
                                         <td class="px-4 py-3"><input type="checkbox" name="SelectedIds" value="@cliente.Id" checked="@(cliente.Id == FocusClienteId)" onchange="@EntityFabOnChange" class="size-4 rounded border-slate-300 text-brand-600 focus:ring-brand-600 dark:border-slate-600" /></td>
-                                        <td class="px-4 py-3 font-semibold text-slate-800 dark:text-slate-200">@cliente.Nombre</td>
-                                        <td class="px-4 py-3 text-slate-700 dark:text-slate-300">@cliente.Apellido</td>
+                                        <td class="px-4 py-3 text-slate-700 dark:text-slate-300">@cliente.Codigo</td>
+                                        <td class="px-4 py-3 font-semibold text-slate-800 dark:text-slate-200">@cliente.NombreComercial</td>
                                         <td class="px-4 py-3 text-slate-700 dark:text-slate-300">@cliente.Email</td>
                                         <td class="px-4 py-3 text-slate-700 dark:text-slate-300">@(string.IsNullOrWhiteSpace(cliente.Telefono) ? "—" : cliente.Telefono)</td>
                                         <td class="px-4 py-3 text-slate-700 dark:text-slate-300">@DireccionDisplay(cliente)</td>
@@ -184,8 +185,8 @@
                         <article @key="cliente.Id" class="rounded-2xl border border-slate-200 bg-white shadow-sm hover:shadow-md hover:border-brand-200 transition-all duration-200 overflow-hidden dark:border-slate-700 dark:bg-slate-800">
                             <div class="flex flex-col gap-4 p-5 sm:flex-row sm:items-start lg:p-6">
                                 <div class="min-w-0 sm:w-52 sm:shrink-0">
-                                    <p class="text-xs font-bold uppercase tracking-wide text-slate-400 mb-1 dark:text-slate-500">General</p>
-                                    <h3 class="text-lg font-extrabold text-slate-900 truncate dark:text-slate-100" title="@cliente.Nombre @cliente.Apellido">@cliente.Nombre @cliente.Apellido</h3>
+                                    <p class="text-xs font-bold uppercase tracking-wide text-slate-400 mb-1 dark:text-slate-500">@cliente.Codigo</p>
+                                    <h3 class="text-lg font-extrabold text-slate-900 truncate dark:text-slate-100" title="@cliente.NombreComercial">@cliente.NombreComercial</h3>
                                 </div>
                                 <div class="grid min-w-0 flex-1 grid-cols-1 gap-3 text-sm sm:grid-cols-3">
                                     <div class="min-w-0 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5 dark:border-slate-700/60 dark:bg-slate-900/40"><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Correo</p><p class="mt-1 truncate text-slate-700 dark:text-slate-300" title="@cliente.Email">@cliente.Email</p></div>
@@ -238,7 +239,7 @@
                 <input type="hidden" name="view" value="@(View ?? "grid")" />
                 <input type="hidden" name="filters" value="@string.Join(",", ActiveFilterFields)" />
                 <div><h2 class="text-sm font-bold text-slate-800 uppercase tracking-wide dark:text-slate-200">Filtros</h2><p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Agregue campos a la lista y combine valores con <code>*</code> (comodín), <code>||</code> (o) y <code>&amp;&amp;</code> (y).</p></div>
-                <div><label class="block text-sm font-semibold text-slate-700 mb-1.5 dark:text-slate-300">Nombre</label><input type="text" name="nombre" value="@SearchNombre" placeholder="ej: maria, *car*, juan||maria" class="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200" /></div>
+                <div><label class="block text-sm font-semibold text-slate-700 mb-1.5 dark:text-slate-300">Nombre comercial</label><input type="text" name="nombre" value="@SearchNombre" placeholder="ej: maria, *car*, juan||maria" class="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200" /></div>
                 @foreach (var field in ActiveFilterFields)
                 {
                     <div>
@@ -285,7 +286,7 @@
                 <input type="hidden" name="view" value="@(View ?? "grid")" />
                 <input type="hidden" name="report" value="true" />
                 <input type="hidden" name="filters" value="@string.Join(",", ActiveFilterFields)" />
-                <div><label class="block text-xs font-semibold text-slate-700 mb-1 dark:text-slate-300">Nombre</label><input type="text" name="nombre" value="@SearchNombre" placeholder="ej: maria, *car*, juan||maria" class="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200" /></div>
+                <div><label class="block text-xs font-semibold text-slate-700 mb-1 dark:text-slate-300">Nombre comercial</label><input type="text" name="nombre" value="@SearchNombre" placeholder="ej: maria, *car*, juan||maria" class="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200" /></div>
                 @foreach (var field in ActiveFilterFields)
                 {
                     <div>
@@ -326,13 +327,12 @@
 @if (DeleteId.HasValue && canDelete)
 {
     var item = clientes.FirstOrDefault(c => c.Id == DeleteId.Value);
-    <ConfirmDialog Title="Confirmar eliminación" Message="Esta acción eliminará el cliente seleccionado y no se puede deshacer." Variant="danger" CancelHref="@BuildListUrl()"><p class="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-semibold text-red-900">@((item is null) ? "Cliente seleccionado" : $"{item.Nombre} {item.Apellido}")</p>@if (!string.IsNullOrWhiteSpace(modalError)){<div class="mt-4"><MessageBox Type="warning" Message="@modalError" /></div>}<EditForm Model="DeleteInput" FormName="delete-cliente-list" OnValidSubmit="DeleteAsync" class="mt-4" Enhance="true"><button type="submit" class="btn-press rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700">Sí, eliminar</button><a href="@BuildListUrl()" class="btn-press ml-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700/60">Cancelar</a></EditForm></ConfirmDialog>
+    <ConfirmDialog Title="Confirmar eliminación" Message="Esta acción eliminará el cliente seleccionado y no se puede deshacer." Variant="danger" CancelHref="@BuildListUrl()"><p class="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-semibold text-red-900">@((item is null) ? "Cliente seleccionado" : item.NombreComercial)</p>@if (!string.IsNullOrWhiteSpace(modalError)){<div class="mt-4"><MessageBox Type="warning" Message="@modalError" /></div>}<EditForm Model="DeleteInput" FormName="delete-cliente-list" OnValidSubmit="DeleteAsync" class="mt-4" Enhance="true"><button type="submit" class="btn-press rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700">Sí, eliminar</button><a href="@BuildListUrl()" class="btn-press ml-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700/60">Cancelar</a></EditForm></ConfirmDialog>
 }
 
 @code {
     private static readonly (string Key, string Label)[] FilterableFields =
     [
-        ("apellido", "Apellido"),
         ("email", "Correo"),
         ("telefono", "Teléfono"),
         ("direccion", "Dirección"),
@@ -341,7 +341,6 @@
     ];
 
     [SupplyParameterFromQuery(Name = "nombre")] private string? SearchNombre { get; set; }
-    [SupplyParameterFromQuery(Name = "apellido")] private string? SearchApellido { get; set; }
     [SupplyParameterFromQuery(Name = "email")] private string? SearchEmail { get; set; }
     [SupplyParameterFromQuery(Name = "telefono")] private string? SearchTelefono { get; set; }
     [SupplyParameterFromQuery(Name = "direccion")] private string? SearchDireccion { get; set; }
@@ -379,10 +378,10 @@
         await LoadAsync();
         if(Ok is not null){(messageType, message)=Ok switch {"created"=>("success","Cliente creado satisfactoriamente."),"updated"=>("success","Cliente modificado satisfactoriamente."),"deleted"=>("success","Cliente eliminado satisfactoriamente."),"report-select-required"=>("warning","Seleccione al menos un cliente para generar el reporte."),"report-no-data"=>("warning","No hay datos para generar el reporte solicitado."),_ =>("info",null)};}
     }
-    private async Task LoadAsync(){try{var pagina=await SocioNegocioApiClient.ListAsync(new SocioNegocioSearchFilter(EmptyAsNull(SearchNombre), GetActiveValue("apellido", SearchApellido), GetActiveValue("email", SearchEmail), GetActiveValue("telefono", SearchTelefono), GetActiveValue("direccion", SearchDireccion), GetActiveValue("sector", SearchSector), GetActiveValue("pais", SearchPais)), new PageRequest(Pagina, PageRequest.TamanoPorDefecto)); clientes=pagina.Items; totalClientes=pagina.Total; totalPaginas=pagina.TotalPaginas;} catch(Exception ex){Logger.LogWarning(ex,"Could not load clientes from API."); message="No fue posible cargar los clientes."; messageType="danger";}}
+    private async Task LoadAsync(){try{var pagina=await SocioNegocioApiClient.ListAsync(new SocioNegocioSearchFilter(EmptyAsNull(SearchNombre), GetActiveValue("email", SearchEmail), GetActiveValue("telefono", SearchTelefono), GetActiveValue("direccion", SearchDireccion), GetActiveValue("sector", SearchSector), GetActiveValue("pais", SearchPais)), new PageRequest(Pagina, PageRequest.TamanoPorDefecto)); clientes=pagina.Items; totalClientes=pagina.Total; totalPaginas=pagina.TotalPaginas;} catch(Exception ex){Logger.LogWarning(ex,"Could not load clientes from API."); message="No fue posible cargar los clientes."; messageType="danger";}}
     private async Task DeleteAsync(){if(!DeleteId.HasValue){modalError="No se pudo identificar el cliente. Intente de nuevo."; return;} var result=await SocioNegocioApiClient.DeleteAsync(DeleteId.Value); if(result.Succeeded) Nav.NavigateTo(BuildListUrl(ok:"deleted")); else modalError=result.Message;}
     private string? GetActiveValue(string key, string? value) => ActiveFilterFields.Contains(key) ? EmptyAsNull(value) : null;
-    private string? GetFieldValue(string key) => key switch { "apellido" => SearchApellido, "email" => SearchEmail, "telefono" => SearchTelefono, "direccion" => SearchDireccion, "sector" => SearchSector, "pais" => SearchPais, _ => null };
+    private string? GetFieldValue(string key) => key switch { "email" => SearchEmail, "telefono" => SearchTelefono, "direccion" => SearchDireccion, "sector" => SearchSector, "pais" => SearchPais, _ => null };
     private static string DireccionDisplay(SocioNegocioResponse cliente) => string.IsNullOrWhiteSpace(cliente.DireccionLinea1) ? "—" : (string.IsNullOrWhiteSpace(cliente.DireccionLinea2) ? cliente.DireccionLinea1 : $"{cliente.DireccionLinea1}, {cliente.DireccionLinea2}");
     private static List<string> ParseActiveFields(string? raw) => string.IsNullOrWhiteSpace(raw) ? [] : [.. raw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Where(f => FilterableFields.Any(field => field.Key == f)).Distinct()];
     private string BuildListUrl(Guid? deleteId = null, bool? showFilters = null, string? ok = null, string? view = null, bool? report = null, Guid? focusId = null, IReadOnlyList<string>? activeFiltersOverride = null, int? pagina = null)
@@ -390,7 +389,6 @@
         var activeFields = activeFiltersOverride ?? ActiveFilterFields;
         var parameters=new List<string>();
         AddParameter(parameters,"nombre",SearchNombre);
-        if (activeFields.Contains("apellido")) AddParameter(parameters,"apellido",SearchApellido);
         if (activeFields.Contains("email")) AddParameter(parameters,"email",SearchEmail);
         if (activeFields.Contains("telefono")) AddParameter(parameters,"telefono",SearchTelefono);
         if (activeFields.Contains("direccion")) AddParameter(parameters,"direccion",SearchDireccion);

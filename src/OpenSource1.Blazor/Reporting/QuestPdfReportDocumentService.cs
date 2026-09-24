@@ -28,8 +28,7 @@ public sealed class QuestPdfReportDocumentService : IReportDocumentService
                 {
                     table.ColumnsDefinition(columns =>
                     {
-                        columns.RelativeColumn(1.4f);
-                        columns.RelativeColumn(1.2f);
+                        columns.RelativeColumn(2.2f);
                         columns.RelativeColumn(1.6f);
                         columns.RelativeColumn(1.1f);
                         columns.RelativeColumn(1.7f);
@@ -37,8 +36,7 @@ public sealed class QuestPdfReportDocumentService : IReportDocumentService
 
                     table.Header(header =>
                     {
-                        HeaderCell(header.Cell(), "Nombre");
-                        HeaderCell(header.Cell(), "Apellido");
+                        HeaderCell(header.Cell(), "Nombre comercial");
                         HeaderCell(header.Cell(), "Correo");
                         HeaderCell(header.Cell(), "Teléfono");
                         HeaderCell(header.Cell(), "Dirección");
@@ -46,9 +44,8 @@ public sealed class QuestPdfReportDocumentService : IReportDocumentService
 
                     foreach (var cliente in clientes)
                     {
-                        BodyCell(table, cliente.Nombre);
-                        BodyCell(table, cliente.Apellido);
-                        BodyCell(table, cliente.Email);
+                        BodyCell(table, cliente.NombreComercial);
+                        BodyCell(table, cliente.Email ?? "—");
                         BodyCell(table, cliente.Telefono ?? "—");
                         BodyCell(table, DireccionDisplay(cliente.DireccionLinea1, cliente.DireccionLinea2));
                     }
@@ -127,11 +124,11 @@ public sealed class QuestPdfReportDocumentService : IReportDocumentService
         var sheet = workbook.Worksheets.Add("Clientes");
 
         sheet.Cell(1, 1).Value = title;
-        sheet.Range(1, 1, 1, 5).Merge().Style.Font.SetBold().Font.SetFontSize(14);
+        sheet.Range(1, 1, 1, 4).Merge().Style.Font.SetBold().Font.SetFontSize(14);
         sheet.Cell(2, 1).Value = $"Fecha de generación: {DateTimeOffset.Now:dd/MM/yyyy HH:mm}";
-        sheet.Range(2, 1, 2, 5).Merge();
+        sheet.Range(2, 1, 2, 4).Merge();
 
-        string[] headers = ["Nombre", "Apellido", "Correo", "Teléfono", "Dirección"];
+        string[] headers = ["Nombre comercial", "Correo", "Teléfono", "Dirección"];
         for (var i = 0; i < headers.Length; i++)
         {
             var cell = sheet.Cell(4, i + 1);
@@ -142,11 +139,10 @@ public sealed class QuestPdfReportDocumentService : IReportDocumentService
         var row = 5;
         foreach (var cliente in clientes)
         {
-            sheet.Cell(row, 1).Value = cliente.Nombre;
-            sheet.Cell(row, 2).Value = cliente.Apellido;
-            sheet.Cell(row, 3).Value = cliente.Email;
-            sheet.Cell(row, 4).Value = cliente.Telefono ?? "—";
-            sheet.Cell(row, 5).Value = DireccionDisplay(cliente.DireccionLinea1, cliente.DireccionLinea2);
+            sheet.Cell(row, 1).Value = cliente.NombreComercial;
+            sheet.Cell(row, 2).Value = cliente.Email ?? "—";
+            sheet.Cell(row, 3).Value = cliente.Telefono ?? "—";
+            sheet.Cell(row, 4).Value = DireccionDisplay(cliente.DireccionLinea1, cliente.DireccionLinea2);
             row++;
         }
 
@@ -204,7 +200,7 @@ public sealed class QuestPdfReportDocumentService : IReportDocumentService
         using var workbook = new XLWorkbook();
         var sheet = workbook.Worksheets.Add("Clientes");
 
-        string[] headers = ["Id", "Nombre", "Apellido", "Email", "Telefono", "DireccionLinea1", "DireccionLinea2", "Sector", "PaisCodigo", "PaisNombre", "ImagePath", "CreatedAtUtc", "UpdatedAtUtc", "CreatedBy", "UpdatedBy"];
+        string[] headers = ["Id", "NombreComercial", "Email", "Telefono", "DireccionLinea1", "DireccionLinea2", "Sector", "PaisCodigo", "PaisNombre", "ImagePath", "CreatedAtUtc", "UpdatedAtUtc", "CreatedBy", "UpdatedBy"];
         for (var i = 0; i < headers.Length; i++)
         {
             var cell = sheet.Cell(1, i + 1);
@@ -216,23 +212,22 @@ public sealed class QuestPdfReportDocumentService : IReportDocumentService
         foreach (var cliente in clientes)
         {
             sheet.Cell(row, 1).Value = cliente.Id.ToString();
-            sheet.Cell(row, 2).Value = cliente.Nombre;
-            sheet.Cell(row, 3).Value = cliente.Apellido;
-            sheet.Cell(row, 4).Value = cliente.Email;
-            sheet.Cell(row, 5).Value = cliente.Telefono ?? string.Empty;
-            sheet.Cell(row, 6).Value = cliente.DireccionLinea1 ?? string.Empty;
-            sheet.Cell(row, 7).Value = cliente.DireccionLinea2 ?? string.Empty;
-            sheet.Cell(row, 8).Value = cliente.Sector ?? string.Empty;
-            sheet.Cell(row, 9).Value = cliente.PaisCodigo ?? string.Empty;
-            sheet.Cell(row, 10).Value = cliente.PaisNombre ?? string.Empty;
-            sheet.Cell(row, 11).Value = cliente.ImagePath ?? string.Empty;
-            sheet.Cell(row, 12).Value = cliente.CreatedAtUtc;
+            sheet.Cell(row, 2).Value = cliente.NombreComercial;
+            sheet.Cell(row, 3).Value = cliente.Email ?? string.Empty;
+            sheet.Cell(row, 4).Value = cliente.Telefono ?? string.Empty;
+            sheet.Cell(row, 5).Value = cliente.DireccionLinea1 ?? string.Empty;
+            sheet.Cell(row, 6).Value = cliente.DireccionLinea2 ?? string.Empty;
+            sheet.Cell(row, 7).Value = cliente.Sector ?? string.Empty;
+            sheet.Cell(row, 8).Value = cliente.PaisCodigo ?? string.Empty;
+            sheet.Cell(row, 9).Value = cliente.PaisNombre ?? string.Empty;
+            sheet.Cell(row, 10).Value = cliente.ImagePath ?? string.Empty;
+            sheet.Cell(row, 11).Value = cliente.CreatedAtUtc;
             if (cliente.UpdatedAtUtc is { } updatedAt)
             {
-                sheet.Cell(row, 13).Value = updatedAt;
+                sheet.Cell(row, 12).Value = updatedAt;
             }
-            sheet.Cell(row, 14).Value = cliente.CreatedBy;
-            sheet.Cell(row, 15).Value = cliente.UpdatedBy ?? string.Empty;
+            sheet.Cell(row, 13).Value = cliente.CreatedBy;
+            sheet.Cell(row, 14).Value = cliente.UpdatedBy ?? string.Empty;
             row++;
         }
 

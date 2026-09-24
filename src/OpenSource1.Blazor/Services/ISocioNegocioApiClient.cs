@@ -1,5 +1,6 @@
 using OpenSource1.Application.Features.SociosNegocio.Dtos;
 using OpenSource1.Core.Common;
+using OpenSource1.Core.Enums;
 
 namespace OpenSource1.Blazor.Services;
 
@@ -21,23 +22,35 @@ public interface ISocioNegocioApiClient
 }
 
 public sealed record SocioNegocioSearchFilter(
-    string? Nombre,
-    string? Apellido,
+    string? NombreComercial,
     string? Email,
     string? Telefono,
     string? Direccion,
     string? Sector,
     string? Pais);
 
+/// <summary>
+/// Cuerpo de alta/modificación hacia la API. La UI actual (Task 2.6) solo edita los campos
+/// clásicos; el resto lleva los valores por defecto del alta (Cliente, SinDocumento, sin límite,
+/// sin bloqueo) o, en una modificación, los valores ya guardados en el socio (ver
+/// <c>ClienteDetail</c>) para no pisarlos. La UI de los campos nuevos llega con la Task 2.7.
+/// </summary>
 public sealed record SocioNegocioInput(
-    string Nombre,
-    string Apellido,
-    string Email,
+    string NombreComercial,
+    string? Email,
     string? Telefono,
     string? DireccionLinea1,
     string? DireccionLinea2,
     string? Sector,
     string? PaisCodigo,
-    string? ImagePath = null);
+    string? ImagePath = null,
+    string? RazonSocial = null,
+    TipoSocioNegocio Tipo = TipoSocioNegocio.Cliente,
+    TipoDocumentoFiscal TipoDocumentoFiscal = TipoDocumentoFiscal.SinDocumento,
+    string? NumeroDocumentoFiscal = null,
+    string? Ciudad = null,
+    Guid? TerminoPagoId = null,
+    decimal LimiteCredito = 0m,
+    BloqueoSocioNegocio Bloqueado = BloqueoSocioNegocio.Ninguno);
 
 public sealed record SocioNegocioOperationResult(bool Succeeded, string Message, Guid? EntityId = null);

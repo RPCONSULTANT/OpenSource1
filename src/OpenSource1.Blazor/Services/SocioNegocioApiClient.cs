@@ -78,14 +78,9 @@ public sealed class SocioNegocioApiClient(HttpClient httpClient, ILogger<SocioNe
             return parameters.Count == 0 ? "api/socios-negocio" : $"api/socios-negocio?{string.Join("&", parameters)}";
         }
 
-        if (!string.IsNullOrWhiteSpace(filter.Apellido))
+        if (!string.IsNullOrWhiteSpace(filter.NombreComercial))
         {
-            parameters.Add($"apellido={Uri.EscapeDataString(filter.Apellido.Trim())}");
-        }
-
-        if (!string.IsNullOrWhiteSpace(filter.Nombre))
-        {
-            parameters.Add($"nombre={Uri.EscapeDataString(filter.Nombre.Trim())}");
+            parameters.Add($"nombreComercial={Uri.EscapeDataString(filter.NombreComercial.Trim())}");
         }
 
         if (!string.IsNullOrWhiteSpace(filter.Email))
@@ -180,6 +175,7 @@ public sealed class SocioNegocioApiClient(HttpClient httpClient, ILogger<SocioNe
             HttpStatusCode.Forbidden => "No tiene permisos para realizar esta operación.",
             HttpStatusCode.NotFound => "No se encontró el cliente indicado.",
             HttpStatusCode.BadRequest => "Revise los datos del formulario.",
+            HttpStatusCode.Conflict => "Ya existe un cliente con ese documento fiscal.",
             _ => "No fue posible completar la operación."
         };
 

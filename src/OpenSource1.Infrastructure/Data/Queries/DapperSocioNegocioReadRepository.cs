@@ -9,12 +9,12 @@ namespace OpenSource1.Infrastructure.Data.Queries;
 public sealed class DapperSocioNegocioReadRepository(IDbSession session) : ISocioNegocioReadRepository
 {
     private static readonly ColumnasPermitidas ColumnasPermitidas = new(
-        "Nombre", "Apellido", "Email", "Telefono", "DireccionLinea1", "Sector", "PaisNombre", "CreatedAtUtc");
+        "Codigo", "NombreComercial", "Email", "Telefono", "DireccionLinea1", "Sector", "PaisNombre", "CreatedAtUtc");
 
     public async Task<SocioNegocioResponse?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         const string sql = """
-            SELECT "Id", "Nombre", "Apellido", "Email", "Telefono", "DireccionLinea1", "DireccionLinea2", "Sector", "PaisCodigo", "PaisNombre", "ImagePath", "CreatedAtUtc", "UpdatedAtUtc", "CreatedBy", "UpdatedBy"
+            SELECT "Id", "Codigo", "Tipo", "NombreComercial", "RazonSocial", "TipoDocumentoFiscal", "NumeroDocumentoFiscal", "Email", "Telefono", "DireccionLinea1", "DireccionLinea2", "Ciudad", "Sector", "PaisCodigo", "PaisNombre", "TerminoPagoId", "LimiteCredito", "Bloqueado", "ImagePath", "CreatedAtUtc", "UpdatedAtUtc", "CreatedBy", "UpdatedBy"
             FROM "SociosNegocio"
             WHERE "Id" = @Id AND "IsDeleted" = false
             """;
@@ -30,8 +30,7 @@ public sealed class DapperSocioNegocioReadRepository(IDbSession session) : ISoci
         var filters = new List<string>();
         var parameters = new DynamicParameters();
 
-        FilterExpressionBuilder.AddTextFilter(filters, parameters, ColumnasPermitidas, "Nombre", search.Nombre);
-        FilterExpressionBuilder.AddTextFilter(filters, parameters, ColumnasPermitidas, "Apellido", search.Apellido);
+        FilterExpressionBuilder.AddTextFilter(filters, parameters, ColumnasPermitidas, "NombreComercial", search.NombreComercial);
         FilterExpressionBuilder.AddTextFilter(filters, parameters, ColumnasPermitidas, "Email", search.Email);
         FilterExpressionBuilder.AddTextFilter(filters, parameters, ColumnasPermitidas, "Telefono", search.Telefono);
         FilterExpressionBuilder.AddTextFilter(filters, parameters, ColumnasPermitidas, "DireccionLinea1", search.DireccionLinea1);
@@ -54,7 +53,7 @@ public sealed class DapperSocioNegocioReadRepository(IDbSession session) : ISoci
             """;
 
         var pageSql = $"""
-            SELECT "Id", "Nombre", "Apellido", "Email", "Telefono", "DireccionLinea1", "DireccionLinea2", "Sector", "PaisCodigo", "PaisNombre", "ImagePath", "CreatedAtUtc", "UpdatedAtUtc", "CreatedBy", "UpdatedBy"
+            SELECT "Id", "Codigo", "Tipo", "NombreComercial", "RazonSocial", "TipoDocumentoFiscal", "NumeroDocumentoFiscal", "Email", "Telefono", "DireccionLinea1", "DireccionLinea2", "Ciudad", "Sector", "PaisCodigo", "PaisNombre", "TerminoPagoId", "LimiteCredito", "Bloqueado", "ImagePath", "CreatedAtUtc", "UpdatedAtUtc", "CreatedBy", "UpdatedBy"
             FROM "SociosNegocio"
             {whereSql}
             ORDER BY {ordenSql} {direccionSql}, "Id" ASC

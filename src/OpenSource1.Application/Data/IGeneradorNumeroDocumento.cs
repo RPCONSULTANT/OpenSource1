@@ -5,7 +5,8 @@ namespace OpenSource1.Application.Data;
 /// <summary>
 /// Genera el siguiente número de documento de una <see cref="Core.Entities.Serie"/>, sin
 /// huecos ni duplicados bajo concurrencia. Consumida por las Fases 4 y 6 (diarios de
-/// inventario, facturas) — no tiene consumidores todavía en esta fase.
+/// inventario, facturas). Primer consumidor real: el alta de socio de negocio (serie
+/// <c>SOCIOS</c>, <c>CreateSocioNegocioCommandHandler</c>, Task 2.6).
 /// </summary>
 /// <remarks>
 /// <see cref="SiguienteAsync"/> exige una transacción activa en la <c>IDbSession</c> del

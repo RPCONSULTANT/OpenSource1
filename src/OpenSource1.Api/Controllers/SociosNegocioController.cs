@@ -8,7 +8,7 @@ using OpenSource1.Application.Features.SociosNegocio.Dtos;
 using OpenSource1.Application.Features.SociosNegocio.Queries;
 using OpenSource1.Application.Security;
 using OpenSource1.Core.Common;
-using OpenSource1.Core.ValueObjects;
+using OpenSource1.Core.Enums;
 
 namespace OpenSource1.Api.Controllers;
 
@@ -20,8 +20,7 @@ public sealed class SociosNegocioController(ISender sender) : ControllerBase
     [Authorize(Policy = ApplicationPolicies.CanConsult)]
     [ProducesResponseType<PagedResult<SocioNegocioResponse>>(StatusCodes.Status200OK)]
     public async Task<IActionResult> List(
-        [FromQuery] string? nombre,
-        [FromQuery] string? apellido,
+        [FromQuery] string? nombreComercial,
         [FromQuery] string? email,
         [FromQuery] string? telefono,
         [FromQuery] string? direccion,
@@ -35,7 +34,7 @@ public sealed class SociosNegocioController(ISender sender) : ControllerBase
     {
         var result = await sender.Send(
             new ListSociosNegocioQuery(
-                new SocioNegocioSearchCriteria(nombre, apellido, email, telefono, direccion, sector, pais),
+                new SocioNegocioSearchCriteria(nombreComercial, email, telefono, direccion, sector, pais),
                 new PageRequest(pagina, tamanoPagina, ordenarPor, descendente)),
             cancellationToken);
 
@@ -46,55 +45,55 @@ public sealed class SociosNegocioController(ISender sender) : ControllerBase
     [Authorize(Policy = ApplicationPolicies.CanConsult)]
     [ProducesResponseType<SocioNegocioResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<SocioNegocioResponse>> GetById(Guid id, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetById(Guid id, CancellationToken cancellationToken)
     {
-        var item = await sender.Send(new GetSocioNegocioByIdQuery(id), cancellationToken);
-        return item is null ? NotFound() : Ok(item);
+        var result = await sender.Send(new GetSocioNegocioByIdQuery(id), cancellationToken);
+        return result.EsFallo ? result.ToActionResult() : Ok(result.Valor);
     }
 
+    /// <summary>
+    /// Alta de socio de negocio. El <c>Codigo</c> lo asigna el sistema (serie SOCIOS): el cuerpo
+    /// NO tiene ese campo, y si un cliente lo envía se ignora (el deserializador descarta las
+    /// propiedades desconocidas).
+    /// </summary>
     [HttpPost]
     [Authorize(Policy = ApplicationPolicies.CanAdd)]
     [ProducesResponseType<SocioNegocioResponse>(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<ActionResult<SocioNegocioResponse>> Create(CreateSocioNegocioRequest request, CancellationToken cancellationToken)
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> Create(CreateSocioNegocioRequest request, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(request.Nombre) ||
-            string.IsNullOrWhiteSpace(request.Apellido) ||
-            string.IsNullOrWhiteSpace(request.Email) ||
-            !EsDireccionValida(request.DireccionLinea1, request.DireccionLinea2) ||
-            !EsPaisValido(request.PaisCodigo))
-        {
-            return BadRequest();
-        }
-
         var result = await sender.Send(
-            new CreateSocioNegocioCommand(request.Nombre, request.Apellido, request.Email, request.Telefono, request.DireccionLinea1, request.DireccionLinea2, request.Sector, request.PaisCodigo, request.ImagePath),
+            new CreateSocioNegocioCommand(
+                request.NombreComercial, request.RazonSocial, request.Tipo, request.TipoDocumentoFiscal,
+                request.NumeroDocumentoFiscal, request.Email, request.Telefono, request.DireccionLinea1,
+                request.DireccionLinea2, request.Ciudad, request.Sector, request.PaisCodigo, request.TerminoPagoId,
+                request.LimiteCredito, request.Bloqueado, request.ImagePath),
             cancellationToken);
 
-        return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
+        return result.EsFallo
+            ? result.ToActionResult()
+            : CreatedAtAction(nameof(GetById), new { id = result.Valor.Id }, result.Valor);
     }
 
+    /// <summary>Modificación de socio de negocio. El <c>Codigo</c> es inmutable: no forma parte del cuerpo.</summary>
     [HttpPut("{id:guid}")]
     [Authorize(Policy = ApplicationPolicies.CanModify)]
     [ProducesResponseType<SocioNegocioResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<ActionResult<SocioNegocioResponse>> Update(Guid id, UpdateSocioNegocioRequest request, CancellationToken cancellationToken)
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> Update(Guid id, UpdateSocioNegocioRequest request, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(request.Nombre) ||
-            string.IsNullOrWhiteSpace(request.Apellido) ||
-            string.IsNullOrWhiteSpace(request.Email) ||
-            !EsDireccionValida(request.DireccionLinea1, request.DireccionLinea2) ||
-            !EsPaisValido(request.PaisCodigo))
-        {
-            return BadRequest();
-        }
-
         var result = await sender.Send(
-            new UpdateSocioNegocioCommand(id, request.Nombre, request.Apellido, request.Email, request.Telefono, request.DireccionLinea1, request.DireccionLinea2, request.Sector, request.PaisCodigo, request.ImagePath),
+            new UpdateSocioNegocioCommand(
+                id, request.NombreComercial, request.RazonSocial, request.Tipo, request.TipoDocumentoFiscal,
+                request.NumeroDocumentoFiscal, request.Email, request.Telefono, request.DireccionLinea1,
+                request.DireccionLinea2, request.Ciudad, request.Sector, request.PaisCodigo, request.TerminoPagoId,
+                request.LimiteCredito, request.Bloqueado, request.ImagePath),
             cancellationToken);
 
-        return result is null ? NotFound() : Ok(result);
+        return result.EsFallo ? result.ToActionResult() : Ok(result.Valor);
     }
 
     [HttpDelete("{id:guid}")]
@@ -103,16 +102,46 @@ public sealed class SociosNegocioController(ISender sender) : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
     {
-        var deleted = await sender.Send(new DeleteSocioNegocioCommand(id), cancellationToken);
-        return deleted ? NoContent() : NotFound();
+        var result = await sender.Send(new DeleteSocioNegocioCommand(id), cancellationToken);
+        return result.EsFallo ? result.ToActionResult() : NoContent();
     }
-
-    private static bool EsDireccionValida(string? linea1, string? linea2) =>
-        !string.IsNullOrWhiteSpace(linea1) || string.IsNullOrWhiteSpace(linea2);
-
-    private static bool EsPaisValido(string? codigo) =>
-        string.IsNullOrWhiteSpace(codigo) || Pais.EsCodigoValido(codigo);
 }
 
-public sealed record CreateSocioNegocioRequest(string Nombre, string Apellido, string Email, string? Telefono, string? DireccionLinea1, string? DireccionLinea2, string? Sector, string? PaisCodigo, string? ImagePath = null);
-public sealed record UpdateSocioNegocioRequest(string Nombre, string Apellido, string Email, string? Telefono, string? DireccionLinea1, string? DireccionLinea2, string? Sector, string? PaisCodigo, string? ImagePath = null);
+// Los valores por defecto (Tipo=Cliente, TipoDocumentoFiscal=SinDocumento, LimiteCredito=0,
+// Bloqueado=Ninguno) permiten a clientes existentes (la UI actual de Blazor) omitir los campos
+// nuevos. Un valor numérico fuera del enum no se descarta aquí: lo rechaza el validador (400).
+public sealed record CreateSocioNegocioRequest(
+    string NombreComercial,
+    string? RazonSocial = null,
+    TipoSocioNegocio Tipo = TipoSocioNegocio.Cliente,
+    TipoDocumentoFiscal TipoDocumentoFiscal = TipoDocumentoFiscal.SinDocumento,
+    string? NumeroDocumentoFiscal = null,
+    string? Email = null,
+    string? Telefono = null,
+    string? DireccionLinea1 = null,
+    string? DireccionLinea2 = null,
+    string? Ciudad = null,
+    string? Sector = null,
+    string? PaisCodigo = null,
+    Guid? TerminoPagoId = null,
+    decimal LimiteCredito = 0m,
+    BloqueoSocioNegocio Bloqueado = BloqueoSocioNegocio.Ninguno,
+    string? ImagePath = null);
+
+public sealed record UpdateSocioNegocioRequest(
+    string NombreComercial,
+    string? RazonSocial = null,
+    TipoSocioNegocio Tipo = TipoSocioNegocio.Cliente,
+    TipoDocumentoFiscal TipoDocumentoFiscal = TipoDocumentoFiscal.SinDocumento,
+    string? NumeroDocumentoFiscal = null,
+    string? Email = null,
+    string? Telefono = null,
+    string? DireccionLinea1 = null,
+    string? DireccionLinea2 = null,
+    string? Ciudad = null,
+    string? Sector = null,
+    string? PaisCodigo = null,
+    Guid? TerminoPagoId = null,
+    decimal LimiteCredito = 0m,
+    BloqueoSocioNegocio Bloqueado = BloqueoSocioNegocio.Ninguno,
+    string? ImagePath = null);

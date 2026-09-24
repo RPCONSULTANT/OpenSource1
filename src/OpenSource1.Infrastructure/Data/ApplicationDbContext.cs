@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using OpenSource1.Core.Entities;
+using OpenSource1.Core.Enums;
 
 namespace OpenSource1.Infrastructure.Data;
 
@@ -63,15 +64,31 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         {
             entity.ToTable("SociosNegocio");
             entity.HasKey(x => x.Id);
-            entity.Property(x => x.Nombre).HasMaxLength(100).IsRequired();
-            entity.Property(x => x.Apellido).HasMaxLength(100).IsRequired();
-            entity.Property(x => x.Email).HasMaxLength(256).IsRequired();
+            entity.Property(x => x.Codigo).HasMaxLength(20).IsRequired();
+            // Tipo, TipoDocumentoFiscal y Bloqueado son enums con underlying short: EF los guarda como
+            // smallint sin conversión. Tipo/TipoDocumentoFiscal no tienen default de BD: los rellena
+            // siempre el handler y la migración los puebla para las filas existentes.
+            entity.Property(x => x.NombreComercial).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.RazonSocial).HasMaxLength(200);
+            entity.Property(x => x.NumeroDocumentoFiscal).HasMaxLength(20);
+            // Email es opcional desde la Task 2.6 (Ruling M): dos socios pueden compartir correo, por
+            // eso el índice sigue siendo NO único.
+            entity.Property(x => x.Email).HasMaxLength(256);
             entity.Property(x => x.Telefono).HasMaxLength(50);
+            entity.Property(x => x.Ciudad).HasMaxLength(100);
+            entity.Property(x => x.LimiteCredito).HasPrecision(18, 4).HasDefaultValue(0m);
+            entity.Property(x => x.Bloqueado).HasDefaultValue(BloqueoSocioNegocio.Ninguno);
             entity.Property(x => x.ImagePath).HasMaxLength(500);
             entity.Property(x => x.CreatedBy).HasMaxLength(100).IsRequired();
             entity.Property(x => x.UpdatedBy).HasMaxLength(100);
+            // Parciales por la misma razón que en TerminoPago: el código y el documento fiscal de un
+            // socio borrado lógicamente deben poder reutilizarse.
+            entity.HasIndex(x => x.Codigo).IsUnique().HasFilter("\"IsDeleted\" = false");
+            entity.HasIndex(x => x.NumeroDocumentoFiscal).IsUnique()
+                .HasFilter("\"IsDeleted\" = false AND \"NumeroDocumentoFiscal\" IS NOT NULL");
             entity.HasIndex(x => x.CreatedAtUtc).HasDatabaseName("IX_SociosNegocio_CreatedAtUtc");
             entity.HasIndex(x => x.Email).HasDatabaseName("IX_SociosNegocio_Email");
+            entity.HasOne<TerminoPago>().WithMany().HasForeignKey(x => x.TerminoPagoId).OnDelete(DeleteBehavior.Restrict);
             entity.Property<uint>("xmin").HasColumnName("xmin").IsRowVersion();
             entity.Property(x => x.IsDeleted).HasDefaultValue(false);
             entity.Property(x => x.DeletedBy).HasMaxLength(100);
