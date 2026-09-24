@@ -3,12 +3,12 @@ using OpenSource1.Core.ValueObjects;
 
 namespace OpenSource1.SmokeTests.Core.ValueObjects;
 
-public class UnidadMedidaTests
+public class UnidadMedidaLegadoTests
 {
     [Fact]
     public void Of_ConCodigoValido_DevuelveUnidadNormalizada()
     {
-        var unidad = UnidadMedida.Of(" und ");
+        var unidad = UnidadMedidaLegado.Of(" und ");
 
         Assert.Equal("UND", unidad.Codigo);
         Assert.Equal("Unidad", unidad.Nombre);
@@ -17,7 +17,7 @@ public class UnidadMedidaTests
     [Fact]
     public void Of_ConCodigoVacio_LanzaErroresDeDominioConCampoCodigo()
     {
-        var excepcion = Assert.Throws<ErroresDeDominioException>(() => UnidadMedida.Of(""));
+        var excepcion = Assert.Throws<ErroresDeDominioException>(() => UnidadMedidaLegado.Of(""));
 
         var error = Assert.Single(excepcion.Errores);
         Assert.Equal("unidad_medida.codigo_requerido", error.Codigo);
@@ -27,7 +27,7 @@ public class UnidadMedidaTests
     [Fact]
     public void Of_ConCodigoNoReconocido_LanzaErroresDeDominioConCampoCodigo()
     {
-        var excepcion = Assert.Throws<ErroresDeDominioException>(() => UnidadMedida.Of("XYZ"));
+        var excepcion = Assert.Throws<ErroresDeDominioException>(() => UnidadMedidaLegado.Of("XYZ"));
 
         var error = Assert.Single(excepcion.Errores);
         Assert.Equal("unidad_medida.codigo_invalido", error.Codigo);
@@ -38,7 +38,7 @@ public class UnidadMedidaTests
     [Fact]
     public void Of_ConNombreCampoExplicito_UsaEseNombreEnLugarDelParametro()
     {
-        var excepcion = Assert.Throws<ErroresDeDominioException>(() => UnidadMedida.Of("", "UnidadMedidaCodigo"));
+        var excepcion = Assert.Throws<ErroresDeDominioException>(() => UnidadMedidaLegado.Of("", "UnidadMedidaCodigo"));
 
         var error = Assert.Single(excepcion.Errores);
         Assert.Equal("UnidadMedidaCodigo", error.Campo);

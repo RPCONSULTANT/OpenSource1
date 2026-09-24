@@ -3,7 +3,9 @@ using OpenSource1.Core.Common;
 
 namespace OpenSource1.Core.ValueObjects;
 
-public sealed class UnidadMedida : ValueObject
+// Catálogo estático heredado. Se elimina en la Task 2.9, cuando Producto pase a UnidadMedidaBaseId.
+// (Sin [Obsolete]: generaría warnings CS0618 nuevos en los call sites de Producto.)
+public sealed class UnidadMedidaLegado : ValueObject
 {
     private static readonly IReadOnlyDictionary<string, string> Nombres = new Dictionary<string, string>
     {
@@ -22,7 +24,7 @@ public sealed class UnidadMedida : ValueObject
     public static IReadOnlyList<(string Codigo, string Nombre)> Catalogo { get; } =
         [.. Nombres.Select(kv => (kv.Key, kv.Value))];
 
-    private UnidadMedida(string codigo, string nombre)
+    private UnidadMedidaLegado(string codigo, string nombre)
     {
         Codigo = codigo;
         Nombre = nombre;
@@ -39,7 +41,7 @@ public sealed class UnidadMedida : ValueObject
     /// Nombre del campo tal como lo conoce el llamante (p. ej. <c>nameof(request.UnidadMedidaCodigo)</c>).
     /// Si no se indica se usa <c>nameof(codigo)</c> como respaldo.
     /// </param>
-    public static UnidadMedida Of(string codigo, string? nombreCampo = null)
+    public static UnidadMedidaLegado Of(string codigo, string? nombreCampo = null)
     {
         var campo = nombreCampo ?? nameof(codigo);
 
@@ -57,7 +59,7 @@ public sealed class UnidadMedida : ValueObject
                 "unidad_medida.codigo_invalido", $"Código de unidad de medida no reconocido: '{codigo}'.", campo));
         }
 
-        return new UnidadMedida(normalizado, nombre);
+        return new UnidadMedidaLegado(normalizado, nombre);
     }
 
     protected override IEnumerable<object?> GetEqualityComponents()

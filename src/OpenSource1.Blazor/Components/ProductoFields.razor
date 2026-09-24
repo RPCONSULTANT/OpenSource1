@@ -36,7 +36,7 @@
     <div>
         <label class="block text-sm font-semibold text-slate-700 mb-1.5">Unidad de medida <span class="text-red-500">*</span></label>
         <select name="@($"{Prefix}.UnidadMedidaCodigo")" class="block w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20">
-            @foreach (var unidad in OpenSource1.Core.ValueObjects.UnidadMedida.Catalogo)
+            @foreach (var unidad in OpenSource1.Core.ValueObjects.UnidadMedidaLegado.Catalogo)
             {
                 <option value="@unidad.Codigo" selected="@(unidad.Codigo == Model.UnidadMedidaCodigo)">@unidad.Nombre (@unidad.Codigo)</option>
             }

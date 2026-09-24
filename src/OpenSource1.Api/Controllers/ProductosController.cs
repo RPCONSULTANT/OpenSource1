@@ -63,7 +63,7 @@ public sealed class ProductosController(ISender sender) : ControllerBase
             string.IsNullOrWhiteSpace(request.Nombre) ||
             string.IsNullOrWhiteSpace(request.CategoriaCodigo) ||
             string.IsNullOrWhiteSpace(request.CategoriaNombre) ||
-            !UnidadMedida.EsCodigoValido(request.UnidadMedidaCodigo) ||
+            !UnidadMedidaLegado.EsCodigoValido(request.UnidadMedidaCodigo) ||
             request.Precio < 0 ||
             request.Stock < 0)
         {
@@ -88,7 +88,7 @@ public sealed class ProductosController(ISender sender) : ControllerBase
             string.IsNullOrWhiteSpace(request.Nombre) ||
             string.IsNullOrWhiteSpace(request.CategoriaCodigo) ||
             string.IsNullOrWhiteSpace(request.CategoriaNombre) ||
-            !UnidadMedida.EsCodigoValido(request.UnidadMedidaCodigo) ||
+            !UnidadMedidaLegado.EsCodigoValido(request.UnidadMedidaCodigo) ||
             request.Precio < 0 ||
             request.Stock < 0)
         {
