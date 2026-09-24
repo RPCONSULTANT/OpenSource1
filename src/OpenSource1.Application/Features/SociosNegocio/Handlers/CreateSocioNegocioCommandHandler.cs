@@ -11,7 +11,7 @@ public sealed class CreateSocioNegocioCommandHandler(IUnitOfWork unitOfWork) : I
 {
     public async Task<SocioNegocioResponse> Handle(CreateSocioNegocioCommand request, CancellationToken cancellationToken)
     {
-        var entity = new SocioDeNegocio
+        var entity = new SocioNegocio
         {
             Nombre = request.Nombre.Trim(),
             Apellido = request.Apellido.Trim(),
@@ -22,12 +22,12 @@ public sealed class CreateSocioNegocioCommandHandler(IUnitOfWork unitOfWork) : I
             Pais = string.IsNullOrWhiteSpace(request.PaisCodigo) ? null : Pais.Of(request.PaisCodigo, nameof(request.PaisCodigo)),
             ImagePath = request.ImagePath
         };
-        await unitOfWork.Repository<SocioDeNegocio>().AddAsync(entity, cancellationToken);
+        await unitOfWork.Repository<SocioNegocio>().AddAsync(entity, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return ToResponse(entity);
     }
 
-    public static SocioNegocioResponse ToResponse(SocioDeNegocio x) => new()
+    public static SocioNegocioResponse ToResponse(SocioNegocio x) => new()
     {
         Id = x.Id,
         Nombre = x.Nombre,

@@ -12,10 +12,10 @@ public class UpdateSocioNegocioCommandHandlerTests
     [Fact]
     public async Task Handle_ReturnsNull_WhenSocioNegocioDoesNotExist()
     {
-        var repo = new Mock<IGenericRepository<SocioDeNegocio>>();
-        repo.Setup(r => r.GetByIdAsync(It.IsAny<object[]>(), It.IsAny<CancellationToken>())).ReturnsAsync((SocioDeNegocio?)null);
+        var repo = new Mock<IGenericRepository<SocioNegocio>>();
+        repo.Setup(r => r.GetByIdAsync(It.IsAny<object[]>(), It.IsAny<CancellationToken>())).ReturnsAsync((SocioNegocio?)null);
         var unitOfWork = new Mock<IUnitOfWork>();
-        unitOfWork.Setup(u => u.Repository<SocioDeNegocio>()).Returns(repo.Object);
+        unitOfWork.Setup(u => u.Repository<SocioNegocio>()).Returns(repo.Object);
 
         var handler = new UpdateSocioNegocioCommandHandler(unitOfWork.Object);
         var response = await handler.Handle(new UpdateSocioNegocioCommand(Guid.NewGuid(), "A", "B", "C", null, null, null, null, null), default);
@@ -26,12 +26,12 @@ public class UpdateSocioNegocioCommandHandlerTests
     [Fact]
     public async Task Handle_UpdatesAndSaves_WhenSocioNegocioExists()
     {
-        var entity = new SocioDeNegocio { Nombre = "Old", Apellido = "Client", Email = "old@mail.com" };
-        var repo = new Mock<IGenericRepository<SocioDeNegocio>>();
+        var entity = new SocioNegocio { Nombre = "Old", Apellido = "Client", Email = "old@mail.com" };
+        var repo = new Mock<IGenericRepository<SocioNegocio>>();
         repo.Setup(r => r.GetByIdAsync(It.IsAny<object[]>(), It.IsAny<CancellationToken>())).ReturnsAsync(entity);
 
         var unitOfWork = new Mock<IUnitOfWork>();
-        unitOfWork.Setup(u => u.Repository<SocioDeNegocio>()).Returns(repo.Object);
+        unitOfWork.Setup(u => u.Repository<SocioNegocio>()).Returns(repo.Object);
         unitOfWork.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
 
         var handler = new UpdateSocioNegocioCommandHandler(unitOfWork.Object);

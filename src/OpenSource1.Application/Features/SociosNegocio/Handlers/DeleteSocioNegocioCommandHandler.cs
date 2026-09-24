@@ -9,7 +9,7 @@ public sealed class DeleteSocioNegocioCommandHandler(IUnitOfWork unitOfWork) : I
 {
     public async Task<bool> Handle(DeleteSocioNegocioCommand request, CancellationToken cancellationToken)
     {
-        var repo = unitOfWork.Repository<SocioDeNegocio>();
+        var repo = unitOfWork.Repository<SocioNegocio>();
         var entity = await repo.GetByIdAsync(new object[] { request.Id }, cancellationToken);
         if (entity is null) return false;
         repo.Remove(entity); await unitOfWork.SaveChangesAsync(cancellationToken); return true;

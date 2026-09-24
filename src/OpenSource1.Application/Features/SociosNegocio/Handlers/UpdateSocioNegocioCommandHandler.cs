@@ -11,7 +11,7 @@ public sealed class UpdateSocioNegocioCommandHandler(IUnitOfWork unitOfWork) : I
 {
     public async Task<SocioNegocioResponse?> Handle(UpdateSocioNegocioCommand request, CancellationToken cancellationToken)
     {
-        var repo = unitOfWork.Repository<SocioDeNegocio>();
+        var repo = unitOfWork.Repository<SocioNegocio>();
         var entity = await repo.GetByIdAsync(new object[] { request.Id }, cancellationToken);
         if (entity is null) return null;
         entity.Nombre = request.Nombre.Trim();

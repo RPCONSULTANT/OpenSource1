@@ -481,7 +481,7 @@ namespace OpenSource1.Infrastructure.Data.Migrations.Application
                     b.ToTable("Series", (string)null);
                 });
 
-            modelBuilder.Entity("OpenSource1.Core.Entities.SocioDeNegocio", b =>
+            modelBuilder.Entity("OpenSource1.Core.Entities.SocioNegocio", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -543,7 +543,7 @@ namespace OpenSource1.Infrastructure.Data.Migrations.Application
                         .HasColumnType("xid")
                         .HasColumnName("xmin");
 
-                    b.ComplexProperty(typeof(Dictionary<string, object>), "Direccion", "OpenSource1.Core.Entities.SocioDeNegocio.Direccion#DireccionFiscal", b1 =>
+                    b.ComplexProperty(typeof(Dictionary<string, object>), "Direccion", "OpenSource1.Core.Entities.SocioNegocio.Direccion#DireccionFiscal", b1 =>
                         {
                             b1.Property<string>("Linea1")
                                 .IsRequired()
@@ -557,7 +557,7 @@ namespace OpenSource1.Infrastructure.Data.Migrations.Application
                                 .HasColumnName("DireccionLinea2");
                         });
 
-                    b.ComplexProperty(typeof(Dictionary<string, object>), "Pais", "OpenSource1.Core.Entities.SocioDeNegocio.Pais#Pais", b1 =>
+                    b.ComplexProperty(typeof(Dictionary<string, object>), "Pais", "OpenSource1.Core.Entities.SocioNegocio.Pais#Pais", b1 =>
                         {
                             b1.Property<string>("Codigo")
                                 .IsRequired()
@@ -572,7 +572,7 @@ namespace OpenSource1.Infrastructure.Data.Migrations.Application
                                 .HasColumnName("PaisNombre");
                         });
 
-                    b.ComplexProperty(typeof(Dictionary<string, object>), "Sector", "OpenSource1.Core.Entities.SocioDeNegocio.Sector#Sector", b1 =>
+                    b.ComplexProperty(typeof(Dictionary<string, object>), "Sector", "OpenSource1.Core.Entities.SocioNegocio.Sector#Sector", b1 =>
                         {
                             b1.Property<string>("Nombre")
                                 .IsRequired()

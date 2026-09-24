@@ -7,7 +7,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 {
     public DbSet<AppSetting> AppSettings => Set<AppSetting>();
     public DbSet<Entrada>    Entradas    => Set<Entrada>();
-    public DbSet<SocioDeNegocio> SociosNegocio => Set<SocioDeNegocio>();
+    public DbSet<SocioNegocio> SociosNegocio => Set<SocioNegocio>();
     public DbSet<Producto>   Productos   => Set<Producto>();
     public DbSet<TerminoPago> TerminosPago => Set<TerminoPago>();
     public DbSet<UnidadMedida> UnidadesMedida => Set<UnidadMedida>();
@@ -59,7 +59,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.HasQueryFilter(e => !e.IsDeleted);
         });
 
-        modelBuilder.Entity<SocioDeNegocio>(entity =>
+        modelBuilder.Entity<SocioNegocio>(entity =>
         {
             entity.ToTable("SociosNegocio");
             entity.HasKey(x => x.Id);
