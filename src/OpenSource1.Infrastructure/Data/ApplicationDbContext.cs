@@ -12,6 +12,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<TerminoPago> TerminosPago => Set<TerminoPago>();
     public DbSet<UnidadMedida> UnidadesMedida => Set<UnidadMedida>();
     public DbSet<UnidadMedidaProducto> UnidadesMedidaProducto => Set<UnidadMedidaProducto>();
+    public DbSet<CategoriaProducto> CategoriasProducto => Set<CategoriaProducto>();
     public DbSet<Serie>      Series       => Set<Serie>();
     public DbSet<LineaSerie> LineasSerie  => Set<LineaSerie>();
 
@@ -195,6 +196,41 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.Property(x => x.IsDeleted).HasDefaultValue(false);
             entity.Property(x => x.DeletedBy).HasMaxLength(100);
             entity.HasQueryFilter(x => !x.IsDeleted);
+        });
+
+        modelBuilder.Entity<CategoriaProducto>(entity =>
+        {
+            entity.ToTable("CategoriasProducto");
+            entity.HasKey(x => x.Id);
+            // Máximos tomados del value object legado CategoriaProductoLegado (CategoriaCodigo/CategoriaNombre).
+            entity.Property(x => x.Codigo).HasMaxLength(30).IsRequired();
+            entity.Property(x => x.Nombre).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.CreatedBy).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.UpdatedBy).HasMaxLength(100);
+            // Índice único parcial desde el primer momento (mismo patrón que TerminoPago/UnidadMedida):
+            // permite reutilizar el Código de una categoría borrada lógicamente.
+            entity.HasIndex(x => x.Codigo).IsUnique().HasFilter("\"IsDeleted\" = false");
+            entity.HasIndex(x => x.CreatedAtUtc).HasDatabaseName("IX_CategoriasProducto_CreatedAtUtc");
+            entity.Property<uint>("xmin").HasColumnName("xmin").IsRowVersion();
+            entity.Property(x => x.IsDeleted).HasDefaultValue(false);
+            entity.Property(x => x.DeletedBy).HasMaxLength(100);
+            entity.HasQueryFilter(x => !x.IsDeleted);
+
+            // Jerarquía autorreferencial: nunca se borra en cascada (ni física ni lógicamente un
+            // padre arrastra a sus hijos; el handler de borrado rechaza el borrado si hay hijos).
+            entity.HasOne<CategoriaProducto>().WithMany().HasForeignKey(x => x.CategoriaPadreId).OnDelete(DeleteBehavior.Restrict);
+
+            // Categoría por defecto: la Task 2.9 la usará como destino de las categorías legadas de
+            // Producto sin coincidencia. Id y fecha fijos para que el seed sea determinista.
+            entity.HasData(new
+            {
+                Id = Guid.Parse("c1000000-0000-0000-0000-000000000001"),
+                Codigo = "GENERAL",
+                Nombre = "General",
+                CreatedAtUtc = FechaSemilla,
+                CreatedBy = "system",
+                IsDeleted = false
+            });
         });
 
         modelBuilder.Entity<Serie>(entity =>
