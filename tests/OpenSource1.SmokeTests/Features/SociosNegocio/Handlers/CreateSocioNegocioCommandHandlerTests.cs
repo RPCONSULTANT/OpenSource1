@@ -76,6 +76,18 @@ public class CreateSocioNegocioCommandHandlerTests
     }
 
     [Fact]
+    public async Task Handle_DocumentoFiscal_SeGuardaEnMayusculas()
+    {
+        var ctx = new Contexto();
+
+        var result = await ctx.Handler().Handle(
+            SocioNegocioTestData.Create(tipoDocumento: TipoDocumentoFiscal.Cedula, numeroDocumento: " abc123 "), default);
+
+        Assert.True(result.EsExito);
+        Assert.Equal("ABC123", ctx.Agregado!.NumeroDocumentoFiscal);
+    }
+
+    [Fact]
     public async Task Handle_EmailYOpcionalesEnBlanco_SeGuardanComoNulos()
     {
         var ctx = new Contexto();
@@ -99,6 +111,7 @@ public class CreateSocioNegocioCommandHandlerTests
         { SocioNegocioTestData.Create(tipoDocumento: TipoDocumentoFiscal.Pasaporte, numeroDocumento: new string('9', 21)), "NumeroDocumentoFiscal" },
         { SocioNegocioTestData.Create(tipoDocumento: TipoDocumentoFiscal.SinDocumento, numeroDocumento: "123"), "NumeroDocumentoFiscal" },
         { SocioNegocioTestData.Create(limiteCredito: -0.01m), "LimiteCredito" },
+        { SocioNegocioTestData.Create(limiteCredito: 0.00005m), "LimiteCredito" },
         { SocioNegocioTestData.Create(bloqueado: (BloqueoSocioNegocio)7), "Bloqueado" },
         { SocioNegocioTestData.Create(email: "no-es-un-correo"), "Email" },
         { SocioNegocioTestData.Create(paisCodigo: "ZZ"), "PaisCodigo" },

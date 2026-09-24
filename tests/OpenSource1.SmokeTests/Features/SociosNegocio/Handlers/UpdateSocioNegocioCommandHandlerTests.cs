@@ -93,4 +93,146 @@ public class UpdateSocioNegocioCommandHandlerTests
         Assert.Equal("TerminoPagoId", result.Errores[0].Campo);
         unitOfWork.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
+
+    private static SocioNegocio SocioCompleto(Guid? terminoPagoId = null) => new()
+    {
+        Codigo = "000010",
+        NombreComercial = "Bloqueado SRL",
+        RazonSocial = "Bloqueado Razon",
+        Tipo = TipoSocioNegocio.Proveedor,
+        TipoDocumentoFiscal = TipoDocumentoFiscal.Rnc,
+        NumeroDocumentoFiscal = "RNC-1",
+        Ciudad = "Santiago",
+        TerminoPagoId = terminoPagoId,
+        LimiteCredito = 900m,
+        Bloqueado = BloqueoSocioNegocio.Todo
+    };
+
+    [Fact]
+    public async Task Handle_ModificacionParcial_ConservaLosCamposNuevosNoInformados()
+    {
+        var termino = Guid.NewGuid();
+        var entity = SocioCompleto(termino);
+        var (handler, _, _) = Crear(entity);
+
+        var result = await handler.Handle(SocioNegocioTestData.Update(entity.Id, nombreComercial: "Renombrado"), default);
+
+        Assert.True(result.EsExito, string.Join("; ", result.Errores.Select(e => e.Codigo)));
+        Assert.Equal("Renombrado", entity.NombreComercial);
+        Assert.Equal(TipoSocioNegocio.Proveedor, entity.Tipo);
+        Assert.Equal(BloqueoSocioNegocio.Todo, entity.Bloqueado);
+        Assert.Equal(900m, entity.LimiteCredito);
+        Assert.Equal(TipoDocumentoFiscal.Rnc, entity.TipoDocumentoFiscal);
+        Assert.Equal("RNC-1", entity.NumeroDocumentoFiscal);
+        Assert.Equal("Bloqueado Razon", entity.RazonSocial);
+        Assert.Equal("Santiago", entity.Ciudad);
+        Assert.Equal(termino, entity.TerminoPagoId);
+        Assert.Equal(BloqueoSocioNegocio.Todo, result.Valor.Bloqueado);
+    }
+
+    [Fact]
+    public async Task Handle_ValoresInformados_SeAplican_IncluidoDesbloquearExplicitamente()
+    {
+        var entity = SocioCompleto();
+        var (handler, _, _) = Crear(entity);
+
+        var result = await handler.Handle(
+            SocioNegocioTestData.Update(entity.Id, tipo: TipoSocioNegocio.Cliente, bloqueado: BloqueoSocioNegocio.Ninguno, limiteCredito: 0m), default);
+
+        Assert.True(result.EsExito);
+        Assert.Equal(TipoSocioNegocio.Cliente, entity.Tipo);
+        Assert.Equal(BloqueoSocioNegocio.Ninguno, entity.Bloqueado);
+        Assert.Equal(0m, entity.LimiteCredito);
+    }
+
+    [Fact]
+    public async Task Handle_CadenaVaciaLimpiaLosOpcionales_YGuidVacioLimpiaElTermino()
+    {
+        var entity = SocioCompleto(Guid.NewGuid());
+        var (handler, _, _) = Crear(entity);
+
+        var result = await handler.Handle(
+            SocioNegocioTestData.Update(
+                entity.Id, tipoDocumento: TipoDocumentoFiscal.SinDocumento, numeroDocumento: "  ",
+                razonSocial: "", ciudad: "", terminoPagoId: Guid.Empty), default);
+
+        Assert.True(result.EsExito, string.Join("; ", result.Errores.Select(e => e.Codigo)));
+        Assert.Null(entity.NumeroDocumentoFiscal);
+        Assert.Null(entity.RazonSocial);
+        Assert.Null(entity.Ciudad);
+        Assert.Null(entity.TerminoPagoId);
+        Assert.Equal(TipoDocumentoFiscal.SinDocumento, entity.TipoDocumentoFiscal);
+    }
+
+    [Fact]
+    public async Task Handle_CambiarASinDocumentoSinLimpiarElNumero_DevuelveFallo()
+    {
+        var entity = SocioCompleto();
+        var (handler, _, _) = Crear(entity);
+
+        var result = await handler.Handle(SocioNegocioTestData.Update(entity.Id, tipoDocumento: TipoDocumentoFiscal.SinDocumento), default);
+
+        Assert.True(result.EsFallo);
+        Assert.Contains(result.Errores, e => e.Campo == "NumeroDocumentoFiscal");
+        Assert.Equal(TipoDocumentoFiscal.Rnc, entity.TipoDocumentoFiscal);
+    }
+
+    [Fact]
+    public async Task Handle_TerminoDePagoColgante_NoSeRevalidaSiNoCambia()
+    {
+        // La referencia apunta a un término que ya no existe (el repositorio de términos devuelve
+        // null): el socio sigue siendo editable si no toca el término, ya sea omitiéndolo o reenviándolo.
+        var colgante = Guid.NewGuid();
+        var entity = SocioCompleto(colgante);
+        var (handler, _, unitOfWork) = Crear(entity);
+
+        var omitido = await handler.Handle(SocioNegocioTestData.Update(entity.Id, nombreComercial: "Solo nombre"), default);
+        var reenviado = await handler.Handle(SocioNegocioTestData.Update(entity.Id, nombreComercial: "Reenviado", terminoPagoId: colgante), default);
+
+        Assert.True(omitido.EsExito);
+        Assert.True(reenviado.EsExito);
+        Assert.Equal(colgante, entity.TerminoPagoId);
+        unitOfWork.Verify(u => u.Repository<TerminoPago>(), Times.Never);
+    }
+
+    [Fact]
+    public async Task Handle_CambiarElTerminoAUnoInexistente_SiSeValida()
+    {
+        var entity = SocioCompleto(Guid.NewGuid());
+        var (handler, _, unitOfWork) = Crear(entity);
+
+        var result = await handler.Handle(SocioNegocioTestData.Update(entity.Id, terminoPagoId: Guid.NewGuid()), default);
+
+        Assert.True(result.EsFallo);
+        Assert.Equal("TerminoPagoId", result.Errores[0].Campo);
+        unitOfWork.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Handle_DocumentoFiscal_SeNormalizaAMayusculasYSinEspacios()
+    {
+        var entity = SocioCompleto();
+        var (handler, _, _) = Crear(entity);
+
+        var result = await handler.Handle(SocioNegocioTestData.Update(entity.Id, numeroDocumento: "  abc-123 "), default);
+
+        Assert.True(result.EsExito);
+        Assert.Equal("ABC-123", entity.NumeroDocumentoFiscal);
+    }
+
+    [Theory]
+    [InlineData("0.00005")]
+    [InlineData("10.12345")]
+    public async Task Handle_LimiteCreditoConMasDeCuatroDecimales_DevuelveFallo(string valor)
+    {
+        var entity = SocioCompleto();
+        var (handler, _, _) = Crear(entity);
+
+        var result = await handler.Handle(
+            SocioNegocioTestData.Update(entity.Id, limiteCredito: decimal.Parse(valor, System.Globalization.CultureInfo.InvariantCulture)), default);
+
+        Assert.True(result.EsFallo);
+        Assert.Contains(result.Errores, e => e.Campo == "LimiteCredito");
+        Assert.Equal(900m, entity.LimiteCredito);
+    }
 }

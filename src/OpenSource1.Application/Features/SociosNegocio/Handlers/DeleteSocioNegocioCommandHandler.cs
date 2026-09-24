@@ -12,8 +12,10 @@ public sealed class DeleteSocioNegocioCommandHandler(IUnitOfWork unitOfWork)
     public async Task<Result> Handle(DeleteSocioNegocioCommand request, CancellationToken cancellationToken)
     {
         var repo = unitOfWork.Repository<SocioNegocio>();
-        // Consulta con seguimiento (no Find): respeta el filtro de soft delete, así un socio ya
-        // borrado responde no_encontrado en vez de modificarse/borrarse de nuevo.
+        // Consulta con seguimiento (no Find): defensa en profundidad. Find devolvería una entidad ya
+        // rastreada en el mismo scope aunque esté borrada lógicamente; la consulta siempre pasa por
+        // el filtro global de soft delete. (Entre peticiones, con un scope por petición, ambas vías
+        // dan el mismo resultado.)
         var entity = await repo.FirstOrDefaultAsync(x => x.Id == request.Id, asTracking: true, cancellationToken: cancellationToken);
 
         if (entity is null)

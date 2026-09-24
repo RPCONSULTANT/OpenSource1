@@ -45,7 +45,7 @@ public sealed class CreateSocioNegocioCommandHandler(IUnitOfWork unitOfWork, IGe
             return Result<SocioNegocioResponse>.Fallo(numero);
         }
 
-        var verificacion = await SocioNegocioReglas.VerificarReferenciasAsync(unitOfWork, request, idActual: null, cancellationToken);
+        var verificacion = await SocioNegocioReglas.VerificarReferenciasAsync(unitOfWork, request, idActual: null, validarTermino: true, cancellationToken);
         if (verificacion is not null)
         {
             return Result<SocioNegocioResponse>.Fallo(verificacion.Value);
@@ -97,13 +97,14 @@ internal static class SocioNegocioReglas
 {
     /// <summary>
     /// Comprueba lo que exige base de datos: <c>TerminoPagoId</c> (si viene) existe y no está
-    /// borrado; el documento fiscal (si viene) no lo usa otro socio no borrado. Devuelve el error
+    /// borrado (solo si <paramref name="validarTermino"/>: en una modificación que no lo cambia no se
+    /// revalida); el documento fiscal (si viene) no lo usa otro socio no borrado. Devuelve el error
     /// o <c>null</c>. El filtro global de EF excluye las filas borradas lógicamente.
     /// </summary>
     public static async Task<Error?> VerificarReferenciasAsync(
-        IUnitOfWork unitOfWork, IDatosSocioNegocio datos, Guid? idActual, CancellationToken cancellationToken)
+        IUnitOfWork unitOfWork, IDatosSocioNegocio datos, Guid? idActual, bool validarTermino, CancellationToken cancellationToken)
     {
-        if (datos.TerminoPagoId is { } terminoPagoId)
+        if (validarTermino && datos.TerminoPagoId is { } terminoPagoId)
         {
             // FirstOrDefaultAsync (consulta) y no GetByIdAsync (Find): solo la consulta aplica el filtro
             // global de soft delete, y un término de pago borrado no es una referencia válida.
@@ -120,7 +121,7 @@ internal static class SocioNegocioReglas
             }
         }
 
-        var documento = Normalizar(datos.NumeroDocumentoFiscal);
+        var documento = NormalizarDocumento(datos.NumeroDocumentoFiscal);
         if (documento is not null)
         {
             var duplicado = await unitOfWork.Repository<SocioNegocio>().FirstOrDefaultAsync(
@@ -145,7 +146,7 @@ internal static class SocioNegocioReglas
         entity.RazonSocial = Normalizar(datos.RazonSocial);
         entity.Tipo = datos.Tipo;
         entity.TipoDocumentoFiscal = datos.TipoDocumentoFiscal;
-        entity.NumeroDocumentoFiscal = Normalizar(datos.NumeroDocumentoFiscal);
+        entity.NumeroDocumentoFiscal = NormalizarDocumento(datos.NumeroDocumentoFiscal);
         entity.Email = Normalizar(datos.Email);
         entity.Telefono = Normalizar(datos.Telefono);
         entity.Direccion = string.IsNullOrWhiteSpace(datos.DireccionLinea1)
@@ -159,6 +160,10 @@ internal static class SocioNegocioReglas
         entity.Bloqueado = datos.Bloqueado;
         entity.ImagePath = datos.ImagePath;
     }
+
+    /// <summary>Sin espacios sobrantes y en mayúsculas: <c>abc123</c> y <c>ABC123</c> son el mismo documento.</summary>
+    private static string? NormalizarDocumento(string? valor) =>
+        string.IsNullOrWhiteSpace(valor) ? null : valor.Trim().ToUpperInvariant();
 
     private static string? Normalizar(string? valor) => string.IsNullOrWhiteSpace(valor) ? null : valor.Trim();
 }

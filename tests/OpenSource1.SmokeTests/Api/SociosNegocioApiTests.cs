@@ -71,7 +71,7 @@ public sealed class SociosNegocioApiTests : IClassFixture<PostgresTestFixture>
     {
         var client = CreateClient("Administrador");
         var termino = await CrearTerminoPagoAsync(client);
-        var documento = $"RNC{Guid.NewGuid():N}"[..15];
+        var documento = $"RNC{Guid.NewGuid():N}"[..15].ToUpperInvariant();
 
         var create = await client.PostAsJsonAsync("/api/socios-negocio", new
         {
@@ -332,6 +332,171 @@ public sealed class SociosNegocioApiTests : IClassFixture<PostgresTestFixture>
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var paged = await response.Content.ReadFromJsonAsync<PagedResult<SocioNegocioResponse>>();
         Assert.NotNull(paged);
+    }
+
+    [Fact]
+    public async Task Update_Parcial_ConservaTipoBloqueoLimiteDocumentoYTermino()
+    {
+        var client = CreateClient("Administrador");
+        var termino = await CrearTerminoPagoAsync(client);
+        var doc = $"PAR{Guid.NewGuid():N}"[..14].ToUpperInvariant();
+        var create = await client.PostAsJsonAsync("/api/socios-negocio", new
+        {
+            nombreComercial = "Bloqueado SRL",
+            razonSocial = "Bloqueado Razon",
+            tipo = (int)TipoSocioNegocio.Proveedor,
+            tipoDocumentoFiscal = (int)TipoDocumentoFiscal.Rnc,
+            numeroDocumentoFiscal = doc,
+            ciudad = "Santiago",
+            terminoPagoId = termino,
+            limiteCredito = 900,
+            bloqueado = (int)BloqueoSocioNegocio.Todo
+        });
+        var antes = (await create.Content.ReadFromJsonAsync<SocioNegocioResponse>())!;
+        Assert.Equal(BloqueoSocioNegocio.Todo, antes.Bloqueado);
+
+        // PUT que SOLO renombra: los campos nuevos no viajan y no deben tocarse.
+        var put = await client.PutAsJsonAsync($"/api/socios-negocio/{antes.Id}", new { nombreComercial = "Solo renombrado" });
+        Assert.Equal(HttpStatusCode.OK, put.StatusCode);
+        var despues = (await (await client.GetAsync($"/api/socios-negocio/{antes.Id}")).Content.ReadFromJsonAsync<SocioNegocioResponse>())!;
+
+        Assert.Equal("Solo renombrado", despues.NombreComercial);
+        Assert.Equal(TipoSocioNegocio.Proveedor, despues.Tipo);
+        Assert.Equal(BloqueoSocioNegocio.Todo, despues.Bloqueado);
+        Assert.Equal(900m, despues.LimiteCredito);
+        Assert.Equal(TipoDocumentoFiscal.Rnc, despues.TipoDocumentoFiscal);
+        Assert.Equal(doc, despues.NumeroDocumentoFiscal);
+        Assert.Equal("Bloqueado Razon", despues.RazonSocial);
+        Assert.Equal("Santiago", despues.Ciudad);
+        Assert.Equal(termino, despues.TerminoPagoId);
+        Assert.Equal(antes.Codigo, despues.Codigo);
+
+        // null explícito equivale a ausente.
+        var conNulls = await client.PutAsJsonAsync($"/api/socios-negocio/{antes.Id}", new { nombreComercial = "Con nulls", tipo = (int?)null, bloqueado = (int?)null, limiteCredito = (decimal?)null, terminoPagoId = (Guid?)null });
+        Assert.Equal(HttpStatusCode.OK, conNulls.StatusCode);
+        Assert.Equal(BloqueoSocioNegocio.Todo, (await conNulls.Content.ReadFromJsonAsync<SocioNegocioResponse>())!.Bloqueado);
+
+        // Informar un valor SÍ lo cambia (desbloqueo explícito) y lo demás sigue igual.
+        var desbloquear = await client.PutAsJsonAsync($"/api/socios-negocio/{antes.Id}", new { nombreComercial = "Con nulls", bloqueado = (int)BloqueoSocioNegocio.Ninguno });
+        var final = (await desbloquear.Content.ReadFromJsonAsync<SocioNegocioResponse>())!;
+        Assert.Equal(BloqueoSocioNegocio.Ninguno, final.Bloqueado);
+        Assert.Equal(TipoSocioNegocio.Proveedor, final.Tipo);
+        Assert.Equal(900m, final.LimiteCredito);
+    }
+
+    [Fact]
+    public async Task Update_CadenaVaciaYGuidVacio_LimpianLosOpcionales()
+    {
+        var client = CreateClient("Administrador");
+        var termino = await CrearTerminoPagoAsync(client);
+        var doc = $"LIM{Guid.NewGuid():N}"[..14];
+        var creado = (await (await client.PostAsJsonAsync("/api/socios-negocio", new
+        {
+            nombreComercial = "A limpiar", razonSocial = "R", tipoDocumentoFiscal = 1, numeroDocumentoFiscal = doc, ciudad = "C", terminoPagoId = termino
+        })).Content.ReadFromJsonAsync<SocioNegocioResponse>())!;
+
+        var put = await client.PutAsJsonAsync($"/api/socios-negocio/{creado.Id}", new
+        {
+            nombreComercial = "A limpiar", razonSocial = "", tipoDocumentoFiscal = (int)TipoDocumentoFiscal.SinDocumento,
+            numeroDocumentoFiscal = "", ciudad = "", terminoPagoId = Guid.Empty
+        });
+        Assert.Equal(HttpStatusCode.OK, put.StatusCode);
+        var r = (await put.Content.ReadFromJsonAsync<SocioNegocioResponse>())!;
+
+        Assert.Null(r.RazonSocial);
+        Assert.Null(r.NumeroDocumentoFiscal);
+        Assert.Null(r.Ciudad);
+        Assert.Null(r.TerminoPagoId);
+        Assert.Equal(TipoDocumentoFiscal.SinDocumento, r.TipoDocumentoFiscal);
+    }
+
+    [Fact]
+    public async Task DeleteTerminoPago_EnUso_Devuelve409YElSocioSigueEditable()
+    {
+        var client = CreateClient("Administrador");
+        var termino = await CrearTerminoPagoAsync(client);
+        var socio = (await (await client.PostAsJsonAsync("/api/socios-negocio", new { nombreComercial = "Usa termino", terminoPagoId = termino }))
+            .Content.ReadFromJsonAsync<SocioNegocioResponse>())!;
+
+        var delete = await client.DeleteAsync($"/api/terminos-pago/{termino}");
+        Assert.Equal(HttpStatusCode.Conflict, delete.StatusCode);
+        var problema = await delete.Content.ReadFromJsonAsync<ValidationProblemDetails>();
+        Assert.Contains("Id", problema!.Errors.Keys);
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync($"/api/terminos-pago/{termino}")).StatusCode);
+
+        // El socio sigue editable reenviando el mismo término (lo que hace la UI de Blazor).
+        var put = await client.PutAsJsonAsync($"/api/socios-negocio/{socio.Id}", new { nombreComercial = "Sigue editable", terminoPagoId = termino });
+        Assert.Equal(HttpStatusCode.OK, put.StatusCode);
+
+        // Al liberar el término (socio borrado lógicamente) el borrado del término ya procede.
+        Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"/api/socios-negocio/{socio.Id}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"/api/terminos-pago/{termino}")).StatusCode);
+    }
+
+    [Fact]
+    public async Task Update_ConReferenciaColganteATerminoBorrado_SigueSiendoEditableSinCambiarElTermino()
+    {
+        var client = CreateClient("Administrador");
+        var termino = await CrearTerminoPagoAsync(client);
+        var socio = (await (await client.PostAsJsonAsync("/api/socios-negocio", new { nombreComercial = "Colgante", terminoPagoId = termino }))
+            .Content.ReadFromJsonAsync<SocioNegocioResponse>())!;
+
+        // Dato previo a la guarda: borrado lógico del término saltando el handler.
+        await EjecutarSqlAsync($"UPDATE \"TerminosPago\" SET \"IsDeleted\" = true WHERE \"Id\" = '{termino}'");
+
+        var soloNombre = await client.PutAsJsonAsync($"/api/socios-negocio/{socio.Id}", new { nombreComercial = "Colgante renombrado" });
+        Assert.Equal(HttpStatusCode.OK, soloNombre.StatusCode);
+        var reenviado = await client.PutAsJsonAsync($"/api/socios-negocio/{socio.Id}", new { nombreComercial = "Colgante reenviado", terminoPagoId = termino });
+        Assert.Equal(HttpStatusCode.OK, reenviado.StatusCode);
+        Assert.Equal(termino, (await reenviado.Content.ReadFromJsonAsync<SocioNegocioResponse>())!.TerminoPagoId);
+
+        // Pero ASIGNAR ese término borrado a otro socio sí se rechaza.
+        var otro = (await (await client.PostAsJsonAsync("/api/socios-negocio", new { nombreComercial = "Otro" })).Content.ReadFromJsonAsync<SocioNegocioResponse>())!;
+        var asignar = await client.PutAsJsonAsync($"/api/socios-negocio/{otro.Id}", new { nombreComercial = "Otro", terminoPagoId = termino });
+        Assert.Equal(HttpStatusCode.BadRequest, asignar.StatusCode);
+    }
+
+    [Fact]
+    public async Task DocumentoFiscal_EnMinusculasYMayusculas_EsElMismoDocumento()
+    {
+        var client = CreateClient("Administrador");
+        var sufijo = Guid.NewGuid().ToString("N")[..8];
+
+        var primero = await client.PostAsJsonAsync("/api/socios-negocio", new { nombreComercial = "Doc min", tipoDocumentoFiscal = 2, numeroDocumentoFiscal = $"  abc{sufijo}  " });
+        Assert.Equal(HttpStatusCode.Created, primero.StatusCode);
+        var creado = (await primero.Content.ReadFromJsonAsync<SocioNegocioResponse>())!;
+        Assert.Equal($"ABC{sufijo}".ToUpperInvariant(), creado.NumeroDocumentoFiscal);
+
+        var segundo = await client.PostAsJsonAsync("/api/socios-negocio", new { nombreComercial = "Doc may", tipoDocumentoFiscal = 2, numeroDocumentoFiscal = $"ABC{sufijo}".ToUpperInvariant() });
+        Assert.Equal(HttpStatusCode.Conflict, segundo.StatusCode);
+
+        var tercero = await client.PostAsJsonAsync("/api/socios-negocio", new { nombreComercial = "Doc otro", tipoDocumentoFiscal = 2, numeroDocumentoFiscal = "zzz" + sufijo });
+        Assert.Equal(HttpStatusCode.Created, tercero.StatusCode);
+        var choque = await client.PutAsJsonAsync($"/api/socios-negocio/{(await tercero.Content.ReadFromJsonAsync<SocioNegocioResponse>())!.Id}", new { nombreComercial = "Doc otro", tipoDocumentoFiscal = 2, numeroDocumentoFiscal = $"abc{sufijo}" });
+        Assert.Equal(HttpStatusCode.Conflict, choque.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("0.00005")]
+    [InlineData("12.34567")]
+    public async Task Create_LimiteCreditoConMasDeCuatroDecimales_Devuelve400ConElCampo(string limite)
+    {
+        var client = CreateClient("Administrador");
+
+        var response = await client.PostAsync("/api/socios-negocio",
+            new StringContent($$"""{"nombreComercial":"X","limiteCredito":{{limite}}}""", System.Text.Encoding.UTF8, "application/json"));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var problema = await response.Content.ReadFromJsonAsync<ValidationProblemDetails>();
+        Assert.Contains("LimiteCredito", problema!.Errors.Keys);
+    }
+
+    private async Task EjecutarSqlAsync(string sql)
+    {
+        await using var conexion = new NpgsqlConnection(_fixture.AppConnectionString);
+        await conexion.OpenAsync();
+        await using var comando = new NpgsqlCommand(sql, conexion);
+        await comando.ExecuteNonQueryAsync();
     }
 
     private static async Task<string> AltaAsync(HttpClient client, string nombreComercial)

@@ -71,6 +71,11 @@ internal static class SocioNegocioValidator
         {
             errores.Add(new Error("socio_negocio.limite_credito_invalido", "El límite de crédito debe ser un importe mayor o igual a cero.", nameof(datos.LimiteCredito)));
         }
+        else if (decimal.Round(datos.LimiteCredito, 4) != datos.LimiteCredito)
+        {
+            // numeric(18,4): con más decimales Postgres redondearía en silencio.
+            errores.Add(new Error("socio_negocio.limite_credito_invalido", "El límite de crédito admite como máximo 4 decimales.", nameof(datos.LimiteCredito)));
+        }
 
         if (!Enum.IsDefined(datos.Bloqueado))
         {

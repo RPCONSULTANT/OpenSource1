@@ -76,7 +76,10 @@ public sealed class SociosNegocioController(ISender sender) : ControllerBase
             : CreatedAtAction(nameof(GetById), new { id = result.Valor.Id }, result.Valor);
     }
 
-    /// <summary>Modificación de socio de negocio. El <c>Codigo</c> es inmutable: no forma parte del cuerpo.</summary>
+    /// <summary>
+    /// Modificación de socio de negocio. El <c>Codigo</c> es inmutable: no forma parte del cuerpo.
+    /// Modificación parcial de los campos de la 2.6 (ver <see cref="UpdateSocioNegocioRequest"/>).
+    /// </summary>
     [HttpPut("{id:guid}")]
     [Authorize(Policy = ApplicationPolicies.CanModify)]
     [ProducesResponseType<SocioNegocioResponse>(StatusCodes.Status200OK)]
@@ -107,9 +110,9 @@ public sealed class SociosNegocioController(ISender sender) : ControllerBase
     }
 }
 
-// Los valores por defecto (Tipo=Cliente, TipoDocumentoFiscal=SinDocumento, LimiteCredito=0,
-// Bloqueado=Ninguno) permiten a clientes existentes (la UI actual de Blazor) omitir los campos
-// nuevos. Un valor numérico fuera del enum no se descarta aquí: lo rechaza el validador (400).
+// Alta: los valores por defecto (Tipo=Cliente, TipoDocumentoFiscal=SinDocumento, LimiteCredito=0,
+// Bloqueado=Ninguno) permiten omitir los campos nuevos. Un valor numérico fuera del enum no se
+// descarta aquí: lo rechaza el validador (400).
 public sealed record CreateSocioNegocioRequest(
     string NombreComercial,
     string? RazonSocial = null,
@@ -128,11 +131,19 @@ public sealed record CreateSocioNegocioRequest(
     BloqueoSocioNegocio Bloqueado = BloqueoSocioNegocio.Ninguno,
     string? ImagePath = null);
 
+/// <summary>
+/// Cuerpo de modificación. Los campos de la Task 2.6 son NULABLES con semántica de modificación
+/// parcial: ausente/<c>null</c> = conservar el valor actual del socio; informado = se aplica. Para
+/// limpiar un campo opcional se envía cadena vacía (<c>razonSocial</c>, <c>numeroDocumentoFiscal</c>,
+/// <c>ciudad</c>) o el Guid vacío <c>00000000-0000-0000-0000-000000000000</c> (<c>terminoPagoId</c>).
+/// Los demás campos son de reemplazo completo. Así, un PUT que solo renombra no desbloquea ni
+/// rebaja el límite de un socio.
+/// </summary>
 public sealed record UpdateSocioNegocioRequest(
     string NombreComercial,
     string? RazonSocial = null,
-    TipoSocioNegocio Tipo = TipoSocioNegocio.Cliente,
-    TipoDocumentoFiscal TipoDocumentoFiscal = TipoDocumentoFiscal.SinDocumento,
+    TipoSocioNegocio? Tipo = null,
+    TipoDocumentoFiscal? TipoDocumentoFiscal = null,
     string? NumeroDocumentoFiscal = null,
     string? Email = null,
     string? Telefono = null,
@@ -142,6 +153,6 @@ public sealed record UpdateSocioNegocioRequest(
     string? Sector = null,
     string? PaisCodigo = null,
     Guid? TerminoPagoId = null,
-    decimal LimiteCredito = 0m,
-    BloqueoSocioNegocio Bloqueado = BloqueoSocioNegocio.Ninguno,
+    decimal? LimiteCredito = null,
+    BloqueoSocioNegocio? Bloqueado = null,
     string? ImagePath = null);

@@ -20,15 +20,19 @@ internal static class SocioNegocioTestData
             nombreComercial, null, tipo, tipoDocumento, numeroDocumento, email, null,
             direccionLinea1, direccionLinea2, null, null, paisCodigo, terminoPagoId, limiteCredito, bloqueado);
 
+    /// <summary>Comando de modificación; todo lo que no se pasa queda en null (= conservar).</summary>
     public static UpdateSocioNegocioCommand Update(
         Guid id,
         string nombreComercial = "Comercial SRL",
-        TipoSocioNegocio tipo = TipoSocioNegocio.Cliente,
-        TipoDocumentoFiscal tipoDocumento = TipoDocumentoFiscal.SinDocumento,
+        TipoSocioNegocio? tipo = null,
+        TipoDocumentoFiscal? tipoDocumento = null,
         string? numeroDocumento = null,
         string? email = null,
-        decimal limiteCredito = 0m,
-        Guid? terminoPagoId = null) => new(
-            id, nombreComercial, null, tipo, tipoDocumento, numeroDocumento, email, null,
-            null, null, null, null, null, terminoPagoId, limiteCredito, BloqueoSocioNegocio.Ninguno);
+        decimal? limiteCredito = null,
+        Guid? terminoPagoId = null,
+        BloqueoSocioNegocio? bloqueado = null,
+        string? razonSocial = null,
+        string? ciudad = null) => new(
+            id, nombreComercial, razonSocial, tipo, tipoDocumento, numeroDocumento, email, null,
+            null, null, ciudad, null, null, terminoPagoId, limiteCredito, bloqueado);
 }
