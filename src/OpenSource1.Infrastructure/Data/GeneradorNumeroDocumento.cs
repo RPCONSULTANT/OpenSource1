@@ -1,23 +1,14 @@
-using System.Data;
 using Dapper;
 using OpenSource1.Application.Data;
 using OpenSource1.Core.Common;
 
 namespace OpenSource1.Infrastructure.Data;
 
+// Nota: el parámetro DateOnly usado en SiguienteAsync (@Fecha) requiere que
+// DapperDateOnlyTypeHandler esté registrado (ver DependencyInjection.AddApplicationData) — Dapper
+// no infiere su DbType por sí solo. Ver el XML doc de DapperDateOnlyTypeHandler para el porqué.
 public sealed class GeneradorNumeroDocumento(IDbSession session) : IGeneradorNumeroDocumento
 {
-    // Dapper (a diferencia del proveedor Npgsql de EF Core, que mapea DateOnly a "date" de forma
-    // nativa) no sabe inferir el DbType de un parámetro DateOnly: SqlMapper.LookupDbType lanza
-    // NotSupportedException al primer intento de ejecutar la consulta con "Fecha" en los
-    // parámetros. Verificado empíricamente al correr el test de concurrencia contra Postgres real
-    // (ver GeneradorNumeroDocumentoTests). Se registra un TypeHandler una sola vez, a nivel de
-    // proceso, en el constructor estático.
-    static GeneradorNumeroDocumento()
-    {
-        SqlMapper.AddTypeHandler(new DateOnlyTypeHandler());
-    }
-
     public async Task<Result<string>> SiguienteAsync(string codigoSerie, DateOnly fecha, CancellationToken cancellationToken = default)
     {
         await session.EnsureOpenAsync(cancellationToken);
@@ -84,15 +75,4 @@ public sealed class GeneradorNumeroDocumento(IDbSession session) : IGeneradorNum
     }
 
     private sealed record LineaSerieRow(Guid Id, string NumeroInicial, string NumeroFinal, string UltimoNumeroUsado, int Incremento, bool Bloqueada);
-
-    private sealed class DateOnlyTypeHandler : SqlMapper.TypeHandler<DateOnly>
-    {
-        public override void SetValue(IDbDataParameter parameter, DateOnly value)
-        {
-            parameter.DbType = DbType.Date;
-            parameter.Value = value.ToDateTime(TimeOnly.MinValue);
-        }
-
-        public override DateOnly Parse(object value) => DateOnly.FromDateTime((DateTime)value);
-    }
 }

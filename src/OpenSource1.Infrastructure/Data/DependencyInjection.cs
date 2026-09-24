@@ -1,3 +1,4 @@
+using Dapper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -27,6 +28,12 @@ public static class DependencyInjection
     public static IServiceCollection AddApplicationData(this IServiceCollection services, IConfiguration configuration)
     {
         services.Configure<DatabaseOptions>(configuration.GetSection(DatabaseOptions.SectionName));
+
+        // Registro global (a nivel de proceso) del mapeo Dapper para DateOnly: Dapper no lo infiere
+        // por sí solo. Vive aquí, y no en el constructor estático de una clase de negocio concreta,
+        // para que cualquier repositorio Dapper con un parámetro DateOnly lo tenga disponible sin
+        // depender de cuál se resuelva primero. Ver DapperDateOnlyTypeHandler.
+        SqlMapper.AddTypeHandler(new DapperDateOnlyTypeHandler());
 
         services.AddScoped<DbSession>();
         services.AddScoped<IDbSession>(sp => sp.GetRequiredService<DbSession>());
