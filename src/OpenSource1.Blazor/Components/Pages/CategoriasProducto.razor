@@ -19,7 +19,8 @@
     <p class="text-sm text-slate-500 mt-1">Catálogo de categorías de producto con jerarquía opcional (categoría padre).</p>
 </div>
 
-@if (!string.IsNullOrWhiteSpace(message))
+@* Un fallo de borrado se muestra solo dentro del diálogo (donde el usuario está mirando), no también en la página. *@
+@if (!string.IsNullOrWhiteSpace(message) && !(DeleteId.HasValue && canDelete && messageType != "success"))
 {
     <div class="mb-6">
         @if (messageType == "success")
@@ -182,6 +183,12 @@
                 <h2 class="text-sm font-bold text-amber-800">Modificar categoría</h2>
             </div>
             <div class="px-6 py-5">
+                @if (opcionesPadreNoDisponibles)
+                {
+                    <div class="mb-4">
+                        <MessageBox Type="warning" Message="Modificar no está disponible hasta que carguen las categorías padre." />
+                    </div>
+                }
                 @if (EditId.HasValue && UpdateInput?.Id != EditId)
                 {
                     <MessageBox Type="warning" Message="No se encontró la categoría seleccionada. Puede haber sido eliminado por otro usuario." />
@@ -189,7 +196,9 @@
                 <EditForm Model="UpdateInput" FormName="update-categoriaproducto" OnValidSubmit="UpdateAsync" Enhance="true">
                     <DataAnnotationsValidator />
                     <input type="hidden" name="UpdateInput.Id" value="@UpdateInput!.Id" />
-                    <CategoriaProductoFields Model="UpdateInput!" Prefix="UpdateInput" Opciones="opcionesPadre" ExcluirId="UpdateInput.Id" />
+                    <CategoriaProductoFields Model="UpdateInput!" Prefix="UpdateInput" Opciones="opcionesPadre" ExcluirId="UpdateInput.Id" PadreActualNombre="padreActualNombre" />
+                    @if (!opcionesPadreNoDisponibles)
+                    {
                     <div class="mt-5">
                         <button type="submit"
                                 class="btn-press flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-600 transition-colors shadow-sm">
@@ -199,6 +208,7 @@
                             Guardar cambios
                         </button>
                     </div>
+                    }
                 </EditForm>
             </div>
         </div>
@@ -253,6 +263,12 @@
     private IReadOnlyList<CategoriaProductoResponse> categorias = [];
     // Todas las categorías, para poblar el <select> de categoría padre (se pide a la API, no se deriva de la página del listado).
     private IReadOnlyList<CategoriaProductoResponse> opcionesPadre = [];
+    // Si las opciones de padre no cargaron (excepción o lista vacía) no se permite MODIFICAR: el <select>
+    // no reflejaría la jerarquía real y guardar podría dejar el padre en null sin avisar.
+    private bool opcionesPadreNoDisponibles;
+    private const string MensajeOpcionesPadre = "No fue posible cargar las categorías disponibles como padre. Por seguridad no se puede modificar una categoría hasta que carguen; recargue la página.";
+    // Nombre del padre del registro que se edita (de GetByIdAsync), para rotular su opción en el <select>.
+    private string? padreActualNombre;
     // Registro a eliminar, cargado fresco con GetByIdAsync (no buscado en la página de la lista).
     private CategoriaProductoResponse? itemToDelete;
     private long totalCategorias;
@@ -320,6 +336,7 @@
                     UpdateInput.Codigo = categoria.Codigo;
                     UpdateInput.Nombre = categoria.Nombre;
                     UpdateInput.CategoriaPadreId = categoria.CategoriaPadreId;
+                    padreActualNombre = categoria.CategoriaPadreNombre;
                 }
             }
             catch (Exception ex)
@@ -371,11 +388,18 @@
         try
         {
             opcionesPadre = await CategoriaProductoApiClient.ListAllAsync();
+            // El catálogo siempre tiene al menos GENERAL: una lista vacía es una respuesta anómala, no un dato.
+            opcionesPadreNoDisponibles = opcionesPadre.Count == 0;
         }
         catch (Exception ex)
         {
             Logger.LogWarning(ex, "Could not load parent category options from API.");
-            Show("danger", "No fue posible cargar las categorías disponibles como padre.");
+            opcionesPadreNoDisponibles = true;
+        }
+
+        if (opcionesPadreNoDisponibles)
+        {
+            Show("danger", MensajeOpcionesPadre);
         }
     }
 
@@ -402,6 +426,13 @@
         if (UpdateInput!.Id == Guid.Empty)
         {
             Show("warning", "Seleccione primero un registro a modificar desde la tabla.");
+            return;
+        }
+
+        // Defensa en profundidad: aunque el botón no se renderice, no se envía un PUT sin opciones de padre fiables.
+        if (opcionesPadreNoDisponibles)
+        {
+            Show("danger", MensajeOpcionesPadre);
             return;
         }
 

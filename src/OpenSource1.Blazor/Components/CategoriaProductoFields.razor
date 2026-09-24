@@ -53,6 +53,12 @@
                 name="@($"{Prefix}.CategoriaPadreId")"
                 class="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20">
             <option value="" selected="@(Model.CategoriaPadreId is null)">— Sin padre (categoría raíz) —</option>
+            @* El padre actual se ofrece SIEMPRE, aunque no esté en Opciones (listado caído o vacío):
+               sin esto el <select> solo tendría "Sin padre" y guardar borraría la jerarquía en silencio. *@
+            @if (Model.CategoriaPadreId is { } padreActualId && Opciones.All(o => o.Id != padreActualId))
+            {
+                <option value="@padreActualId" selected="selected">@(string.IsNullOrWhiteSpace(PadreActualNombre) ? padreActualId.ToString() : PadreActualNombre)</option>
+            }
             @foreach (var opcion in Opciones.Where(o => o.Id != ExcluirId))
             {
                 <option value="@opcion.Id" selected="@(opcion.Id == Model.CategoriaPadreId)">@opcion.Codigo — @opcion.Nombre</option>
@@ -72,6 +78,12 @@
 
     /// <summary>Categorías que se pueden elegir como padre.</summary>
     [Parameter] public IReadOnlyList<CategoriaProductoResponse> Opciones { get; set; } = [];
+
+    /// <summary>
+    /// Nombre del padre actual del registro (el que trae GetByIdAsync), para rotular su opción cuando
+    /// no viene en <see cref="Opciones"/>. Si falta se usa el Guid como último recurso.
+    /// </summary>
+    [Parameter] public string? PadreActualNombre { get; set; }
 
     /// <summary>Categoría que se está editando; se excluye de las opciones. <c>Guid.Empty</c> al agregar.</summary>
     [Parameter] public Guid ExcluirId { get; set; }
