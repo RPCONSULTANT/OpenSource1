@@ -196,7 +196,7 @@
                 <EditForm Model="UpdateInput" FormName="update-categoriaproducto" OnValidSubmit="UpdateAsync" Enhance="true">
                     <DataAnnotationsValidator />
                     <input type="hidden" name="UpdateInput.Id" value="@UpdateInput!.Id" />
-                    <CategoriaProductoFields Model="UpdateInput!" Prefix="UpdateInput" Opciones="opcionesPadre" ExcluirId="UpdateInput.Id" PadreActualNombre="padreActualNombre" />
+                    <CategoriaProductoFields Model="UpdateInput!" Prefix="UpdateInput" Opciones="opcionesPadre" ExcluirId="UpdateInput.Id" PadreActualNombre="@padreActualNombre" />
                     @if (!opcionesPadreNoDisponibles)
                     {
                     <div class="mt-5">
