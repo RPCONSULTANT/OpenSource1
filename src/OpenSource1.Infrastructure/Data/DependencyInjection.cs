@@ -12,12 +12,14 @@ using OpenSource1.Application.Features.Productos;
 using OpenSource1.Application.Features.TerminosPago;
 using OpenSource1.Application.Features.Users;
 using OpenSource1.Application.Services.Auth;
+using OpenSource1.Application.Services.Inventario;
 using OpenSource1.Application.Services.Settings;
 using OpenSource1.Infrastructure.Data.Repositories;
 using OpenSource1.Infrastructure.Data.Queries;
 using OpenSource1.Infrastructure.Data.UnitOfWork;
 using OpenSource1.Infrastructure.Identity;
 using OpenSource1.Infrastructure.Services.Auth;
+using OpenSource1.Infrastructure.Services.Inventario;
 using OpenSource1.Infrastructure.Services.Settings;
 using OpenSource1.Infrastructure.Services.Users;
 
@@ -62,6 +64,7 @@ public static class DependencyInjection
         services.AddScoped<IClienteReadRepository, DapperClienteReadRepository>();
         services.AddScoped<IProductoReadRepository, DapperProductoReadRepository>();
         services.AddScoped<ITerminoPagoReadRepository, DapperTerminoPagoReadRepository>();
+        services.AddScoped<IConversionUnidadMedidaService, ConversionUnidadMedidaService>();
         services.AddScoped<IGeneradorNumeroDocumento, GeneradorNumeroDocumento>();
         services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
         services.AddScoped<IUnitOfWork, OpenSource1.Infrastructure.Data.UnitOfWork.UnitOfWork>();

@@ -10,6 +10,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<Cliente>    Clientes    => Set<Cliente>();
     public DbSet<Producto>   Productos   => Set<Producto>();
     public DbSet<TerminoPago> TerminosPago => Set<TerminoPago>();
+    public DbSet<UnidadMedida> UnidadesMedida => Set<UnidadMedida>();
+    public DbSet<UnidadMedidaProducto> UnidadesMedidaProducto => Set<UnidadMedidaProducto>();
     public DbSet<Serie>      Series       => Set<Serie>();
     public DbSet<LineaSerie> LineasSerie  => Set<LineaSerie>();
 
@@ -141,6 +143,60 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.HasQueryFilter(x => !x.IsDeleted);
         });
 
+        modelBuilder.Entity<UnidadMedida>(entity =>
+        {
+            entity.ToTable("UnidadesMedida");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Codigo).HasMaxLength(10).IsRequired();
+            entity.Property(x => x.Nombre).HasMaxLength(50).IsRequired();
+            entity.Property(x => x.CreatedBy).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.UpdatedBy).HasMaxLength(100);
+            // Índice único parcial desde el primer momento (mismo patrón que TerminoPago): sin el
+            // filtro "IsDeleted = false", el HasQueryFilter de abajo oculta la fila borrada
+            // lógicamente del chequeo de existencia, pero un INSERT posterior con el mismo Código
+            // sigue chocando contra el índice único a nivel de Postgres (500 en vez de 201).
+            entity.HasIndex(x => x.Codigo).IsUnique().HasFilter("\"IsDeleted\" = false");
+            entity.HasIndex(x => x.CreatedAtUtc).HasDatabaseName("IX_UnidadesMedida_CreatedAtUtc");
+            entity.Property<uint>("xmin").HasColumnName("xmin").IsRowVersion();
+            entity.Property(x => x.IsDeleted).HasDefaultValue(false);
+            entity.Property(x => x.DeletedBy).HasMaxLength(100);
+            entity.HasQueryFilter(x => !x.IsDeleted);
+
+            // Catálogo inicial: el que vivía hardcodeado en UnidadMedidaLegado, para que Producto
+            // (Task 2.9) tenga a qué apuntar al migrar sus filas existentes. Ids fijos para que
+            // el seed sea determinista entre entornos y migraciones.
+            entity.HasData(
+                Semilla("a1000000-0000-0000-0000-000000000001", "UND", "Unidad", 0),
+                Semilla("a1000000-0000-0000-0000-000000000002", "KG", "Kilogramo", 3),
+                Semilla("a1000000-0000-0000-0000-000000000003", "GR", "Gramo", 0),
+                Semilla("a1000000-0000-0000-0000-000000000004", "LT", "Litro", 3),
+                Semilla("a1000000-0000-0000-0000-000000000005", "ML", "Mililitro", 0),
+                Semilla("a1000000-0000-0000-0000-000000000006", "CJA", "Caja", 0),
+                Semilla("a1000000-0000-0000-0000-000000000007", "DOC", "Docena", 0),
+                Semilla("a1000000-0000-0000-0000-000000000008", "PAQ", "Paquete", 0),
+                Semilla("a1000000-0000-0000-0000-000000000009", "MT", "Metro", 2),
+                Semilla("a1000000-0000-0000-0000-000000000010", "LB", "Libra", 3));
+        });
+
+        modelBuilder.Entity<UnidadMedidaProducto>(entity =>
+        {
+            entity.ToTable("UnidadesMedidaProducto", t =>
+                t.HasCheckConstraint("CK_UnidadMedidaProducto_Cantidad_Positiva", "\"CantidadPorUnidadMedida\" > 0"));
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.CantidadPorUnidadMedida).HasPrecision(18, 6);
+            entity.Property(x => x.CreatedBy).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.UpdatedBy).HasMaxLength(100);
+            entity.HasOne<Producto>().WithMany().HasForeignKey(x => x.ProductoId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<UnidadMedida>().WithMany().HasForeignKey(x => x.UnidadMedidaId).OnDelete(DeleteBehavior.Restrict);
+            // Parcial por la misma razón que el índice de UnidadMedida.Codigo: permite volver a
+            // asociar una unidad a un producto tras borrar lógicamente la equivalencia anterior.
+            entity.HasIndex(x => new { x.ProductoId, x.UnidadMedidaId }).IsUnique().HasFilter("\"IsDeleted\" = false");
+            entity.Property<uint>("xmin").HasColumnName("xmin").IsRowVersion();
+            entity.Property(x => x.IsDeleted).HasDefaultValue(false);
+            entity.Property(x => x.DeletedBy).HasMaxLength(100);
+            entity.HasQueryFilter(x => !x.IsDeleted);
+        });
+
         modelBuilder.Entity<Serie>(entity =>
         {
             entity.ToTable("Series");
@@ -181,4 +237,19 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                 .OnDelete(DeleteBehavior.Restrict);
         });
     }
+
+    private static readonly DateTimeOffset FechaSemilla = new(2026, 9, 24, 0, 0, 0, TimeSpan.Zero);
+
+    // HasData con tipo anónimo: Id tiene setter protegido en AggregateRoot, así que no se puede
+    // asignar en un inicializador de objeto de la entidad.
+    private static object Semilla(string id, string codigo, string nombre, short decimales) => new
+    {
+        Id = Guid.Parse(id),
+        Codigo = codigo,
+        Nombre = nombre,
+        Decimales = decimales,
+        CreatedAtUtc = FechaSemilla,
+        CreatedBy = "system",
+        IsDeleted = false
+    };
 }
