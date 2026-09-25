@@ -4,6 +4,7 @@ using Microsoft.Extensions.FileProviders;
 using Microsoft.AspNetCore.Mvc;
 using OpenSource1.Application.Services.Auth.Dtos;
 using OpenSource1.Application.Security;
+using OpenSource1.Application.Storage;
 using OpenSource1.Blazor.Components;
 using OpenSource1.Blazor.Reporting;
 using OpenSource1.Blazor.Security;
@@ -157,16 +158,32 @@ app.MapPost("/account/profile/image", async (
         return Results.Redirect("/account/login");
     }
 
+    string? nueva = null;
     try
     {
-        var path = await fileStorageService.SaveProfileImageAsync(httpContext, "ProfileImage", currentUser.ProfileImagePath);
-        var (success, _) = await authApiClient.UpdateProfileImageAsync(new UpdateProfileImageRequest(path));
-        return success
-            ? Results.Redirect("/account/profile")
-            : Results.Redirect("/account/profile");
+        // La imagen vigente viene del perfil guardado en el servidor (no del formulario).
+        var anterior = currentUser.ProfileImagePath;
+        nueva = await fileStorageService.SaveProfileImageAsync(httpContext, "ProfileImage", anterior);
+        var (success, _) = await authApiClient.UpdateProfileImageAsync(new UpdateProfileImageRequest(nueva));
+        if (success)
+        {
+            // Solo tras confirmar el cambio se retira la imagen anterior; si la API lo rechazó, se descarta la nueva.
+            if (nueva != anterior) await fileStorageService.DeleteIfExistsAsync(anterior, RutaImagen.CarpetaUsuarios);
+        }
+        else if (nueva is not null && nueva != anterior)
+        {
+            await fileStorageService.DeleteIfExistsAsync(nueva, RutaImagen.CarpetaUsuarios);
+        }
+
+        return Results.Redirect("/account/profile");
     }
     catch
     {
+        if (nueva is not null && nueva != currentUser.ProfileImagePath)
+        {
+            await fileStorageService.DeleteIfExistsAsync(nueva, RutaImagen.CarpetaUsuarios);
+        }
+
         return Results.Redirect("/account/profile");
     }
 }).RequireAuthorization(ApplicationPolicies.CanConsult);

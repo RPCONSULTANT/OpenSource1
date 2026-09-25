@@ -4,6 +4,7 @@
 @using OpenSource1.Application.Features.SociosNegocio.Dtos
 @using OpenSource1.Application.Security
 @using System.Globalization
+@using OpenSource1.Application.Storage
 @using OpenSource1.Blazor.Services
 @inject ISocioNegocioApiClient SocioNegocioApiClient
 @inject ITerminoPagoApiClient TerminoPagoApiClient
@@ -74,9 +75,9 @@ else
                     <div class="mb-6 grid grid-cols-1 md:grid-cols-[220px_1fr] gap-6 items-start">
                         <div>
                             <p class="text-sm font-semibold text-slate-700 mb-2 dark:text-slate-300">Imagen actual</p>
-                            @if (!string.IsNullOrWhiteSpace(Input?.ImagePath))
+                            @if (!string.IsNullOrWhiteSpace(cliente.ImagePath))
                             {
-                                <img src="@Input.ImagePath" alt="Imagen del cliente" class="h-40 w-40 rounded-2xl object-cover border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900/40" />
+                                <img src="@cliente.ImagePath" alt="Imagen del cliente" class="h-40 w-40 rounded-2xl object-cover border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900/40" />
                             }
                             else
                             {
@@ -248,20 +249,42 @@ else
             return;
         }
 
+        string? imagenAnterior = cliente.ImagePath;
+        string? imagenNueva = null;
         try
         {
             var httpContext = HttpContextAccessor.HttpContext ?? throw new InvalidOperationException("No hay HttpContext disponible para cargar la imagen.");
-            // La imagen vigente es la GUARDADA en el servidor (no un valor enviado por el formulario, que el usuario podría manipular).
-            Input!.ImagePath = await FileStorageService.SaveClientImageAsync(httpContext, "ClientImage", cliente.ImagePath);
+            // La imagen vigente es la GUARDADA en el servidor (nunca un valor del formulario, que el usuario podría manipular).
+            // Sin fichero subido conserva la vigente (o null si esa ruta no cumple la regla).
+            imagenNueva = await FileStorageService.SaveClientImageAsync(httpContext, "ClientImage", imagenAnterior);
+            Input!.ImagePath = imagenNueva;
             var result = await SocioNegocioApiClient.UpdateAsync(Id, ToInput(Input));
-            if (result.Succeeded) { Nav.NavigateTo(BuildDetailUrl(ok: "updated")); return; }
+            if (result.Succeeded)
+            {
+                // Solo ahora que la API confirmó el cambio se retira la imagen anterior.
+                if (imagenNueva != imagenAnterior) await FileStorageService.DeleteIfExistsAsync(imagenAnterior, RutaImagen.CarpetaClientes);
+                Nav.NavigateTo(BuildDetailUrl(ok: "updated"));
+                return;
+            }
+
+            await DescartarImagenNuevaAsync(imagenNueva, imagenAnterior);
             message = result.Message; errores = result.Errors ?? []; messageType = "warning";
         }
         catch (Exception ex)
         {
+            await DescartarImagenNuevaAsync(imagenNueva, imagenAnterior);
             Logger.LogWarning(ex, "Could not update cliente detail/image.");
             message = ex is InvalidOperationException ? ex.Message : "No fue posible actualizar el cliente.";
             messageType = "danger";
+        }
+    }
+
+    // Si el cambio no se guardó, la imagen recién subida quedaría huérfana (la vigente sigue siendo la anterior).
+    private async Task DescartarImagenNuevaAsync(string? imagenNueva, string? imagenAnterior)
+    {
+        if (imagenNueva is not null && imagenNueva != imagenAnterior)
+        {
+            await FileStorageService.DeleteIfExistsAsync(imagenNueva, RutaImagen.CarpetaClientes);
         }
     }
 
