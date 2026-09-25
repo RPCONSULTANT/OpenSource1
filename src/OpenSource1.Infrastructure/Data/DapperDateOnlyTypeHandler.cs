@@ -27,5 +27,12 @@ public sealed class DapperDateOnlyTypeHandler : SqlMapper.TypeHandler<DateOnly>
         parameter.Value = value.ToDateTime(TimeOnly.MinValue);
     }
 
-    public override DateOnly Parse(object value) => DateOnly.FromDateTime((DateTime)value);
+    // Npgsql puede entregar una columna date como DateTime o ya como DateOnly según la vía de lectura de Dapper
+    // (p. ej. al materializar tuplas/records): se aceptan ambas.
+    public override DateOnly Parse(object value) => value switch
+    {
+        DateOnly fecha => fecha,
+        DateTime fechaHora => DateOnly.FromDateTime(fechaHora),
+        _ => throw new InvalidCastException($"No se puede convertir {value.GetType()} a DateOnly."),
+    };
 }

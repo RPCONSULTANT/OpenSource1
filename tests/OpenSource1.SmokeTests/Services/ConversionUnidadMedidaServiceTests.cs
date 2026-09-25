@@ -271,6 +271,48 @@ public sealed class ConversionUnidadMedidaServiceTests : IClassFixture<PostgresT
         await reasociado.SaveChangesAsync();
     }
 
+    [Fact]
+    public async Task ObtenerFactor_UnidadBase_EsUnoAunqueHayaFilaConOtroFactor()
+    {
+        var (producto, und) = await SembrarAsync("UND", "UND", 5m);
+
+        var resultado = await ObtenerFactorAsync(producto, und);
+
+        Assert.True(resultado.EsExito);
+        Assert.Equal(1m, resultado.Valor);
+    }
+
+    [Fact]
+    public async Task ObtenerFactor_UnidadAlternativa_DevuelveElFactorSinRedondearALosDecimalesDeLaBase()
+    {
+        // Base UND (0 decimales) y 1 KG = 2.5 UND: el factor es 2.5 aunque una conversión a base redondee a 3.
+        var (producto, kg) = await SembrarAsync("UND", "KG", 2.5m);
+
+        var resultado = await ObtenerFactorAsync(producto, kg);
+
+        Assert.True(resultado.EsExito);
+        Assert.Equal(2.5m, resultado.Valor);
+    }
+
+    [Fact]
+    public async Task ObtenerFactor_MismosErroresQueLaConversion()
+    {
+        var (producto, _) = await SembrarAsync("UND", "CJA", 12m);
+
+        var noAsociada = await ObtenerFactorAsync(producto, await IdUnidadAsync("KG"));
+        var inexistente = await ObtenerFactorAsync(Guid.NewGuid(), await IdUnidadAsync("UND"));
+
+        Assert.Equal("conversion.unidad_no_asociada", noAsociada.Errores[0].Codigo);
+        Assert.Equal("conversion.producto_no_encontrado", inexistente.Errores[0].Codigo);
+    }
+
+    private async Task<Result<decimal>> ObtenerFactorAsync(Guid productoId, Guid unidadId)
+    {
+        await using var scope = _provider.CreateAsyncScope();
+        var servicio = scope.ServiceProvider.GetRequiredService<IConversionUnidadMedidaService>();
+        return await servicio.ObtenerFactorAsync(productoId, unidadId);
+    }
+
     private async Task CambiarBorradoPaqAsync(bool borrado)
     {
         await using var contexto = NuevoContexto();

@@ -2,6 +2,7 @@ using Dapper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using OpenSource1.Application.Data;
 using OpenSource1.Application.Data.Repositories;
 using OpenSource1.Application.Data.UnitOfWork;
@@ -72,6 +73,12 @@ public static class DependencyInjection
         services.AddScoped<IAlmacenReadRepository, DapperAlmacenReadRepository>();
         services.AddScoped<IConversionUnidadMedidaService, ConversionUnidadMedidaService>();
         services.AddScoped<IGeneradorNumeroDocumento, GeneradorNumeroDocumento>();
+        services.AddScoped<IConsultaInventario, ConsultaInventario>();
+        services.AddScoped<IRegistroMovimientosInventario, RegistroMovimientosInventario>();
+
+        // Usuario del libro de inventario fuera de HTTP (tests, batch): la API registra antes su UsuarioActualHttp y
+        // este TryAdd no lo pisa.
+        services.TryAddScoped<IUsuarioActual, UsuarioActualSistema>();
         services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
         services.AddScoped<IUnitOfWork, OpenSource1.Infrastructure.Data.UnitOfWork.UnitOfWork>();
         services.AddScoped<IAppSettingService, AppSettingService>();

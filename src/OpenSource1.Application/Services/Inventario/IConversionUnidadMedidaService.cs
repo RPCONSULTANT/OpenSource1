@@ -23,4 +23,12 @@ public interface IConversionUnidadMedidaService
 {
     Task<Result<decimal>> ConvertirABaseAsync(
         Guid productoId, Guid unidadMedidaId, decimal cantidad, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Factor de conversión (cantidad base por unidad indicada) SIN redondear: 1 si la unidad es la base del producto
+    /// (identidad, sin consultar <c>UnidadesMedidaProducto</c>); si no, el <c>CantidadPorUnidadMedida</c> de la fila
+    /// asociada. Mismos códigos de error que <see cref="ConvertirABaseAsync"/>. Es el factor que el libro de
+    /// inventario congela en el movimiento (nunca se deduce dividiendo un resultado ya redondeado).
+    /// </summary>
+    Task<Result<decimal>> ObtenerFactorAsync(Guid productoId, Guid unidadMedidaId, CancellationToken ct = default);
 }

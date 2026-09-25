@@ -39,6 +39,8 @@ builder.Host.UseSerilog((context, services, configuration) => configuration
         outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {SourceContext}: {Message:lj}{NewLine}{Exception}"));
 
 builder.Services.AddHttpContextAccessor();
+// Antes de AddApplicationData: su TryAdd de UsuarioActualSistema no pisa este registro.
+builder.Services.AddScoped<OpenSource1.Application.Services.Inventario.IUsuarioActual, UsuarioActualHttp>();
 builder.Services.AddApplicationData(builder.Configuration);
 builder.Services.AddApplicationIdentity(builder.Configuration);
 builder.Services.AddApplicationServices();
