@@ -1,0 +1,67 @@
+@using OpenSource1.Application.Features.Productos.Dtos
+
+@*
+    BuscadorProducto — búsqueda de producto por nombre, compartida entre "Agregar línea" y
+    "Editar línea" de DiarioInventarioLote.razor (Task 4.4, ronda de corrección 1: antes cada flujo
+    tenía su propia copia casi literal de este formulario GET + lista de resultados, y ya habían
+    divergido — la de edición no mostraba "Sin resultados.").
+
+    Formulario GET puro (Static SSR: sin JS, sin @onclick/@bind interactivo). El nombre del campo de
+    texto lo decide el llamador (Prefix distinto por flujo: "addProductoQuery"/"editProductoQuery"),
+    igual que cualquier estado extra que ese flujo necesite conservar en la URL (p. ej. "editLineaId"),
+    que se pasa como campos <input type="hidden"> vía el RenderFragment CamposOcultos.
+*@
+
+<p class="text-sm text-slate-500 mb-3">Busque el producto por nombre (el catálogo puede tener muchos productos; se muestran los primeros 20 resultados).</p>
+<form method="get" action="@ActionUrl" data-enhance class="flex items-end gap-2 mb-4 max-w-md">
+    @CamposOcultos
+    <div class="flex-1">
+        <label class="block text-xs font-semibold text-slate-500 mb-1" for="@QueryParamName">Nombre del producto</label>
+        <input id="@QueryParamName" type="text" name="@QueryParamName" value="@Termino" placeholder="ej. Arroz" class="@InputCss" />
+    </div>
+    <button type="submit" class="btn-press rounded-lg bg-slate-700 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">Buscar</button>
+</form>
+
+@if (CargaFallida)
+{
+    <MessageBox Type="warning" Message="No fue posible cargar el catálogo de productos. Intente de nuevo." />
+}
+else if (Resultados.Count == 0)
+{
+    <p class="text-sm text-slate-400">Sin resultados.</p>
+}
+else
+{
+    <ul class="divide-y divide-slate-100 rounded-xl border border-slate-200">
+        @foreach (var producto in Resultados)
+        {
+            <li @key="producto.Id" class="flex items-center justify-between px-4 py-2 text-sm">
+                <span>@producto.Codigo — @producto.Nombre <span class="text-slate-400 text-xs">(unidad base: @producto.UnidadMedidaCodigo)</span></span>
+                <a href="@ConstruirUrlUsar(producto.Id)" class="btn-press rounded-lg border border-brand-200 bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-700 hover:bg-brand-100">Usar</a>
+            </li>
+        }
+    </ul>
+}
+
+@code {
+    private const string InputCss = "block w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-600/20";
+
+    /// <summary>URL a la que apunta el formulario GET (normalmente la misma página del flujo que busca).</summary>
+    [Parameter, EditorRequired] public string ActionUrl { get; set; } = default!;
+
+    /// <summary>Nombre del campo de query de este flujo (distinto en alta y edición para no chocar entre sí).</summary>
+    [Parameter, EditorRequired] public string QueryParamName { get; set; } = default!;
+
+    /// <summary>Término de búsqueda actual (se reenvía como valor del input para no perderlo al re-renderizar).</summary>
+    [Parameter] public string? Termino { get; set; }
+
+    [Parameter, EditorRequired] public IReadOnlyList<ProductoResponse> Resultados { get; set; } = [];
+
+    [Parameter] public bool CargaFallida { get; set; }
+
+    /// <summary>Construye el href de "Usar" para un producto elegido; cada flujo decide qué otros parámetros conservar.</summary>
+    [Parameter, EditorRequired] public Func<Guid, string> ConstruirUrlUsar { get; set; } = default!;
+
+    /// <summary>Campos ocultos que el flujo llamador necesita conservar en el GET (p. ej. el id de la línea en edición).</summary>
+    [Parameter] public RenderFragment? CamposOcultos { get; set; }
+}

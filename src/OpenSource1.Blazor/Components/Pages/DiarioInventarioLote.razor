@@ -146,35 +146,9 @@ else
             <div class="px-6 py-5">
                 @if (addProducto is null)
                 {
-                    <p class="text-sm text-slate-500 mb-3">Busque el producto de la línea por nombre (el catálogo puede tener muchos productos; se muestran los primeros 20 resultados).</p>
-                    <form method="get" action="@UrlBase" data-enhance class="flex items-end gap-2 mb-4 max-w-md">
-                        <div class="flex-1">
-                            <label class="block text-xs font-semibold text-slate-500 mb-1" for="addProductoQuery">Nombre del producto</label>
-                            <input id="addProductoQuery" type="text" name="addProductoQuery" value="@AddProductoQuery" placeholder="ej. Arroz" class="@InputCss" />
-                        </div>
-                        <button type="submit" class="btn-press rounded-lg bg-slate-700 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">Buscar</button>
-                    </form>
-
-                    @if (addProductoOpcionesCargaFallida)
-                    {
-                        <MessageBox Type="warning" Message="No fue posible cargar el catálogo de productos. Intente de nuevo." />
-                    }
-                    else if (addProductoOpciones.Count == 0)
-                    {
-                        <p class="text-sm text-slate-400">Sin resultados.</p>
-                    }
-                    else
-                    {
-                        <ul class="divide-y divide-slate-100 rounded-xl border border-slate-200">
-                            @foreach (var p in addProductoOpciones)
-                            {
-                                <li class="flex items-center justify-between px-4 py-2 text-sm">
-                                    <span>@p.Codigo — @p.Nombre <span class="text-slate-400 text-xs">(unidad base: @p.UnidadMedidaCodigo)</span></span>
-                                    <a href="@BuildUrl(addProductoId: p.Id, addProductoQuery: AddProductoQuery)" class="btn-press rounded-lg border border-brand-200 bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-700 hover:bg-brand-100">Usar</a>
-                                </li>
-                            }
-                        </ul>
-                    }
+                    <BuscadorProducto ActionUrl="@UrlBase" QueryParamName="addProductoQuery" Termino="@AddProductoQuery"
+                                       Resultados="@addProductoOpciones" CargaFallida="@addProductoOpcionesCargaFallida"
+                                       ConstruirUrlUsar="@(id => BuildUrl(addProductoId: id, addProductoQuery: AddProductoQuery))" />
                 }
                 else
                 {
@@ -216,31 +190,18 @@ else
                 }
                 else if (editProducto is null)
                 {
-                    <p class="text-sm text-slate-500 mb-3">No fue posible resolver el producto de esta línea. Busque uno para continuar.</p>
-                    <form method="get" action="@UrlBase" data-enhance class="flex items-end gap-2 mb-4 max-w-md">
-                        <input type="hidden" name="editLineaId" value="@EditLineaId" />
-                        <div class="flex-1">
-                            <label class="block text-xs font-semibold text-slate-500 mb-1" for="editProductoQuery">Nombre del producto</label>
-                            <input id="editProductoQuery" type="text" name="editProductoQuery" value="@EditProductoQuery" placeholder="ej. Arroz" class="@InputCss" />
-                        </div>
-                        <button type="submit" class="btn-press rounded-lg bg-slate-700 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">Buscar</button>
-                    </form>
-                    @if (editProductoOpcionesCargaFallida)
+                    @if (EditProductoIdOverride is not null)
                     {
-                        <MessageBox Type="warning" Message="No fue posible cargar el catálogo de productos. Intente de nuevo." />
+                        <p class="text-sm text-amber-600 mb-3">El producto seleccionado ya no está disponible. Busque otro para continuar.</p>
                     }
-                    else
-                    {
-                        <ul class="divide-y divide-slate-100 rounded-xl border border-slate-200">
-                            @foreach (var p in editProductoOpciones)
-                            {
-                                <li class="flex items-center justify-between px-4 py-2 text-sm">
-                                    <span>@p.Codigo — @p.Nombre</span>
-                                    <a href="@BuildUrl(editLineaId: EditLineaId, editProductoId: p.Id, editProductoQuery: EditProductoQuery)" class="btn-press rounded-lg border border-brand-200 bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-700 hover:bg-brand-100">Usar</a>
-                                </li>
-                            }
-                        </ul>
-                    }
+                    <BuscadorProducto ActionUrl="@UrlBase" QueryParamName="editProductoQuery" Termino="@EditProductoQuery"
+                                       Resultados="@editProductoOpciones" CargaFallida="@editProductoOpcionesCargaFallida"
+                                       ConstruirUrlUsar="@(id => BuildUrl(editLineaId: EditLineaId, editProductoId: id))">
+                        <CamposOcultos>
+                            <input type="hidden" name="editLineaId" value="@EditLineaId" />
+                            <input type="hidden" name="editBuscar" value="true" />
+                        </CamposOcultos>
+                    </BuscadorProducto>
                 }
                 else
                 {
@@ -249,7 +210,7 @@ else
                             Producto: <span class="font-semibold">@editProducto.Codigo — @editProducto.Nombre</span>
                             <span class="text-slate-400 text-xs">· Unidad base: @editProducto.UnidadMedidaCodigo@(string.IsNullOrWhiteSpace(editProducto.UnidadMedidaNombre) ? "" : $" ({editProducto.UnidadMedidaNombre})")</span>
                         </p>
-                        <a href="@BuildUrl(editLineaId: EditLineaId)" class="btn-press rounded-lg border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50">Cambiar producto</a>
+                        <a href="@BuildUrl(editLineaId: EditLineaId, editBuscar: true)" class="btn-press rounded-lg border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50">Cambiar producto</a>
                     </div>
 
                     <EditForm Model="UpdateInputLinea" FormName="update-linea" OnValidSubmit="UpdateLineaAsync" Enhance="true">
@@ -313,27 +274,38 @@ else
         </div>
     }
 
-    @* La condición NO exige canModify: el botón que lleva aquí ya está oculto para quien no tiene el permiso
-       (ver el panel "Registrar lote" arriba), pero el formulario debe seguir existiendo en el árbol para que
-       un POST forzado (DOM alterado, replay) llegue a RegistrarAsync y reciba el 403 real de la API con su
-       mensaje ("No tiene permisos..."), en vez del genérico "Cannot submit the form..." de Blazor cuando el
-       formulario no está presente en la página. La autorización real la sigue haciendo la API. *@
     @if (RegistrarConfirm && registroResultado is null)
     {
-        <ConfirmDialog Title="Confirmar registro del lote" Message="Se registrarán todas las líneas del lote en el libro de inventario. Esta acción no se puede deshacer." Variant="success" CancelHref="@UrlBase">
+        @if (canModify)
+        {
+            <ConfirmDialog Title="Confirmar registro del lote" Message="Se registrarán todas las líneas del lote en el libro de inventario. Esta acción no se puede deshacer." Variant="success" CancelHref="@UrlBase">
+                @if (registroError is not null)
+                {
+                    <div class="mb-4"><MessageBox Type="warning" Message="@registroError" Errors="@registroErrores" /></div>
+                }
+                <p class="rounded-xl border border-brand-100 bg-brand-50 px-4 py-3 text-sm text-brand-900">@lote.Codigo — @lote.Nombre (@lineas.Count línea(s))</p>
+                <EditForm Model="RegistrarInput" FormName="confirm-registrar" OnValidSubmit="RegistrarAsync" class="mt-4">
+                    <button type="submit" class="btn-press rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700">Sí, registrar</button>
+                    <a href="@UrlBase" class="btn-press ml-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Cancelar</a>
+                </EditForm>
+            </ConfirmDialog>
+        }
+        else
+        {
+            @* Sin CanModify no se muestra el diálogo (un Ejecutor no debe ver este panel ni siquiera
+               navegando directo a ?registrar=true: el botón que llevaría aquí ya está oculto arriba),
+               pero el EditForm debe seguir existiendo en el árbol de render: un POST forzado (DOM
+               alterado, replay) tiene que llegar a RegistrarAsync y recibir el 403 real de la API con
+               su mensaje, en vez del "Cannot submit the form..." genérico de Blazor cuando el
+               formulario no está presente en la página. La autorización real la sigue haciendo la API
+               ([Authorize(Policy = CanModify)] en el controller); esto solo evita el error genérico y,
+               si de todos modos llega un POST, muestra el mensaje real en vez de nada. *@
             @if (registroError is not null)
             {
-                <div class="mb-4"><MessageBox Type="warning" Message="@registroError" Errors="@registroErrores" /></div>
+                <MessageBox Type="warning" Message="@registroError" Errors="@registroErrores" />
             }
-            <p class="rounded-xl border border-brand-100 bg-brand-50 px-4 py-3 text-sm text-brand-900">@lote.Codigo — @lote.Nombre (@lineas.Count línea(s))</p>
-            <EditForm Model="RegistrarInput" FormName="confirm-registrar" OnValidSubmit="RegistrarAsync" class="mt-4">
-                @if (canModify)
-                {
-                    <button type="submit" class="btn-press rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700">Sí, registrar</button>
-                }
-                <a href="@UrlBase" class="btn-press ml-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Cancelar</a>
-            </EditForm>
-        </ConfirmDialog>
+            <EditForm Model="RegistrarInput" FormName="confirm-registrar" OnValidSubmit="RegistrarAsync"></EditForm>
+        }
     }
 
     @if (DeleteLineaId.HasValue && canDelete && !lote.Bloqueado)
@@ -365,6 +337,9 @@ else
     [SupplyParameterFromQuery(Name = "addProductoId")] private Guid? AddProductoId { get; set; }
     [SupplyParameterFromQuery(Name = "editProductoQuery")] private string? EditProductoQuery { get; set; }
     [SupplyParameterFromQuery(Name = "editProductoId")] private Guid? EditProductoIdOverride { get; set; }
+
+    /// <summary>"Cambiar producto" en edición: entra a modo búsqueda aunque la línea ya tenga un producto guardado (si no, siempre se resolvería el mismo por defecto y el enlace no haría nada).</summary>
+    [SupplyParameterFromQuery(Name = "editBuscar")] private bool EditBuscarProducto { get; set; }
 
     [SupplyParameterFromForm(FormName = "add-linea")] private LineaForm? AddInput { get; set; }
     [SupplyParameterFromForm(FormName = "update-linea")] private LineaForm? UpdateInputLinea { get; set; }
@@ -556,10 +531,11 @@ else
             return;
         }
 
-        if (EditProductoIdOverride is null)
+        if (EditProductoIdOverride is null && !EditBuscarProducto)
         {
-            // Por defecto se conserva el producto ya guardado en la línea: sus datos ya vienen en
-            // LineaDiarioResponse (Codigo/Nombre/UnidadMedidaId/Codigo), sin necesidad de otra llamada.
+            // Por defecto (sin pedir explícitamente cambiar de producto) se conserva el ya guardado en
+            // la línea: sus datos ya vienen en LineaDiarioResponse (Codigo/Nombre/UnidadMedidaId/Codigo),
+            // sin necesidad de otra llamada.
             editProducto = new ProductoResponse
             {
                 Id = lineaAEditar.ProductoId,
@@ -571,28 +547,34 @@ else
             return;
         }
 
-        try
-        {
-            editProducto = await ProductoApiClient.GetByIdAsync(EditProductoIdOverride.Value);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogWarning(ex, "Could not load producto {Id} for editar línea.", EditProductoIdOverride);
-        }
-
-        if (editProducto is null)
+        if (EditProductoIdOverride is { } id)
         {
             try
             {
-                var filtro = new ProductoSearchFilter(null, EmptyAsNull(EditProductoQuery), null, null, null, null, null, null);
-                var pagina = await ProductoApiClient.ListAsync(filtro, new PageRequest(1, 20, "Nombre", false));
-                editProductoOpciones = pagina.Items;
+                editProducto = await ProductoApiClient.GetByIdAsync(id);
             }
             catch (Exception ex)
             {
-                Logger.LogWarning(ex, "Could not load productos for editar línea.");
-                editProductoOpcionesCargaFallida = true;
+                Logger.LogWarning(ex, "Could not load producto {Id} for editar línea.", id);
             }
+
+            if (editProducto is not null)
+            {
+                return;
+            }
+        }
+
+        // Modo búsqueda: "Cambiar producto" (EditBuscarProducto) o el id elegido ya no existe/no cargó.
+        try
+        {
+            var filtro = new ProductoSearchFilter(null, EmptyAsNull(EditProductoQuery), null, null, null, null, null, null);
+            var pagina = await ProductoApiClient.ListAsync(filtro, new PageRequest(1, 20, "Nombre", false));
+            editProductoOpciones = pagina.Items;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not load productos for editar línea.");
+            editProductoOpcionesCargaFallida = true;
         }
     }
 
@@ -779,7 +761,7 @@ else
     private string BuildUrl(
         Guid? editLineaId = null, Guid? deleteLineaId = null, bool? registrar = null,
         Guid? addProductoId = null, string? addProductoQuery = null,
-        Guid? editProductoId = null, string? editProductoQuery = null)
+        Guid? editProductoId = null, string? editProductoQuery = null, bool? editBuscar = null)
     {
         var parameters = new List<string>();
         if (editLineaId.HasValue) parameters.Add($"editLineaId={editLineaId.Value}");
@@ -789,6 +771,7 @@ else
         if (!string.IsNullOrWhiteSpace(addProductoQuery)) parameters.Add($"addProductoQuery={Uri.EscapeDataString(addProductoQuery)}");
         if (editProductoId.HasValue) parameters.Add($"editProductoId={editProductoId.Value}");
         if (!string.IsNullOrWhiteSpace(editProductoQuery)) parameters.Add($"editProductoQuery={Uri.EscapeDataString(editProductoQuery)}");
+        if (editBuscar == true) parameters.Add("editBuscar=true");
         return parameters.Count == 0 ? UrlBase : $"{UrlBase}?{string.Join("&", parameters)}";
     }
 
