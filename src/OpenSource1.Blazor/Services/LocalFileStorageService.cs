@@ -14,16 +14,29 @@ public sealed class LocalFileStorageService(IWebHostEnvironment environment, ILo
     private static readonly StringComparison ComparacionDeRutas =
         OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
 
+    // Prefijo del nombre de fichero que genera este servicio en cada carpeta ("<prefijo>-<guid hex>.<ext>").
+    private static readonly Dictionary<string, string> PrefijoPorCarpeta = new(StringComparer.Ordinal)
+    {
+        [RutaImagen.CarpetaClientes] = "cliente",
+        [RutaImagen.CarpetaProductos] = "producto",
+        [RutaImagen.CarpetaUsuarios] = "perfil",
+    };
+
     public async Task<string?> SaveClientImageAsync(HttpContext httpContext, string fieldName, string? currentRelativePath, CancellationToken cancellationToken = default)
-        => await SaveImageAsync(httpContext, fieldName, currentRelativePath, RutaImagen.CarpetaClientes, "cliente", cancellationToken);
+        => await SaveImageAsync(httpContext, fieldName, currentRelativePath, RutaImagen.CarpetaClientes, cancellationToken);
 
     public async Task<string?> SaveProductImageAsync(HttpContext httpContext, string fieldName, string? currentRelativePath, CancellationToken cancellationToken = default)
-        => await SaveImageAsync(httpContext, fieldName, currentRelativePath, RutaImagen.CarpetaProductos, "producto", cancellationToken);
+        => await SaveImageAsync(httpContext, fieldName, currentRelativePath, RutaImagen.CarpetaProductos, cancellationToken);
 
     public async Task<string?> SaveProfileImageAsync(HttpContext httpContext, string fieldName, string? currentRelativePath, CancellationToken cancellationToken = default)
-        => await SaveImageAsync(httpContext, fieldName, currentRelativePath, RutaImagen.CarpetaUsuarios, "perfil", cancellationToken);
+        => await SaveImageAsync(httpContext, fieldName, currentRelativePath, RutaImagen.CarpetaUsuarios, cancellationToken);
 
-    private async Task<string?> SaveImageAsync(HttpContext httpContext, string fieldName, string? currentRelativePath, string folder, string prefix, CancellationToken cancellationToken)
+    /// <summary>¿Tiene el nombre la forma que genera este servicio? (<c>cliente-&lt;32 hex&gt;.png</c>, etc.)</summary>
+    private static bool EsNombreGenerado(string carpeta, string nombre) =>
+        PrefijoPorCarpeta.TryGetValue(carpeta, out var prefijo)
+        && System.Text.RegularExpressions.Regex.IsMatch(nombre, $"^{prefijo}-[0-9a-f]{{32}}\\.(jpg|jpeg|png|webp)$", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+    private async Task<string?> SaveImageAsync(HttpContext httpContext, string fieldName, string? currentRelativePath, string folder, CancellationToken cancellationToken)
     {
         var file = httpContext.Request.Form.Files.GetFile(fieldName);
         if (file is null || file.Length == 0)
@@ -51,7 +64,7 @@ public sealed class LocalFileStorageService(IWebHostEnvironment environment, ILo
         var uploadsRoot = Path.Combine(environment.ContentRootPath, "storage", "uploads", folder);
         Directory.CreateDirectory(uploadsRoot);
 
-        var fileName = $"{prefix}-{Guid.NewGuid():N}{extension}";
+        var fileName = $"{PrefijoPorCarpeta[folder]}-{Guid.NewGuid():N}{extension}";
         var physicalPath = Path.Combine(uploadsRoot, fileName);
 
         await using (var stream = File.Create(physicalPath))
@@ -89,6 +102,13 @@ public sealed class LocalFileStorageService(IWebHostEnvironment environment, ILo
                 || !string.Equals(Path.GetDirectoryName(fichero) + Path.DirectorySeparatorChar, prefijoCarpeta, ComparacionDeRutas))
             {
                 return Rechazar(relativePath, carpeta, "sale de la carpeta de la entidad");
+            }
+
+            // Solo se borran ficheros con la forma que genera este servicio: una imagen que la UI nunca creó (otro fichero de la
+            // carpeta) no se toca aunque la API hubiera aceptado su nombre.
+            if (!EsNombreGenerado(carpeta, Path.GetFileName(fichero)))
+            {
+                return Rechazar(relativePath, carpeta, "el nombre no es el de una imagen generada por la aplicación");
             }
 
             var info = new FileInfo(fichero);
