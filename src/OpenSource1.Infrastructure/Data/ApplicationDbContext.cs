@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using OpenSource1.Core.Entities;
+using OpenSource1.Core.Entities.Inventario;
 using OpenSource1.Core.Enums;
 
 namespace OpenSource1.Infrastructure.Data;
@@ -17,6 +18,9 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<Serie>      Series       => Set<Serie>();
     public DbSet<LineaSerie> LineasSerie  => Set<LineaSerie>();
     public DbSet<Almacen>    Almacenes    => Set<Almacen>();
+    public DbSet<MovimientoProducto> MovimientosProducto => Set<MovimientoProducto>();
+    public DbSet<MovimientoValor> MovimientosValor => Set<MovimientoValor>();
+    public DbSet<AplicacionMovimientoProducto> AplicacionesMovimientoProducto => Set<AplicacionMovimientoProducto>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -332,6 +336,90 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                 CreatedBy = "system",
                 IsDeleted = false
             });
+        });
+
+        modelBuilder.Entity<MovimientoProducto>(entity =>
+        {
+            entity.ToTable("MovimientosProducto", t =>
+            {
+                t.HasCheckConstraint("CK_MovimientosProducto_Cantidad_NoCero", "\"Cantidad\" <> 0");
+                t.HasCheckConstraint(
+                    "CK_MovimientosProducto_Restante",
+                    "\"CantidadRestante\" IS NULL OR (\"CantidadRestante\" >= 0 AND \"CantidadRestante\" <= \"Cantidad\")");
+                t.HasCheckConstraint("CK_MovimientosProducto_Factor_Positivo", "\"CantidadPorUnidadMedida\" > 0");
+            });
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).UseIdentityAlwaysColumn();
+            entity.Property(x => x.NumeroDocumento).HasMaxLength(20);
+            entity.Property(x => x.Cantidad).HasPrecision(18, 6);
+            entity.Property(x => x.CantidadRestante).HasPrecision(18, 6);
+            entity.Property(x => x.CantidadFacturada).HasPrecision(18, 6);
+            entity.Property(x => x.CantidadPorUnidadMedida).HasPrecision(18, 6);
+            entity.Property(x => x.ClaveOrigen).HasMaxLength(50).IsRequired();
+            entity.Property(x => x.CreatedBy).HasMaxLength(100).IsRequired();
+
+            // Libro append-only: las tablas de este esquema no llevan HasQueryFilter propio, y las FK de
+            // abajo hacia maestros con borrado lógico (Productos, Almacenes, UnidadesMedida, SociosNegocio)
+            // se declaran SOLO como columna + HasForeignKey, sin navegación de ida ni de vuelta. Sin una
+            // navegación que EF tenga que anular al aplicar el query filter del principal, no se dispara el
+            // aviso de "required end with query filter" y un movimiento sigue siendo visible aunque el
+            // producto/almacén al que apunta se borre lógicamente después.
+            entity.HasOne<Producto>().WithMany().HasForeignKey(x => x.ProductoId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<Almacen>().WithMany().HasForeignKey(x => x.AlmacenId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<UnidadMedida>().WithMany().HasForeignKey(x => x.UnidadMedidaId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<SocioNegocio>().WithMany().HasForeignKey(x => x.SocioNegocioId).OnDelete(DeleteBehavior.Restrict);
+
+            // Aplicación FIFO: candidatas a consumir son las entradas vivas (CantidadRestante > 0) de un
+            // producto en un almacén, en orden de fecha y luego de Id (desempate estable dentro del mismo día).
+            entity.HasIndex(x => new { x.ProductoId, x.AlmacenId, x.FechaRegistro, x.Id })
+                .HasDatabaseName("IX_MovimientosProducto_Fifo")
+                .HasFilter("\"CantidadRestante\" > 0");
+
+            // Guarda de borrado de almacén (DeleteAlmacenCommandHandler): "¿existe algún movimiento con este AlmacenId?".
+            entity.HasIndex(x => x.AlmacenId).HasDatabaseName("IX_MovimientosProducto_AlmacenId");
+        });
+
+        modelBuilder.Entity<MovimientoValor>(entity =>
+        {
+            entity.ToTable("MovimientosValor");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).UseIdentityAlwaysColumn();
+            entity.Property(x => x.CantidadValorada).HasPrecision(18, 6);
+            entity.Property(x => x.CantidadFacturada).HasPrecision(18, 6);
+            entity.Property(x => x.ImporteCosto).HasPrecision(18, 4);
+            entity.Property(x => x.CostoPorUnidad).HasPrecision(18, 4);
+            entity.Property(x => x.ImporteVenta).HasPrecision(18, 4);
+            entity.Property(x => x.ImporteCostoPosteadoContabilidad).HasPrecision(18, 4).HasDefaultValue(0m);
+            entity.Property(x => x.NumeroDocumento).HasMaxLength(20);
+            entity.Property(x => x.ClaveOrigen).HasMaxLength(50).IsRequired();
+            entity.Property(x => x.CreatedBy).HasMaxLength(100).IsRequired();
+
+            // Mismo motivo que en MovimientoProducto: FK a maestros sin navegación.
+            entity.HasOne<Producto>().WithMany().HasForeignKey(x => x.ProductoId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<Almacen>().WithMany().HasForeignKey(x => x.AlmacenId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<MovimientoProducto>().WithMany().HasForeignKey(x => x.MovimientoProductoId).OnDelete(DeleteBehavior.Restrict);
+
+            // Cola de posteo a contabilidad: filas cuyo importe de costo aún no coincide con lo posteado.
+            entity.HasIndex(x => new { x.ProductoId, x.AlmacenId, x.FechaRegistro })
+                .HasDatabaseName("IX_MovimientosValor_PendientePosteoContabilidad")
+                .HasFilter("\"ImporteCosto\" <> \"ImporteCostoPosteadoContabilidad\"");
+        });
+
+        modelBuilder.Entity<AplicacionMovimientoProducto>(entity =>
+        {
+            entity.ToTable("AplicacionesMovimientoProducto", t =>
+                t.HasCheckConstraint("CK_Aplicaciones_Cantidad_Positiva", "\"Cantidad\" > 0"));
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).UseIdentityAlwaysColumn();
+            entity.Property(x => x.Cantidad).HasPrecision(18, 6);
+
+            // Dos FK al mismo libro (MovimientosProducto), sin navegación en ninguna dirección: EF las
+            // distingue por la propiedad FK, no colisionan entre sí.
+            entity.HasOne<MovimientoProducto>().WithMany().HasForeignKey(x => x.MovimientoEntradaId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<MovimientoProducto>().WithMany().HasForeignKey(x => x.MovimientoSalidaId).OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasIndex(x => x.MovimientoEntradaId).HasDatabaseName("IX_AplicacionesMovimientoProducto_MovimientoEntradaId");
+            entity.HasIndex(x => x.MovimientoSalidaId).HasDatabaseName("IX_AplicacionesMovimientoProducto_MovimientoSalidaId");
         });
     }
 

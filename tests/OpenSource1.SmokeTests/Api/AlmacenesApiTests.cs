@@ -2,9 +2,11 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
 using OpenSource1.Application.Features.Almacenes.Dtos;
 using OpenSource1.Core.Common;
 using OpenSource1.Core.Entities;
+using OpenSource1.Infrastructure.Data;
 using OpenSource1.SmokeTests.TestInfrastructure;
 
 namespace OpenSource1.SmokeTests.Api;
@@ -12,10 +14,16 @@ namespace OpenSource1.SmokeTests.Api;
 [Collection(PostgresCollection.Name)]
 public sealed class AlmacenesApiTests : IClassFixture<PostgresTestFixture>
 {
+    // Semilla de unidad "UND" (Task 2.x): usada para insertar por SQL un MovimientoProducto de prueba sin
+    // depender de crear una unidad de medida propia.
+    private static readonly Guid UnidadUndSemilla = Guid.Parse("a1000000-0000-0000-0000-000000000001");
+
+    private readonly PostgresTestFixture _fixture;
     private readonly HttpClient _client;
 
     public AlmacenesApiTests(PostgresTestFixture fixture)
     {
+        _fixture = fixture;
         var factory = fixture.CreateFactory();
         _client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
     }
@@ -217,6 +225,36 @@ public sealed class AlmacenesApiTests : IClassFixture<PostgresTestFixture>
     }
 
     [Fact]
+    public async Task Delete_ConMovimientosDeInventario_Devuelve409YElAlmacenSigueExistiendo()
+    {
+        var client = CreateClient("Administrador");
+        var codigo = $"DM{Guid.NewGuid():N}"[..10];
+
+        var create = await client.PostAsJsonAsync(
+            "/api/almacenes", new { codigo, nombre = "Con movimientos", bloqueado = false, esPredeterminado = false });
+        Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+        var almacenId = (await create.Content.ReadFromJsonAsync<AlmacenResponse>())!.Id;
+
+        var codigoProducto = $"MP{Guid.NewGuid():N}"[..15];
+        var crearProducto = await client.PostAsJsonAsync(
+            "/api/productos", new { codigo = codigoProducto, nombre = "Producto para movimiento", precioVenta = 1m, stock = 0 });
+        Assert.Equal(HttpStatusCode.Created, crearProducto.StatusCode);
+        var productoId = JsonDocument.Parse(await crearProducto.Content.ReadAsStringAsync()).RootElement.GetProperty("id").GetGuid();
+
+        await InsertarMovimientoDePruebaAsync(productoId, almacenId);
+
+        var delete = await client.DeleteAsync($"/api/almacenes/{almacenId}");
+
+        Assert.Equal(HttpStatusCode.Conflict, delete.StatusCode);
+        var problema = await delete.Content.ReadFromJsonAsync<JsonDocument>();
+        var mensajes = problema!.RootElement.GetProperty("errors").GetProperty("Id");
+        Assert.Contains("movimientos", mensajes[0].GetString(), StringComparison.OrdinalIgnoreCase);
+
+        // Sigue existiendo: el borrado lógico no se aplicó.
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync($"/api/almacenes/{almacenId}")).StatusCode);
+    }
+
+    [Fact]
     public async Task Delete_Normal_Devuelve204YLuegoGet404YElListadoNoLoDevuelve()
     {
         var client = CreateClient("Administrador");
@@ -263,6 +301,28 @@ public sealed class AlmacenesApiTests : IClassFixture<PostgresTestFixture>
         var response = await client.GetAsync($"/api/almacenes?codigo={codigo}");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         return (await response.Content.ReadFromJsonAsync<PagedResult<AlmacenResponse>>())!;
+    }
+
+    /// <summary>
+    /// Inserta por SQL directo un <c>MovimientoProducto</c> mínimo (Task 3.3): la escritura normal del
+    /// libro es del servicio de registro de la Task 3.4, que todavía no existe, así que la guarda de
+    /// borrado se prueba con una fila insertada a mano.
+    /// </summary>
+    private async Task InsertarMovimientoDePruebaAsync(Guid productoId, Guid almacenId)
+    {
+        await using var contexto = new ApplicationDbContext(
+            new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(_fixture.AppConnectionString).Options);
+
+        await contexto.Database.ExecuteSqlAsync(
+            $"""
+            INSERT INTO "MovimientosProducto"
+                ("ProductoId","AlmacenId","TipoMovimiento","TipoDocumento","NumeroLineaDocumento",
+                 "FechaRegistro","FechaDocumento","Cantidad","CantidadRestante","CantidadFacturada",
+                 "UnidadMedidaId","CantidadPorUnidadMedida","TipoOrigen","ClaveOrigen","CreatedAtUtc","CreatedBy")
+            VALUES
+                ({productoId},{almacenId},1,1,1,CURRENT_DATE,CURRENT_DATE,10,10,10,{UnidadUndSemilla},1,1,
+                 {$"TEST-GUARD-{Guid.NewGuid():N}"},now(),'test')
+            """);
     }
 
     private HttpClient CreateClient(string role)
