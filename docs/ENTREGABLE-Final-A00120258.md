@@ -7,8 +7,6 @@
 
 > Por indicación académica, este documento no incluye portada ni video. La evidencia visual fue obtenida de una ejecución real del sistema y se conserva en `docs/screenshots/entregable-3/`.
 
----
-
 ## 1. Introducción
 
 AxionERP es una aplicación cliente-servidor orientada a la administración de usuarios, clientes y productos. La solución integra autenticación, autorización basada en roles, operaciones de mantenimiento, consultas dinámicas, reportería, paneles de indicadores y bitácora. Su propósito es centralizar información operativa y restringir cada función de acuerdo con la responsabilidad del usuario autenticado.
@@ -24,10 +22,15 @@ Integrar y verificar una aplicación empresarial funcional que permita autentica
 ### 2.2 Objetivos específicos
 
 - Integrar frontend, API y base de datos en un entorno reproducible.
+
 - comprobar autenticación y establecimiento de sesión segura.
+
 - Verificar visibilidad de menús y autorización de rutas según rol.
+
 - Validar los flujos de consulta, búsqueda, alta, detalle, modificación y confirmación de eliminación.
+
 - Comprobar reportería, exportación, paneles y bitácora.
+
 - Documentar resultados mediante evidencia visual obtenida de la aplicación en ejecución.
 
 ## 3. Alcance y metodología de verificación
@@ -41,7 +44,7 @@ No se ejecutaron eliminaciones ni cambios de estado sobre registros semilla. Las
 ### 3.2 Entorno
 
 | Componente | Configuración verificada |
-| --- | --- |
+| - | - |
 | Framework | .NET 10 (`net10.0`) |
 | Frontend | Blazor Web App con renderizado Static SSR |
 | Backend | ASP.NET Core Web API |
@@ -51,21 +54,28 @@ No se ejecutaron eliminaciones ni cambios de estado sobre registros semilla. Las
 | Automatización | Playwright CLI sobre Chromium |
 | Resolución de captura | 1280 o 1440 px de ancho; altura extendida en páginas largas |
 
+
 ### 3.3 Procedimiento
 
 1. Se construyeron y levantaron los servicios `postgres`, `api` y `blazor` mediante Docker Compose.
+
 2. Se confirmó la disponibilidad de la pantalla de autenticación y se realizaron inicios de sesión reales con las cuentas semilla de cada rol.
+
 3. Se navegó mediante enlaces y formularios SSR, sin modificar el modo de renderizado de la aplicación.
+
 4. Para el Administrador se recorrieron listados, fichas, altas, ediciones, búsquedas, reportería, paneles, bitácora y confirmaciones.
+
 5. Para Supervisor y Ejecutor se compararon menús, acciones visibles y rutas explícitamente denegadas.
+
 6. Se generaron capturas PNG de página completa y se inspeccionó una muestra para confirmar contenido, rol y escenario.
+
 7. Se ejecutaron compilación y pruebas automatizadas como controles técnicos complementarios.
 
 ## 4. Tecnologías utilizadas
 
 | Área | Tecnología |
-| --- | --- |
-| Lenguaje | C# |
+| - | - |
+| Lenguaje | C\# |
 | Plataforma | .NET 10 |
 | Backend | ASP.NET Core Web API |
 | Frontend | Blazor Web App Static SSR |
@@ -77,17 +87,19 @@ No se ejecutaron eliminaciones ni cambios de estado sobre registros semilla. Las
 | Despliegue local | Docker y Docker Compose |
 | Verificación E2E | Playwright CLI |
 
+
 ## 5. Arquitectura general de la solución
 
 La solución distribuye responsabilidades entre proyectos especializados:
 
 | Proyecto | Responsabilidad principal |
-| --- | --- |
+| - | - |
 | `OpenSource1.Core` | Entidades, objetos de valor y abstracciones del dominio. |
 | `OpenSource1.Application` | Casos de uso, contratos, DTO, consultas y políticas. |
 | `OpenSource1.Infrastructure` | Persistencia, Identity, repositorios y servicios de infraestructura. |
 | `OpenSource1.Api` | Exposición de recursos HTTP, autenticación y autorización efectiva. |
 | `OpenSource1.Blazor` | Presentación SSR, formularios, navegación y consumo tipado de la API. |
+
 
 La autenticación se inicia en la API, que emite un JWT con roles y permisos. La aplicación Blazor mantiene dicho token en sesión del servidor y representa la sesión del navegador mediante una cookie segura HttpOnly. Así, el token no se expone a JavaScript del navegador. La visibilidad condicional de la interfaz mejora la experiencia, mientras que la API conserva la responsabilidad de aplicar la autorización real.
 
@@ -96,13 +108,21 @@ La autenticación se inicia en la API, que emite un JWT con roles y permisos. La
 El sistema integra los siguientes componentes:
 
 1. Inicio de sesión y administración de sesión.
+
 2. Gestión administrativa de usuarios, roles y estado.
+
 3. Gestión de clientes.
+
 4. Gestión de productos.
+
 5. Búsquedas simples y filtros por campos.
+
 6. Reportes PDF y exportaciones Excel.
+
 7. Panel general y paneles especializados.
+
 8. Bitácora operativa.
+
 9. Control de acceso por rol tanto en interfaz como en API.
 
 ## 7. Seguridad por roles
@@ -110,7 +130,7 @@ El sistema integra los siguientes componentes:
 ### 7.1 Matriz funcional
 
 | Módulo o acción | Administrador | Supervisor | Ejecutor |
-| --- | --- | --- | --- |
+| - | - | - | - |
 | Gestión de usuarios | Sí | No | No |
 | Consultar clientes y productos | Sí | Sí | Sí |
 | Agregar clientes y productos | Sí | No | Sí |
@@ -118,6 +138,7 @@ El sistema integra los siguientes componentes:
 | Eliminar clientes y productos | Sí | No | No |
 | Reportería | Sí | Sí | Sí |
 | Bitácora | Sí | Sí | No |
+
 
 Las políticas `CanConsult`, `CanAdd`, `CanModify` y `CanDelete` formalizan esta matriz. Las páginas emplean autorización declarativa y la API vuelve a validar cada operación; por tanto, ocultar un botón no constituye el único control de seguridad.
 
@@ -152,13 +173,14 @@ Las pruebas de API permitidas que podrían alterar datos se enviaron deliberadam
 #### Supervisor
 
 | Capacidad esperada | Evidencia UI o HTTP | Resultado observado | Estado |
-| --- | --- | --- | --- |
+| - | - | - | - |
 | Consultar Clientes | Listado real con dos registros y rol visible | Página cargada; `GET /api/clientes` devolvió `200` | Conforme |
 | Consultar Productos | Listado real con dos registros y rol visible | Página cargada; `GET /api/productos` devolvió `200` | Conforme |
 | Modificar | Iconos de edición y formulario de cliente visibles | Ruta de edición cargada; `PUT` de prueba llegó a validación y devolvió `400` | Conforme |
 | No agregar | Botón **Nuevo** ausente y acceso directo a `/clientes/new` | Redirección a **Acceso denegado**; `POST` de Clientes y Productos devolvió `403` | Conforme |
 | No eliminar | Acciones de papelera ausentes | `DELETE` de Clientes y Productos devolvió `403` | Conforme |
 | No acceder a Usuarios | Opción ausente del menú y acceso directo a `/admin/users` | Redirección a **Acceso denegado**; `GET /api/users` devolvió `403` | Conforme |
+
 
 ![Supervisor consulta clientes sin alta ni eliminación](screenshots/entregable-3/36-supervisor-clientes-sin-agregar-eliminar.png)
 
@@ -183,7 +205,7 @@ Las pruebas de API permitidas que podrían alterar datos se enviaron deliberadam
 #### Ejecutor
 
 | Capacidad esperada | Evidencia UI o HTTP | Resultado observado | Estado |
-| --- | --- | --- | --- |
+| - | - | - | - |
 | Consultar Clientes | Listado real con dos registros y rol visible | Página cargada; `GET /api/clientes` devolvió `200` | Conforme |
 | Consultar Productos | Listado real con dos registros y rol visible | Página cargada; `GET /api/productos` devolvió `200` | Conforme |
 | Agregar | Botón **Nuevo** y formularios de alta visibles | Rutas de alta cargaron; `POST` llegó a validación y devolvió `400` | Conforme |
@@ -191,6 +213,7 @@ Las pruebas de API permitidas que podrían alterar datos se enviaron deliberadam
 | No eliminar | Acciones de papelera ausentes | `DELETE` de Clientes y Productos devolvió `403` | Conforme |
 | No acceder a Usuarios | Opción ausente del menú y acceso directo a `/admin/users` | Redirección a **Acceso denegado**; `GET /api/users` devolvió `403` | Conforme |
 | No acceder a Bitácora | Opción ausente del menú y acceso directo a `/bitacora` | Redirección a **Acceso denegado** | Conforme |
+
 
 ![Ejecutor consulta clientes y puede agregar](screenshots/entregable-3/41-ejecutor-clientes-solo-consultar-agregar.png)
 
@@ -223,16 +246,17 @@ Las pruebas de API permitidas que podrían alterar datos se enviaron deliberadam
 #### Resumen de estados de API
 
 | Solicitud no destructiva | Supervisor | Ejecutor |
-| --- | ---: | ---: |
+| - | -: | -: |
 | `GET /api/clientes` | `200` | `200` |
 | `GET /api/productos` | `200` | `200` |
 | `POST /api/clientes` con cuerpo vacío | `403` | `400` autorizado, rechazado por validación |
 | `POST /api/productos` con cuerpo vacío | `403` | `400` autorizado, rechazado por validación |
-| `PUT /api/clientes/{id-inexistente}` con cuerpo vacío | `400` autorizado, rechazado por validación | `403` |
-| `PUT /api/productos/{id-inexistente}` con cuerpo vacío | `400` autorizado, rechazado por validación | `403` |
-| `DELETE /api/clientes/{id-inexistente}` | `403` | `403` |
-| `DELETE /api/productos/{id-inexistente}` | `403` | `403` |
+| `PUT /api/clientes/\{id-inexistente\}` con cuerpo vacío | `400` autorizado, rechazado por validación | `403` |
+| `PUT /api/productos/\{id-inexistente\}` con cuerpo vacío | `400` autorizado, rechazado por validación | `403` |
+| `DELETE /api/clientes/\{id-inexistente\}` | `403` | `403` |
+| `DELETE /api/productos/\{id-inexistente\}` | `403` | `403` |
 | `GET /api/users` | `403` | `403` |
+
 
 ## 8. Integración del inicio de sesión
 
@@ -374,7 +398,7 @@ Bitácora permite consultar actividad operativa y está disponible para Administ
 
 ## 15. Buscadores, filtros y consultas dinámicas
 
-Usuarios admite búsqueda por nombre o correo y filtros por rol y estado. Clientes y productos incorporan búsqueda principal, campos opcionales y operadores documentados en la interfaz (`*`, `||` y `&&`). Los parámetros se representan en la URL y son procesados mediante formularios GET, mecanismo compatible con Static SSR y favorable para reproducir consultas.
+Usuarios admite búsqueda por nombre o correo y filtros por rol y estado. Clientes y productos incorporan búsqueda principal, campos opcionales y operadores documentados en la interfaz (`\*`, `||` y `&&`). Los parámetros se representan en la URL y son procesados mediante formularios GET, mecanismo compatible con Static SSR y favorable para reproducir consultas.
 
 Las figuras 7, 12 y 19 evidencian los tres contextos de consulta. Los enlaces para limpiar restablecen el estado de los filtros sin requerir componentes interactivos.
 
@@ -395,7 +419,7 @@ No se incluyen credenciales ni valores secretos en este informe. El archivo `.en
 ## 18. Resultados y trazabilidad de requisitos
 
 | Requisito | Resultado observado | Evidencia |
-| --- | --- | --- |
+| - | - | - |
 | Menú principal integrado | Conforme; cambia según rol | Figuras 1 a 3 |
 | Inicio de sesión | Conforme para tres cuentas semilla | Figura 6 y figuras 1 a 3 |
 | Seguridad por roles | Conforme en visibilidad y rechazo de ruta | Figuras 1 a 5, 17, 18, 24 y 25 |
@@ -410,13 +434,19 @@ No se incluyen credenciales ni valores secretos en este informe. El archivo `.en
 | Modo oscuro | Conforme | Figura 33 |
 | Persistencia | Registros e indicadores reales recuperados desde el stack | Figuras 1, 7, 12, 19, 29 y 30 |
 
+
 ### 18.1 Resultado cuantitativo de la sesión
 
 - Tres roles autenticados y recorridos.
+
 - Cuarenta y siete capturas PNG generadas sobre la aplicación real.
+
 - Tres módulos de mantenimiento inspeccionados.
+
 - Cuatro rutas UI no autorizadas comprobadas explícitamente, además de nueve combinaciones de autorización por rol verificadas en la API.
+
 - Tres diálogos destructivos y un cambio de estado observados sin ejecutar la acción final.
+
 - Cero registros creados, modificados o eliminados durante la captura.
 
 ## 19. Limitaciones de la evidencia
@@ -426,13 +456,21 @@ La sesión documenta comportamiento funcional visible y autorización de rutas, 
 ## 20. Guion para defensa final
 
 1. Explicar la arquitectura y el flujo API-first de autenticación.
+
 2. Iniciar sesión como Administrador y mostrar el panel general.
+
 3. Recorrer usuarios y abrir confirmaciones de rol, estado o eliminación sin afectar cuentas esenciales.
+
 4. Demostrar búsqueda, detalle y edición en clientes y productos.
+
 5. Mostrar preparación de PDF y Excel, junto con los paneles especializados.
+
 6. Cambiar a Supervisor y comparar las acciones disponibles.
+
 7. Intentar la ruta administrativa para evidenciar la denegación efectiva.
+
 8. Cambiar a Ejecutor y mostrar alta habilitada, modificación ausente y Bitácora denegada.
+
 9. Cerrar con trazabilidad de requisitos, resultados y limitaciones.
 
 ## 21. Conclusión
@@ -443,4 +481,5 @@ La evidencia fue producida mediante navegación automatizada sobre el despliegue
 
 ## Anexo A. Inventario de evidencia
 
-El inventario completo, con rol y escenario de cada una de las 47 imágenes, se encuentra en [`docs/screenshots/entregable-3/README.md`](screenshots/entregable-3/README.md).
+El inventario completo, con rol y escenario de cada una de las 47 imágenes, se encuentra en [`docs/screenshots/entregable-3/README.md`](file:///home/ray/test/docs/screenshots/entregable-3/README.md).
+

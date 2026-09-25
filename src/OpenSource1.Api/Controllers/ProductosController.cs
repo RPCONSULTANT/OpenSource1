@@ -1,11 +1,13 @@
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using OpenSource1.Api.Infrastructure;
 using OpenSource1.Application.Features.Productos;
 using OpenSource1.Application.Features.Productos.Commands;
 using OpenSource1.Application.Features.Productos.Dtos;
 using OpenSource1.Application.Features.Productos.Queries;
 using OpenSource1.Application.Security;
+using OpenSource1.Core.Common;
 using OpenSource1.Core.ValueObjects;
 
 namespace OpenSource1.Api.Controllers;
@@ -16,8 +18,8 @@ public sealed class ProductosController(ISender sender) : ControllerBase
 {
     [HttpGet]
     [Authorize(Policy = ApplicationPolicies.CanConsult)]
-    [ProducesResponseType<IReadOnlyList<ProductoResponse>>(StatusCodes.Status200OK)]
-    public async Task<ActionResult<IReadOnlyList<ProductoResponse>>> List(
+    [ProducesResponseType<PagedResult<ProductoResponse>>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> List(
         [FromQuery] string? codigo,
         [FromQuery] string? nombre,
         [FromQuery] string? categoriaCodigo,
@@ -26,13 +28,19 @@ public sealed class ProductosController(ISender sender) : ControllerBase
         [FromQuery] string? unidadMedidaNombre,
         [FromQuery] string? precio,
         [FromQuery] string? stock,
-        CancellationToken cancellationToken)
+        [FromQuery] int pagina = 1,
+        [FromQuery] int tamanoPagina = PageRequest.TamanoPorDefecto,
+        [FromQuery] string? ordenarPor = null,
+        [FromQuery] bool descendente = true,
+        CancellationToken cancellationToken = default)
     {
         var result = await sender.Send(
-            new ListProductosQuery(new ProductoSearchCriteria(codigo, nombre, categoriaCodigo, categoriaNombre, unidadMedidaCodigo, unidadMedidaNombre, precio, stock)),
+            new ListProductosQuery(
+                new ProductoSearchCriteria(codigo, nombre, categoriaCodigo, categoriaNombre, unidadMedidaCodigo, unidadMedidaNombre, precio, stock),
+                new PageRequest(pagina, tamanoPagina, ordenarPor, descendente)),
             cancellationToken);
 
-        return Ok(result);
+        return result.EsFallo ? result.ToActionResult() : Ok(result.Valor);
     }
 
     [HttpGet("{id:guid}")]

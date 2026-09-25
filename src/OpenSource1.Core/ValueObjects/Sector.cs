@@ -1,17 +1,34 @@
 using OpenSource1.Core.Abstractions;
+using OpenSource1.Core.Common;
 
 namespace OpenSource1.Core.ValueObjects;
 
 public sealed class Sector : ValueObject
 {
-    public Sector(string nombre)
+    private Sector(string nombre)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(nombre);
-
-        Nombre = nombre.Trim();
+        Nombre = nombre;
     }
 
     public string Nombre { get; }
+
+    /// <param name="nombre">Nombre del sector.</param>
+    /// <param name="nombreCampo">
+    /// Nombre del campo tal como lo conoce el llamante (p. ej. <c>nameof(request.Sector)</c>).
+    /// Si no se indica se usa <c>nameof(nombre)</c> como respaldo.
+    /// </param>
+    public static Sector Of(string nombre, string? nombreCampo = null)
+    {
+        var campo = nombreCampo ?? nameof(nombre);
+
+        if (string.IsNullOrWhiteSpace(nombre))
+        {
+            throw new ErroresDeDominioException(new Error(
+                "sector.nombre_requerido", "El nombre del sector es obligatorio.", campo));
+        }
+
+        return new Sector(nombre.Trim());
+    }
 
     protected override IEnumerable<object?> GetEqualityComponents()
     {

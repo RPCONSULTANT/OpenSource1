@@ -103,8 +103,8 @@ else
     {
         try
         {
-            var clientes = await ClienteApiClient.ListAsync();
-            var productos = await ProductoApiClient.ListAsync();
+            var clientes = await ClienteApiClient.ListAllAsync();
+            var productos = await ProductoApiClient.ListAllAsync();
 
             entries = clientes
                 .Select(c => new BitacoraEntry("Cliente", $"{c.Nombre} {c.Apellido}",

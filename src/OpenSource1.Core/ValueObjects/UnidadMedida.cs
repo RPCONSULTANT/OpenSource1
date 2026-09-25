@@ -1,4 +1,5 @@
 using OpenSource1.Core.Abstractions;
+using OpenSource1.Core.Common;
 
 namespace OpenSource1.Core.ValueObjects;
 
@@ -33,14 +34,27 @@ public sealed class UnidadMedida : ValueObject
     public static bool EsCodigoValido(string? codigo) =>
         !string.IsNullOrWhiteSpace(codigo) && Nombres.ContainsKey(codigo.Trim().ToUpperInvariant());
 
-    public static UnidadMedida Of(string codigo)
+    /// <param name="codigo">Código de unidad de medida.</param>
+    /// <param name="nombreCampo">
+    /// Nombre del campo tal como lo conoce el llamante (p. ej. <c>nameof(request.UnidadMedidaCodigo)</c>).
+    /// Si no se indica se usa <c>nameof(codigo)</c> como respaldo.
+    /// </param>
+    public static UnidadMedida Of(string codigo, string? nombreCampo = null)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(codigo);
+        var campo = nombreCampo ?? nameof(codigo);
+
+        if (string.IsNullOrWhiteSpace(codigo))
+        {
+            throw new ErroresDeDominioException(new Error(
+                "unidad_medida.codigo_requerido", "El código de unidad de medida es obligatorio.", campo));
+        }
+
         var normalizado = codigo.Trim().ToUpperInvariant();
 
         if (!Nombres.TryGetValue(normalizado, out var nombre))
         {
-            throw new ArgumentException($"Código de unidad de medida no reconocido: '{codigo}'.", nameof(codigo));
+            throw new ErroresDeDominioException(new Error(
+                "unidad_medida.codigo_invalido", $"Código de unidad de medida no reconocido: '{codigo}'.", campo));
         }
 
         return new UnidadMedida(normalizado, nombre);

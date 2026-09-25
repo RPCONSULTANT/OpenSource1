@@ -27,19 +27,28 @@ public static class DependencyInjection
     {
         services.Configure<DatabaseOptions>(configuration.GetSection(DatabaseOptions.SectionName));
 
-        var applicationConnectionString = configuration.GetConnectionString("DefaultConnection")
-            ?? throw new InvalidOperationException("Connection string 'DefaultConnection' was not found.");
+        services.AddScoped<DbSession>();
+        services.AddScoped<IDbSession>(sp => sp.GetRequiredService<DbSession>());
 
-        var identityConnectionString = configuration.GetConnectionString("IdentityConnection")
-            ?? throw new InvalidOperationException("Connection string 'IdentityConnection' was not found.");
+        services.AddDbContext<ApplicationDbContext>((sp, options) =>
+            options.UseNpgsql(sp.GetRequiredService<DbSession>().Connection));
 
-        services.AddDbContext<ApplicationDbContext>(options =>
-            options.UseNpgsql(applicationConnectionString));
+        // La base de Identity mantiene su propia conexión: es otra base de datos.
+        // La cadena de conexión se lee vía IConfiguration resuelto de DI en la fábrica del
+        // DbContext (no en una variable capturada aquí durante el registro): igual que
+        // DbSession con "DefaultConnection", esto difiere la lectura hasta que el DbContext se
+        // construye realmente, después de que WebApplicationFactory haya fusionado su
+        // configuración de prueba. Leer "IdentityConnection" de forma eager en este método (como
+        // hacía antes) capturaba siempre el valor real de appsettings.json, igual que el defecto
+        // de validación eager de Jwt:SigningKey en Identity/DependencyInjection.cs.
+        services.AddDbContext<AppIdentityDbContext>((sp, options) =>
+        {
+            var identityConnectionString = sp.GetRequiredService<IConfiguration>().GetConnectionString("IdentityConnection")
+                ?? throw new InvalidOperationException("Connection string 'IdentityConnection' was not found.");
 
-        services.AddDbContext<AppIdentityDbContext>(options =>
-            options.UseNpgsql(identityConnectionString));
+            options.UseNpgsql(identityConnectionString);
+        });
 
-        services.AddScoped<IDbConnectionFactory, NpgsqlConnectionFactory>();
         services.AddScoped<IAppSettingReadRepository, DapperAppSettingReadRepository>();
         services.AddScoped<IEntradaReadRepository, DapperEntradaReadRepository>();
         services.AddScoped<IClienteReadRepository, DapperClienteReadRepository>();

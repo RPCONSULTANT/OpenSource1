@@ -241,6 +241,42 @@ AUTH_SEED_DEFAULT_PASSWORD=Password123
 
 No subir el archivo `.env` real al repositorio.
 
+### Configuración de `OpenSource1.Api` (obligatoria en un clon nuevo)
+
+`src/OpenSource1.Api/appsettings.json` **no está versionado** (contiene marcadores de
+secreto y se ignora vía `.gitignore` para evitar volver a comprometer credenciales). Sin
+este archivo la API no arranca. Crearlo a partir de la plantilla:
+
+```bash
+cp src/OpenSource1.Api/appsettings.Example.json src/OpenSource1.Api/appsettings.json
+```
+
+Rellenar los valores marcados como `__SET_IN_USER_SECRETS__` con User Secrets (no editar
+los placeholders en el propio `appsettings.json` con valores reales):
+
+```bash
+cd src/OpenSource1.Api
+dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=localhost;Port=5432;Database=AxionERP_App;Username=Rainiery;Password=<tu-password>"
+dotnet user-secrets set "ConnectionStrings:IdentityConnection" "Host=localhost;Port=5432;Database=AxionERP_Identity;Username=Rainiery;Password=<tu-password>"
+dotnet user-secrets set "Jwt:SigningKey" "<tu-clave-de-firma-jwt>"
+```
+
+User Secrets tiene prioridad sobre `appsettings.json` en `Development`, así que los
+placeholders `__SET_IN_USER_SECRETS__` nunca llegan a usarse en tiempo de ejecución una
+vez configurados.
+
+`src/OpenSource1.Api/appsettings.Development.json` tampoco está versionado, por el mismo
+motivo (tenía las mismas credenciales de ejemplo hardcodeadas). Es opcional: si no existe,
+la API arranca igual con `appsettings.json` + User Secrets, solo se pierde el ajuste de
+`Jwt:ExpirationMinutes: 120` propio de Development. Para recrearlo:
+
+```bash
+cp src/OpenSource1.Api/appsettings.Development.Example.json src/OpenSource1.Api/appsettings.Development.json
+```
+
+Ya trae los mismos placeholders `__SET_IN_USER_SECRETS__`; los User Secrets configurados
+arriba también aplican aquí (misma `UserSecretsId`, no hace falta repetir el comando).
+
 ## Ejecución con Docker Compose
 
 Levantar el sistema:
@@ -388,6 +424,44 @@ tests/OpenSource1.SmokeTests
 ```
 
 ## Changelog
+
+### Versión 0.3 — Entregable 3
+
+Integración final de AxionERP como sistema empresarial completo, con módulos operativos, seguridad por roles y evidencias automatizadas de funcionamiento.
+
+Incluye:
+
+- Integración completa de login, menú principal, frontend, API y PostgreSQL.
+- CRUD de usuarios exclusivo para el rol `Administrador`.
+- CRUD de clientes y productos conectado a base de datos.
+- Búsquedas y filtros dinámicos por múltiples campos.
+- Validaciones de formularios y reglas de negocio en frontend y backend.
+- Políticas `CanConsult`, `CanAdd`, `CanModify` y `CanDelete`.
+- Acceso de consulta para `Administrador`, `Supervisor` y `Ejecutor`.
+- Alta de registros para `Administrador` y `Ejecutor`.
+- Modificación de registros para `Administrador` y `Supervisor`.
+- Eliminación restringida exclusivamente al `Administrador`.
+- Protección del módulo de usuarios para impedir acceso de `Supervisor` y `Ejecutor`.
+- Navegación y acciones visibles dinámicamente según rol.
+- Bloqueo efectivo de rutas y endpoints no autorizados.
+- Dashboard general y dashboards de clientes y productos.
+- Reportes PDF y exportaciones a Excel.
+- Bitácora operativa para Administrador y Supervisor.
+- Modo oscuro y diseño responsivo.
+- Documento académico final en [`docs/ENTREGABLE-3.md`](docs/ENTREGABLE-3.md).
+- 47 capturas E2E con evidencia de módulos, formularios, confirmaciones y permisos.
+- Pruebas específicas para demostrar restricciones de Supervisor y Ejecutor tanto en UI como en API.
+
+#### Matriz de autorización validada
+
+| Acción | Administrador | Supervisor | Ejecutor |
+| --- | --- | --- | --- |
+| Consultar clientes y productos | Sí | Sí | Sí |
+| Agregar clientes y productos | Sí | No | Sí |
+| Modificar clientes y productos | Sí | Sí | No |
+| Eliminar clientes y productos | Sí | No | No |
+| Gestionar usuarios | Sí | No | No |
+| Consultar bitácora | Sí | Sí | No |
 
 ### Versión 0.1 — Entregable 1
 

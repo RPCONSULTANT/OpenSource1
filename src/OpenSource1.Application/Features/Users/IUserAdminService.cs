@@ -7,7 +7,7 @@ public interface IUserAdminService
     Task<IReadOnlyList<UserSummaryResponse>> ListUsersAsync(
         string? search = null, string? role = null, bool? isActive = null, CancellationToken cancellationToken = default);
     Task<UserSummaryResponse?> GetByIdAsync(string userId, CancellationToken cancellationToken = default);
-    Task<(bool Success, IReadOnlyList<string> Errors)> CreateUserAsync(CreateUserRequest request, CancellationToken cancellationToken = default);
+    Task<(bool Success, string? UserId, IReadOnlyList<string> Errors)> CreateUserAsync(CreateUserRequest request, CancellationToken cancellationToken = default);
     Task<(bool Success, IReadOnlyList<string> Errors)> UpdateUserAsync(string userId, UpdateUserRequest request, CancellationToken cancellationToken = default);
     Task<(bool Success, IReadOnlyList<string> Errors)> ResetPasswordAsync(string userId, AdminResetPasswordRequest request, CancellationToken cancellationToken = default);
     Task<(bool Success, IReadOnlyList<string> Errors)> DeleteUserAsync(string userId, CancellationToken cancellationToken = default);

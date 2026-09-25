@@ -1,0 +1,20 @@
+{
+	"folders": [
+		{
+			"path": "src/OpenSource1.Api"
+		},
+		{
+			"path": "src/OpenSource1.Application"
+		},
+		{
+			"path": "src/OpenSource1.Blazor"
+		},
+		{
+			"path": "src/OpenSource1.Core"
+		},
+		{
+			"path": "src/OpenSource1.Infrastructure"
+		}
+	],
+	"settings": {}
+}
