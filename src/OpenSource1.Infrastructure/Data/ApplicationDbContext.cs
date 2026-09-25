@@ -378,6 +378,15 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             // Guarda de borrado de almacén (DeleteAlmacenCommandHandler): "¿existe algún movimiento con este AlmacenId?".
             entity.HasIndex(x => x.AlmacenId).HasDatabaseName("IX_MovimientosProducto_AlmacenId");
 
+            // Índices del spec que faltaban (revisión final de la Fase 3): localizar el/los movimientos de un
+            // documento de origen (reversión, consulta de un documento ya posteado) y los de una clave de origen
+            // (idempotencia del subsistema que lo generó). Sin datos que los usen todavía en esta fase, pero el
+            // spec los pide igual y sin ellos cualquier consulta por estas columnas sería un Seq Scan completo.
+            entity.HasIndex(x => new { x.TipoDocumento, x.NumeroDocumento })
+                .HasDatabaseName("IX_MovimientosProducto_TipoDocumento_NumeroDocumento");
+            entity.HasIndex(x => new { x.TipoOrigen, x.ClaveOrigen })
+                .HasDatabaseName("IX_MovimientosProducto_TipoOrigen_ClaveOrigen");
+
             // Existencia derivada (Task 3.6, corrección de rendimiento): el único índice que arranca en ProductoId es el
             // parcial de FIFO (CantidadRestante > 0, arriba), así que GetByIdAsync/ /existencias/la agregación del listado
             // (SUM("Cantidad") por ProductoId, o por ProductoId+AlmacenId en ExistenciasPorAlmacenAsync) recorrían el libro
@@ -412,6 +421,15 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.HasIndex(x => new { x.ProductoId, x.AlmacenId, x.FechaRegistro })
                 .HasDatabaseName("IX_MovimientosValor_PendientePosteoContabilidad")
                 .HasFilter("\"ImporteCosto\" <> \"ImporteCostoPosteadoContabilidad\"");
+
+            // Índice del spec que faltaba (revisión final de la Fase 3): el índice de arriba es PARCIAL (solo filas
+            // pendientes de posteo), así que no sirve para el filtro por (ProductoId, FechaRegistro) SIN esa
+            // condición que usan CostoPromedioCalculadora.SumasSql (el costo promedio móvil, en cada posteo) y la
+            // carga por producto de AjusteCostoInventario.AjustarProductoAsync (todos los movimientos de valor del
+            // producto): sin este índice, ambas consultas hacían un Seq Scan de TODA la tabla. No parcial, para
+            // cubrir las filas ya posteadas también.
+            entity.HasIndex(x => new { x.ProductoId, x.FechaRegistro })
+                .HasDatabaseName("IX_MovimientosValor_ProductoId_FechaRegistro");
         });
 
         modelBuilder.Entity<AplicacionMovimientoProducto>(entity =>
