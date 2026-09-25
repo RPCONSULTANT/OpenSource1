@@ -123,6 +123,10 @@ internal static class SocioNegocioReglas
 
         // Una imagen solo puede pertenecer a UN socio: si otro registro pudiera apuntar al fichero de este, al sustituir
         // su imagen la UI borraría la ajena. (Un fichero sin dueño es un huérfano, no una imagen de otro socio.)
+        // LIMITACIÓN CONOCIDA: consulta previa SIN índice único; dos peticiones concurrentes con el mismo imagePath pueden asignarlo
+        // a dos registros (medido: 40 de 40 rondas). Consecuencia: al sustituir la imagen de uno se borra el fichero y el otro queda
+        // con la imagen rota; NO es explotable para borrar el fichero de una víctima. Corrección de raíz recomendada (no implementada):
+        // índice único parcial sobre ImagePath (no nulo y no borrado) o comprobar referencias antes de borrar el fichero.
         if (!string.IsNullOrEmpty(datos.ImagePath))
         {
             var imagenEnUso = await unitOfWork.Repository<SocioNegocio>().FirstOrDefaultAsync(

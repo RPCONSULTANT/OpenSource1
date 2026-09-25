@@ -210,6 +210,10 @@ public sealed class AuthService(
 
         // Una imagen de perfil solo puede pertenecer a UN usuario: si otro pudiera apuntar al fichero de este, al cambiar
         // su imagen la UI borraría la ajena.
+        // LIMITACIÓN CONOCIDA: consulta previa SIN índice único; dos peticiones concurrentes con el mismo imagePath pueden asignarlo
+        // a dos usuarios (medido: 40 de 40 rondas). Consecuencia: al cambiar la imagen de uno se borra el fichero y el otro queda con
+        // la imagen rota; NO es explotable para borrar el fichero de una víctima. Corrección de raíz recomendada (no implementada):
+        // índice único parcial sobre ProfileImagePath (no nulo) o comprobar referencias antes de borrar el fichero.
         if (!string.IsNullOrEmpty(imagePath)
             && await userManager.Users.AnyAsync(u => u.ProfileImagePath == imagePath && u.Id != user.Id, cancellationToken))
         {

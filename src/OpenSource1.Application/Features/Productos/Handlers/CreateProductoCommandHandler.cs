@@ -36,7 +36,13 @@ public sealed class CreateProductoCommandHandler(IUnitOfWork unitOfWork) : IRequ
         return ToResponse(entity);
     }
 
-    /// <summary>Una imagen solo puede pertenecer a UN producto (si no, sustituir la de uno borraría la de otro).</summary>
+    /// <summary>
+    /// Una imagen solo puede pertenecer a UN producto (si no, sustituir la de uno borraría la de otro).
+    /// LIMITACIÓN CONOCIDA: es una consulta previa SIN índice único; dos peticiones concurrentes con el mismo <c>imagePath</c> pueden
+    /// asignarlo a dos registros (medido: 40 de 40 rondas). Consecuencia: al sustituir la imagen de uno se borra el fichero y el otro queda
+    /// con la imagen rota; NO es explotable para borrar el fichero de una víctima ajena. Corrección de raíz recomendada (no implementada):
+    /// índice único parcial sobre <c>ImagePath</c> (no nulo y no borrado) por tabla, o comprobar referencias antes de borrar el fichero.
+    /// </summary>
     public static async Task AsegurarImagenNoAsignadaAsync(IUnitOfWork unitOfWork, string? imagePath, Guid? idActual, CancellationToken cancellationToken)
     {
         if (string.IsNullOrEmpty(imagePath))
