@@ -19,6 +19,8 @@ public sealed class CreateProductoCommandHandler(IUnitOfWork unitOfWork) : IRequ
             throw new ErroresDeDominioException(errorImagen);
         }
 
+        await AsegurarImagenNoAsignadaAsync(unitOfWork, request.ImagePath, null, cancellationToken);
+
         var entity = new Producto
         {
             Codigo = request.Codigo.Trim(),
@@ -32,6 +34,24 @@ public sealed class CreateProductoCommandHandler(IUnitOfWork unitOfWork) : IRequ
         await unitOfWork.Repository<Producto>().AddAsync(entity, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return ToResponse(entity);
+    }
+
+    /// <summary>Una imagen solo puede pertenecer a UN producto (si no, sustituir la de uno borraría la de otro).</summary>
+    public static async Task AsegurarImagenNoAsignadaAsync(IUnitOfWork unitOfWork, string? imagePath, Guid? idActual, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrEmpty(imagePath))
+        {
+            return;
+        }
+
+        var enUso = await unitOfWork.Repository<Producto>().FirstOrDefaultAsync(
+            x => x.ImagePath == imagePath && (idActual == null || x.Id != idActual),
+            cancellationToken: cancellationToken);
+        if (enUso is not null)
+        {
+            throw new ErroresDeDominioException(new Error(
+                "producto.imagen_en_uso", "La imagen ya está asignada a otro producto.", RutaImagen.Campo));
+        }
     }
 
     public static ProductoResponse ToResponse(Producto x) => new()

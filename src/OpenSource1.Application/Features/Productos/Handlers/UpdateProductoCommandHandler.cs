@@ -22,6 +22,7 @@ public sealed class UpdateProductoCommandHandler(IUnitOfWork unitOfWork) : IRequ
         var repo = unitOfWork.Repository<Producto>();
         var entity = await repo.GetByIdAsync(new object[] { request.Id }, cancellationToken);
         if (entity is null) return null;
+        await CreateProductoCommandHandler.AsegurarImagenNoAsignadaAsync(unitOfWork, request.ImagePath, request.Id, cancellationToken);
         entity.Codigo = request.Codigo.Trim();
         entity.Nombre = request.Nombre.Trim();
         entity.Precio = request.Precio;

@@ -121,6 +121,22 @@ internal static class SocioNegocioReglas
             }
         }
 
+        // Una imagen solo puede pertenecer a UN socio: si otro registro pudiera apuntar al fichero de este, al sustituir
+        // su imagen la UI borraría la ajena. (Un fichero sin dueño es un huérfano, no una imagen de otro socio.)
+        if (!string.IsNullOrEmpty(datos.ImagePath))
+        {
+            var imagenEnUso = await unitOfWork.Repository<SocioNegocio>().FirstOrDefaultAsync(
+                x => x.ImagePath == datos.ImagePath && (idActual == null || x.Id != idActual),
+                cancellationToken: cancellationToken);
+            if (imagenEnUso is not null)
+            {
+                return new Error(
+                    "socio_negocio.imagen_en_uso",
+                    "La imagen ya está asignada a otro socio de negocio.",
+                    nameof(datos.ImagePath));
+            }
+        }
+
         var documento = NormalizarDocumento(datos.NumeroDocumentoFiscal);
         if (documento is not null)
         {

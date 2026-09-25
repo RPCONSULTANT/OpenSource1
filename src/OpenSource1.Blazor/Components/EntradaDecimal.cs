@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.RegularExpressions;
 
 namespace OpenSource1.Blazor.Components;
 
@@ -9,15 +10,18 @@ namespace OpenSource1.Blazor.Components;
 /// interpreta aquí, sin depender de la cultura, aceptando punto o coma decimal.
 /// </summary>
 /// <remarks>
-/// Reglas: cuando aparecen ambos separadores, el último es el decimal y el otro el de miles
+/// Reglas: los espacios solo valen como separador de miles entre grupos de 3 dígitos; cuando aparecen ambos separadores, el último es el decimal y el otro el de miles
 /// (<c>1.500,50</c> / <c>1,500.50</c>); un único separador que se repite (<c>1,500,000</c>) es de
 /// miles; un único separador con 1-2 o 4+ decimales es el decimal (<c>1500,50</c>, <c>1500.5</c>). Un
 /// único separador seguido de exactamente 3 dígitos tras 1-3 dígitos sin ceros a la izquierda
 /// (<c>1,500</c>, <c>1.500</c>) es AMBIGUO (¿mil quinientos o uno con cinco décimas?): se rechaza en
 /// vez de adivinar, para no guardar en silencio un importe mil veces distinto del que el usuario quería.
 /// </remarks>
-public static class EntradaDecimal
+public static partial class EntradaDecimal
 {
+    [GeneratedRegex(@"^-?\d{1,3}([ \u00A0\u2009\u202F]\d{3})+([.,]\d+)?$")]
+    private static partial Regex EspaciosComoMiles();
+
     public const string MensajeInvalido =
         "El límite de crédito no es válido. Escríbalo con punto o coma decimal y sin separador de miles, por ejemplo 1500.50.";
 
@@ -35,7 +39,20 @@ public static class EntradaDecimal
             return true;
         }
 
-        var t = new string(texto.Where(c => !char.IsWhiteSpace(c)).ToArray());
+        // Los espacios solo valen como separador de miles entre grupos de exactamente 3 dígitos ("1 500,5"); cualquier
+        // otro espacio interno ("1 5 0 0", "1  500") se rechaza en vez de "pegar" los dígitos.
+        var t = texto.Trim();
+        if (t.Any(char.IsWhiteSpace))
+        {
+            if (!EspaciosComoMiles().IsMatch(t))
+            {
+                error = MensajeInvalido;
+                return false;
+            }
+
+            t = new string(t.Where(c => !char.IsWhiteSpace(c)).ToArray());
+        }
+
         var negativo = t.StartsWith('-');
         if (negativo)
         {

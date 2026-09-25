@@ -2,6 +2,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using OpenSource1.Infrastructure.Identity;
@@ -205,6 +206,15 @@ public sealed class AuthService(
         if (user is null || !user.IsActive)
         {
             return (false, ["No fue posible identificar la cuenta autenticada."]);
+        }
+
+        // Una imagen de perfil solo puede pertenecer a UN usuario: si otro pudiera apuntar al fichero de este, al cambiar
+        // su imagen la UI borraría la ajena.
+        if (!string.IsNullOrEmpty(imagePath)
+            && await userManager.Users.AnyAsync(u => u.ProfileImagePath == imagePath && u.Id != user.Id, cancellationToken))
+        {
+            throw new ErroresDeDominioException(new Error(
+                "usuario.imagen_en_uso", "La imagen ya está asignada a otro usuario.", RutaImagen.Campo));
         }
 
         user.ProfileImagePath = imagePath;
