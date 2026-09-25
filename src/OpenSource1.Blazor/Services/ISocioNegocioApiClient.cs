@@ -27,13 +27,19 @@ public sealed record SocioNegocioSearchFilter(
     string? Telefono,
     string? Direccion,
     string? Sector,
-    string? Pais);
+    string? Pais,
+    string? Codigo = null,
+    TipoSocioNegocio? Tipo = null,
+    string? NumeroDocumentoFiscal = null);
 
 /// <summary>
-/// Cuerpo de alta/modificación hacia la API. La UI actual (Task 2.6) solo edita los campos
-/// clásicos; el resto lleva los valores por defecto del alta (Cliente, SinDocumento, sin límite,
-/// sin bloqueo) o, en una modificación, los valores ya guardados en el socio (ver
-/// <c>ClienteDetail</c>) para no pisarlos. La UI de los campos nuevos llega con la Task 2.7.
+/// Cuerpo de alta/modificación hacia la API. En el alta, <c>RazonSocial</c>/<c>NumeroDocumentoFiscal</c>/
+/// <c>Ciudad</c> nulos o vacíos significan "sin dato" y <c>TerminoPagoId</c> nulo "sin término". En la
+/// modificación la API tiene semántica parcial para estos campos: cadena vacía = limpiar, y
+/// <see cref="Guid.Empty"/> en <c>TerminoPagoId</c> = limpiar el término (null = conservar). Por eso
+/// el formulario de edición envía <c>""</c> y <c>Guid.Empty</c> para vaciar y nunca null. <c>Email</c>,
+/// <c>Telefono</c>, dirección, <c>Sector</c>, <c>PaisCodigo</c> e <c>ImagePath</c> son de reemplazo
+/// completo: se envían siempre. El <c>Codigo</c> no viaja: lo asigna el sistema.
 /// </summary>
 public sealed record SocioNegocioInput(
     string NombreComercial,
@@ -53,4 +59,9 @@ public sealed record SocioNegocioInput(
     decimal LimiteCredito = 0m,
     BloqueoSocioNegocio Bloqueado = BloqueoSocioNegocio.Ninguno);
 
-public sealed record SocioNegocioOperationResult(bool Succeeded, string Message, Guid? EntityId = null);
+/// <summary>
+/// Resultado de una operación. <c>Message</c> es el mensaje resumido; <c>Errors</c> trae los mensajes
+/// reales que devolvió la API (400/409/422) para mostrarlos tal cual en la UI.
+/// </summary>
+public sealed record SocioNegocioOperationResult(
+    bool Succeeded, string Message, Guid? EntityId = null, IReadOnlyList<string>? Errors = null);

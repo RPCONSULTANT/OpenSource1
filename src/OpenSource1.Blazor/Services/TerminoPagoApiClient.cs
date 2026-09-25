@@ -25,6 +25,29 @@ public sealed class TerminoPagoApiClient(HttpClient httpClient, ILogger<TerminoP
             ?? PagedResult<TerminoPagoResponse>.Vacio(paginacion ?? new PageRequest());
     }
 
+    public async Task<IReadOnlyList<TerminoPagoResponse>> ListAllAsync(CancellationToken cancellationToken = default)
+    {
+        var todos = new List<TerminoPagoResponse>();
+        var pagina = 1;
+
+        while (true)
+        {
+            var resultado = await ListAsync(
+                filter: null,
+                new PageRequest(pagina, PageRequest.TamanoMaximo, "Codigo", Descendente: false),
+                cancellationToken);
+
+            todos.AddRange(resultado.Items);
+
+            if (resultado.Items.Count == 0 || pagina >= resultado.TotalPaginas)
+            {
+                return todos;
+            }
+
+            pagina++;
+        }
+    }
+
     public async Task<TerminoPagoResponse?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         using var response = await httpClient.GetAsync($"api/terminos-pago/{id}", cancellationToken);

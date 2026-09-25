@@ -1,8 +1,9 @@
 using System.ComponentModel.DataAnnotations;
+using OpenSource1.Core.Enums;
 
 namespace OpenSource1.Blazor.Components;
 
-public sealed class ClienteEditorForm
+public sealed class ClienteEditorForm : IValidatableObject
 {
     [Required(ErrorMessage = "El nombre comercial es obligatorio.")]
     [MaxLength(200, ErrorMessage = "Máximo 200 caracteres.")]
@@ -36,4 +37,39 @@ public sealed class ClienteEditorForm
     public string? PaisCodigo { get; set; }
 
     public string? ImagePath { get; set; }
+
+    // Campos de facturación (Task 2.7). El Codigo NO está aquí a propósito: lo asigna el sistema y la UI
+    // solo lo muestra, así ningún POST puede intentar fijarlo.
+    public TipoSocioNegocio Tipo { get; set; } = TipoSocioNegocio.Cliente;
+
+    [MaxLength(200, ErrorMessage = "Máximo 200 caracteres.")]
+    public string? RazonSocial { get; set; }
+
+    public TipoDocumentoFiscal TipoDocumentoFiscal { get; set; } = TipoDocumentoFiscal.SinDocumento;
+
+    [MaxLength(20, ErrorMessage = "Máximo 20 caracteres.")]
+    public string? NumeroDocumentoFiscal { get; set; }
+
+    [MaxLength(100, ErrorMessage = "Máximo 100 caracteres.")]
+    public string? Ciudad { get; set; }
+
+    // "" (opción "— Sin término —") llega como null desde el <select>.
+    public Guid? TerminoPagoId { get; set; }
+
+    // El importe viaja como texto y se interpreta con EntradaDecimal (ver ese tipo): el binder numérico
+    // depende de la cultura del servidor y leería "1500,50" como 150050.
+    public string? LimiteCreditoTexto { get; set; } = EntradaDecimal.Formatear(0m);
+
+    public BloqueoSocioNegocio Bloqueado { get; set; } = BloqueoSocioNegocio.Ninguno;
+
+    /// <summary>Importe ya interpretado; 0 si el texto no es válido (la validación lo señala antes).</summary>
+    public decimal LimiteCredito => EntradaDecimal.TryParse(LimiteCreditoTexto, out var valor, out _) ? valor : 0m;
+
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    {
+        if (!EntradaDecimal.TryParse(LimiteCreditoTexto, out _, out var error))
+        {
+            yield return new ValidationResult(error, [nameof(LimiteCreditoTexto)]);
+        }
+    }
 }

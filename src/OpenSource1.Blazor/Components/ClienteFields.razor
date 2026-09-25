@@ -1,8 +1,49 @@
 <div class="space-y-4">
+    @if (EsEdicion && !string.IsNullOrWhiteSpace(Codigo))
+    {
+        @* El código lo asigna el sistema: solo se muestra, no es un campo del formulario. *@
+        <div>
+            <p class="block text-sm font-semibold text-slate-700 mb-1.5">Código</p>
+            <p class="inline-flex items-center rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-600" data-testid="cliente-codigo">@Codigo</p>
+            <p class="mt-1 text-xs text-slate-400">Lo asigna el sistema y no se puede modificar.</p>
+        </div>
+    }
+    <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-1.5" for="@($"{Prefix}_Tipo")">Tipo de socio <span class="text-red-500">*</span></label>
+        <select id="@($"{Prefix}_Tipo")" name="@($"{Prefix}.Tipo")" class="@InputCss">
+            @foreach (var tipo in SocioNegocioEtiquetas.Tipos)
+            {
+                <option value="@((short)tipo)" selected="@(tipo == Model.Tipo)">@SocioNegocioEtiquetas.Tipo(tipo)</option>
+            }
+        </select>
+        <ValidationMessage For="() => Model.Tipo" />
+    </div>
     <div>
         <label class="block text-sm font-semibold text-slate-700 mb-1.5">Nombre comercial <span class="text-red-500">*</span></label>
         <input type="text" name="@($"{Prefix}.NombreComercial")" value="@Model.NombreComercial" placeholder="Nombre comercial del cliente" class="block w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20" />
         <ValidationMessage For="() => Model.NombreComercial" />
+    </div>
+    <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-1.5" for="@($"{Prefix}_RazonSocial")">Razón social</label>
+        <input id="@($"{Prefix}_RazonSocial")" type="text" name="@($"{Prefix}.RazonSocial")" value="@Model.RazonSocial" maxlength="200" placeholder="Nombre legal (opcional)" class="@InputCss" />
+        <ValidationMessage For="() => Model.RazonSocial" />
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+            <label class="block text-sm font-semibold text-slate-700 mb-1.5" for="@($"{Prefix}_TipoDocumentoFiscal")">Tipo de documento fiscal</label>
+            <select id="@($"{Prefix}_TipoDocumentoFiscal")" name="@($"{Prefix}.TipoDocumentoFiscal")" class="@InputCss">
+                @foreach (var tipoDoc in SocioNegocioEtiquetas.TiposDocumento)
+                {
+                    <option value="@((short)tipoDoc)" selected="@(tipoDoc == Model.TipoDocumentoFiscal)">@SocioNegocioEtiquetas.TipoDocumento(tipoDoc)</option>
+                }
+            </select>
+            <ValidationMessage For="() => Model.TipoDocumentoFiscal" />
+        </div>
+        <div>
+            <label class="block text-sm font-semibold text-slate-700 mb-1.5" for="@($"{Prefix}_NumeroDocumentoFiscal")">Número de documento fiscal</label>
+            <input id="@($"{Prefix}_NumeroDocumentoFiscal")" type="text" name="@($"{Prefix}.NumeroDocumentoFiscal")" value="@Model.NumeroDocumentoFiscal" maxlength="20" placeholder="Obligatorio salvo «Sin documento»" class="@InputCss" />
+            <ValidationMessage For="() => Model.NumeroDocumentoFiscal" />
+        </div>
     </div>
     <div>
         <label class="block text-sm font-semibold text-slate-700 mb-1.5">Email</label>
@@ -24,6 +65,11 @@
         <input type="text" name="@($"{Prefix}.DireccionLinea2")" value="@Model.DireccionLinea2" placeholder="Referencia, apartamento, edificio (opcional)" class="block w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20" />
         <ValidationMessage For="() => Model.DireccionLinea2" />
     </div>
+    <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-1.5" for="@($"{Prefix}_Ciudad")">Ciudad</label>
+        <input id="@($"{Prefix}_Ciudad")" type="text" name="@($"{Prefix}.Ciudad")" value="@Model.Ciudad" maxlength="100" placeholder="Ciudad (opcional)" class="@InputCss" />
+        <ValidationMessage For="() => Model.Ciudad" />
+    </div>
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
             <label class="block text-sm font-semibold text-slate-700 mb-1.5">Sector</label>
@@ -41,9 +87,57 @@
             </select>
         </div>
     </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+            <label class="block text-sm font-semibold text-slate-700 mb-1.5" for="@($"{Prefix}_TerminoPagoId")">Término de pago</label>
+            <select id="@($"{Prefix}_TerminoPagoId")" name="@($"{Prefix}.TerminoPagoId")" class="@InputCss">
+                <option value="" selected="@(Model.TerminoPagoId is null)">— Sin término —</option>
+                @* El término vigente se ofrece SIEMPRE, aunque no esté en Terminos (listado caído, vacío o término
+                   borrado): sin esto el <select> solo tendría "Sin término" y guardar lo borraría en silencio. *@
+                @if (Model.TerminoPagoId is { } actualId && Terminos.All(t => t.Id != actualId))
+                {
+                    <option value="@actualId" selected="selected">@(TerminoActualId == actualId && !string.IsNullOrWhiteSpace(TerminoActualNombre) ? TerminoActualNombre : $"Término no disponible ({actualId})")</option>
+                }
+                @foreach (var termino in Terminos)
+                {
+                    <option value="@termino.Id" selected="@(termino.Id == Model.TerminoPagoId)">@termino.Codigo — @termino.Descripcion</option>
+                }
+            </select>
+            <ValidationMessage For="() => Model.TerminoPagoId" />
+        </div>
+        <div>
+            <label class="block text-sm font-semibold text-slate-700 mb-1.5" for="@($"{Prefix}_LimiteCreditoTexto")">Límite de crédito</label>
+            <input id="@($"{Prefix}_LimiteCreditoTexto")" type="text" inputmode="decimal" name="@($"{Prefix}.LimiteCreditoTexto")" value="@Model.LimiteCreditoTexto" placeholder="0.00" class="@InputCss" />
+            <p class="mt-1 text-xs text-slate-400">Punto o coma decimal, sin separador de miles (ej. 1500.50).</p>
+            <ValidationMessage For="() => Model.LimiteCreditoTexto" />
+        </div>
+    </div>
+    <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-1.5" for="@($"{Prefix}_Bloqueado")">Bloqueo</label>
+        <select id="@($"{Prefix}_Bloqueado")" name="@($"{Prefix}.Bloqueado")" class="@InputCss">
+            @foreach (var bloqueo in SocioNegocioEtiquetas.Bloqueos)
+            {
+                <option value="@((short)bloqueo)" selected="@(bloqueo == Model.Bloqueado)">@SocioNegocioEtiquetas.Bloqueo(bloqueo)</option>
+            }
+        </select>
+        <ValidationMessage For="() => Model.Bloqueado" />
+    </div>
 </div>
 
 @code {
+    private const string InputCss = "block w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20";
+
     [Parameter, EditorRequired] public ClienteEditorForm Model { get; set; } = default!;
     [Parameter, EditorRequired] public string Prefix { get; set; } = default!;
+
+    /// <summary>Solo en la edición: código asignado por el sistema (solo lectura).</summary>
+    [Parameter] public bool EsEdicion { get; set; }
+    [Parameter] public string? Codigo { get; set; }
+
+    /// <summary>Términos de pago elegibles (todas las páginas de la API). Vacío si no cargaron.</summary>
+    [Parameter] public IReadOnlyList<OpenSource1.Application.Features.TerminosPago.Dtos.TerminoPagoResponse> Terminos { get; set; } = [];
+
+    /// <summary>Término guardado del socio y su nombre (de GetById), para rotular su opción si no viene en <see cref="Terminos"/>.</summary>
+    [Parameter] public Guid? TerminoActualId { get; set; }
+    [Parameter] public string? TerminoActualNombre { get; set; }
 }

@@ -3,6 +3,7 @@
 @using Microsoft.AspNetCore.Authorization
 @using OpenSource1.Blazor.Services
 @inject ISocioNegocioApiClient SocioNegocioApiClient
+@inject ITerminoPagoApiClient TerminoPagoApiClient
 @inject IHttpContextAccessor HttpContextAccessor
 @inject IFileStorageService FileStorageService
 @inject ILogger<ClienteNew> Logger
@@ -14,14 +15,18 @@
     <div>
         <p class="text-xs font-bold tracking-widest uppercase text-brand-600 mb-1">Ficha</p>
         <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight dark:text-slate-100">Crear cliente</h1>
-        <p class="text-sm text-slate-500 mt-1 dark:text-slate-400">Complete nombre comercial, teléfono, correo y dirección.</p>
+        <p class="text-sm text-slate-500 mt-1 dark:text-slate-400">Complete los datos generales, fiscales y comerciales. El código lo asigna el sistema al guardar.</p>
     </div>
     <a href="/clientes" class="btn-press rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700/60">Volver al listado</a>
 </div>
 
-@if (!string.IsNullOrWhiteSpace(message))
+@if (!string.IsNullOrWhiteSpace(message) || errores.Count > 0)
 {
-    <div class="mb-6"><MessageBox Type="@messageType" Message="@message" /></div>
+    <div class="mb-6"><MessageBox Type="@messageType" Message="@message" Errors="@errores" /></div>
+}
+@if (terminos.CargaFallida)
+{
+    <div class="mb-6"><MessageBox Type="warning" Message="@TerminoPagoOpciones.MensajeNoDisponiblesAlta" /></div>
 }
 
 <div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden max-w-4xl dark:border-slate-700 dark:bg-slate-800">
@@ -34,7 +39,7 @@
                 <input type="file" name="ClientImage" accept=".jpg,.jpeg,.png,.webp" class="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300" />
                 <p class="mt-1 text-xs text-slate-400 dark:text-slate-500">Formatos permitidos: JPG, PNG, WEBP. Máximo 2 MB.</p>
             </div>
-            <ClienteFields Model="Input!" Prefix="Input" />
+            <ClienteFields Model="Input!" Prefix="Input" Terminos="@terminos.Items" />
             <div class="mt-6 flex flex-wrap items-center gap-3">
                 <button type="submit" class="btn-press inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-700">Guardar cliente</button>
                 <a href="/clientes" class="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700/60">Cancelar</a>
@@ -49,15 +54,23 @@
 
     private string? message;
     private string messageType = "danger";
+    private IReadOnlyList<string> errores = [];
+    private TerminoPagoOpciones terminos = TerminoPagoOpciones.SinCargar;
 
-    protected override void OnInitialized() => Input ??= new();
+    protected override async Task OnInitializedAsync()
+    {
+        Input ??= new();
+        // Opciones del <select> de término de pago; si no cargan el alta sigue siendo posible (sin término).
+        terminos = await TerminoPagoOpciones.CargarAsync(TerminoPagoApiClient, Logger);
+    }
 
     private async Task CreateAsync()
     {
         try
         {
             var httpContext = HttpContextAccessor.HttpContext ?? throw new InvalidOperationException("No hay HttpContext disponible para cargar la imagen.");
-            Input!.ImagePath = await FileStorageService.SaveClientImageAsync(httpContext, "ClientImage", Input.ImagePath);
+            // El formulario no envía ImagePath (lo manipulable por el cliente no se confía): en el alta parte de null.
+            Input!.ImagePath = await FileStorageService.SaveClientImageAsync(httpContext, "ClientImage", null);
             var result = await SocioNegocioApiClient.CreateAsync(ToInput(Input!));
             if (result.Succeeded)
             {
@@ -66,6 +79,7 @@
             }
 
             message = result.Message;
+            errores = result.Errors ?? [];
             messageType = "warning";
         }
         catch (Exception ex)
@@ -84,5 +98,13 @@
         form.DireccionLinea2?.Trim(),
         form.Sector?.Trim(),
         form.PaisCodigo,
-        form.ImagePath);
+        form.ImagePath,
+        form.RazonSocial?.Trim(),
+        form.Tipo,
+        form.TipoDocumentoFiscal,
+        form.NumeroDocumentoFiscal?.Trim(),
+        form.Ciudad?.Trim(),
+        form.TerminoPagoId is { } id && id != Guid.Empty ? id : null,
+        form.LimiteCredito,
+        form.Bloqueado);
 }

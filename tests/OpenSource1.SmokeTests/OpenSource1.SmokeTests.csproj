@@ -22,6 +22,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Lógica pura de la UI (sin dependencias de Blazor): se compila aquí para poder probarla. -->
+    <Compile Include="..\..\src\OpenSource1.Blazor\Components\EntradaDecimal.cs" Link="Blazor\EntradaDecimal.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\OpenSource1.Core\OpenSource1.Core.csproj" />
     <ProjectReference Include="..\..\src\OpenSource1.Application\OpenSource1.Application.csproj" />
     <ProjectReference Include="..\..\src\OpenSource1.Api\OpenSource1.Api.csproj" />

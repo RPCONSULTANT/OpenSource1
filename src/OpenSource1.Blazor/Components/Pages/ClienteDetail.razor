@@ -3,8 +3,10 @@
 @using Microsoft.AspNetCore.Authorization
 @using OpenSource1.Application.Features.SociosNegocio.Dtos
 @using OpenSource1.Application.Security
+@using System.Globalization
 @using OpenSource1.Blazor.Services
 @inject ISocioNegocioApiClient SocioNegocioApiClient
+@inject ITerminoPagoApiClient TerminoPagoApiClient
 @inject IHttpContextAccessor HttpContextAccessor
 @inject IFileStorageService FileStorageService
 @inject IAuthorizationService AuthorizationService
@@ -17,7 +19,7 @@
     <div>
         <p class="text-xs font-bold tracking-widest uppercase text-brand-600 mb-1">Ficha</p>
         <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight dark:text-slate-100">Cliente</h1>
-        <p class="text-sm text-slate-500 mt-1 dark:text-slate-400">Vista detallada, edición dinámica y eliminación desde ficha.</p>
+        <p class="text-sm text-slate-500 mt-1 dark:text-slate-400">Vista detallada, edición y eliminación desde ficha.</p>
     </div>
     <div class="flex items-center gap-3">
         <a href="/clientes" class="btn-press rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700/60">Volver al listado</a>
@@ -28,9 +30,13 @@
     </div>
 </div>
 
-@if (!string.IsNullOrWhiteSpace(message))
+@if (!string.IsNullOrWhiteSpace(message) || errores.Count > 0)
 {
-    <div class="mb-6">@(messageType == "success" ? (RenderFragment)(@<ActionFeedback Type="success" Message="@message" />) : @<MessageBox Type="@messageType" Message="@message" />)</div>
+    <div class="mb-6">@(messageType == "success" ? (RenderFragment)(@<ActionFeedback Type="success" Message="@message" />) : @<MessageBox Type="@messageType" Message="@message" Errors="@errores" />)</div>
+}
+@if (EditMode && canModify && cliente is not null && edicionBloqueada)
+{
+    <div class="mb-6"><MessageBox Type="danger" Message="@TerminoPagoOpciones.MensajeNoDisponibles" /></div>
 }
 
 @if (loadError is not null)
@@ -83,9 +89,12 @@ else
                             <p class="mt-1 text-xs text-slate-400 dark:text-slate-500">Formatos permitidos: JPG, PNG, WEBP. Máximo 2 MB.</p>
                         </div>
                     </div>
-                    <ClienteFields Model="Input!" Prefix="Input" />
+                    <ClienteFields Model="Input!" Prefix="Input" EsEdicion="true" Codigo="@cliente.Codigo" Terminos="@terminos.Items" TerminoActualId="@cliente.TerminoPagoId" TerminoActualNombre="@terminoActualNombre" />
                     <div class="mt-6 flex flex-wrap items-center gap-3">
-                        <button type="submit" class="btn-press inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-700">Guardar cambios</button>
+                        @if (!edicionBloqueada)
+                        {
+                            <button type="submit" class="btn-press inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-700">Guardar cambios</button>
+                        }
                         <a href="@BuildDetailUrl()" class="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700/60">Cancelar</a>
                     </div>
                 </EditForm>
@@ -105,10 +114,18 @@ else
                         }
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div class="rounded-xl border border-slate-100 bg-slate-50 px-4 py-4 dark:border-slate-700/60 dark:bg-slate-900/40"><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Correo</p><p class="mt-1 text-sm text-slate-700 break-all dark:text-slate-300">@cliente.Email</p></div>
+                        <div class="rounded-xl border border-slate-100 bg-slate-50 px-4 py-4 dark:border-slate-700/60 dark:bg-slate-900/40"><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Código</p><p class="mt-1 text-sm font-semibold text-slate-700 dark:text-slate-300" data-testid="detalle-codigo">@cliente.Codigo</p></div>
+                        <div class="rounded-xl border border-slate-100 bg-slate-50 px-4 py-4 dark:border-slate-700/60 dark:bg-slate-900/40"><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Tipo de socio</p><p class="mt-1 text-sm text-slate-700 dark:text-slate-300">@SocioNegocioEtiquetas.Tipo(cliente.Tipo)</p></div>
+                        <div class="rounded-xl border border-slate-100 bg-slate-50 px-4 py-4 md:col-span-2 dark:border-slate-700/60 dark:bg-slate-900/40"><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Razón social</p><p class="mt-1 text-sm text-slate-700 dark:text-slate-300">@(string.IsNullOrWhiteSpace(cliente.RazonSocial) ? "No indicada" : cliente.RazonSocial)</p></div>
+                        <div class="rounded-xl border border-slate-100 bg-slate-50 px-4 py-4 dark:border-slate-700/60 dark:bg-slate-900/40"><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Documento fiscal</p><p class="mt-1 text-sm text-slate-700 dark:text-slate-300">@(cliente.TipoDocumentoFiscal == Core.Enums.TipoDocumentoFiscal.SinDocumento || string.IsNullOrWhiteSpace(cliente.NumeroDocumentoFiscal) ? SocioNegocioEtiquetas.TipoDocumento(cliente.TipoDocumentoFiscal) : SocioNegocioEtiquetas.Documento(cliente.TipoDocumentoFiscal, cliente.NumeroDocumentoFiscal))</p></div>
+                        <div class="rounded-xl border border-slate-100 bg-slate-50 px-4 py-4 dark:border-slate-700/60 dark:bg-slate-900/40"><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Bloqueo</p><p class="mt-1 text-sm text-slate-700 dark:text-slate-300">@SocioNegocioEtiquetas.Bloqueo(cliente.Bloqueado)</p></div>
+                        <div class="rounded-xl border border-slate-100 bg-slate-50 px-4 py-4 dark:border-slate-700/60 dark:bg-slate-900/40"><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Término de pago</p><p class="mt-1 text-sm text-slate-700 dark:text-slate-300">@TerminoDisplay()</p></div>
+                        <div class="rounded-xl border border-slate-100 bg-slate-50 px-4 py-4 dark:border-slate-700/60 dark:bg-slate-900/40"><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Límite de crédito</p><p class="mt-1 text-sm text-slate-700 dark:text-slate-300">@cliente.LimiteCredito.ToString("N2", CultureInfo.InvariantCulture)</p></div>
+                        <div class="rounded-xl border border-slate-100 bg-slate-50 px-4 py-4 dark:border-slate-700/60 dark:bg-slate-900/40"><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Correo</p><p class="mt-1 text-sm text-slate-700 break-all dark:text-slate-300">@(string.IsNullOrWhiteSpace(cliente.Email) ? "No indicado" : cliente.Email)</p></div>
                         <div class="rounded-xl border border-slate-100 bg-slate-50 px-4 py-4 dark:border-slate-700/60 dark:bg-slate-900/40"><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Teléfono</p><p class="mt-1 text-sm text-slate-700 dark:text-slate-300">@(string.IsNullOrWhiteSpace(cliente.Telefono) ? "No indicado" : cliente.Telefono)</p></div>
                         <div class="rounded-xl border border-slate-100 bg-slate-50 px-4 py-4 dark:border-slate-700/60 dark:bg-slate-900/40"><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Sector</p><p class="mt-1 text-sm text-slate-700 dark:text-slate-300">@(string.IsNullOrWhiteSpace(cliente.Sector) ? "No indicado" : cliente.Sector)</p></div>
                         <div class="rounded-xl border border-slate-100 bg-slate-50 px-4 py-4 dark:border-slate-700/60 dark:bg-slate-900/40"><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">País</p><p class="mt-1 text-sm text-slate-700 dark:text-slate-300">@(string.IsNullOrWhiteSpace(cliente.PaisNombre) ? "No indicado" : cliente.PaisNombre)</p></div>
+                        <div class="rounded-xl border border-slate-100 bg-slate-50 px-4 py-4 dark:border-slate-700/60 dark:bg-slate-900/40"><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Ciudad</p><p class="mt-1 text-sm text-slate-700 dark:text-slate-300">@(string.IsNullOrWhiteSpace(cliente.Ciudad) ? "No indicada" : cliente.Ciudad)</p></div>
                         <div class="rounded-xl border border-slate-100 bg-slate-50 px-4 py-4 md:col-span-2 dark:border-slate-700/60 dark:bg-slate-900/40"><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Dirección</p><p class="mt-1 text-sm text-slate-700 dark:text-slate-300">@(string.IsNullOrWhiteSpace(cliente.DireccionLinea1) ? "No indicada" : $"{cliente.DireccionLinea1}{(string.IsNullOrWhiteSpace(cliente.DireccionLinea2) ? "" : $", {cliente.DireccionLinea2}")}")</p></div>
                     </div>
                 </div>
@@ -142,10 +159,16 @@ else
     private SocioNegocioResponse? cliente;
     private string? message;
     private string messageType = "info";
+    private IReadOnlyList<string> errores = [];
     private string? loadError;
     private string? deleteError;
     private bool canModify;
     private bool canDelete;
+    // Opciones del <select> de término de pago (solo se cargan al editar) y nombre del término vigente.
+    private TerminoPagoOpciones terminos = TerminoPagoOpciones.SinCargar;
+    private string? terminoActualNombre;
+    // La modificación se bloquea si las opciones de término no son fiables: guardar a ciegas podría borrar el término.
+    private bool edicionBloqueada;
     [CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
 
     protected override async Task OnInitializedAsync()
@@ -169,9 +192,42 @@ else
         try
         {
             cliente = await SocioNegocioApiClient.GetByIdAsync(Id);
-            if (cliente is not null && (Input is null || string.IsNullOrWhiteSpace(Input.NombreComercial)))
+            if (cliente is null)
             {
-                Input = new ClienteEditorForm { NombreComercial = cliente.NombreComercial, Email = cliente.Email, Telefono = cliente.Telefono, DireccionLinea1 = cliente.DireccionLinea1, DireccionLinea2 = cliente.DireccionLinea2, Sector = cliente.Sector, PaisCodigo = cliente.PaisCodigo, ImagePath = cliente.ImagePath };
+                return;
+            }
+
+            // Solo se rellena con lo guardado cuando NO llegó un formulario: si el POST trae valores (incluso un
+            // nombre vacío que la validación debe rechazar) se conservan tal cual, no se sustituyen por los guardados.
+            Input ??= new ClienteEditorForm
+            {
+                NombreComercial = cliente.NombreComercial, Email = cliente.Email, Telefono = cliente.Telefono,
+                DireccionLinea1 = cliente.DireccionLinea1, DireccionLinea2 = cliente.DireccionLinea2,
+                Sector = cliente.Sector, PaisCodigo = cliente.PaisCodigo, ImagePath = cliente.ImagePath,
+                Tipo = cliente.Tipo, RazonSocial = cliente.RazonSocial, TipoDocumentoFiscal = cliente.TipoDocumentoFiscal,
+                NumeroDocumentoFiscal = cliente.NumeroDocumentoFiscal, Ciudad = cliente.Ciudad,
+                TerminoPagoId = cliente.TerminoPagoId, LimiteCreditoTexto = EntradaDecimal.Formatear(cliente.LimiteCredito),
+                Bloqueado = cliente.Bloqueado
+            };
+
+            if (EditMode && canModify)
+            {
+                terminos = await TerminoPagoOpciones.CargarAsync(TerminoPagoApiClient, Logger);
+                edicionBloqueada = terminos.ModificacionBloqueada(cliente.TerminoPagoId);
+            }
+
+            // Si la carga de la lista falló no se reintenta por el nombre (sumaría otro tiempo de espera): la opción vigente se rotula con su Guid.
+            if (cliente.TerminoPagoId is { } terminoId && terminos.Items.All(t => t.Id != terminoId))
+            {
+                if (!terminos.CargaFallida)
+                {
+                    terminoActualNombre = await TerminoPagoOpciones.NombreAsync(TerminoPagoApiClient, terminoId, Logger);
+                }
+            }
+            else if (cliente.TerminoPagoId is { } enLista)
+            {
+                var t = terminos.Items.First(x => x.Id == enLista);
+                terminoActualNombre = $"{t.Codigo} — {t.Descripcion}";
             }
         }
         catch (Exception ex) { Logger.LogWarning(ex, "Could not load cliente detail."); loadError = "No fue posible cargar la ficha del cliente."; }
@@ -179,13 +235,27 @@ else
 
     private async Task SaveAsync()
     {
+        if (cliente is null)
+        {
+            message = "No se encontró el cliente indicado."; messageType = "warning";
+            return;
+        }
+
+        // Defensa en profundidad: aunque el botón no se renderice, no se envía un PUT sin opciones de término fiables.
+        // El aviso ya se muestra en el encabezado de la página mientras la edición esté bloqueada.
+        if (edicionBloqueada)
+        {
+            return;
+        }
+
         try
         {
             var httpContext = HttpContextAccessor.HttpContext ?? throw new InvalidOperationException("No hay HttpContext disponible para cargar la imagen.");
-            Input!.ImagePath = await FileStorageService.SaveClientImageAsync(httpContext, "ClientImage", Input.ImagePath);
-            var result = await SocioNegocioApiClient.UpdateAsync(Id, ToInput(Input, cliente));
+            // La imagen vigente es la GUARDADA en el servidor (no un valor enviado por el formulario, que el usuario podría manipular).
+            Input!.ImagePath = await FileStorageService.SaveClientImageAsync(httpContext, "ClientImage", cliente.ImagePath);
+            var result = await SocioNegocioApiClient.UpdateAsync(Id, ToInput(Input));
             if (result.Succeeded) { Nav.NavigateTo(BuildDetailUrl(ok: "updated")); return; }
-            message = result.Message; messageType = "warning";
+            message = result.Message; errores = result.Errors ?? []; messageType = "warning";
         }
         catch (Exception ex)
         {
@@ -211,9 +281,15 @@ else
         return parameters.Count == 0 ? $"/clientes/{Id}" : $"/clientes/{Id}?{string.Join("&", parameters)}";
     }
 
-    // El formulario aún no edita los campos nuevos de la Task 2.6 (la UI llega con la 2.7): se
-    // reenvían los valores guardados del socio para que una edición no los pise con los defaults.
-    private static SocioNegocioInput ToInput(ClienteEditorForm form, SocioNegocioResponse? actual) => new(
+    private string TerminoDisplay() => cliente?.TerminoPagoId is { } id
+        ? (string.IsNullOrWhiteSpace(terminoActualNombre) ? $"Término no disponible ({id})" : terminoActualNombre)
+        : "Sin término";
+
+    // Edición: la API trata RazonSocial/NumeroDocumentoFiscal/Ciudad ausentes (null) como "conservar" y "" como
+    // "limpiar"; TerminoPagoId null como "conservar" y Guid.Empty como "limpiar". El formulario muestra siempre el
+    // valor completo, así que se envía "" y Guid.Empty para que vaciar un campo lo vacíe de verdad.
+    // Email, Teléfono, dirección, Sector, País e ImagePath son de reemplazo completo: se envían siempre.
+    private static SocioNegocioInput ToInput(ClienteEditorForm form) => new(
         form.NombreComercial.Trim(),
         form.Email?.Trim(),
         form.Telefono?.Trim(),
@@ -222,13 +298,13 @@ else
         form.Sector?.Trim(),
         form.PaisCodigo,
         form.ImagePath,
-        actual?.RazonSocial,
-        actual?.Tipo ?? Core.Enums.TipoSocioNegocio.Cliente,
-        actual?.TipoDocumentoFiscal ?? Core.Enums.TipoDocumentoFiscal.SinDocumento,
-        actual?.NumeroDocumentoFiscal,
-        actual?.Ciudad,
-        actual?.TerminoPagoId,
-        actual?.LimiteCredito ?? 0m,
-        actual?.Bloqueado ?? Core.Enums.BloqueoSocioNegocio.Ninguno);
+        form.RazonSocial?.Trim() ?? string.Empty,
+        form.Tipo,
+        form.TipoDocumentoFiscal,
+        form.NumeroDocumentoFiscal?.Trim() ?? string.Empty,
+        form.Ciudad?.Trim() ?? string.Empty,
+        form.TerminoPagoId ?? Guid.Empty,
+        form.LimiteCredito,
+        form.Bloqueado);
     private sealed class DeleteConfirmForm { }
 }
