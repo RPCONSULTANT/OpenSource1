@@ -89,4 +89,21 @@ public sealed class EntradaDecimalTests
     {
         Assert.Equal(esperado, EntradaDecimal.Formatear((decimal)valor));
     }
+
+    [Theory]
+    [InlineData("abc", "El precio de venta no es válido.")]
+    [InlineData("1,500", "El precio de venta es ambiguo")]
+    public void TryParse_ConEtiqueta_UsaElSujetoIndicadoEnElMensaje(string entrada, string comienzo)
+    {
+        Assert.False(EntradaDecimal.TryParse(entrada, out _, out var error, "El precio de venta"));
+        Assert.StartsWith(comienzo, error);
+        Assert.DoesNotContain("límite de crédito", error);
+    }
+
+    [Fact]
+    public void TryParse_SinEtiqueta_ConservaElMensajeDelLimiteDeCredito()
+    {
+        Assert.False(EntradaDecimal.TryParse("abc", out _, out var error));
+        Assert.Equal(EntradaDecimal.MensajeInvalido, error);
+    }
 }
