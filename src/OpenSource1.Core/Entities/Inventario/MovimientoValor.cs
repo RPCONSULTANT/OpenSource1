@@ -1,4 +1,3 @@
-using OpenSource1.Core.Abstractions;
 using OpenSource1.Core.Enums;
 
 namespace OpenSource1.Core.Entities.Inventario;
@@ -8,7 +7,14 @@ namespace OpenSource1.Core.Entities.Inventario;
 /// excepción para UPDATE: aquí ni siquiera la cantidad restante cambia). No hereda de
 /// <see cref="BaseEntity"/> por la misma razón que <see cref="MovimientoProducto"/>.
 /// </summary>
-public sealed class MovimientoValor : IAggregateRoot
+/// <remarks>
+/// Deliberadamente NO implementa <c>IAggregateRoot</c> (revisión final de la Fase 3): así
+/// <c>IUnitOfWork.Repository&lt;T&gt;()</c>/<c>GenericRepository</c> no compilan con esta entidad y nadie puede volver
+/// a escribirla por ahí (Update/Remove del change tracker), que es justo lo que el libro append-only prohíbe. Nada en
+/// el código la usa con <c>Repository&lt;MovimientoValor&gt;()</c>; EF la sigue mapeando igual, porque el mapeo de
+/// <c>ApplicationDbContext</c> no depende de esa interfaz.
+/// </remarks>
+public sealed class MovimientoValor
 {
     public long Id { get; set; }
 

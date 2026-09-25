@@ -1,5 +1,3 @@
-using OpenSource1.Core.Abstractions;
-
 namespace OpenSource1.Core.Entities.Inventario;
 
 /// <summary>
@@ -7,7 +5,12 @@ namespace OpenSource1.Core.Entities.Inventario;
 /// consumidas). Append-only, mismo trigger que el resto del libro. No hereda de <see cref="BaseEntity"/> por la
 /// misma razón que <see cref="MovimientoProducto"/>.
 /// </summary>
-public sealed class AplicacionMovimientoProducto : IAggregateRoot
+/// <remarks>
+/// Deliberadamente NO implementa <c>IAggregateRoot</c> (revisión final de la Fase 3): mismo motivo que
+/// <see cref="MovimientoValor"/>: sin ella, <c>IUnitOfWork.Repository&lt;T&gt;()</c>/<c>GenericRepository</c> no
+/// compilan con esta entidad. Nada en el código la usa así; EF la sigue mapeando igual.
+/// </remarks>
+public sealed class AplicacionMovimientoProducto
 {
     public long Id { get; set; }
     public long MovimientoEntradaId { get; set; }

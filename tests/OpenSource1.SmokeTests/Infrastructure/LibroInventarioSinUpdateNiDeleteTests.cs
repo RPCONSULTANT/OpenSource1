@@ -1,35 +1,58 @@
+using System.Text.RegularExpressions;
+
 namespace OpenSource1.SmokeTests.Infrastructure;
 
 /// <summary>
-/// Red permanente (Task 3.8) para la regla "el libro de inventario es append-only": los triggers
-/// <c>libro_inventario_append_only</c> de la Task 3.3 ya lo garantizan en tiempo de ejecución contra
-/// Postgres real (ver <see cref="LibroInventarioAppendOnlyTests"/>), pero este test lo comprueba también
-/// en el código fuente, sin Docker: recorre todo <c>src/**/*.cs</c> (excepto <c>Migrations/</c>, que
-/// contiene el DDL de los propios triggers y, en <c>ReemplazarStockPorLibro</c>, un <c>UPDATE</c> legítimo
-/// sobre <c>Productos</c>, no sobre el libro) y falla si alguna línea que mencione <c>MovimientosValor</c>
-/// o <c>AplicacionesMovimientoProducto</c> contiene <c>UPDATE </c>, <c>DELETE </c>, <c>.Remove(</c>,
-/// <c>.RemoveRange(</c>, <c>.Update(</c>, <c>ExecuteDelete</c> o <c>ExecuteUpdate</c>.
+/// Red permanente (Task 3.8, endurecida en la revisión final de la Fase 3) para la regla "el libro de inventario es
+/// append-only": los triggers <c>libro_inventario_append_only</c> de la Task 3.3 ya lo garantizan en tiempo de
+/// ejecución contra Postgres real (ver <see cref="LibroInventarioAppendOnlyTests"/>), pero este test lo comprueba
+/// también en el código fuente, sin Docker: escanea el CONTENIDO COMPLETO (no línea a línea, para que una sentencia
+/// partida en dos líneas no se escape del detector) de todo <c>src/**/*.cs</c> (excepto <c>Migrations/</c>, que
+/// contiene el DDL de los propios triggers y, en <c>ReemplazarStockPorLibro</c>, un <c>UPDATE</c> legítimo sobre
+/// <c>Productos</c>, no sobre el libro) buscando, de forma insensible a mayúsculas:
+/// <list type="bullet">
+/// <item>SQL <c>UPDATE</c>/<c>DELETE FROM</c>/<c>TRUNCATE [TABLE]</c> cuyo objetivo sea <c>"MovimientosValor"</c> o
+/// <c>"AplicacionesMovimientoProducto"</c> (comillas opcionales, <c>\s+</c> entre la palabra clave y el nombre para
+/// tolerar saltos de línea entre medias).</item>
+/// <item><c>Set&lt;MovimientoValor&gt;</c>/<c>Set&lt;AplicacionMovimientoProducto&gt;</c> o los DbSets
+/// <c>MovimientosValor</c>/<c>AplicacionesMovimientoProducto</c>, seguidos —en la misma expresión, sin cruzar un
+/// <c>;</c>— de <c>.Remove</c>/<c>.RemoveRange</c>/<c>.Update</c>/<c>.UpdateRange</c>/<c>ExecuteDelete</c>/
+/// <c>ExecuteUpdate</c>.</item>
+/// </list>
 /// <para>
-/// Deliberadamente NO incluye <c>MovimientosProducto</c>: esa tabla sí tiene un UPDATE legítimo y
-/// documentado (el decremento de <c>CantidadRestante</c> por la aplicación FIFO de la Task 3.4), que el
-/// propio trigger permite como única excepción. <c>MovimientosValor</c> y
-/// <c>AplicacionesMovimientoProducto</c> no tienen ninguna excepción: son estrictamente append-only.
+/// Deliberadamente NO incluye <c>MovimientosProducto</c>: esa tabla sí tiene un UPDATE legítimo y documentado (el
+/// decremento de <c>CantidadRestante</c> por la aplicación FIFO de la Task 3.4), que el propio trigger permite como
+/// única excepción. <c>MovimientosValor</c> y <c>AplicacionesMovimientoProducto</c> no tienen ninguna excepción: son
+/// estrictamente append-only.
 /// </para>
 /// </summary>
 public sealed class LibroInventarioSinUpdateNiDeleteTests
 {
     private static readonly string[] TablasProtegidas = ["MovimientosValor", "AplicacionesMovimientoProducto"];
+    private static readonly string[] EntidadesProtegidas = ["MovimientoValor", "AplicacionMovimientoProducto"];
 
-    private static readonly string[] PatronesProhibidos =
-    [
-        "UPDATE ",
-        "DELETE ",
-        ".Remove(",
-        ".RemoveRange(",
-        ".Update(",
-        "ExecuteDelete",
-        "ExecuteUpdate"
-    ];
+    /// <summary>
+    /// SQL prohibido: la palabra clave, uno o más espacios/saltos de línea (<c>\s+</c>, insensible a mayúsculas) y el
+    /// nombre de la tabla, con comillas opcionales. El <c>\b</c> va INMEDIATAMENTE después del nombre (no después de
+    /// una comilla de cierre opcional): un <c>\b</c> tras la comilla fallaría si el carácter siguiente también es
+    /// "no palabra" (un espacio), porque ninguno de los dos lados sería \w.
+    /// </summary>
+    private static readonly Regex PatronSql = new(
+        string.Join("|", TablasProtegidas.Select(tabla =>
+            $"""(?:UPDATE|DELETE\s+FROM|TRUNCATE(?:\s+TABLE)?)\s+"?{Regex.Escape(tabla)}\b""")),
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    /// <summary>
+    /// Código prohibido: <c>Set&lt;Entidad&gt;()</c> o el DbSet (con o sin punto delante, para cubrir tanto
+    /// <c>context.MovimientosValor</c> como un uso interno sin calificar), seguido -en una ventana acotada que NO
+    /// cruza un <c>;</c>, para quedarse dentro de la misma expresión/statement- de un método mutador. La ventana
+    /// permite una cadena LINQ intermedia (p. ej. <c>.Where(...)</c> antes de <c>ExecuteDeleteAsync()</c>).
+    /// </summary>
+    private static readonly Regex PatronCodigo = new(
+        """(?:Set<(?:""" + string.Join("|", EntidadesProtegidas.Select(Regex.Escape)) + """>)\s*\(\s*\)|\.?(?:""" +
+        string.Join("|", TablasProtegidas.Select(Regex.Escape)) +
+        """)\b)(?:(?!;)[\s\S]){0,300}?\.\s*(?:Remove|RemoveRange|Update|UpdateRange|ExecuteDelete\w*|ExecuteUpdate\w*)\s*\(""",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     [Fact]
     public void NingunArchivoFueraDeMigrations_ActualizaOBorraMovimientosValorOAplicaciones()
@@ -47,20 +70,10 @@ public sealed class LibroInventarioSinUpdateNiDeleteTests
 
         foreach (var archivo in archivos)
         {
-            var lineas = File.ReadAllLines(archivo);
-            for (var i = 0; i < lineas.Length; i++)
+            var contenido = File.ReadAllText(archivo);
+            foreach (var violacion in Violaciones(contenido))
             {
-                var linea = lineas[i];
-                if (!TablasProtegidas.Any(linea.Contains))
-                {
-                    continue;
-                }
-
-                var patronEncontrado = PatronesProhibidos.FirstOrDefault(linea.Contains);
-                if (patronEncontrado is not null)
-                {
-                    violaciones.Add($"{Path.GetRelativePath(raiz, archivo)}:{i + 1}: contiene '{patronEncontrado}' junto a una tabla append-only -> {linea.Trim()}");
-                }
+                violaciones.Add($"{Path.GetRelativePath(raiz, archivo)}:{NumeroDeLinea(contenido, violacion.Indice)}: {violacion.Descripcion}");
             }
         }
 
@@ -68,6 +81,64 @@ public sealed class LibroInventarioSinUpdateNiDeleteTests
             "Se encontró código fuera de Migrations/ que actualiza o borra el libro de inventario " +
             "(MovimientosValor/AplicacionesMovimientoProducto son append-only):\n" + string.Join('\n', violaciones));
     }
+
+    // Mutaciones de control (revisión final de la Fase 3): sin estos tres casos sintéticos el detector podría
+    // parecer correcto y sin embargo dejar pasar justo lo que motivó el endurecimiento del test original (que
+    // trabajaba línea a línea). Contenido de archivo simulado, no C# que deba compilar.
+    public static TheoryData<string> MutacionesDeControl => new()
+    {
+        // SQL en una sola línea.
+        """UPDATE "MovimientosValor" SET "ImporteCosto" = 0 WHERE "Id" = 1;""",
+        // SQL partido en dos líneas y en minúsculas: el "\s+" original insensible a mayúsculas ya lo cubre, pero la
+        // implementación anterior (línea a línea) no, porque la palabra clave y el nombre caían en líneas distintas.
+        """
+        update
+        "movimientosvalor" set "importecosto" = 0 where "id" = 1;
+        """,
+        // Código: DbSet seguido de .Remove en la misma expresión.
+        "context.MovimientosValor.Remove(x);",
+    };
+
+    [Theory]
+    [MemberData(nameof(MutacionesDeControl))]
+    public void Violaciones_DetectaCadaMutacionDeControl(string contenidoMutado) =>
+        Assert.NotEmpty(Violaciones(contenidoMutado));
+
+    [Fact]
+    public void Violaciones_NoMarcaLosUsosLegitimosDelCodigoReal()
+    {
+        // Mismo patrón que el código de producción real: declaración de los DbSets (Set<T>() sin mutador detrás,
+        // separado por ";") y un INSERT (permitido: el libro es append-ONLY, no "sin escritura").
+        const string contenido = """
+            /// <summary>Ver <c>MovimientosValor</c> y <c>AplicacionesMovimientoProducto</c>.</summary>
+            public DbSet<MovimientoValor> MovimientosValor => Set<MovimientoValor>();
+            public DbSet<AplicacionMovimientoProducto> AplicacionesMovimientoProducto => Set<AplicacionMovimientoProducto>();
+
+            const string sql = "INSERT INTO \"MovimientosValor\" (\"ProductoId\") VALUES (@ProductoId)";
+            const string sql2 = "UPDATE \"MovimientosProducto\" SET \"CantidadRestante\" = \"CantidadRestante\" - @Aplicada WHERE \"Id\" = @Id";
+            """;
+
+        Assert.Empty(Violaciones(contenido));
+    }
+
+    /// <summary>Escanea TODO el contenido (no línea a línea) y devuelve cada coincidencia con su posición.</summary>
+    private static IEnumerable<(int Indice, string Descripcion)> Violaciones(string contenido)
+    {
+        foreach (Match m in PatronSql.Matches(contenido))
+        {
+            yield return (m.Index, $"contiene SQL prohibido sobre una tabla append-only -> {Colapsar(m.Value)}");
+        }
+
+        foreach (Match m in PatronCodigo.Matches(contenido))
+        {
+            yield return (m.Index, $"contiene una llamada de código prohibida sobre una tabla append-only -> {Colapsar(m.Value)}");
+        }
+    }
+
+    private static string Colapsar(string texto) => Regex.Replace(texto, @"\s+", " ").Trim();
+
+    private static int NumeroDeLinea(string contenido, int indice) =>
+        contenido.AsSpan(0, indice).Count('\n') + 1;
 
     private static bool EstaDentroDeMigrations(string archivo, string carpetaSrc)
     {
