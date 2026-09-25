@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.Extensions.FileProviders;
@@ -151,9 +152,21 @@ app.MapPost("/account/logout", async (HttpContext httpContext) =>
 
 app.MapPost("/account/profile/image", async (
     HttpContext httpContext,
+    IAntiforgery antiforgery,
     IAuthApiClient authApiClient,
     IFileStorageService fileStorageService) =>
 {
+    // Este handler lee el formulario a mano (no enlaza [FromForm]/IFormFile), así que el middleware de antiforgery no lo valida
+    // por sí solo: se valida el token explícitamente. Sin token (o inválido) -> 400, sin tocar el perfil.
+    try
+    {
+        await antiforgery.ValidateRequestAsync(httpContext);
+    }
+    catch (AntiforgeryValidationException)
+    {
+        return Results.BadRequest();
+    }
+
     var currentUser = await authApiClient.GetCurrentUserAsync();
     if (currentUser is null)
     {
