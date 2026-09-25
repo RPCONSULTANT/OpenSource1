@@ -1,4 +1,5 @@
-using OpenSource1.Blazor.Components;
+extern alias BlazorApp;
+using BlazorApp::OpenSource1.Blazor.Components;
 
 namespace OpenSource1.SmokeTests.Blazor;
 
@@ -24,6 +25,10 @@ public sealed class EntradaDecimalTests
     [InlineData("0,500", "0.500")]
     [InlineData("0.125", "0.125")]
     [InlineData("99999999999999.9999", "99999999999999.9999")]
+    [InlineData("1 500 000,25", "1500000.25")]
+    [InlineData("1\u2009500,5", "1500.5")]
+    [InlineData("1\u00A0500", "1500")]
+    [InlineData("-1 500", "-1500")]
     public void TryParse_AceptaPuntoOComaDecimal(string entrada, string esperado)
     {
         Assert.True(EntradaDecimal.TryParse(entrada, out var valor, out var error), error);
@@ -54,6 +59,13 @@ public sealed class EntradaDecimalTests
     [InlineData("1e5")]
     [InlineData("$100")]
     [InlineData("12,34.5,6")]
+    [InlineData("1 5 0 0")]
+    [InlineData("1 50")]
+    [InlineData("12 3456")]
+    [InlineData("1  500")]
+    [InlineData("1 500 5")]
+    [InlineData("- 5")]
+    [InlineData("1 ,5")]
     [InlineData("99999999999999999999999999999999")]
     public void TryParse_TextoNoNumerico_SeRechaza(string entrada)
     {

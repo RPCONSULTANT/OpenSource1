@@ -34,3 +34,8 @@ opencode.json
 # OS files
 .DS_Store
 Thumbs.db
+
+# Subidas locales de la UI (imágenes de clientes/productos/perfil) y directorios de subidas de prueba
+src/OpenSource1.Blazor/storage/
+**/storage/uploads/
+uploads/
