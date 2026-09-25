@@ -618,3 +618,23 @@ muestra (la API igual lo rechazaría con 409 y el diálogo muestra el conflicto)
 - [ ] Test de spec "ningún camino de código hace UPDATE ni DELETE sobre los libros": ya lo garantizan los triggers
   de 3.3; añadir además un test que recorra el código fuente (`src/**/*.cs`) y falle si encuentra
   `MovimientosValor`/`AplicacionesMovimientoProducto` junto a `UPDATE `/`DELETE `/`.Remove(`/`.Update(`.
+
+---
+
+## Resultado y pendientes que hereda la Fase 4
+
+Fase 3 cerrada en `feat/erp-fase-3-inventario` (712 tests en verde, revisión final con correcciones aplicadas).
+
+**Criterios de entrada obligatorios de la Fase 4** (hoy no son alcanzables porque nada registra movimientos todavía):
+
+- Tomar `BloqueoInventarioProducto` (advisory lock del producto) dentro de la transacción en: cambiar la unidad base de un
+  producto, borrar un producto y borrar un almacén (hoy son comprobar-y-luego-actuar sin lock).
+- El posteo de un diario llama a `BloquearProductosAsync` con todos los productos del lote antes del primer `RegistrarAsync`.
+- Una entrada de transferencia pasa siempre el costo de su salida gemela (`-ImporteCosto / CantidadBase` de `MovimientoRegistrado`).
+- El costo de una entrada admite como máximo 4 decimales en unidad base: si la UI captura el costo por unidad alternativa,
+  redondear al convertir (o ampliar la precisión) en vez de dejar que el servicio lo rechace.
+
+**Aceptado y documentado:** filtrar y ordenar por existencia con 30 000 productos / 100 000 movimientos cuesta ~150-175 ms por
+petición (la consulta por defecto, 0,6 ms); `Producto.CostoUnitario` puede quedar desfasado en productos que solo tienen
+entradas (proyección informativa, se revisa en la Fase 5); los 6 avisos CS0618 de la build vienen de los módulos de prueba
+Entradas/AppSettings marcados `[Obsolete]` en el Entregable 2.
