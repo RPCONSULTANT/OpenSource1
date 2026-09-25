@@ -377,6 +377,15 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
             // Guarda de borrado de almacén (DeleteAlmacenCommandHandler): "¿existe algún movimiento con este AlmacenId?".
             entity.HasIndex(x => x.AlmacenId).HasDatabaseName("IX_MovimientosProducto_AlmacenId");
+
+            // Existencia derivada (Task 3.6, corrección de rendimiento): el único índice que arranca en ProductoId es el
+            // parcial de FIFO (CantidadRestante > 0, arriba), así que GetByIdAsync/ /existencias/la agregación del listado
+            // (SUM("Cantidad") por ProductoId, o por ProductoId+AlmacenId en ExistenciasPorAlmacenAsync) recorrían el libro
+            // entero. Índice NO parcial (cubre entradas y salidas) con INCLUDE para que Postgres resuelva la suma con un
+            // Index Only Scan sin volver al heap.
+            entity.HasIndex(x => new { x.ProductoId, x.AlmacenId })
+                .HasDatabaseName("IX_MovimientosProducto_Existencia")
+                .IncludeProperties(x => new { x.Cantidad, x.FechaRegistro });
         });
 
         modelBuilder.Entity<MovimientoValor>(entity =>

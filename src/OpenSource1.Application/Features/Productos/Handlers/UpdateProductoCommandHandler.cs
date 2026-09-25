@@ -5,6 +5,7 @@ using OpenSource1.Application.Features.Productos.Dtos;
 using OpenSource1.Application.Services.Inventario;
 using OpenSource1.Core.Common;
 using OpenSource1.Core.Entities;
+using OpenSource1.Core.Entities.Inventario;
 using OpenSource1.Core.Enums;
 
 namespace OpenSource1.Application.Features.Productos.Handlers;
@@ -50,6 +51,22 @@ public sealed class UpdateProductoCommandHandler(IUnitOfWork unitOfWork, IConsul
         if (unidad is null && datos.UnidadMedidaBaseId != entity.UnidadMedidaBaseId)
         {
             return Result<ProductoResponse>.Fallo(ProductoReglas.ErrorUnidad(datos.UnidadMedidaBaseId));
+        }
+
+        // Corrección 1 (IMPORTANT 3): la unidad base es el factor con el que el libro interpreta TODAS las cantidades ya
+        // registradas del producto (Cantidad, CantidadPorUnidadMedida...); cambiarla en silencio reinterpretaría de golpe
+        // el historial completo. Si cambia y el producto ya tiene algún movimiento, se rechaza con 409 sin tocar nada.
+        if (datos.UnidadMedidaBaseId != entity.UnidadMedidaBaseId)
+        {
+            var tieneMovimientos = await unitOfWork.Repository<MovimientoProducto>()
+                .FirstOrDefaultAsync(x => x.ProductoId == entity.Id, cancellationToken: cancellationToken);
+            if (tieneMovimientos is not null)
+            {
+                return Result<ProductoResponse>.Fallo(new Error(
+                    "producto.conflicto",
+                    "La unidad base no puede cambiarse cuando el producto tiene movimientos de inventario.",
+                    "UnidadMedidaBaseId"));
+            }
         }
 
         var imagen = await ProductoReglas.AsegurarImagenNoAsignadaAsync(unitOfWork, datos.ImagePath, request.Id, cancellationToken);

@@ -39,6 +39,13 @@ namespace OpenSource1.Infrastructure.Data.Migrations.Application
     /// misma migración), redondeados a entero: si tras aplicar <c>Up()</c> se registraron movimientos adicionales (diarios,
     /// ajustes de costo, etc.), <c>Down()</c> los PIERDE — no es un rollback completo del libro, solo de esta migración.
     /// </para>
+    /// <para>
+    /// LIMITACIÓN CONOCIDA (corrección 1): si tras un <c>Down()</c> alguien modifica <c>Stock</c> a mano (la columna existe
+    /// de nuevo) y luego se corre <c>Up()</c> otra vez, el <c>NOT EXISTS</c> de apertura ve que el producto YA tiene un
+    /// movimiento con <c>ClaveOrigen = 'MIGRACION-STOCK'</c> (el de la primera pasada, que <c>Down()</c> nunca borra) y no
+    /// abre nada nuevo: el Stock modificado en ese estado intermedio se ignora en silencio. La migración es idempotente
+    /// para reejecuciones SIN cambios manuales de por medio, no para ese escenario.
+    /// </para>
     /// </remarks>
     public partial class ReemplazarStockPorLibro : Migration
     {
@@ -60,36 +67,40 @@ namespace OpenSource1.Infrastructure.Data.Migrations.Application
             // TipoDocumento 0 = Ninguno. CantidadRestante solo tiene sentido en una entrada (nace igual a la cantidad
             // completa, nada aplicado todavía); en una salida es NULL. El "NOT EXISTS" hace la migración idempotente: una
             // reejecución (o un Down()+Up() en pruebas) no vuelve a abrir el mismo producto ni duplica su existencia.
+            //
+            // CORRECCIÓN 1: MovimientosProducto y MovimientosValor se insertan en UNA sola sentencia (CTE con INSERT ...
+            // RETURNING encadenado a otro INSERT), no en dos INSERT independientes: con dos sentencias separadas, el
+            // segundo INSERT (valor) seleccionaba TODOS los movimientos con ClaveOrigen = 'MIGRACION-STOCK' —incluidos los
+            // de una pasada anterior— así que una reejecución (p. ej. Down() + Up() en pruebas) no duplicaba el movimiento
+            // de cantidad (el NOT EXISTS ya lo evitaba) pero SÍ duplicaba su fila de valor. Con la CTE, "nuevos" contiene
+            // exactamente las filas que ESTA ejecución insertó en MovimientosProducto (ninguna si el NOT EXISTS ya las
+            // excluyó todas), y solo esas generan su MovimientosValor correspondiente.
             migrationBuilder.Sql($"""
-                INSERT INTO "MovimientosProducto" ("ProductoId","AlmacenId","TipoMovimiento","TipoDocumento","NumeroDocumento",
-                    "NumeroLineaDocumento","FechaRegistro","FechaDocumento","Cantidad","CantidadRestante","CantidadFacturada",
-                    "UnidadMedidaId","CantidadPorUnidadMedida","TipoOrigen","ClaveOrigen","CreatedAtUtc","CreatedBy")
-                SELECT p."Id", '{AlmacenPrincipalId}',
-                       CASE WHEN p."Stock" > 0 THEN 3 ELSE 4 END, 0, NULL, 0,
-                       CURRENT_DATE, CURRENT_DATE, p."Stock",
-                       CASE WHEN p."Stock" > 0 THEN p."Stock" END, 0,
-                       p."UnidadMedidaBaseId", 1, 99, '{ClaveOrigenMigracion}', now(), 'migracion'
-                FROM "Productos" p
-                WHERE p."Stock" <> 0
-                  AND NOT EXISTS (
-                      SELECT 1 FROM "MovimientosProducto" mp
-                      WHERE mp."ProductoId" = p."Id" AND mp."ClaveOrigen" = '{ClaveOrigenMigracion}'
-                  );
-                """);
-
-            // Valor: costo = Stock (con signo) x CostoUnitario vigente del producto en ese momento. TipoValor 1 =
-            // CostoDirecto. Se enlaza por ClaveOrigen (único de esta migración) y ProductoId, no por rango de Id, para que la
-            // migración sea segura de reejecutar en un entorno de pruebas que la aplique más de una vez sin duplicar otras filas.
-            migrationBuilder.Sql($"""
+                WITH nuevos AS (
+                    INSERT INTO "MovimientosProducto" ("ProductoId","AlmacenId","TipoMovimiento","TipoDocumento","NumeroDocumento",
+                        "NumeroLineaDocumento","FechaRegistro","FechaDocumento","Cantidad","CantidadRestante","CantidadFacturada",
+                        "UnidadMedidaId","CantidadPorUnidadMedida","TipoOrigen","ClaveOrigen","CreatedAtUtc","CreatedBy")
+                    SELECT p."Id", '{AlmacenPrincipalId}',
+                           CASE WHEN p."Stock" > 0 THEN 3 ELSE 4 END, 0, NULL, 0,
+                           CURRENT_DATE, CURRENT_DATE, p."Stock",
+                           CASE WHEN p."Stock" > 0 THEN p."Stock" END, 0,
+                           p."UnidadMedidaBaseId", 1, 99, '{ClaveOrigenMigracion}', now(), 'migracion'
+                    FROM "Productos" p
+                    WHERE p."Stock" <> 0
+                      AND NOT EXISTS (
+                          SELECT 1 FROM "MovimientosProducto" mp
+                          WHERE mp."ProductoId" = p."Id" AND mp."ClaveOrigen" = '{ClaveOrigenMigracion}'
+                      )
+                    RETURNING "Id", "ProductoId", "AlmacenId", "TipoMovimiento", "FechaRegistro", "Cantidad"
+                )
                 INSERT INTO "MovimientosValor" ("MovimientoProductoId","ProductoId","AlmacenId","TipoValor","TipoMovimiento",
                     "FechaRegistro","CantidadValorada","CantidadFacturada","ImporteCosto","CostoPorUnidad","ImporteVenta",
                     "ImporteCostoPosteadoContabilidad","Ajuste","TipoDocumento","NumeroDocumento","NumeroLineaDocumento",
                     "TipoOrigen","ClaveOrigen","CreatedAtUtc","CreatedBy")
-                SELECT m."Id", m."ProductoId", m."AlmacenId", 1, m."TipoMovimiento", m."FechaRegistro", m."Cantidad", 0,
-                       ROUND(m."Cantidad" * p."CostoUnitario", 4), p."CostoUnitario", 0, 0, false, 0, NULL, 0,
+                SELECT n."Id", n."ProductoId", n."AlmacenId", 1, n."TipoMovimiento", n."FechaRegistro", n."Cantidad", 0,
+                       ROUND(n."Cantidad" * p."CostoUnitario", 4), p."CostoUnitario", 0, 0, false, 0, NULL, 0,
                        99, '{ClaveOrigenMigracion}', now(), 'migracion'
-                FROM "MovimientosProducto" m JOIN "Productos" p ON p."Id" = m."ProductoId"
-                WHERE m."ClaveOrigen" = '{ClaveOrigenMigracion}';
+                FROM nuevos n JOIN "Productos" p ON p."Id" = n."ProductoId";
                 """);
 
             // Ruling AR: la salida de apertura (Stock legado negativo) queda pendiente de ajuste de costo hasta que la

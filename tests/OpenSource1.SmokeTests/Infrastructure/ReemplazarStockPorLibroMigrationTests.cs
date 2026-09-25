@@ -108,17 +108,40 @@ public sealed class ReemplazarStockPorLibroMigrationTests(PostgresTestFixture fi
         Assert.Equal(7, abajo[ProductoBorrado]);
         Assert.Equal(15, abajo[ProductoKg]);
 
-        // 7. Up() otra vez: idempotente en resultado (no duplica movimientos ni dobla la existencia derivada).
+        // 7. Up() otra vez: idempotente en resultado (no duplica movimientos NI su valor, no dobla la existencia derivada).
+        // Corrección 1: antes de la CTE, el INSERT de MovimientosValor tomaba TODOS los movimientos con
+        // ClaveOrigen = 'MIGRACION-STOCK' (incluidos los de la pasada anterior) y duplicaba la fila de valor aunque el
+        // NOT EXISTS ya evitara duplicar el movimiento de cantidad — este bloque prueba justo ese escenario.
         await migrador.MigrateAsync();
         var existenciasOtraVez = await LeerExistenciasAsync();
         Assert.Equal(120m, existenciasOtraVez.GetValueOrDefault(ProductoPositivo));
         Assert.Equal(-5m, existenciasOtraVez.GetValueOrDefault(ProductoNegativo));
         Assert.Equal(7m, existenciasOtraVez.GetValueOrDefault(ProductoBorrado));
         Assert.Equal(15m, existenciasOtraVez.GetValueOrDefault(ProductoKg));
+
         var conteoMovimientos = await LeerAsync(
             """SELECT COUNT(*) FROM "MovimientosProducto" WHERE "ClaveOrigen" = 'MIGRACION-STOCK' AND "ProductoId" = @p""",
             new { p = ProductoPositivo });
         Assert.Equal(1L, conteoMovimientos[0][0]);
+
+        // Ni una sola fila de valor se duplicó: sigue habiendo exactamente una por producto migrado.
+        var conteosValor = await LeerAsync(
+            """SELECT "ProductoId", COUNT(*) FROM "MovimientosValor" WHERE "ClaveOrigen" = 'MIGRACION-STOCK' GROUP BY "ProductoId" """);
+        var conteoValorPorProducto = conteosValor.ToDictionary(f => (Guid)f[0]!, f => (long)f[1]!);
+        Assert.Equal(1L, conteoValorPorProducto[ProductoPositivo]);
+        Assert.Equal(1L, conteoValorPorProducto[ProductoNegativo]);
+        Assert.Equal(1L, conteoValorPorProducto[ProductoBorrado]);
+        Assert.Equal(1L, conteoValorPorProducto[ProductoKg]);
+        Assert.False(conteoValorPorProducto.ContainsKey(ProductoCero));
+
+        // Y el SUM(ImporteCosto) sigue siendo el mismo que tras el primer Up() (no se dobló a 600/−40/84/37.50).
+        var valoresOtraVez = await LeerAsync(
+            """SELECT "ProductoId", SUM("ImporteCosto") FROM "MovimientosValor" WHERE "ClaveOrigen" = 'MIGRACION-STOCK' GROUP BY "ProductoId" """);
+        var valorPorProductoOtraVez = valoresOtraVez.ToDictionary(f => (Guid)f[0]!, f => (decimal)f[1]!);
+        Assert.Equal(300.0000m, valorPorProductoOtraVez[ProductoPositivo]);
+        Assert.Equal(-20.0000m, valorPorProductoOtraVez[ProductoNegativo]);
+        Assert.Equal(42.0000m, valorPorProductoOtraVez[ProductoBorrado]);
+        Assert.Equal(18.7500m, valorPorProductoOtraVez[ProductoKg]);
     }
 
     private async Task<IMigrator> PrepararAsync()

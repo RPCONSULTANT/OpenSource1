@@ -125,6 +125,55 @@ public class UpdateProductoCommandHandlerTests
     }
 
     [Fact]
+    public async Task Handle_CambiaUnidadBaseConMovimientosDeInventario_DevuelveConflictoYNoModifica()
+    {
+        // IMPORTANT 3 (ronda 1): la unidad base es el factor con el que el libro interpreta TODO el historial ya
+        // registrado; cambiarla en silencio lo reinterpretaría de golpe.
+        var fake = new ProductosFake();
+        var entity = ProductoExistente(fake);
+        var nueva = fake.AgregarUnidad("KG", "Kilogramo");
+        fake.AgregarMovimiento(entity.Id);
+
+        var result = await Handler(fake)
+            .Handle(new UpdateProductoCommand(entity.Id, "OLD", "Otro", null, null, nueva.Id, null, null, null), default);
+
+        Assert.True(result.EsFallo);
+        Assert.Equal("producto.conflicto", result.Errores[0].Codigo);
+        Assert.Equal("UnidadMedidaBaseId", result.Errores[0].Campo);
+        Assert.Equal(fake.Unidad.Id, entity.UnidadMedidaBaseId);
+        fake.UnitOfWork.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Handle_CambiaUnidadBaseSinMovimientos_Permite()
+    {
+        var fake = new ProductosFake();
+        var entity = ProductoExistente(fake);
+        var nueva = fake.AgregarUnidad("KG", "Kilogramo");
+
+        var result = await Handler(fake)
+            .Handle(new UpdateProductoCommand(entity.Id, "OLD", "Otro", null, null, nueva.Id, null, null, null), default);
+
+        Assert.True(result.EsExito, result.EsFallo ? result.Errores[0].Mensaje : null);
+        Assert.Equal(nueva.Id, entity.UnidadMedidaBaseId);
+    }
+
+    [Fact]
+    public async Task Handle_MismaUnidadBaseConMovimientos_NoSeRevisaLaGuarda()
+    {
+        // La unidad "cambia" a sí misma (mismo Id, con o sin movimientos): no hay reinterpretación real, se permite.
+        var fake = new ProductosFake();
+        var entity = ProductoExistente(fake);
+        fake.AgregarMovimiento(entity.Id);
+
+        var result = await Handler(fake)
+            .Handle(new UpdateProductoCommand(entity.Id, "OLD", "Otro", null, null, fake.Unidad.Id, null, null, null), default);
+
+        Assert.True(result.EsExito, result.EsFallo ? result.Errores[0].Mensaje : null);
+        Assert.Equal(fake.Unidad.Id, entity.UnidadMedidaBaseId);
+    }
+
+    [Fact]
     public async Task Handle_CategoriaGuardadaYaBorrada_NoSeRevalidaSiNoCambia()
     {
         // Un producto con una referencia ya colgante (dato previo a los guardas de borrado) debe seguir siendo editable.

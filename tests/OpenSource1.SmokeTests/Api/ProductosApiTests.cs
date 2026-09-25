@@ -452,6 +452,57 @@ public sealed class ProductosApiTests : IClassFixture<PostgresTestFixture>
     }
 
     [Fact]
+    public async Task Update_CambiaUnidadBaseConMovimientos_Devuelve409_YNoModifica()
+    {
+        var client = CreateClient("Administrador");
+        var unidad = await CrearUnidadAsync(client);
+        var creado = (await (await client.PostAsJsonAsync("/api/productos", new { codigo = CodigoUnico("UMB"), nombre = "Con movimientos" })).Content.ReadFromJsonAsync<ProductoResponse>())!;
+        await RegistrarEntradaAsync(creado.Id, 10m);
+
+        var put = await client.PutAsJsonAsync($"/api/productos/{creado.Id}", new { codigo = creado.Codigo, nombre = creado.Nombre, unidadMedidaBaseId = unidad.Id });
+
+        Assert.Equal(HttpStatusCode.Conflict, put.StatusCode);
+        var cuerpo = await put.Content.ReadAsStringAsync();
+        Assert.Contains("UnidadMedidaBaseId", cuerpo);
+        Assert.Contains("unidad base no puede cambiarse", cuerpo, StringComparison.OrdinalIgnoreCase);
+
+        // No se modificó nada: la unidad base sigue siendo la original (UND por defecto).
+        var tras = (await client.GetFromJsonAsync<ProductoResponse>($"/api/productos/{creado.Id}"))!;
+        Assert.Equal("UND", tras.UnidadMedidaCodigo);
+        Assert.Equal(creado.Nombre, tras.Nombre);
+    }
+
+    [Fact]
+    public async Task Update_CambiaUnidadBaseSinMovimientos_Devuelve200()
+    {
+        var client = CreateClient("Administrador");
+        var unidad = await CrearUnidadAsync(client);
+        var creado = (await (await client.PostAsJsonAsync("/api/productos", new { codigo = CodigoUnico("UMS"), nombre = "Sin movimientos" })).Content.ReadFromJsonAsync<ProductoResponse>())!;
+
+        var put = await client.PutAsJsonAsync($"/api/productos/{creado.Id}", new { codigo = creado.Codigo, nombre = creado.Nombre, unidadMedidaBaseId = unidad.Id });
+
+        Assert.Equal(HttpStatusCode.OK, put.StatusCode);
+        var tras = (await put.Content.ReadFromJsonAsync<ProductoResponse>())!;
+        Assert.Equal(unidad.Id, tras.UnidadMedidaBaseId);
+    }
+
+    [Fact]
+    public async Task Update_ConLaMismaUnidadBaseYMovimientos_Devuelve200()
+    {
+        // "Cambiar" a la misma unidad no es un cambio real: la guarda no debe activarse.
+        var client = CreateClient("Administrador");
+        var creado = (await (await client.PostAsJsonAsync("/api/productos", new { codigo = CodigoUnico("UMI"), nombre = "Misma unidad" })).Content.ReadFromJsonAsync<ProductoResponse>())!;
+        await RegistrarEntradaAsync(creado.Id, 5m);
+
+        var put = await client.PutAsJsonAsync($"/api/productos/{creado.Id}", new { codigo = creado.Codigo, nombre = "Renombrado", unidadMedidaBaseId = creado.UnidadMedidaBaseId });
+
+        Assert.Equal(HttpStatusCode.OK, put.StatusCode);
+        var tras = (await put.Content.ReadFromJsonAsync<ProductoResponse>())!;
+        Assert.Equal("Renombrado", tras.Nombre);
+        Assert.Equal(creado.UnidadMedidaBaseId, tras.UnidadMedidaBaseId);
+    }
+
+    [Fact]
     public async Task List_FiltraYOrdenaPorTodasLasColumnasSobreElJoin_SinErrorDeColumnaAmbigua()
     {
         // Un JOIN con CategoriasProducto y UnidadesMedida deja "Codigo", "Nombre", "Id", "IsDeleted" y "CreatedAtUtc" en TRES tablas, y
