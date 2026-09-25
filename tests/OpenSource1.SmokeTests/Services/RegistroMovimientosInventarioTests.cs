@@ -198,7 +198,7 @@ public sealed class RegistroMovimientosInventarioTests(PostgresTestFixture fixtu
         var error = Assert.Single(resultado.Errores);
         Assert.Equal("inventario.existencia_insuficiente", error.Codigo);
         Assert.Equal("Cantidad", error.Campo);
-        Assert.Contains("5", error.Mensaje);
+        Assert.Contains("disponible 5, solicitado 6", error.Mensaje);
         Assert.Equal((1L, 1L, 0L), antes);
         Assert.Equal(antes, despues);
         Assert.Equal(antes, await _prueba.ContarFilasAsync(producto));
@@ -454,6 +454,191 @@ public sealed class RegistroMovimientosInventarioTests(PostgresTestFixture fixtu
         Assert.Equal("inventario.existencia_insuficiente", perdedora.Errores[0].Codigo);
         Assert.Equal(3m, await _prueba.ConsultarAsync(c => c.ExistenciaAsync(producto, almacen, null)));
         Assert.Equal(3m, await RestanteTotalAsync(producto));
+    }
+
+    public static TheoryData<string, string, string> CasosDeLongitudEImporte => new()
+    {
+        { "clave_vacia", "inventario.clave_origen_invalida", "ClaveOrigen" },
+        { "clave_51", "inventario.clave_origen_invalida", "ClaveOrigen" },
+        { "numero_documento_21", "inventario.numero_documento_invalido", "NumeroDocumento" },
+        { "importe_venta_negativo", "inventario.importe_venta_invalido", "ImporteVenta" },
+        { "importe_venta_1e14", "inventario.importe_venta_invalido", "ImporteVenta" },
+        { "importe_venta_5_decimales", "inventario.importe_venta_invalido", "ImporteVenta" },
+        { "costo_1e14", "inventario.costo_invalido", "CostoUnitario" },
+        { "costo_5_decimales", "inventario.costo_invalido", "CostoUnitario" },
+    };
+
+    [Theory]
+    [MemberData(nameof(CasosDeLongitudEImporte))]
+    public async Task LongitudesEImportesFueraDeRango_FallanConSuCodigoYSinEscribir(string caso, string codigo, string campo)
+    {
+        var producto = await _prueba.SembrarProductoAsync();
+        var almacen = await _prueba.SembrarAlmacenAsync();
+        await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Entrada(producto, almacen, 10m, 10m, D1));
+        var filasAntes = await _prueba.ContarFilasAsync(producto);
+
+        var entrada = LibroInventarioPrueba.Entrada(producto, almacen, 1m, 1m, D2);
+        var salida = LibroInventarioPrueba.Salida(producto, almacen, 1m, D2);
+        var solicitud = caso switch
+        {
+            "clave_vacia" => entrada with { ClaveOrigen = " " },
+            "clave_51" => entrada with { ClaveOrigen = new string('C', 51) },
+            "numero_documento_21" => entrada with { NumeroDocumento = new string('N', 21) },
+            "importe_venta_negativo" => salida with { ImporteVenta = -0.01m },
+            "importe_venta_1e14" => salida with { ImporteVenta = 100_000_000_000_000m },
+            "importe_venta_5_decimales" => salida with { ImporteVenta = 1.00001m },
+            "costo_1e14" => entrada with { CostoUnitario = 100_000_000_000_000m },
+            "costo_5_decimales" => entrada with { CostoUnitario = 1.00001m },
+            _ => throw new ArgumentOutOfRangeException(nameof(caso)),
+        };
+
+        var resultado = await _prueba.RegistrarAsync(solicitud);
+
+        Assert.True(resultado.EsFallo);
+        var error = Assert.Single(resultado.Errores);
+        Assert.Equal((codigo, campo), (error.Codigo, error.Campo));
+        Assert.Equal(filasAntes, await _prueba.ContarFilasAsync(producto));
+    }
+
+    [Fact]
+    public async Task LongitudesEnElLimite_SeAceptan()
+    {
+        var producto = await _prueba.SembrarProductoAsync();
+        var almacen = await _prueba.SembrarAlmacenAsync();
+
+        await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Entrada(producto, almacen, 10m, 1.2345m, D1) with
+        {
+            ClaveOrigen = new string('C', 50),
+            NumeroDocumento = new string('N', 20),
+        });
+        await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Salida(producto, almacen, 1m, D2) with
+        {
+            ImporteVenta = 99_999_999_999_999.9999m,
+            NumeroDocumento = null,
+        });
+    }
+
+    [Fact]
+    public async Task VariasLineasEnUnaTransaccion_MismoProducto_AplicaAmbasSalidasContraLaMismaEntrada()
+    {
+        var producto = await _prueba.SembrarProductoAsync();
+        var almacen = await _prueba.SembrarAlmacenAsync();
+
+        MovimientoRegistrado entrada, s1, s2;
+        await using (var scope = _prueba.Provider.CreateAsyncScope())
+        {
+            var sesion = scope.ServiceProvider.GetRequiredService<IDbSession>();
+            var registro = scope.ServiceProvider.GetRequiredService<IRegistroMovimientosInventario>();
+            await using var tx = await sesion.BeginTransactionAsync();
+
+            await registro.BloquearProductosAsync([producto]);
+            entrada = (await registro.RegistrarAsync(LibroInventarioPrueba.Entrada(producto, almacen, 10m, 10m, D1))).Valor;
+            s1 = (await registro.RegistrarAsync(LibroInventarioPrueba.Salida(producto, almacen, 3m, D1))).Valor;
+            s2 = (await registro.RegistrarAsync(LibroInventarioPrueba.Salida(producto, almacen, 4m, D1))).Valor;
+            await sesion.CommitAsync();
+        }
+
+        Assert.Equal((-30m, -40m), (s1.ImporteCosto, s2.ImporteCosto));
+        Assert.Equal(3m, await _prueba.ConsultarAsync(c => c.ExistenciaAsync(producto, almacen, null)));
+
+        await using var conexion = _prueba.NuevaConexion();
+        var aplicaciones = (await conexion.QueryAsync<(long Entrada, long Salida, decimal Cantidad)>(
+            """
+            SELECT a."MovimientoEntradaId", a."MovimientoSalidaId", a."Cantidad" FROM "AplicacionesMovimientoProducto" a
+            JOIN "MovimientosProducto" m ON m."Id" = a."MovimientoSalidaId" WHERE m."ProductoId" = @p ORDER BY a."Id"
+            """, new { p = producto })).ToList();
+        Assert.Equal(
+            [(entrada.MovimientoProductoId, s1.MovimientoProductoId, 3m), (entrada.MovimientoProductoId, s2.MovimientoProductoId, 4m)],
+            aplicaciones);
+        Assert.Equal(3m, await RestanteTotalAsync(producto));
+    }
+
+    [Fact]
+    public async Task VariasLineasEnUnaTransaccion_DosProductos_CadaUnoConSuExistenciaYCosto()
+    {
+        var p1 = await _prueba.SembrarProductoAsync();
+        var p2 = await _prueba.SembrarProductoAsync();
+        var almacen = await _prueba.SembrarAlmacenAsync();
+
+        MovimientoRegistrado s1, s2;
+        await using (var scope = _prueba.Provider.CreateAsyncScope())
+        {
+            var sesion = scope.ServiceProvider.GetRequiredService<IDbSession>();
+            var registro = scope.ServiceProvider.GetRequiredService<IRegistroMovimientosInventario>();
+            await using var tx = await sesion.BeginTransactionAsync();
+
+            await registro.BloquearProductosAsync([p2, p1, p2]);
+            Assert.True((await registro.RegistrarAsync(LibroInventarioPrueba.Entrada(p1, almacen, 10m, 10m, D1))).EsExito);
+            Assert.True((await registro.RegistrarAsync(LibroInventarioPrueba.Entrada(p2, almacen, 5m, 4m, D1))).EsExito);
+            s1 = (await registro.RegistrarAsync(LibroInventarioPrueba.Salida(p1, almacen, 3m, D2))).Valor;
+            s2 = (await registro.RegistrarAsync(LibroInventarioPrueba.Salida(p2, almacen, 2m, D2))).Valor;
+            await sesion.CommitAsync();
+        }
+
+        Assert.Equal((-30m, -8m), (s1.ImporteCosto, s2.ImporteCosto));
+        Assert.Equal(7m, await _prueba.ConsultarAsync(c => c.ExistenciaAsync(p1, almacen, null)));
+        Assert.Equal(3m, await _prueba.ConsultarAsync(c => c.ExistenciaAsync(p2, almacen, null)));
+        Assert.Equal((7m, 3m), (await RestanteTotalAsync(p1), await RestanteTotalAsync(p2)));
+    }
+
+    [Fact]
+    public async Task BloquearProductos_SinTransaccion_Lanza()
+    {
+        await using var scope = _prueba.Provider.CreateAsyncScope();
+        var registro = scope.ServiceProvider.GetRequiredService<IRegistroMovimientosInventario>();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => registro.BloquearProductosAsync([Guid.NewGuid()]));
+    }
+
+    [Fact]
+    public async Task Concurrencia_DocumentosConLineasABYBA_BloqueandoAntes_NoSeInterbloquean()
+    {
+        // Sin el orden de BloquearProductosAsync, cada ronda se interbloquea (40P01) ~1 de cada 2 veces (la carrera está
+        // entre las dos adquisiciones del bucle); 8 rondas hacen que esa regresión se detecte casi siempre (1 - 0.5^8).
+        const int rondas = 8;
+        var a = await _prueba.SembrarProductoAsync();
+        var b = await _prueba.SembrarProductoAsync();
+        var almacen = await _prueba.SembrarAlmacenAsync();
+        await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Entrada(a, almacen, 20m, 10m, D1));
+        await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Entrada(b, almacen, 20m, 10m, D1));
+        var resultados = new ConcurrentBag<Result<MovimientoRegistrado>>();
+
+        for (var ronda = 0; ronda < rondas; ronda++)
+        {
+            var listas = 0;
+            var barrera = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            async Task DocumentoAsync(Guid primero, Guid segundo)
+            {
+                await using var scope = _prueba.Provider.CreateAsyncScope();
+                var sesion = scope.ServiceProvider.GetRequiredService<IDbSession>();
+                var registro = scope.ServiceProvider.GetRequiredService<IRegistroMovimientosInventario>();
+                await using var tx = await sesion.BeginTransactionAsync();
+                await sesion.EnsureOpenAsync();
+
+                if (Interlocked.Increment(ref listas) == 2)
+                {
+                    barrera.SetResult();
+                }
+
+                await barrera.Task;
+
+                // Patrón de la Fase 4: todos los productos del documento, en el orden de sus líneas, antes de registrar.
+                await registro.BloquearProductosAsync([primero, segundo]);
+                resultados.Add(await registro.RegistrarAsync(LibroInventarioPrueba.Salida(primero, almacen, 1m, D2)));
+                await Task.Delay(50);
+                resultados.Add(await registro.RegistrarAsync(LibroInventarioPrueba.Salida(segundo, almacen, 1m, D2)));
+                await sesion.CommitAsync();
+            }
+
+            // Una 40P01 saldría como PostgresException de Task.WhenAll y haría fallar el test.
+            await Task.WhenAll(Task.Run(() => DocumentoAsync(a, b)), Task.Run(() => DocumentoAsync(b, a)));
+        }
+
+        Assert.Equal(4 * rondas, resultados.Count);
+        Assert.All(resultados, r => Assert.True(r.EsExito));
+        Assert.Equal(20m - (2 * rondas), await _prueba.ConsultarAsync(c => c.ExistenciaAsync(a, almacen, null)));
+        Assert.Equal(20m - (2 * rondas), await _prueba.ConsultarAsync(c => c.ExistenciaAsync(b, almacen, null)));
     }
 
     private async Task<bool> CostoAjustadoAsync(Guid productoId)

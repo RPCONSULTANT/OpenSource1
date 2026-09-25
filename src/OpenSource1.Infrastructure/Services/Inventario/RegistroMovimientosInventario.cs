@@ -24,6 +24,28 @@ public sealed class RegistroMovimientosInventario(
     IUsuarioActual usuario) : IRegistroMovimientosInventario
 {
     private const int LongitudCreatedBy = 100;
+    private const int LongitudClaveOrigen = 50;
+    private const int LongitudNumeroDocumento = 20;
+
+    /// <summary>Máximo de numeric(18,4), mismo criterio que <c>ProductoValidator</c>.</summary>
+    private const decimal ImporteMaximo = 99_999_999_999_999.9999m;
+
+    public async Task BloquearProductosAsync(IEnumerable<Guid> productoIds, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(productoIds);
+        if (!session.HayTransaccionActiva)
+        {
+            throw new InvalidOperationException("Bloquear productos del inventario requiere una transacción activa.");
+        }
+
+        await session.EnsureOpenAsync(ct);
+
+        // Orden total y único para todos los llamadores: así nunca hay dos transacciones esperándose en ciclo.
+        foreach (var productoId in productoIds.Distinct().Order())
+        {
+            await BloqueoInventarioProducto.AdquirirAsync(session, productoId, ct);
+        }
+    }
 
     public async Task<Result<MovimientoRegistrado>> RegistrarAsync(MovimientoInventarioSolicitud solicitud, CancellationToken ct = default)
     {
@@ -82,6 +104,34 @@ public sealed class RegistroMovimientosInventario(
             return Fallo(new Error(
                 "inventario.costo_requerido",
                 "Una entrada requiere un costo unitario mayor o igual que cero.", "CostoUnitario"));
+        }
+
+        if (solicitud.CostoUnitario is { } costoSolicitado && !EsImporteValido(costoSolicitado))
+        {
+            return Fallo(new Error(
+                "inventario.costo_invalido",
+                "El costo unitario debe ser menor que 1e14 y tener como máximo 4 decimales.", "CostoUnitario"));
+        }
+
+        if (string.IsNullOrWhiteSpace(solicitud.ClaveOrigen) || solicitud.ClaveOrigen.Length > LongitudClaveOrigen)
+        {
+            return Fallo(new Error(
+                "inventario.clave_origen_invalida",
+                $"La clave de origen es obligatoria y admite como máximo {LongitudClaveOrigen} caracteres.", "ClaveOrigen"));
+        }
+
+        if (solicitud.NumeroDocumento is { Length: > LongitudNumeroDocumento })
+        {
+            return Fallo(new Error(
+                "inventario.numero_documento_invalido",
+                $"El número de documento admite como máximo {LongitudNumeroDocumento} caracteres.", "NumeroDocumento"));
+        }
+
+        if (!EsImporteValido(solicitud.ImporteVenta))
+        {
+            return Fallo(new Error(
+                "inventario.importe_venta_invalido",
+                "El importe de venta debe ser mayor o igual que cero, menor que 1e14 y tener como máximo 4 decimales.", "ImporteVenta"));
         }
 
         // 4. Cantidad en unidad base y factor congelado (el del servicio de conversión, nunca cantidadBase / cantidad).
@@ -328,6 +378,10 @@ public sealed class RegistroMovimientosInventario(
         var nombre = string.IsNullOrWhiteSpace(usuario.Nombre) ? "system" : usuario.Nombre;
         return nombre.Length <= LongitudCreatedBy ? nombre : nombre[..LongitudCreatedBy];
     }
+
+    /// <summary>numeric(18,4): 0 &lt;= valor &lt;= 99 999 999 999 999.9999 y sin más de 4 decimales (Postgres redondearía en silencio).</summary>
+    private static bool EsImporteValido(decimal valor) =>
+        valor >= 0 && valor <= ImporteMaximo && decimal.Round(valor, 4) == valor;
 
     private static string Formato(decimal valor) => valor.ToString("0.######", CultureInfo.InvariantCulture);
 
