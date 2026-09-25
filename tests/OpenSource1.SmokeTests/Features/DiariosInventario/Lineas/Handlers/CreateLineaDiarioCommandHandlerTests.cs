@@ -3,6 +3,7 @@ using OpenSource1.Application.Data.UnitOfWork;
 using OpenSource1.Application.Features.DiariosInventario.Lineas.Commands;
 using OpenSource1.Application.Features.DiariosInventario.Lineas.Dtos;
 using OpenSource1.Application.Features.DiariosInventario.Lineas.Handlers;
+using OpenSource1.Application.Features.DiariosInventario.Lotes;
 using OpenSource1.Application.Services.Inventario;
 using OpenSource1.Core.Common;
 using OpenSource1.Core.Entities;
@@ -17,14 +18,16 @@ public class CreateLineaDiarioCommandHandlerTests
     private static readonly DateOnly Hoy = new(2026, 9, 25);
 
     [Fact]
-    public async Task Handle_LoteInexistente_DevuelveLoteBloqueado()
+    public async Task Handle_LoteInexistente_Devuelve404NoEncontrado()
     {
+        // Ronda de corrección 1: LoteDiarioId viene de la URL (POST lotes/{loteId}/lineas), así que "no existe" es
+        // un 404 -- distinto de "existe pero está bloqueado" (400), que sigue siendo diario.lote_bloqueado.
         var e = ArmarEscenario();
 
         var result = await Ejecutar(e, e.ComandoBase with { LoteDiarioId = Guid.NewGuid() });
 
         Assert.True(result.EsFallo);
-        Assert.Equal("diario.lote_bloqueado", result.Errores[0].Codigo);
+        Assert.Equal("diario_lote.no_encontrado", result.Errores[0].Codigo);
         Assert.Equal("LoteDiarioId", result.Errores[0].Campo);
     }
 
@@ -307,10 +310,107 @@ public class CreateLineaDiarioCommandHandlerTests
         e.Lineas.Mock.Verify(r => r.AddAsync(It.IsAny<LineaDiario>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
+    [Fact]
+    public async Task Handle_FactorDistintoDeUno_CongelaCantidadPorUnidadMedidaYCalculaImporte()
+    {
+        // factor 12 (p. ej. una "caja" de 12 unidades), cantidad 2.5 cajas, costo 1.2345 (unidad base) ->
+        // ImporteCosto = 2.5 * 12 * 1.2345 = 37.035.
+        var e = ArmarEscenario();
+        e.Conversion.Setup(c => c.ObtenerFactorAsync(e.Producto.Id, e.Unidad.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<decimal>.Exito(12m));
+
+        var result = await Ejecutar(e, e.ComandoBase with { Cantidad = 2.5m, CostoUnitario = 1.2345m });
+
+        Assert.True(result.EsExito, result.EsFallo ? result.Errores[0].Codigo : "");
+        Assert.Equal(12m, result.Valor.CantidadPorUnidadMedida);
+        Assert.Equal(37.035m, result.Valor.ImporteCosto);
+    }
+
+    [Fact]
+    public async Task Handle_FactorConMasDeSeisDecimales_CongelaElFactorRedondeadoA6Decimales()
+    {
+        // Mismo criterio que RegistroMovimientosInventario: el factor se redondea a 6 decimales (away from zero)
+        // antes de congelarlo, nunca se guarda con más precisión de la que admite la columna.
+        var e = ArmarEscenario();
+        e.Conversion.Setup(c => c.ObtenerFactorAsync(e.Producto.Id, e.Unidad.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<decimal>.Exito(3.12345675m));
+
+        var result = await Ejecutar(e, e.ComandoBase);
+
+        Assert.True(result.EsExito, result.EsFallo ? result.Errores[0].Codigo : "");
+        Assert.Equal(3.123457m, result.Valor.CantidadPorUnidadMedida);
+    }
+
+    [Fact]
+    public async Task Handle_CantidadMayorQueElMaximoDeNumeric18_6_DevuelveCantidadInvalida()
+    {
+        var e = ArmarEscenario();
+
+        var result = await Ejecutar(e, e.ComandoBase with { Cantidad = 1_000_000_000_000m, CostoUnitario = 1m });
+
+        Assert.True(result.EsFallo);
+        Assert.Equal("diario.cantidad_invalida", result.Errores[0].Codigo);
+        Assert.Equal("Cantidad", result.Errores[0].Campo);
+    }
+
+    [Fact]
+    public async Task Handle_CantidadBaseDesbordaNumeric18_6_PorElFactor_DevuelveCantidadInvalida()
+    {
+        // Cantidad por sí sola es válida (900 mil millones < máximo), pero factor 2 la lleva a 1.8 billones, que ya
+        // no cabe en numeric(18,6): sin esta comprobación, el registro (Task 4.3) reventaría con 22003 al postear.
+        var e = ArmarEscenario();
+        e.Conversion.Setup(c => c.ObtenerFactorAsync(e.Producto.Id, e.Unidad.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<decimal>.Exito(2m));
+
+        var result = await Ejecutar(e, e.ComandoBase with { Cantidad = 900_000_000_000m, CostoUnitario = 1m });
+
+        Assert.True(result.EsFallo);
+        Assert.Equal("diario.cantidad_invalida", result.Errores[0].Codigo);
+        Assert.Equal("Cantidad", result.Errores[0].Campo);
+    }
+
+    [Fact]
+    public async Task Handle_ImporteCostoDesbordaNumeric18_4_DevuelveCostoInvalidoConCampoCostoUnitario()
+    {
+        // Cantidad 1e6 y costo 1e10 pasan sus propios límites individuales, pero el PRODUCTO (1e16) desborda
+        // numeric(18,4) igual.
+        var e = ArmarEscenario();
+
+        var result = await Ejecutar(e, e.ComandoBase with { Cantidad = 1_000_000m, CostoUnitario = 10_000_000_000m });
+
+        Assert.True(result.EsFallo);
+        Assert.Equal("diario.costo_invalido", result.Errores[0].Codigo);
+        Assert.Equal("CostoUnitario", result.Errores[0].Campo);
+    }
+
+    [Fact]
+    public async Task Handle_FechaRegistroPorDefecto_DevuelveFechaInvalida()
+    {
+        var e = ArmarEscenario();
+
+        var result = await Ejecutar(e, e.ComandoBase with { FechaRegistro = default });
+
+        Assert.True(result.EsFallo);
+        Assert.Equal("diario.fecha_invalida", result.Errores[0].Codigo);
+        Assert.Equal("FechaRegistro", result.Errores[0].Campo);
+    }
+
+    [Fact]
+    public async Task Handle_FechaDocumentoPorDefecto_DevuelveFechaInvalida()
+    {
+        var e = ArmarEscenario();
+
+        var result = await Ejecutar(e, e.ComandoBase with { FechaDocumento = default });
+
+        Assert.True(result.EsFallo);
+        Assert.Equal("diario.fecha_invalida", result.Errores[0].Codigo);
+        Assert.Equal("FechaDocumento", result.Errores[0].Campo);
+    }
+
     private static async Task<Result<LineaDiarioResponse>> Ejecutar(
         Escenario e, CreateLineaDiarioCommand comando)
     {
-        var handler = new CreateLineaDiarioCommandHandler(e.UnitOfWork.Object, e.Conversion.Object);
+        var handler = new CreateLineaDiarioCommandHandler(e.UnitOfWork.Object, e.LoteBloqueo.Object, e.Conversion.Object);
         return await handler.Handle(comando, default);
     }
 
@@ -349,16 +449,26 @@ public class CreateLineaDiarioCommandHandlerTests
         unitOfWork.Setup(u => u.Repository<UnidadMedida>()).Returns(unidades.Repo);
         unitOfWork.Setup(u => u.Repository<LineaDiario>()).Returns(lineas.Repo);
         unitOfWork.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
+        unitOfWork.Setup(u => u.BeginTransactionAsync(It.IsAny<CancellationToken>())).ReturnsAsync(Mock.Of<IAsyncDisposable>());
+        unitOfWork.Setup(u => u.CommitAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+
+        // Evalúa dinámicamente el estado vigente de "lotes.Datos": null si no hay un lote vivo con ese Id, si no su
+        // Bloqueado -- mismo contrato que LoteDiarioBloqueoService.BloquearYObtenerEstadoAsync contra Postgres real.
+        var loteBloqueo = new Mock<ILoteDiarioBloqueoService>();
+        loteBloqueo.Setup(s => s.BloquearYObtenerEstadoAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Guid id, CancellationToken _) =>
+                lotes.Datos.Where(l => !l.IsDeleted && l.Id == id).Select(l => (bool?)l.Bloqueado).FirstOrDefault());
 
         var comandoBase = new CreateLineaDiarioCommand(
             lote.Id, Hoy, Hoy, "DOC-1", TipoMovimientoInventario.AjustePositivo, producto.Id, almacen.Id, null, unidad.Id,
             1m, 1m, "Descripción de prueba");
 
-        return new Escenario(unitOfWork, lineas, lote, producto, almacen, almacenDestino, unidad, conversion, comandoBase);
+        return new Escenario(unitOfWork, loteBloqueo, lineas, lote, producto, almacen, almacenDestino, unidad, conversion, comandoBase);
     }
 
     private sealed record Escenario(
         Mock<IUnitOfWork> UnitOfWork,
+        Mock<ILoteDiarioBloqueoService> LoteBloqueo,
         RepositorioEnMemoria<LineaDiario> Lineas,
         LoteDiario Lote,
         Producto Producto,

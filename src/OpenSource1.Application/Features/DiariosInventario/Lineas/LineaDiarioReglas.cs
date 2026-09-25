@@ -18,6 +18,10 @@ internal static class LineaDiarioReglas
     /// <summary>Máximo de <c>numeric(18,4)</c>, mismo criterio que <c>RegistroMovimientosInventario</c>.</summary>
     private const decimal ImporteMaximo = 99_999_999_999_999.9999m;
 
+    /// <summary>Máximo de <c>numeric(18,6)</c> (12 dígitos enteros + 6 decimales): límite de <c>Cantidad</c> y de la
+    /// cantidad ya convertida a la unidad base del producto (<c>Cantidad × factor</c>).</summary>
+    private const decimal CantidadMaxima = 999_999_999_999.999999m;
+
     private static readonly TipoMovimientoInventario[] TiposArticulo =
         [TipoMovimientoInventario.AjustePositivo, TipoMovimientoInventario.AjusteNegativo];
 
@@ -26,20 +30,38 @@ internal static class LineaDiarioReglas
     public static async Task<Result<LineaDiarioCalculo>> ValidarYCalcularAsync(
         IUnitOfWork unitOfWork, IConversionUnidadMedidaService conversion, LineaDiarioDatos datos, CancellationToken cancellationToken)
     {
-        // 1. Lote existe y no bloqueado (código único para ambos casos: LoteDiarioId no es una referencia de la URL
-        // en el PUT, y en el POST el brief pide el mismo código para "no existe" y para "bloqueado").
+        // 0. Fechas obligatorias: un DateOnly no puede ser null, así que un cuerpo que las omite las deserializa como
+        // default(DateOnly) (0001-01-01) en vez de lanzar; hay que rechazarlo explícitamente.
+        if (datos.FechaRegistro == default)
+        {
+            return Fallo("diario.fecha_invalida", "La fecha de registro es obligatoria.", "FechaRegistro");
+        }
+
+        if (datos.FechaDocumento == default)
+        {
+            return Fallo("diario.fecha_invalida", "La fecha de documento es obligatoria.", "FechaDocumento");
+        }
+
+        // 1. Lote: existencia y bloqueo son códigos DISTINTOS (a diferencia del POST/PUT de línea, donde
+        // LoteDiarioId no es una referencia del cuerpo: en el POST viene de la URL -> 404 si no existe; el bloqueo
+        // sigue siendo una regla de negocio -> 400).
         var lote = await unitOfWork.Repository<LoteDiario>().FirstOrDefaultAsync(
             x => x.Id == datos.LoteDiarioId, cancellationToken: cancellationToken);
-        if (lote is null || lote.Bloqueado)
+        if (lote is null)
         {
-            return Fallo("diario.lote_bloqueado", "El lote no existe o está bloqueado.", "LoteDiarioId");
+            return Fallo("diario_lote.no_encontrado", "No se encontró el lote de diario solicitado.", "LoteDiarioId");
+        }
+
+        if (lote.Bloqueado)
+        {
+            return Fallo("diario.lote_bloqueado", "El lote está bloqueado.", "LoteDiarioId");
         }
 
         var plantilla = await unitOfWork.Repository<PlantillaDiario>().FirstOrDefaultAsync(
             x => x.Id == lote.PlantillaDiarioId, cancellationToken: cancellationToken);
         if (plantilla is null)
         {
-            return Fallo("diario.lote_bloqueado", "El lote no existe o está bloqueado.", "LoteDiarioId");
+            return Fallo("diario_lote.no_encontrado", "No se encontró el lote de diario solicitado.", "LoteDiarioId");
         }
 
         // 2. TipoMovimiento permitido por el tipo de la plantilla.
@@ -94,10 +116,13 @@ internal static class LineaDiarioReglas
                 "El almacén destino solo aplica a una transferencia.", "AlmacenDestinoId");
         }
 
-        // 6. Cantidad > 0, hasta 6 decimales.
-        if (datos.Cantidad <= 0 || decimal.Round(datos.Cantidad, 6) != datos.Cantidad)
+        // 6. Cantidad > 0, hasta 6 decimales, y dentro de numeric(18,6) (sin este límite, un valor cercano al máximo de
+        // decimal desborda la columna en Postgres con 22003 numeric_field_overflow en vez de un 400 legible).
+        if (datos.Cantidad <= 0 || datos.Cantidad > CantidadMaxima || decimal.Round(datos.Cantidad, 6) != datos.Cantidad)
         {
-            return Fallo("diario.cantidad_invalida", "La cantidad debe ser mayor que cero y tener como máximo 6 decimales.", "Cantidad");
+            return Fallo(
+                "diario.cantidad_invalida",
+                $"La cantidad debe ser mayor que cero, hasta {CantidadMaxima:0.######} y tener como máximo 6 decimales.", "Cantidad");
         }
 
         // 7. Costo unitario: obligatorio (>= 0, <= 4 decimales, < 1e14) en AjustePositivo; nulo en AjusteNegativo/Transferencia.
@@ -130,6 +155,30 @@ internal static class LineaDiarioReglas
 
         var factor = Math.Round(factorResultado.Valor, 6, MidpointRounding.AwayFromZero);
 
+        // La cantidad en la unidad BASE del producto (Cantidad × factor) también debe caber en numeric(18,6): un
+        // factor grande (p. ej. una unidad "caja" con equivalencia alta) puede desbordar la columna del libro en el
+        // registro (Task 4.3) aunque Cantidad por sí sola sea válida. decimal ya comprueba el desborde de forma
+        // incondicional (no depende de "checked"), pero el bloque explícito documenta la intención.
+        decimal cantidadBase;
+        try
+        {
+            checked
+            {
+                cantidadBase = datos.Cantidad * factor;
+            }
+        }
+        catch (OverflowException)
+        {
+            return Fallo(
+                "diario.cantidad_invalida", "La cantidad, convertida a la unidad base del producto, es demasiado grande.", "Cantidad");
+        }
+
+        if (Math.Abs(cantidadBase) > CantidadMaxima)
+        {
+            return Fallo(
+                "diario.cantidad_invalida", "La cantidad, convertida a la unidad base del producto, es demasiado grande.", "Cantidad");
+        }
+
         // Defensivo: si ObtenerFactorAsync tuvo éxito, la unidad existe en el catálogo (es la base del producto, ya
         // comprobada arriba por el servicio, o está asociada vía UnidadesMedidaProducto con FK Restrict). Solo se
         // consulta aquí para obtener su Código para la respuesta.
@@ -153,9 +202,32 @@ internal static class LineaDiarioReglas
         }
 
         // ImporteCosto: calculado solo cuando hay costo (AjustePositivo); 0 en los demás (se determina al registrar).
-        var importeCosto = datos.CostoUnitario is { } costo
-            ? Math.Round(datos.Cantidad * factor * costo, 4, MidpointRounding.AwayFromZero)
-            : 0m;
+        // Cada factor individual (Cantidad, CostoUnitario) ya pasó su propio límite, pero el PRODUCTO puede seguir
+        // desbordando numeric(18,4) igual (p. ej. cantidad 1e6 × costo 1e10 = 1e16): se comprueba aparte.
+        decimal importeCosto;
+        if (datos.CostoUnitario is { } costo)
+        {
+            try
+            {
+                checked
+                {
+                    importeCosto = Math.Round(datos.Cantidad * factor * costo, 4, MidpointRounding.AwayFromZero);
+                }
+            }
+            catch (OverflowException)
+            {
+                return Fallo("diario.costo_invalido", "El importe de costo resultante es demasiado grande.", "CostoUnitario");
+            }
+
+            if (Math.Abs(importeCosto) > ImporteMaximo)
+            {
+                return Fallo("diario.costo_invalido", "El importe de costo resultante es demasiado grande.", "CostoUnitario");
+            }
+        }
+        else
+        {
+            importeCosto = 0m;
+        }
 
         return Result<LineaDiarioCalculo>.Exito(new LineaDiarioCalculo(
             factor, importeCosto, producto.Codigo, producto.Nombre, almacen.Codigo, almacenDestinoCodigo, unidadMedida.Codigo));

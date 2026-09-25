@@ -6,7 +6,11 @@ using OpenSource1.Core.Entities.Inventario;
 
 namespace OpenSource1.Application.Features.DiariosInventario.Lotes.Handlers;
 
-/// <summary>Borrado lógico de un lote de diario. Rechaza el borrado si tiene líneas (borradas o no importa: basta con que existan filas).</summary>
+/// <summary>
+/// Borrado lógico de un lote de diario. Rechaza el borrado si tiene líneas VIVAS: el filtro global de EF
+/// (<c>!IsDeleted</c>) excluye las borradas lógicamente de <c>FirstOrDefaultAsync</c>, así que un lote cuyas líneas
+/// ya se borraron todas sí puede eliminarse.
+/// </summary>
 public sealed class DeleteLoteDiarioCommandHandler(IUnitOfWork unitOfWork)
     : IRequestHandler<DeleteLoteDiarioCommand, Result>
 {

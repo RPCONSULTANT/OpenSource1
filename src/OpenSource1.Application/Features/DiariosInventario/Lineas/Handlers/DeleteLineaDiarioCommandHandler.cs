@@ -6,7 +6,10 @@ using OpenSource1.Core.Entities.Inventario;
 
 namespace OpenSource1.Application.Features.DiariosInventario.Lineas.Handlers;
 
-/// <summary>Borrado lógico de una línea de diario. Sin más guardas: una línea no registrada no tiene dependientes.</summary>
+/// <summary>
+/// Borrado lógico de una línea de diario. Rechaza el borrado si el lote está bloqueado (coherente con
+/// <see cref="LoteDiario.Bloqueado"/>: un lote bloqueado no admite altas/modificaciones/borrados de línea).
+/// </summary>
 public sealed class DeleteLineaDiarioCommandHandler(IUnitOfWork unitOfWork)
     : IRequestHandler<DeleteLineaDiarioCommand, Result>
 {
@@ -19,6 +22,14 @@ public sealed class DeleteLineaDiarioCommandHandler(IUnitOfWork unitOfWork)
         {
             return Result.Fallo(new Error(
                 "diario_linea.no_encontrado", "No se encontró la línea de diario solicitada.", "Id"));
+        }
+
+        var lote = await unitOfWork.Repository<LoteDiario>().FirstOrDefaultAsync(
+            x => x.Id == entity.LoteDiarioId, cancellationToken: cancellationToken);
+        if (lote is null || lote.Bloqueado)
+        {
+            return Result.Fallo(new Error(
+                "diario.lote_bloqueado", "El lote está bloqueado.", "Id"));
         }
 
         repository.Remove(entity);

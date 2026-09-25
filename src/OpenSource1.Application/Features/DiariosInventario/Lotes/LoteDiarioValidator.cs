@@ -40,6 +40,14 @@ internal static partial class LoteDiarioValidator
 
     public static string NormalizarCodigo(string codigo) => codigo.Trim().ToUpperInvariant();
 
+    /// <summary>
+    /// Ronda de corrección 1: la serie de un lote debe ser de diarios de inventario, no cualquier serie del
+    /// sistema (p. ej. SOCIOS). Todas las series de esta familia usan el prefijo <c>DIARIO-</c>
+    /// (<see cref="OpenSource1.Core.Entities.Inventario.SerieDiarioInventarioIds.Codigo"/> = <c>DIARIO-INV</c>).
+    /// </summary>
+    public static bool EsSerieDeDiarioValida(string codigoSerie) =>
+        codigoSerie.StartsWith("DIARIO-", StringComparison.Ordinal);
+
     [GeneratedRegex("^[A-Z0-9_-]{1,20}$")]
     private static partial Regex CodigoValido();
 }

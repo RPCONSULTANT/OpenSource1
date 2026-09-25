@@ -302,13 +302,86 @@ public sealed class DiariosInventarioApiTests : IClassFixture<PostgresTestFixtur
             NuevaLinea(Guid.NewGuid(), almacenId, null, TipoMovimientoInventario.AjustePositivo, 1m, 1m));
         await AssertErrorAsync(productoInvalido, HttpStatusCode.BadRequest, "ProductoId");
 
-        // Lote inexistente (por URL) -> el brief pide el mismo código que "bloqueado" (400, no 404).
+        // Lote inexistente (por URL) -> 404, no 400: LoteDiarioId es un recurso de la URL, no una referencia del
+        // cuerpo (Ronda de corrección 1; el handler lo carga y bloquea ANTES de invocar las reglas de validación).
         var loteInexistente = await client.PostAsJsonAsync(
             $"/api/diarios-inventario/lotes/{Guid.NewGuid()}/lineas",
             NuevaLinea(productoId, almacenId, null, TipoMovimientoInventario.AjustePositivo, 1m, 1m));
-        var problemaLote = await loteInexistente.Content.ReadFromJsonAsync<JsonDocument>();
-        Assert.Equal(HttpStatusCode.BadRequest, loteInexistente.StatusCode);
-        Assert.True(problemaLote!.RootElement.GetProperty("errors").TryGetProperty("LoteDiarioId", out _));
+        await AssertErrorAsync(loteInexistente, HttpStatusCode.NotFound, "LoteDiarioId");
+
+        // Cantidad mayor que el máximo de numeric(18,6): sin este límite, Postgres respondería 500
+        // (22003 numeric_field_overflow) en vez de un 400 legible.
+        var cantidadDesborda = await client.PostAsJsonAsync(
+            $"/api/diarios-inventario/lotes/{loteId}/lineas",
+            NuevaLinea(productoId, almacenId, null, TipoMovimientoInventario.AjustePositivo, 1_000_000_000_000m, 1m));
+        await AssertErrorAsync(cantidadDesborda, HttpStatusCode.BadRequest, "Cantidad");
+
+        // Cantidad y costo válidos por separado, pero cuyo PRODUCTO desborda numeric(18,4) (1e6 * 1e10 = 1e16).
+        var importeDesborda = await client.PostAsJsonAsync(
+            $"/api/diarios-inventario/lotes/{loteId}/lineas",
+            NuevaLinea(productoId, almacenId, null, TipoMovimientoInventario.AjustePositivo, 1_000_000m, 10_000_000_000m));
+        await AssertErrorAsync(importeDesborda, HttpStatusCode.BadRequest, "CostoUnitario");
+
+        // Fechas obligatorias: un cuerpo que las omite deserializa DateOnly como default(DateOnly), no lanza.
+        var sinFechas = await client.PostAsync(
+            $"/api/diarios-inventario/lotes/{loteId}/lineas",
+            new StringContent(
+                $$"""
+                {"numeroDocumento":null,"tipoMovimiento":3,"productoId":"{{productoId}}","almacenId":"{{almacenId}}",
+                 "almacenDestinoId":null,"unidadMedidaId":"{{UnidadUnd}}","cantidad":1,"costoUnitario":1,"descripcion":null}
+                """,
+                System.Text.Encoding.UTF8, "application/json"));
+        await AssertErrorAsync(sinFechas, HttpStatusCode.BadRequest, "FechaRegistro");
+    }
+
+    [Fact]
+    public async Task Lineas_AltasConcurrentesEnElMismoLote_AmbasCreanConNumeroLineaDistinto()
+    {
+        var client = CreateClient("Administrador");
+        var loteId = await CrearLoteOkAsync(client, PlantillaDiarioIds.Articulo);
+        var (productoId, almacenId, _) = await CrearProductoYAlmacenesAsync(client);
+
+        // Ronda de corrección 1: el FOR UPDATE sobre la fila del lote serializa las dos altas -> ambas 201, nunca un
+        // 23505 confuso ni un NumeroLinea repetido.
+        var respuestas = await Task.WhenAll(
+            CrearLineaAjustePositivoAsync(CreateClient("Administrador"), loteId, productoId, almacenId),
+            CrearLineaAjustePositivoAsync(CreateClient("Administrador"), loteId, productoId, almacenId));
+
+        Assert.All(respuestas, r => Assert.Equal(HttpStatusCode.Created, r.StatusCode));
+
+        var numeros = await Task.WhenAll(respuestas.Select(async r => (await r.Content.ReadFromJsonAsync<LineaDiarioResponse>())!.NumeroLinea));
+        Assert.Equal(2, numeros.Distinct().Count());
+        Assert.Equal([10000, 20000], numeros.OrderBy(n => n));
+    }
+
+    [Fact]
+    public async Task Lotes_SerieQueNoEsDeDiario_Devuelve400()
+    {
+        var client = CreateClient("Administrador");
+        var serieSociosId = await ObtenerSerieSociosIdAsync();
+
+        var response = await client.PostAsJsonAsync(
+            "/api/diarios-inventario/lotes",
+            new { plantillaDiarioId = PlantillaDiarioIds.Articulo, codigo = $"S{Guid.NewGuid():N}"[..10], nombre = "Lote", serieId = serieSociosId, bloqueado = false });
+
+        await AssertErrorAsync(response, HttpStatusCode.BadRequest, "SerieId");
+    }
+
+    [Fact]
+    public async Task ListLineas_ConLoteInexistente_Devuelve404()
+    {
+        var client = CreateClient("Administrador");
+
+        var response = await client.GetAsync($"/api/diarios-inventario/lotes/{Guid.NewGuid()}/lineas");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    private async Task<Guid> ObtenerSerieSociosIdAsync()
+    {
+        await using var contexto = new ApplicationDbContext(
+            new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(_fixture.AppConnectionString).Options);
+        return await contexto.Series.Where(s => s.Codigo == "SOCIOS").Select(s => s.Id).SingleAsync();
     }
 
     [Fact]

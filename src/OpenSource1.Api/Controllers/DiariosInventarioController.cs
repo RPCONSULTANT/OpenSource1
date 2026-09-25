@@ -113,10 +113,11 @@ public sealed class DiariosInventarioController(ISender sender) : ControllerBase
     [HttpGet("lotes/{loteId:guid}/lineas")]
     [Authorize(Policy = ApplicationPolicies.CanConsult)]
     [ProducesResponseType<IReadOnlyList<LineaDiarioResponse>>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> ListLineas(Guid loteId, CancellationToken cancellationToken)
     {
         var result = await sender.Send(new ListLineasDiarioQuery(loteId), cancellationToken);
-        return Ok(result);
+        return result.EsFallo ? result.ToActionResult() : Ok(result.Valor);
     }
 
     [HttpGet("lineas/{id:guid}")]
@@ -133,6 +134,7 @@ public sealed class DiariosInventarioController(ISender sender) : ControllerBase
     [Authorize(Policy = ApplicationPolicies.CanAdd)]
     [ProducesResponseType<LineaDiarioResponse>(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> CreateLinea(Guid loteId, CreateLineaDiarioRequest request, CancellationToken cancellationToken)
     {
         var result = await sender.Send(

@@ -77,6 +77,7 @@ public static class DependencyInjection
         services.AddScoped<IPlantillaDiarioReadRepository, DapperPlantillaDiarioReadRepository>();
         services.AddScoped<ILoteDiarioReadRepository, DapperLoteDiarioReadRepository>();
         services.AddScoped<ILineaDiarioReadRepository, DapperLineaDiarioReadRepository>();
+        services.AddScoped<ILoteDiarioBloqueoService, LoteDiarioBloqueoService>();
         services.AddScoped<IConversionUnidadMedidaService, ConversionUnidadMedidaService>();
         services.AddScoped<IGeneradorNumeroDocumento, GeneradorNumeroDocumento>();
         services.AddScoped<IConsultaInventario, ConsultaInventario>();

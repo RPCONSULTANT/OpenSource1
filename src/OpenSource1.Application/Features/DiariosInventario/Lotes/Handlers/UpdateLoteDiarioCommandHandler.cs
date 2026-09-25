@@ -37,10 +37,10 @@ public sealed class UpdateLoteDiarioCommandHandler(IUnitOfWork unitOfWork)
         {
             var serie = await unitOfWork.Repository<Serie>().FirstOrDefaultAsync(
                 x => x.Id == serieIdInformada, cancellationToken: cancellationToken);
-            if (serie is null)
+            if (serie is null || !LoteDiarioValidator.EsSerieDeDiarioValida(serie.Codigo))
             {
                 return Result<LoteDiarioResponse>.Fallo(new Error(
-                    "diario.serie_invalida", "La serie indicada no existe.", "SerieId"));
+                    "diario.serie_invalida", "La serie indicada no existe o no es una serie de diarios de inventario.", "SerieId"));
             }
         }
 

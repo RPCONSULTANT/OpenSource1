@@ -310,7 +310,12 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                 .HasForeignKey(x => x.SerieId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // Línea vigente de DIARIO-INV desde 2020-01-01, contador en 000000 (siguiente: 000001).
+            // Línea vigente de DIARIO-INV desde 2020-01-01, contador en 000000 (siguiente: 000001). NUNCA editar
+            // "UltimoNumeroUsado" aquí en una migración futura: EF recalcularía esta semilla en cada migración
+            // subsiguiente comparándola contra el valor fijo de HasData, deshaciendo el avance real del contador. Lo
+            // actualiza en runtime, por SQL directo, GeneradorNumeroDocumento.SiguienteAsync (UPDATE de una sola
+            // columna dentro de la transacción del llamador) — nunca EF ni una migración.
+
             entity.HasData(new
             {
                 Id = SerieDiarioInventarioIds.LineaSerieId,

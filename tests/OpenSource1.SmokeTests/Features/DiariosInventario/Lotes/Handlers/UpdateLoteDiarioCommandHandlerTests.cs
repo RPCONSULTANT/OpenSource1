@@ -71,6 +71,23 @@ public class UpdateLoteDiarioCommandHandlerTests
     }
 
     [Fact]
+    public async Task Handle_SerieQueNoEsDeDiario_DevuelveSerieInvalidaSinGuardar()
+    {
+        var unitOfWork = ArmarUnitOfWork(out var lotes, out var series, out _);
+        var entity = lotes.Agregar(new LoteDiario { PlantillaDiarioId = Guid.NewGuid(), Codigo = "OLD", Nombre = "Viejo" });
+        var socios = series.Agregar(new Serie { Codigo = "SOCIOS", Descripcion = "Códigos de socios de negocio" });
+
+        var handler = new UpdateLoteDiarioCommandHandler(unitOfWork.Object);
+        var result = await handler.Handle(
+            new UpdateLoteDiarioCommand(entity.Id, "OLD", "Viejo", socios.Id, null, 1), default);
+
+        Assert.True(result.EsFallo);
+        Assert.Equal("diario.serie_invalida", result.Errores[0].Codigo);
+        Assert.Equal("SerieId", result.Errores[0].Campo);
+        unitOfWork.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task Handle_EstableceLaVersionOriginalDeXminAntesDeGuardar()
     {
         var unitOfWork = ArmarUnitOfWork(out var lotes, out _, out _);

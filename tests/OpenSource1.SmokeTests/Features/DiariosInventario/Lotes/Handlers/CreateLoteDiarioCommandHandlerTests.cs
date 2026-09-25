@@ -41,6 +41,25 @@ public class CreateLoteDiarioCommandHandlerTests
     }
 
     [Fact]
+    public async Task Handle_SerieQueNoEsDeDiario_DevuelveSerieInvalidaSinGuardar()
+    {
+        // Ronda de corrección 1: una serie debe existir Y empezar con "DIARIO-"; SOCIOS es una serie real del
+        // sistema pero de otra familia (Task 2.9), no debe poder asignarse a un lote de diario.
+        var unitOfWork = ArmarUnitOfWork(out var lotes, out var plantillas, out var series);
+        var plantilla = plantillas.Agregar(new PlantillaDiario { Codigo = "ARTICULO", Nombre = "Artículo", Tipo = TipoPlantillaDiario.Articulo });
+        var socios = series.Agregar(new Serie { Codigo = "SOCIOS", Descripcion = "Códigos de socios de negocio" });
+
+        var handler = new CreateLoteDiarioCommandHandler(unitOfWork.Object);
+        var result = await handler.Handle(
+            new CreateLoteDiarioCommand(plantilla.Id, "LOTE1", "Lote de prueba", socios.Id, false), default);
+
+        Assert.True(result.EsFallo);
+        Assert.Equal("diario.serie_invalida", result.Errores[0].Codigo);
+        Assert.Equal("SerieId", result.Errores[0].Campo);
+        lotes.Mock.Verify(r => r.AddAsync(It.IsAny<LoteDiario>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task Handle_CodigoInvalido_DevuelveFalloSinGuardar()
     {
         var unitOfWork = ArmarUnitOfWork(out var lotes, out _, out _);

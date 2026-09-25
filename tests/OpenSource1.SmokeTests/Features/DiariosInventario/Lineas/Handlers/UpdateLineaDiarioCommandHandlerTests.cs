@@ -85,4 +85,39 @@ public class UpdateLineaDiarioCommandHandlerTests
         Assert.Equal(lote.Id, result.Valor.LoteDiarioId); // inmutable
         lineas.Mock.Verify(r => r.EstablecerVersionOriginal(linea, 99), Times.Once);
     }
+
+    [Fact]
+    public async Task Handle_LoteBloqueado_DevuelveLoteBloqueado()
+    {
+        // A diferencia del POST (LoteDiarioId de la URL -> 404 si no existe), aquí LoteDiarioId sale de la línea ya
+        // guardada: siempre existe (FK Restrict), así que la única variante observable es el bloqueo.
+        var plantillas = new RepositorioEnMemoria<PlantillaDiario>();
+        var plantilla = plantillas.Agregar(new PlantillaDiario { Codigo = "P", Nombre = "P", Tipo = TipoPlantillaDiario.Articulo });
+
+        var lotes = new RepositorioEnMemoria<LoteDiario>();
+        var lote = lotes.Agregar(new LoteDiario { PlantillaDiarioId = plantilla.Id, Codigo = "L1", Nombre = "Lote 1", Bloqueado = true });
+
+        var lineas = new RepositorioEnMemoria<LineaDiario>();
+        var linea = lineas.Agregar(new LineaDiario
+        {
+            LoteDiarioId = lote.Id, NumeroLinea = 10000, ProductoId = Guid.NewGuid(), AlmacenId = Guid.NewGuid(), UnidadMedidaId = Guid.NewGuid(),
+            Cantidad = 1, TipoMovimiento = TipoMovimientoInventario.AjustePositivo, CostoUnitario = 1m, FechaRegistro = Hoy, FechaDocumento = Hoy
+        });
+
+        var unitOfWork = new Mock<IUnitOfWork>();
+        unitOfWork.Setup(u => u.Repository<LineaDiario>()).Returns(lineas.Repo);
+        unitOfWork.Setup(u => u.Repository<LoteDiario>()).Returns(lotes.Repo);
+        unitOfWork.Setup(u => u.Repository<PlantillaDiario>()).Returns(plantillas.Repo);
+
+        var handler = new UpdateLineaDiarioCommandHandler(unitOfWork.Object, Mock.Of<IConversionUnidadMedidaService>());
+        var result = await handler.Handle(
+            new UpdateLineaDiarioCommand(
+                linea.Id, Hoy, Hoy, null, TipoMovimientoInventario.AjustePositivo, Guid.NewGuid(), Guid.NewGuid(), null,
+                Guid.NewGuid(), 1m, 1m, null, 1),
+            default);
+
+        Assert.True(result.EsFallo);
+        Assert.Equal("diario.lote_bloqueado", result.Errores[0].Codigo);
+        Assert.Equal("LoteDiarioId", result.Errores[0].Campo);
+    }
 }

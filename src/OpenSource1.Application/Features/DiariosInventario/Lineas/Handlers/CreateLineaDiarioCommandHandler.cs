@@ -2,13 +2,15 @@ using MediatR;
 using OpenSource1.Application.Data.UnitOfWork;
 using OpenSource1.Application.Features.DiariosInventario.Lineas.Commands;
 using OpenSource1.Application.Features.DiariosInventario.Lineas.Dtos;
+using OpenSource1.Application.Features.DiariosInventario.Lotes;
 using OpenSource1.Application.Services.Inventario;
 using OpenSource1.Core.Common;
 using OpenSource1.Core.Entities.Inventario;
 
 namespace OpenSource1.Application.Features.DiariosInventario.Lineas.Handlers;
 
-public sealed class CreateLineaDiarioCommandHandler(IUnitOfWork unitOfWork, IConversionUnidadMedidaService conversion)
+public sealed class CreateLineaDiarioCommandHandler(
+    IUnitOfWork unitOfWork, ILoteDiarioBloqueoService loteBloqueo, IConversionUnidadMedidaService conversion)
     : IRequestHandler<CreateLineaDiarioCommand, Result<LineaDiarioResponse>>
 {
     /// <summary>Tope de líneas por lote (brief 4.2): un lote es un borrador chico, no un libro.</summary>
@@ -16,6 +18,28 @@ public sealed class CreateLineaDiarioCommandHandler(IUnitOfWork unitOfWork, ICon
 
     public async Task<Result<LineaDiarioResponse>> Handle(CreateLineaDiarioCommand request, CancellationToken cancellationToken)
     {
+        // Ronda de corrección 1: abre transacción y bloquea la FILA del lote (FOR UPDATE) ANTES de calcular
+        // NumeroLinea y comprobar el tope de 1000. Sin esto, dos altas concurrentes del mismo lote pueden calcular el
+        // mismo máximo y chocar con un 23505 confuso (en vez de un reintento limpio), o saltarse el tope leyendo el
+        // mismo conteo antes de que la otra inserte. El lock es transaccional (se libera al confirmar/deshacer) y la
+        // Task 4.3 reutiliza la misma fila para serializar el posteo contra altas/bajas de línea. Un fallo en
+        // cualquier punto posterior sale del "await using" sin CommitAsync, lo que deshace todo (ninguna fila queda
+        // a medio insertar) y libera el lock.
+        await using var transaccion = await unitOfWork.BeginTransactionAsync(cancellationToken);
+
+        var loteBloqueadoActual = await loteBloqueo.BloquearYObtenerEstadoAsync(request.LoteDiarioId, cancellationToken);
+        if (loteBloqueadoActual is null)
+        {
+            return Result<LineaDiarioResponse>.Fallo(new Error(
+                "diario_lote.no_encontrado", "No se encontró el lote de diario solicitado.", "LoteDiarioId"));
+        }
+
+        if (loteBloqueadoActual.Value)
+        {
+            return Result<LineaDiarioResponse>.Fallo(new Error(
+                "diario.lote_bloqueado", "El lote está bloqueado.", "LoteDiarioId"));
+        }
+
         var datos = new LineaDiarioDatos(
             request.LoteDiarioId, request.FechaRegistro, request.FechaDocumento, Normalizar(request.NumeroDocumento),
             request.TipoMovimiento, request.ProductoId, request.AlmacenId, request.AlmacenDestinoId, request.UnidadMedidaId,
@@ -57,7 +81,7 @@ public sealed class CreateLineaDiarioCommandHandler(IUnitOfWork unitOfWork, ICon
         };
 
         await lineasRepo.AddAsync(entity, cancellationToken);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        await unitOfWork.CommitAsync(cancellationToken);
 
         return Result<LineaDiarioResponse>.Exito(ToResponse(entity, valor, lineasRepo.ObtenerVersionActual(entity)));
     }
