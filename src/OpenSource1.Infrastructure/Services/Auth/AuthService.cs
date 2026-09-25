@@ -8,6 +8,8 @@ using OpenSource1.Infrastructure.Identity;
 using OpenSource1.Application.Security;
 using OpenSource1.Application.Services.Auth;
 using OpenSource1.Application.Services.Auth.Dtos;
+using OpenSource1.Application.Storage;
+using OpenSource1.Core.Common;
 
 namespace OpenSource1.Infrastructure.Services.Auth;
 
@@ -192,6 +194,13 @@ public sealed class AuthService(
 
     public async Task<(bool Success, IReadOnlyList<string> Errors)> UpdateProfileImageAsync(string userId, string? imagePath, CancellationToken cancellationToken = default)
     {
+        // Cualquier usuario autenticado llega aquí: la ruta acaba en un borrado de fichero al cambiar la imagen
+        // de perfil, así que solo se acepta /uploads/users/<nombre> (400 con el campo ImagePath).
+        if (RutaImagen.Validar(imagePath, RutaImagen.CarpetaUsuarios) is { } errorImagen)
+        {
+            throw new ErroresDeDominioException(errorImagen);
+        }
+
         var user = await userManager.FindByIdAsync(userId);
         if (user is null || !user.IsActive)
         {

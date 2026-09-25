@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using OpenSource1.Application.Features.SociosNegocio.Commands;
+using OpenSource1.Application.Storage;
 using OpenSource1.Core.Common;
 using OpenSource1.Core.Enums;
 using OpenSource1.Core.ValueObjects;
@@ -127,6 +128,12 @@ internal static class SocioNegocioValidator
         if (!string.IsNullOrWhiteSpace(datos.PaisCodigo) && !Pais.EsCodigoValido(datos.PaisCodigo))
         {
             errores.Add(new Error("pais.codigo_invalido", "El código de país no es válido.", nameof(datos.PaisCodigo)));
+        }
+
+        // La ruta acaba en un borrado de fichero al sustituir la imagen: solo se acepta /uploads/clientes/<nombre>.
+        if (RutaImagen.Validar(datos.ImagePath, RutaImagen.CarpetaClientes) is { } errorImagen)
+        {
+            errores.Add(errorImagen);
         }
 
         return errores;

@@ -2,6 +2,8 @@ using MediatR;
 using OpenSource1.Application.Data.UnitOfWork;
 using OpenSource1.Application.Features.Productos.Commands;
 using OpenSource1.Application.Features.Productos.Dtos;
+using OpenSource1.Application.Storage;
+using OpenSource1.Core.Common;
 using OpenSource1.Core.Entities;
 using OpenSource1.Core.ValueObjects;
 
@@ -11,6 +13,12 @@ public sealed class UpdateProductoCommandHandler(IUnitOfWork unitOfWork) : IRequ
 {
     public async Task<ProductoResponse?> Handle(UpdateProductoCommand request, CancellationToken cancellationToken)
     {
+        // La ruta acaba en un borrado de fichero al sustituir la imagen: solo se acepta /uploads/productos/<nombre>.
+        if (RutaImagen.Validar(request.ImagePath, RutaImagen.CarpetaProductos) is { } errorImagen)
+        {
+            throw new ErroresDeDominioException(errorImagen);
+        }
+
         var repo = unitOfWork.Repository<Producto>();
         var entity = await repo.GetByIdAsync(new object[] { request.Id }, cancellationToken);
         if (entity is null) return null;
