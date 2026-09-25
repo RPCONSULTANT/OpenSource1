@@ -75,6 +75,7 @@ public static class DependencyInjection
         services.AddScoped<IGeneradorNumeroDocumento, GeneradorNumeroDocumento>();
         services.AddScoped<IConsultaInventario, ConsultaInventario>();
         services.AddScoped<IRegistroMovimientosInventario, RegistroMovimientosInventario>();
+        services.AddScoped<IAjusteCostoInventario, AjusteCostoInventario>();
 
         // Usuario del libro de inventario fuera de HTTP (tests, batch): la API registra antes su UsuarioActualHttp y
         // este TryAdd no lo pisa.

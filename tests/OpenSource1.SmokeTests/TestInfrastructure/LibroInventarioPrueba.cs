@@ -39,6 +39,8 @@ internal sealed class LibroInventarioPrueba(PostgresTestFixture fixture) : IAsyn
         var services = new ServiceCollection();
         services.AddSingleton<IConfiguration>(configuration);
         services.AddLogging();
+        // IUnitOfWork (lo usa el ajuste de costo, Task 3.5) depende de IHttpContextAccessor; fuera de HTTP su contexto es null.
+        services.AddHttpContextAccessor();
         services.AddApplicationData(configuration);
         Provider = services.BuildServiceProvider();
 
@@ -145,6 +147,23 @@ internal sealed class LibroInventarioPrueba(PostgresTestFixture fixture) : IAsyn
     public async Task<MovimientoRegistrado> RegistrarOkAsync(MovimientoInventarioSolicitud solicitud)
     {
         var resultado = await RegistrarAsync(solicitud);
+        Assert.True(resultado.EsExito, resultado.EsFallo
+            ? string.Join("; ", resultado.Errores.Select(e => $"{e.Codigo}: {e.Mensaje}"))
+            : string.Empty);
+        return resultado.Valor;
+    }
+
+    /// <summary>Ejecuta la rutina de ajuste de costo (Task 3.5) en su propio scope, sin transacción previa.</summary>
+    public async Task<Result<ResultadoAjusteCosto>> AjustarAsync(Guid? productoId)
+    {
+        await using var scope = Provider.CreateAsyncScope();
+        return await scope.ServiceProvider.GetRequiredService<IAjusteCostoInventario>().AjustarAsync(productoId);
+    }
+
+    /// <summary>Como <see cref="AjustarAsync"/> pero exige éxito.</summary>
+    public async Task<ResultadoAjusteCosto> AjustarOkAsync(Guid? productoId)
+    {
+        var resultado = await AjustarAsync(productoId);
         Assert.True(resultado.EsExito, resultado.EsFallo
             ? string.Join("; ", resultado.Errores.Select(e => $"{e.Codigo}: {e.Mensaje}"))
             : string.Empty);
