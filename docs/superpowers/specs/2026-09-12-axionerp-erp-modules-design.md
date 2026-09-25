@@ -425,6 +425,10 @@ huecos.
   conserva la etiqueta "Clientes"; la ruta de la API pasa a `api/socios-negocio`.
 - Los VOs estáticos `UnidadMedida` y `CategoriaProducto` se renombran a `...Legado` en las tareas 2.3/2.4 y se
   borran en la 2.9, cuando `Producto` pasa a las claves foráneas.
+- La fila de la unidad base con factor 1 en `UnidadesMedidaProducto` NO se almacena (la tabla del apartado 2.2 la
+  describe como obligatoria; no se crea en ningún flujo). `ConversionUnidadMedidaService` trata la unidad base del
+  producto (`Producto.UnidadMedidaBaseId`) como identidad: factor 1 sin consultar la tabla, aunque exista una fila
+  con otro factor. Solo las unidades distintas de la base exigen fila (`conversion.unidad_no_asociada`).
 
 **Verificación de la Fase 2:** build verde; migración aplicada sin pérdida de datos de
 `Clientes`/`Productos`; tests de conversión de unidades, de generación de números

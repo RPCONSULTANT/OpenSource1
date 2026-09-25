@@ -86,9 +86,58 @@ public sealed class ConversionUnidadMedidaServiceTests : IClassFixture<PostgresT
     }
 
     [Fact]
-    public async Task ConvertirABase_ProductoInexistente_DevuelveFallo()
+    public async Task ConvertirABase_ProductoInexistente_DevuelveProductoNoEncontrado()
     {
         var resultado = await ConvertirAsync(Guid.NewGuid(), await IdUnidadAsync("UND"), 1m);
+
+        Assert.True(resultado.EsFallo);
+        Assert.Equal("conversion.producto_no_encontrado", resultado.Errores[0].Codigo);
+    }
+
+    [Fact]
+    public async Task ConvertirABase_ProductoInexistenteConLaUnidadBaseDeOtroProducto_DevuelveProductoNoEncontrado()
+    {
+        // La unidad es la base de OTRO producto (existente): no debe confundirse con la identidad del inexistente.
+        var (otroProducto, unidadBaseDeOtro) = await SembrarAsync("UND", "UND", 1m, filaAsociada: false);
+
+        var resultado = await ConvertirAsync(Guid.NewGuid(), unidadBaseDeOtro, 1m);
+
+        Assert.NotEqual(Guid.Empty, otroProducto);
+        Assert.True(resultado.EsFallo);
+        Assert.Equal("conversion.producto_no_encontrado", resultado.Errores[0].Codigo);
+    }
+
+    [Fact]
+    public async Task ConvertirABase_UnidadBaseSinFilaAsociada_UsaFactorUnoYRedondeaConSusDecimales()
+    {
+        // Base KG (3 decimales) sin fila en UnidadesMedidaProducto: identidad, 1.23456 -> 1.235 (away from zero).
+        var (producto, kg) = await SembrarAsync("KG", "KG", 1m, filaAsociada: false);
+
+        var resultado = await ConvertirAsync(producto, kg, 1.23456m);
+
+        Assert.True(resultado.EsExito);
+        Assert.Equal(1.235m, resultado.Valor);
+    }
+
+    [Fact]
+    public async Task ConvertirABase_UnidadBaseConFilaDeOtroFactor_GanaLaIdentidad()
+    {
+        // La base UND tiene por error una fila con factor 5: el servicio ignora la fila y usa factor 1.
+        var (producto, und) = await SembrarAsync("UND", "UND", 5m);
+
+        var resultado = await ConvertirAsync(producto, und, 7m);
+
+        Assert.True(resultado.EsExito);
+        Assert.Equal(7m, resultado.Valor);
+    }
+
+    [Fact]
+    public async Task ConvertirABase_UnidadNoBaseSinFila_DevuelveUnidadNoAsociada()
+    {
+        var (producto, _) = await SembrarAsync("UND", "UND", 1m, filaAsociada: false);
+        var cja = await IdUnidadAsync("CJA");
+
+        var resultado = await ConvertirAsync(producto, cja, 1m);
 
         Assert.True(resultado.EsFallo);
         Assert.Equal("conversion.unidad_no_asociada", resultado.Errores[0].Codigo);
@@ -246,8 +295,12 @@ public sealed class ConversionUnidadMedidaServiceTests : IClassFixture<PostgresT
         return await contexto.UnidadesMedida.Where(u => u.Codigo == codigo).Select(u => u.Id).SingleAsync();
     }
 
-    /// <summary>Crea un producto con la unidad base indicada y le asocia la unidad/factor dados.</summary>
-    private async Task<(Guid ProductoId, Guid UnidadMedidaId)> SembrarAsync(string codigoBase, string codigoUnidad, decimal factor)
+    /// <summary>
+    /// Crea un producto con la unidad base indicada y (salvo <paramref name="filaAsociada"/> = false) le asocia la
+    /// unidad/factor dados. Devuelve siempre el id de la unidad <paramref name="codigoUnidad"/>.
+    /// </summary>
+    private async Task<(Guid ProductoId, Guid UnidadMedidaId)> SembrarAsync(
+        string codigoBase, string codigoUnidad, decimal factor, bool filaAsociada = true)
     {
         await using var contexto = NuevoContexto();
         var categoriaId = await contexto.CategoriasProducto.Where(c => c.Codigo == "GENERAL").Select(c => c.Id).SingleAsync();
@@ -264,12 +317,16 @@ public sealed class ConversionUnidadMedidaServiceTests : IClassFixture<PostgresT
         contexto.Productos.Add(producto);
 
         var unidadId = await contexto.UnidadesMedida.Where(u => u.Codigo == codigoUnidad).Select(u => u.Id).SingleAsync();
-        contexto.UnidadesMedidaProducto.Add(new UnidadMedidaProducto
+        if (filaAsociada)
         {
-            ProductoId = producto.Id,
-            UnidadMedidaId = unidadId,
-            CantidadPorUnidadMedida = factor,
-        });
+            contexto.UnidadesMedidaProducto.Add(new UnidadMedidaProducto
+            {
+                ProductoId = producto.Id,
+                UnidadMedidaId = unidadId,
+                CantidadPorUnidadMedida = factor,
+            });
+        }
+
         await contexto.SaveChangesAsync();
 
         return (producto.Id, unidadId);

@@ -10,22 +10,9 @@ public sealed class ConversionUnidadMedidaService(ApplicationDbContext context) 
     public async Task<Result<decimal>> ConvertirABaseAsync(
         Guid productoId, Guid unidadMedidaId, decimal cantidad, CancellationToken cancellationToken = default)
     {
-        var factor = await context.UnidadesMedidaProducto
-            .AsNoTracking()
-            .Where(x => x.ProductoId == productoId && x.UnidadMedidaId == unidadMedidaId)
-            .Select(x => (decimal?)x.CantidadPorUnidadMedida)
-            .FirstOrDefaultAsync(cancellationToken);
-
-        if (factor is null)
-        {
-            return Result<decimal>.Fallo(new Error(
-                "conversion.unidad_no_asociada",
-                "La unidad de medida indicada no está asociada al producto.", "UnidadMedidaId"));
-        }
-
         // La unidad base es la que el propio producto declara (Producto.UnidadMedidaBaseId); se resuelve contra el catálogo para
         // obtener sus Decimales. El redondeo usa SIEMPRE los decimales de la unidad base (el resultado está expresado en ella),
-        // nunca los de la unidad de entrada.
+        // nunca los de la unidad de entrada. El filtro global de borrado lógico de Producto aplica en esta consulta.
         var unidadBaseId = await context.Productos
             .AsNoTracking()
             .Where(p => p.Id == productoId)
@@ -51,7 +38,32 @@ public sealed class ConversionUnidadMedidaService(ApplicationDbContext context) 
                 "La unidad base del producto no existe en el catálogo de unidades de medida.", "ProductoId"));
         }
 
-        var convertido = Math.Round(cantidad * factor.Value, decimalesBase.Value, MidpointRounding.AwayFromZero);
+        // Identidad: la unidad base convierte con factor 1 SIN consultar UnidadesMedidaProducto (la fila de la base no se
+        // almacena; si existiera una con otro factor, gana la identidad).
+        decimal factor;
+        if (unidadMedidaId == unidadBaseId.Value)
+        {
+            factor = 1m;
+        }
+        else
+        {
+            var factorAsociado = await context.UnidadesMedidaProducto
+                .AsNoTracking()
+                .Where(x => x.ProductoId == productoId && x.UnidadMedidaId == unidadMedidaId)
+                .Select(x => (decimal?)x.CantidadPorUnidadMedida)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (factorAsociado is null)
+            {
+                return Result<decimal>.Fallo(new Error(
+                    "conversion.unidad_no_asociada",
+                    "La unidad de medida indicada no está asociada al producto.", "UnidadMedidaId"));
+            }
+
+            factor = factorAsociado.Value;
+        }
+
+        var convertido = Math.Round(cantidad * factor, decimalesBase.Value, MidpointRounding.AwayFromZero);
         return Result<decimal>.Exito(convertido);
     }
 }

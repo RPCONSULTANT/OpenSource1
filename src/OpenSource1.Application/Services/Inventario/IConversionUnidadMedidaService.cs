@@ -7,10 +7,17 @@ namespace OpenSource1.Application.Services.Inventario;
 /// a la unidad base de ese producto. Consumida por la Task 2.9 y por las Fases 3/4/6.
 /// </summary>
 /// <remarks>
-/// Códigos de error: <c>conversion.unidad_no_asociada</c> (el producto no tiene equivalencia
-/// para esa unidad), <c>conversion.producto_no_encontrado</c> y
+/// Si la unidad indicada es la unidad base del producto (<c>Producto.UnidadMedidaBaseId</c>) el
+/// factor es 1 (identidad) y no se consulta <c>UnidadesMedidaProducto</c>: la fila de la unidad
+/// base no se almacena, y si existiera una con otro factor gana la identidad. El resultado se
+/// redondea con los decimales de la unidad base (away from zero).
+/// <para>
+/// Códigos de error: <c>conversion.producto_no_encontrado</c> (el producto no existe o está
+/// borrado lógicamente), <c>conversion.unidad_no_asociada</c> (la unidad no es la base y el
+/// producto no tiene equivalencia para ella) y
 /// <c>conversion.unidad_base_no_encontrada</c> (la unidad base del producto no existe en el
 /// catálogo, por lo que no se conocen sus decimales).
+/// </para>
 /// </remarks>
 public interface IConversionUnidadMedidaService
 {
