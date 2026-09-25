@@ -116,18 +116,40 @@ app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages:
 app.UseHttpsRedirection();
 var uploadsRoot = Path.Combine(app.Environment.ContentRootPath, "storage", "uploads");
 Directory.CreateDirectory(uploadsRoot);
-app.UseStaticFiles(new StaticFileOptions
-{
-    FileProvider = new PhysicalFileProvider(uploadsRoot),
-    RequestPath = "/uploads",
-    // Las subidas son contenido de usuario: el navegador no debe "adivinar" otro tipo distinto del declarado.
-    OnPrepareResponse = context => context.Context.Response.Headers["X-Content-Type-Options"] = "nosniff"
-});
 
 app.UseRouting();
 app.UseSession();
 app.UseAuthentication();
 app.UseAuthorization();
+
+// "/uploads" es contenido privado (avatares, imágenes de clientes y productos): solo para usuarios
+// autenticados. El middleware de ficheros va DESPUÉS de UseAuthentication()/UseAuthorization() a propósito,
+// y esta rama corta la petición antes de llegar a él. Sin autenticar -> mismo Challenge que usan las páginas
+// (redirige a /account/login) y el fichero NO se sirve. Basta con estar autenticado: no se exige ningún
+// permiso (CanConsult, etc.), porque el avatar del propio usuario debe poder verse siempre.
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path.StartsWithSegments("/uploads") && context.User.Identity?.IsAuthenticated != true)
+    {
+        await context.ChallengeAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+        return;
+    }
+
+    await next();
+});
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(uploadsRoot),
+    RequestPath = "/uploads",
+    OnPrepareResponse = context =>
+    {
+        // Las subidas son contenido de usuario: el navegador no debe "adivinar" otro tipo distinto del declarado.
+        context.Context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+        // Contenido privado del usuario autenticado: ningún proxy/caché intermedio debe guardarlo.
+        context.Context.Response.Headers.CacheControl = "private, no-store";
+    }
+});
+
 app.Use(async (context, next) =>
 {
     if (context.User.Identity?.IsAuthenticated == true || context.Request.Path.StartsWithSegments("/account"))
@@ -449,3 +471,5 @@ app.MapStaticAssets();
 app.MapRazorComponents<App>();
 
 app.Run();
+
+public partial class Program { }
