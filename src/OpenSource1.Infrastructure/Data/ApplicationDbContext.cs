@@ -24,6 +24,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<PlantillaDiario> PlantillasDiario => Set<PlantillaDiario>();
     public DbSet<LoteDiario> LotesDiario => Set<LoteDiario>();
     public DbSet<LineaDiario> LineasDiario => Set<LineaDiario>();
+    public DbSet<RegistroDiario> RegistrosDiario => Set<RegistroDiario>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -586,6 +587,21 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.Property(x => x.IsDeleted).HasDefaultValue(false);
             entity.Property(x => x.DeletedBy).HasMaxLength(100);
             entity.HasQueryFilter(x => !x.IsDeleted);
+        });
+
+        modelBuilder.Entity<RegistroDiario>(entity =>
+        {
+            // Append-only (Task 4.3): mismo trigger que el libro (migración AddRegistrosDiario), sin xmin ni soft delete.
+            entity.ToTable("RegistrosDiario");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).UseIdentityAlwaysColumn();
+            entity.Property(x => x.NumeroRegistro).HasMaxLength(20).IsRequired();
+            entity.Property(x => x.CreadoPor).HasMaxLength(100).IsRequired();
+            entity.HasIndex(x => x.NumeroRegistro).IsUnique();
+
+            // Sin navegación (mismo motivo que en MovimientoProducto): el registro sigue visible aunque el lote se borre
+            // lógicamente después. El índice de la FK sirve también al listado GET registros?loteId=.
+            entity.HasOne<LoteDiario>().WithMany().HasForeignKey(x => x.LoteDiarioId).OnDelete(DeleteBehavior.Restrict);
         });
     }
 

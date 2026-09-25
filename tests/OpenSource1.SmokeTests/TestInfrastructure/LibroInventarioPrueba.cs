@@ -39,6 +39,8 @@ internal sealed class LibroInventarioPrueba(PostgresTestFixture fixture) : IAsyn
         var services = new ServiceCollection();
         services.AddSingleton<IConfiguration>(configuration);
         services.AddLogging();
+        // UnitOfWork (handlers de la Task 4.3 resueltos en los tests) lee el usuario de auditoría del HttpContext.
+        services.AddHttpContextAccessor();
         services.AddApplicationData(configuration);
         Provider = services.BuildServiceProvider();
 

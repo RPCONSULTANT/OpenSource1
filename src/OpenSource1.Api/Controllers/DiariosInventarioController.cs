@@ -11,6 +11,9 @@ using OpenSource1.Application.Features.DiariosInventario.Lotes.Dtos;
 using OpenSource1.Application.Features.DiariosInventario.Lotes.Queries;
 using OpenSource1.Application.Features.DiariosInventario.Plantillas.Dtos;
 using OpenSource1.Application.Features.DiariosInventario.Plantillas.Queries;
+using OpenSource1.Application.Features.DiariosInventario.Registros.Commands;
+using OpenSource1.Application.Features.DiariosInventario.Registros.Dtos;
+using OpenSource1.Application.Features.DiariosInventario.Registros.Queries;
 using OpenSource1.Application.Security;
 using OpenSource1.Core.Common;
 using OpenSource1.Core.Enums;
@@ -106,6 +109,41 @@ public sealed class DiariosInventarioController(ISender sender) : ControllerBase
     {
         var result = await sender.Send(new DeleteLoteDiarioCommand(id), cancellationToken);
         return result.EsFallo ? result.ToActionResult() : NoContent();
+    }
+
+    /// <summary>
+    /// Registra (postea) el lote en el libro de inventario en una sola transacción (Task 4.3). CanModify: afecta al
+    /// inventario (Administrador y Supervisor). 400 con TODOS los errores de prevalidación (campo "Lineas[n].Campo").
+    /// </summary>
+    [HttpPost("lotes/{id:guid}/registrar")]
+    [Authorize(Policy = ApplicationPolicies.CanModify)]
+    [ProducesResponseType<ResultadoRegistroLote>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> RegistrarLote(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(new PostearLoteDiarioCommand(id), cancellationToken);
+        return result.EsFallo ? result.ToActionResult() : Ok(result.Valor);
+    }
+
+    // ----- Registros (append-only) -----
+
+    [HttpGet("registros")]
+    [Authorize(Policy = ApplicationPolicies.CanConsult)]
+    [ProducesResponseType<PagedResult<RegistroDiarioResponse>>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> ListRegistros(
+        [FromQuery] Guid? loteId,
+        [FromQuery] int pagina = 1,
+        [FromQuery] int tamanoPagina = PageRequest.TamanoPorDefecto,
+        [FromQuery] bool descendente = true,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await sender.Send(
+            new ListRegistrosDiarioQuery(loteId, new PageRequest(pagina, tamanoPagina, null, descendente)),
+            cancellationToken);
+
+        return result.EsFallo ? result.ToActionResult() : Ok(result.Valor);
     }
 
     // ----- Líneas -----

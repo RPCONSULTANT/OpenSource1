@@ -1,17 +1,27 @@
 using MediatR;
 using OpenSource1.Application.Data.UnitOfWork;
 using OpenSource1.Application.Features.Productos.Commands;
+using OpenSource1.Application.Services.Inventario;
 using OpenSource1.Core.Common;
 using OpenSource1.Core.Entities;
 using OpenSource1.Core.Entities.Inventario;
 
 namespace OpenSource1.Application.Features.Productos.Handlers;
 
-/// <summary>Borrado lógico de un producto. Mismo patrón de guarda que <c>DeleteAlmacenCommandHandler</c>.</summary>
-public sealed class DeleteProductoCommandHandler(IUnitOfWork unitOfWork) : IRequestHandler<DeleteProductoCommand, Result>
+/// <summary>
+/// Borrado lógico de un producto. Mismo patrón de guarda que <c>DeleteAlmacenCommandHandler</c>: en una transacción y con
+/// el bloqueo del producto del libro (<see cref="IRegistroMovimientosInventario.BloquearProductosAsync"/>) tomado ANTES de
+/// comprobar si tiene movimientos (Task 4.3, pendiente de la Fase 3), para que un registro concurrente no deje movimientos
+/// de un producto borrado.
+/// </summary>
+public sealed class DeleteProductoCommandHandler(IUnitOfWork unitOfWork, IRegistroMovimientosInventario registroMovimientos)
+    : IRequestHandler<DeleteProductoCommand, Result>
 {
     public async Task<Result> Handle(DeleteProductoCommand request, CancellationToken cancellationToken)
     {
+        await using var transaccion = await unitOfWork.BeginTransactionAsync(cancellationToken);
+        await registroMovimientos.BloquearProductosAsync([request.Id], cancellationToken);
+
         var repo = unitOfWork.Repository<Producto>();
         var entity = await repo.GetByIdAsync(new object[] { request.Id }, cancellationToken);
         if (entity is null)
@@ -33,7 +43,7 @@ public sealed class DeleteProductoCommandHandler(IUnitOfWork unitOfWork) : IRequ
         }
 
         repo.Remove(entity);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        await unitOfWork.CommitAsync(cancellationToken);
         return Result.Exito();
     }
 }

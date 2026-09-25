@@ -47,6 +47,17 @@ public sealed class RegistroMovimientosInventario(
         }
     }
 
+    public async Task BloquearAlmacenExclusivoAsync(Guid almacenId, CancellationToken ct = default)
+    {
+        if (!session.HayTransaccionActiva)
+        {
+            throw new InvalidOperationException("Bloquear un almacén del inventario requiere una transacción activa.");
+        }
+
+        await session.EnsureOpenAsync(ct);
+        await BloqueoInventarioAlmacen.AdquirirExclusivoAsync(session, almacenId, ct);
+    }
+
     public async Task<Result<MovimientoRegistrado>> RegistrarAsync(MovimientoInventarioSolicitud solicitud, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(solicitud);
@@ -64,6 +75,10 @@ public sealed class RegistroMovimientosInventario(
         // 2. Serializa por producto hasta el commit/rollback: existencia, restantes FIFO y costo promedio se leen y
         //    escriben sin que otra transacción del mismo producto se intercale.
         await BloqueoInventarioProducto.AdquirirAsync(session, solicitud.ProductoId, ct);
+
+        //    Después del producto (orden único de adquisición), el almacén en modo COMPARTIDO y ANTES de validarlo: un
+        //    borrado del almacén (modo exclusivo) espera a este commit, o este registro espera al borrado y lo ve borrado.
+        await BloqueoInventarioAlmacen.AdquirirCompartidoAsync(session, solicitud.AlmacenId, ct);
 
         // 3. Validaciones (referencias del cuerpo: ningún código termina en ".no_encontrado").
         if (solicitud.Cantidad <= 0)
@@ -106,8 +121,12 @@ public sealed class RegistroMovimientosInventario(
                 "Una entrada requiere un costo unitario mayor o igual que cero.", "CostoUnitario"));
         }
 
-        // Solo se valida en entradas: en una salida CostoUnitario se ignora (el contrato no lo usa allí).
-        if (solicitud.EsEntrada && solicitud.CostoUnitario is { } costoSolicitado && !EsImporteValido(costoSolicitado))
+        // Solo se valida en entradas: en una salida CostoUnitario se ignora (el contrato no lo usa allí). La entrada de una
+        // TRANSFERENCIA admite más de 4 decimales: recibe el costo exacto de su salida gemela (-ImporteCosto / CantidadBase,
+        // p. ej. 5.3333 / 4 = 1.333325) para que su importe sea exactamente el opuesto; redondearlo a 4 decimales
+        // descuadraría la reclasificación. CostoPorUnidad se sigue guardando redondeado a 4.
+        if (solicitud.EsEntrada && solicitud.CostoUnitario is { } costoSolicitado
+            && !(esTransferencia ? EsCostoTransferenciaValido(costoSolicitado) : EsImporteValido(costoSolicitado)))
         {
             return Fallo(new Error(
                 "inventario.costo_invalido",
@@ -386,6 +405,9 @@ public sealed class RegistroMovimientosInventario(
     /// <summary>numeric(18,4): 0 &lt;= valor &lt;= 99 999 999 999 999.9999 y sin más de 4 decimales (Postgres redondearía en silencio).</summary>
     private static bool EsImporteValido(decimal valor) =>
         valor >= 0 && valor <= ImporteMaximo && decimal.Round(valor, 4) == valor;
+
+    /// <summary>Rango de numeric(18,4) sin exigir 4 decimales (solo el costo de la entrada gemela de una transferencia).</summary>
+    private static bool EsCostoTransferenciaValido(decimal valor) => valor >= 0 && valor <= ImporteMaximo;
 
     private static string Formato(decimal valor) => valor.ToString("0.######", CultureInfo.InvariantCulture);
 

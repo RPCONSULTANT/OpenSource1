@@ -7,7 +7,10 @@ namespace OpenSource1.Infrastructure.Services.Inventario;
 /// Serialización por producto del libro de inventario (desviación de la Fase 3: advisory lock en lugar de
 /// <c>SELECT ... FOR UPDATE</c> sobre <c>Productos</c>, para no bloquear la edición del maestro). Todo escritor del libro
 /// de un producto (registro de movimientos, Task 3.4; ajuste de costo, Task 3.5) DEBE tomar exactamente esta clave,
-/// o dejaría de excluirse mutuamente con los demás.
+/// o dejaría de excluirse mutuamente con los demás. También la toman (vía
+/// <c>IRegistroMovimientosInventario.BloquearProductosAsync</c>) el borrado de un producto y el cambio de su unidad base,
+/// antes de comprobar si tiene movimientos (Task 4.3). La clave del almacén, y el orden de adquisición producto -&gt;
+/// almacén, están documentados en <see cref="BloqueoInventarioAlmacen"/>.
 /// </summary>
 internal static class BloqueoInventarioProducto
 {

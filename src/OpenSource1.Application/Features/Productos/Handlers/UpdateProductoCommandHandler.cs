@@ -16,11 +16,19 @@ namespace OpenSource1.Application.Features.Productos.Handlers;
 /// unidad, costeo ni bloqueo. <c>CostoUnitario</c> y <c>CostoAjustado</c> nunca se tocan aquí (los mantiene el sistema); la
 /// existencia (Task 3.6) tampoco: se consulta al libro solo para devolverla en la respuesta.
 /// </summary>
-public sealed class UpdateProductoCommandHandler(IUnitOfWork unitOfWork, IConsultaInventario consultaInventario)
+/// <remarks>
+/// Todo el handler va en una transacción: si cambia la unidad base, toma el bloqueo del producto del libro
+/// (<see cref="IRegistroMovimientosInventario.BloquearProductosAsync"/>) ANTES de comprobar si tiene movimientos (Task 4.3,
+/// pendiente de la Fase 3), para que un registro concurrente no escriba movimientos con la unidad base anterior.
+/// </remarks>
+public sealed class UpdateProductoCommandHandler(
+    IUnitOfWork unitOfWork, IConsultaInventario consultaInventario, IRegistroMovimientosInventario registroMovimientos)
     : IRequestHandler<UpdateProductoCommand, Result<ProductoResponse>>
 {
     public async Task<Result<ProductoResponse>> Handle(UpdateProductoCommand request, CancellationToken cancellationToken)
     {
+        await using var transaccion = await unitOfWork.BeginTransactionAsync(cancellationToken);
+
         var repo = unitOfWork.Repository<Producto>();
 
         // Consulta con seguimiento (no Find): siempre pasa por el filtro global de soft delete.
@@ -58,6 +66,7 @@ public sealed class UpdateProductoCommandHandler(IUnitOfWork unitOfWork, IConsul
         // el historial completo. Si cambia y el producto ya tiene algún movimiento, se rechaza con 409 sin tocar nada.
         if (datos.UnidadMedidaBaseId != entity.UnidadMedidaBaseId)
         {
+            await registroMovimientos.BloquearProductosAsync([entity.Id], cancellationToken);
             var tieneMovimientos = await unitOfWork.Repository<MovimientoProducto>()
                 .FirstOrDefaultAsync(x => x.ProductoId == entity.Id, cancellationToken: cancellationToken);
             if (tieneMovimientos is not null)
@@ -86,7 +95,7 @@ public sealed class UpdateProductoCommandHandler(IUnitOfWork unitOfWork, IConsul
         entity.ImagePath = datos.ImagePath;
 
         repo.Update(entity);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        await unitOfWork.CommitAsync(cancellationToken);
 
         var existencia = await consultaInventario.ExistenciaAsync(entity.Id, almacenId: null, fecha: null, cancellationToken);
         return Result<ProductoResponse>.Exito(CreateProductoCommandHandler.ToResponse(entity, categoria, unidad, existencia));

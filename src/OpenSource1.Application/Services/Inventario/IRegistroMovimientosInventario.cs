@@ -26,4 +26,13 @@ public interface IRegistroMovimientosInventario
     /// Requiere transacción activa (lanza <see cref="InvalidOperationException"/> si no la hay: es un error de programación).
     /// </summary>
     Task BloquearProductosAsync(IEnumerable<Guid> productoIds, CancellationToken ct = default);
+
+    /// <summary>
+    /// Toma en modo EXCLUSIVO el bloqueo transaccional del almacén (el mismo que <see cref="RegistrarAsync"/> toma en modo
+    /// compartido para el almacén de cada movimiento). Lo usa el borrado de un almacén ANTES de comprobar si tiene
+    /// movimientos: así ningún registro puede escribir en un almacén mientras se borra, ni el borrado colarse entre la
+    /// validación del almacén de un registro y su INSERT. Requiere transacción activa (lanza
+    /// <see cref="InvalidOperationException"/> si no la hay).
+    /// </summary>
+    Task BloquearAlmacenExclusivoAsync(Guid almacenId, CancellationToken ct = default);
 }

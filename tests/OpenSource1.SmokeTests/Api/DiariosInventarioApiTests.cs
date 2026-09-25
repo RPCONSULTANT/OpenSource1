@@ -10,6 +10,8 @@ using OpenSource1.Application.Data.UnitOfWork;
 using OpenSource1.Application.Features.DiariosInventario.Lineas.Dtos;
 using OpenSource1.Application.Features.DiariosInventario.Lotes.Dtos;
 using OpenSource1.Application.Features.DiariosInventario.Plantillas.Dtos;
+using OpenSource1.Application.Features.DiariosInventario.Registros.Commands;
+using OpenSource1.Application.Features.DiariosInventario.Registros.Dtos;
 using OpenSource1.Core.Common;
 using OpenSource1.Core.Entities.Inventario;
 using OpenSource1.Core.Enums;
@@ -419,6 +421,79 @@ public sealed class DiariosInventarioApiTests : IClassFixture<PostgresTestFixtur
             $"/api/diarios-inventario/lotes/{loteId}/lineas",
             NuevaLinea(productoId, almacenId, almacenId, TipoMovimientoInventario.Transferencia, 5m, null));
         await AssertErrorAsync(mismoAlmacen, HttpStatusCode.BadRequest, "AlmacenDestinoId");
+    }
+
+    // ----- Registro (Task 4.3) -----
+
+    [Fact]
+    public async Task Registrar_EjecutorRecibe403_Supervisor200_YGetRegistrosLoLista()
+    {
+        var loteId = await CrearLoteOkAsync(CreateClient("Administrador"), PlantillaDiarioIds.Articulo);
+        var (productoId, almacenId, _) = await CrearProductoYAlmacenesAsync(CreateClient("Administrador"));
+        var alta = await CrearLineaAjustePositivoAsync(CreateClient("Administrador"), loteId, productoId, almacenId);
+        Assert.Equal(HttpStatusCode.Created, alta.StatusCode);
+        var linea = await alta.Content.ReadFromJsonAsync<LineaDiarioResponse>();
+
+        // Registrar = CanModify: Ejecutor (CanAdd, sin CanModify) no puede.
+        Assert.Equal(
+            HttpStatusCode.Forbidden,
+            (await CreateClient("Ejecutor").PostAsync($"/api/diarios-inventario/lotes/{loteId}/registrar", null)).StatusCode);
+
+        var registrar = await CreateClient("Supervisor").PostAsync($"/api/diarios-inventario/lotes/{loteId}/registrar", null);
+        Assert.Equal(HttpStatusCode.OK, registrar.StatusCode);
+        var resultado = await registrar.Content.ReadFromJsonAsync<ResultadoRegistroLote>();
+        Assert.NotNull(resultado);
+        Assert.Matches("^[0-9]{6}$", resultado!.NumeroRegistro);
+        Assert.Equal(1, resultado.Movimientos);
+        Assert.Equal(resultado.DesdeMovimientoProducto, resultado.HastaMovimientoProducto);
+
+        var existencias = JsonDocument.Parse(await (await CreateClient("Supervisor")
+            .GetAsync($"/api/productos/{productoId}/existencias")).Content.ReadAsStringAsync());
+        Assert.Contains(existencias.RootElement.EnumerateArray(), e =>
+            e.GetProperty("almacenId").GetGuid() == almacenId && e.GetProperty("existencia").GetDecimal() == 10m);
+
+        // Consultar = CanConsult: también el Ejecutor.
+        var listado = await CreateClient("Ejecutor").GetAsync($"/api/diarios-inventario/registros?loteId={loteId}");
+        Assert.Equal(HttpStatusCode.OK, listado.StatusCode);
+        var pagina = await listado.Content.ReadFromJsonAsync<PagedResult<RegistroDiarioResponse>>();
+        var registro = Assert.Single(pagina!.Items);
+        Assert.Equal(resultado.NumeroRegistro, registro.NumeroRegistro);
+        Assert.Equal(1, registro.Lineas);
+        Assert.Equal((resultado.DesdeMovimientoProducto, resultado.HastaMovimientoProducto), (registro.DesdeMovimientoProducto, registro.HastaMovimientoProducto));
+        Assert.Equal("supervisor", registro.CreadoPor);
+        Assert.NotNull(registro.LoteDiarioCodigo);
+
+        // Review Focus 3 y 4: la segunda vez el lote está vacío (400), y la línea registrada ya no existe (PUT/GET 404).
+        await AssertErrorAsync(
+            await CreateClient("Supervisor").PostAsync($"/api/diarios-inventario/lotes/{loteId}/registrar", null),
+            HttpStatusCode.BadRequest, "LoteDiarioId");
+        var put = await CreateClient("Supervisor").PutAsJsonAsync(
+            $"/api/diarios-inventario/lineas/{linea!.Id}",
+            NuevoCuerpoLinea(productoId, almacenId, null, TipoMovimientoInventario.AjustePositivo, 1m, 1m, linea.Xmin));
+        Assert.Equal(HttpStatusCode.NotFound, put.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await CreateClient("Administrador").GetAsync($"/api/diarios-inventario/lineas/{linea.Id}")).StatusCode);
+    }
+
+    [Fact]
+    public async Task Registrar_LoteInexistente404_YLineaInvalidaDevuelveCampoDeLaLinea()
+    {
+        Assert.Equal(
+            HttpStatusCode.NotFound,
+            (await CreateClient("Administrador").PostAsync($"/api/diarios-inventario/lotes/{Guid.NewGuid()}/registrar", null)).StatusCode);
+
+        var loteId = await CrearLoteOkAsync(CreateClient("Administrador"), PlantillaDiarioIds.Articulo);
+        var (productoId, almacenId, _) = await CrearProductoYAlmacenesAsync(CreateClient("Administrador"));
+        Assert.Equal(
+            HttpStatusCode.Created,
+            (await CreateClient("Administrador").PostAsJsonAsync(
+                $"/api/diarios-inventario/lotes/{loteId}/lineas",
+                NuevaLinea(productoId, almacenId, null, TipoMovimientoInventario.AjusteNegativo, 5m, null))).StatusCode);
+
+        // Ajuste negativo sin existencia: 400 con el campo de la línea y sin escribir nada.
+        var registrar = await CreateClient("Administrador").PostAsync($"/api/diarios-inventario/lotes/{loteId}/registrar", null);
+        await AssertErrorAsync(registrar, HttpStatusCode.BadRequest, "Lineas[10000].Cantidad");
+        var listado = await CreateClient("Administrador").GetAsync($"/api/diarios-inventario/registros?loteId={loteId}");
+        Assert.Empty((await listado.Content.ReadFromJsonAsync<PagedResult<RegistroDiarioResponse>>())!.Items);
     }
 
     private static object NuevaLinea(

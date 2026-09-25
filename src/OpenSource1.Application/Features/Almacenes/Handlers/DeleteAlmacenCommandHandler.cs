@@ -1,18 +1,26 @@
 using MediatR;
 using OpenSource1.Application.Data.UnitOfWork;
 using OpenSource1.Application.Features.Almacenes.Commands;
+using OpenSource1.Application.Services.Inventario;
 using OpenSource1.Core.Common;
 using OpenSource1.Core.Entities;
 using OpenSource1.Core.Entities.Inventario;
 
 namespace OpenSource1.Application.Features.Almacenes.Handlers;
 
-/// <summary>Borrado lógico de un almacén.</summary>
-public sealed class DeleteAlmacenCommandHandler(IUnitOfWork unitOfWork)
+/// <summary>
+/// Borrado lógico de un almacén. En una transacción y con el bloqueo EXCLUSIVO del almacén tomado ANTES de comprobar si
+/// tiene movimientos (Task 4.3, pendiente de la Fase 3): <c>RegistrarAsync</c> toma el mismo bloqueo en modo compartido,
+/// así que un registro concurrente o termina antes (y el borrado ve su movimiento: 409) o espera y ve el almacén borrado.
+/// </summary>
+public sealed class DeleteAlmacenCommandHandler(IUnitOfWork unitOfWork, IRegistroMovimientosInventario registroMovimientos)
     : IRequestHandler<DeleteAlmacenCommand, Result>
 {
     public async Task<Result> Handle(DeleteAlmacenCommand request, CancellationToken cancellationToken)
     {
+        await using var transaccion = await unitOfWork.BeginTransactionAsync(cancellationToken);
+        await registroMovimientos.BloquearAlmacenExclusivoAsync(request.Id, cancellationToken);
+
         var repository = unitOfWork.Repository<Almacen>();
         var entity = await repository.GetByIdAsync([request.Id], cancellationToken);
 
@@ -44,7 +52,7 @@ public sealed class DeleteAlmacenCommandHandler(IUnitOfWork unitOfWork)
         }
 
         repository.Remove(entity);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        await unitOfWork.CommitAsync(cancellationToken);
 
         return Result.Exito();
     }

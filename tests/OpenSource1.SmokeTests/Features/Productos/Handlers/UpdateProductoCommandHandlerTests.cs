@@ -45,7 +45,7 @@ public class UpdateProductoCommandHandlerTests
         // La existencia de la respuesta viene del libro (Task 3.6), no del comando.
         Assert.Equal(4.5m, result.Valor.Existencia);
         fake.Productos.Mock.Verify(r => r.Update(entity), Times.Once);
-        fake.UnitOfWork.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+        fake.UnitOfWork.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -93,7 +93,7 @@ public class UpdateProductoCommandHandlerTests
         Assert.Equal("CategoriaId", result.Errores[0].Campo);
         Assert.DoesNotContain(result.Errores, e => e.Codigo.EndsWith(".no_encontrado", StringComparison.Ordinal));
         Assert.Equal("Old", entity.Nombre);
-        fake.UnitOfWork.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+        fake.UnitOfWork.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -141,7 +141,7 @@ public class UpdateProductoCommandHandlerTests
         Assert.Equal("producto.conflicto", result.Errores[0].Codigo);
         Assert.Equal("UnidadMedidaBaseId", result.Errores[0].Campo);
         Assert.Equal(fake.Unidad.Id, entity.UnidadMedidaBaseId);
-        fake.UnitOfWork.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+        fake.UnitOfWork.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -212,7 +212,7 @@ public class UpdateProductoCommandHandlerTests
 
         Assert.True(result.EsFallo);
         Assert.Contains(result.Errores, e => e.Campo == campo);
-        fake.UnitOfWork.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+        fake.UnitOfWork.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -246,6 +246,6 @@ public class UpdateProductoCommandHandlerTests
         consultaInventario
             .Setup(c => c.ExistenciaAsync(It.IsAny<Guid>(), null, null, It.IsAny<CancellationToken>()))
             .ReturnsAsync(existencia);
-        return new UpdateProductoCommandHandler(fake.UnitOfWork.Object, consultaInventario.Object);
+        return new UpdateProductoCommandHandler(fake.UnitOfWork.Object, consultaInventario.Object, new Mock<IRegistroMovimientosInventario>().Object);
     }
 }
