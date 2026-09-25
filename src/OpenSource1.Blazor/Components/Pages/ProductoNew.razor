@@ -1,6 +1,7 @@
 @page "/productos/new"
 @attribute [Authorize(Policy = ApplicationPolicies.CanAdd)]
 @using Microsoft.AspNetCore.Authorization
+@using OpenSource1.Application.Storage
 @using OpenSource1.Blazor.Services
 @inject IProductoApiClient ProductoApiClient
 @inject IHttpContextAccessor HttpContextAccessor
@@ -20,15 +21,23 @@
     protected override void OnInitialized() => Input ??= new();
     private async Task CreateAsync()
     {
+        string? imagenNueva = null;
         try
         {
             var httpContext = HttpContextAccessor.HttpContext ?? throw new InvalidOperationException("No hay HttpContext disponible para cargar la imagen.");
-            Input!.ImagePath = await FileStorageService.SaveProductImageAsync(httpContext, "ProductImage", Input.ImagePath);
+            // El formulario no envía ninguna ruta que el servidor use: en el alta la imagen vigente es null.
+            imagenNueva = await FileStorageService.SaveProductImageAsync(httpContext, "ProductImage", null);
+            Input!.ImagePath = imagenNueva;
             var result = await ProductoApiClient.CreateAsync(ToInput(Input!));
             if (result.Succeeded) { Nav.NavigateTo(result.EntityId.HasValue ? $"/productos/{result.EntityId.Value}?ok=created" : "/productos?ok=created"); return; }
+            await FileStorageService.DeleteIfExistsAsync(imagenNueva, RutaImagen.CarpetaProductos);
             message = result.Message; messageType = "warning";
         }
-        catch (Exception ex) { Logger.LogWarning(ex, "Could not create producto."); message = ex is InvalidOperationException ? ex.Message : "No fue posible crear el producto."; messageType = "danger"; }
+        catch (Exception ex)
+        {
+            await FileStorageService.DeleteIfExistsAsync(imagenNueva, RutaImagen.CarpetaProductos);
+            Logger.LogWarning(ex, "Could not create producto."); message = ex is InvalidOperationException ? ex.Message : "No fue posible crear el producto."; messageType = "danger";
+        }
     }
     private static ProductoInput ToInput(ProductoEditorForm form) => new(form.Codigo.Trim(), form.Nombre.Trim(), form.Precio, form.Stock, form.CategoriaCodigo.Trim(), form.CategoriaNombre.Trim(), form.UnidadMedidaCodigo, form.ImagePath);
 }
