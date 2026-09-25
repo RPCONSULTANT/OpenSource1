@@ -1,5 +1,6 @@
 using OpenSource1.Application.Features.Productos.Dtos;
 using OpenSource1.Core.Common;
+using OpenSource1.Core.Enums;
 
 namespace OpenSource1.Blazor.Services;
 
@@ -27,17 +28,30 @@ public sealed record ProductoSearchFilter(
     string? CategoriaNombre,
     string? UnidadMedidaCodigo,
     string? UnidadMedidaNombre,
-    string? Precio,
+    string? PrecioVenta,
     string? Stock);
 
+/// <summary>
+/// Cuerpo de alta/modificación hacia la API. En el alta <c>CategoriaId</c>/<c>UnidadMedidaBaseId</c> nulos significan "por defecto"
+/// (categoría GENERAL, unidad UND). En la modificación la API tiene semántica parcial para <c>PrecioVenta</c>, <c>Stock</c>,
+/// <c>CategoriaId</c>, <c>UnidadMedidaBaseId</c>, <c>MetodoCosteo</c>, <c>CostoEstandar</c> y <c>Bloqueado</c> (null = conservar); el
+/// formulario de edición muestra siempre el valor completo, así que los envía todos. <c>Nombre</c>, <c>Codigo</c> e <c>ImagePath</c> son de
+/// reemplazo completo. <c>CostoUnitario</c> y <c>CostoAjustado</c> no viajan: los mantiene el sistema.
+/// </summary>
 public sealed record ProductoInput(
     string Codigo,
     string Nombre,
-    decimal Precio,
+    decimal PrecioVenta,
     int Stock,
-    string CategoriaCodigo,
-    string CategoriaNombre,
-    string UnidadMedidaCodigo,
+    Guid? CategoriaId,
+    Guid? UnidadMedidaBaseId,
+    MetodoCosteo MetodoCosteo = MetodoCosteo.Promedio,
+    decimal CostoEstandar = 0m,
+    BloqueoProducto Bloqueado = BloqueoProducto.Ninguno,
     string? ImagePath = null);
 
-public sealed record ProductoOperationResult(bool Succeeded, string Message, Guid? EntityId = null);
+/// <summary>
+/// Resultado de una operación. <c>Message</c> es el mensaje resumido; <c>Errors</c> trae los mensajes reales que devolvió la API
+/// (400/409/422) para mostrarlos tal cual en la UI.
+/// </summary>
+public sealed record ProductoOperationResult(bool Succeeded, string Message, Guid? EntityId = null, IReadOnlyList<string>? Errors = null);

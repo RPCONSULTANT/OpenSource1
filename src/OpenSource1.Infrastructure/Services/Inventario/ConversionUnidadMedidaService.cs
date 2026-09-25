@@ -23,17 +23,16 @@ public sealed class ConversionUnidadMedidaService(ApplicationDbContext context) 
                 "La unidad de medida indicada no está asociada al producto.", "UnidadMedidaId"));
         }
 
-        // Hasta la Task 2.9 (Producto.UnidadMedidaBaseId) la unidad base del producto es la que
-        // el propio producto declara con su código legado; se resuelve contra el catálogo nuevo
-        // por código para obtener sus Decimales. El redondeo usa SIEMPRE los decimales de la
-        // unidad base (el resultado está expresado en ella), nunca los de la unidad de entrada.
-        var codigoBase = await context.Productos
+        // La unidad base es la que el propio producto declara (Producto.UnidadMedidaBaseId); se resuelve contra el catálogo para
+        // obtener sus Decimales. El redondeo usa SIEMPRE los decimales de la unidad base (el resultado está expresado en ella),
+        // nunca los de la unidad de entrada.
+        var unidadBaseId = await context.Productos
             .AsNoTracking()
             .Where(p => p.Id == productoId)
-            .Select(p => p.UnidadMedida.Codigo)
+            .Select(p => (Guid?)p.UnidadMedidaBaseId)
             .FirstOrDefaultAsync(cancellationToken);
 
-        if (codigoBase is null)
+        if (unidadBaseId is null)
         {
             return Result<decimal>.Fallo(new Error(
                 "conversion.producto_no_encontrado", "No se encontró el producto solicitado.", "ProductoId"));
@@ -41,7 +40,7 @@ public sealed class ConversionUnidadMedidaService(ApplicationDbContext context) 
 
         var decimalesBase = await context.UnidadesMedida
             .AsNoTracking()
-            .Where(u => u.Codigo == codigoBase)
+            .Where(u => u.Id == unidadBaseId)
             .Select(u => (short?)u.Decimales)
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -49,7 +48,7 @@ public sealed class ConversionUnidadMedidaService(ApplicationDbContext context) 
         {
             return Result<decimal>.Fallo(new Error(
                 "conversion.unidad_base_no_encontrada",
-                $"La unidad base '{codigoBase}' del producto no existe en el catálogo de unidades de medida.", "ProductoId"));
+                "La unidad base del producto no existe en el catálogo de unidades de medida.", "ProductoId"));
         }
 
         var convertido = Math.Round(cantidad * factor.Value, decimalesBase.Value, MidpointRounding.AwayFromZero);

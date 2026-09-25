@@ -270,10 +270,7 @@ public sealed class ImagePathApiTests : IClassFixture<PostgresTestFixture>
     {
         codigo = codigo ?? $"IMG-{Guid.NewGuid():N}"[..20],
         nombre = "Prod imagen",
-        categoriaCodigo = "GEN",
-        categoriaNombre = "General",
-        unidadMedidaCodigo = "UND",
-        precio = 1m,
+        precioVenta = 1m,
         stock = 1,
         imagePath,
     };

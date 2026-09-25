@@ -20,13 +20,10 @@ public sealed class DeleteUnidadMedidaCommandHandler(IUnitOfWork unitOfWork)
                 "unidad_medida.no_encontrado", "No se encontró la unidad de medida solicitada.", "Id"));
         }
 
-        // El borrado es lógico, así que la FK Restrict de UnidadMedidaProducto no lo detiene:
-        // sin esta guarda quedarían equivalencias apuntando a una unidad "borrada" y la
-        // conversión de esas cantidades empezaría a fallar en silencio.
-        var enUso = await unitOfWork.Repository<UnidadMedidaProducto>()
-            .FirstOrDefaultAsync(x => x.UnidadMedidaId == request.Id, cancellationToken: cancellationToken);
-
-        if (enUso is not null)
+        // El borrado es lógico, así que las FK Restrict no lo detienen: sin esta guarda quedarían
+        // equivalencias (UnidadMedidaProducto) o productos (UnidadMedidaBaseId) apuntando a una unidad
+        // "borrada" y la conversión de esas cantidades empezaría a fallar en silencio.
+        if (await UnidadMedidaUso.EstaEnUsoAsync(unitOfWork, request.Id, cancellationToken))
         {
             return Result.Fallo(new Error(
                 "unidad_medida.en_uso.conflicto",
@@ -37,5 +34,23 @@ public sealed class DeleteUnidadMedidaCommandHandler(IUnitOfWork unitOfWork)
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Result.Exito();
+    }
+}
+
+/// <summary>Uso de una unidad de medida por productos (como unidad base) o por sus equivalencias.</summary>
+internal static class UnidadMedidaUso
+{
+    public static async Task<bool> EstaEnUsoAsync(IUnitOfWork unitOfWork, Guid unidadId, CancellationToken cancellationToken)
+    {
+        var comoBase = await unitOfWork.Repository<Producto>()
+            .FirstOrDefaultAsync(x => x.UnidadMedidaBaseId == unidadId, cancellationToken: cancellationToken);
+        if (comoBase is not null)
+        {
+            return true;
+        }
+
+        var equivalencia = await unitOfWork.Repository<UnidadMedidaProducto>()
+            .FirstOrDefaultAsync(x => x.UnidadMedidaId == unidadId, cancellationToken: cancellationToken);
+        return equivalencia is not null;
     }
 }

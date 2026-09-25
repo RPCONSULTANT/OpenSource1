@@ -208,8 +208,7 @@ public sealed class UnidadesMedidaApiTests : IClassFixture<PostgresTestFixture>
 
         var createProducto = await client.PostAsJsonAsync("/api/productos", new
         {
-            codigo = $"P-{Guid.NewGuid():N}", nombre = "Prod", categoriaCodigo = "GEN", categoriaNombre = "General",
-            unidadMedidaCodigo = "UND", precio = 1m, stock = 1
+            codigo = $"P-{Guid.NewGuid():N}", nombre = "Prod", precioVenta = 1m, stock = 1
         });
         Assert.Equal(HttpStatusCode.Created, createProducto.StatusCode);
         var productoId = JsonDocument.Parse(await createProducto.Content.ReadAsStringAsync()).RootElement.GetProperty("id").GetGuid();

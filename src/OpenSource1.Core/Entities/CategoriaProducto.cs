@@ -1,9 +1,8 @@
 namespace OpenSource1.Core.Entities;
 
 /// <summary>
-/// Categoría de producto administrable (catálogo) con jerarquía opcional. Reemplaza al value
-/// object de texto libre <c>CategoriaProductoLegado</c>, que sigue existiendo hasta la Task 2.9
-/// porque <see cref="Producto"/> todavía lo usa.
+/// Categoría de producto administrable (catálogo) con jerarquía opcional. <see cref="Producto"/> la
+/// referencia por <c>CategoriaId</c>.
 /// </summary>
 public sealed class CategoriaProducto : BaseEntity
 {

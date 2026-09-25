@@ -3,6 +3,7 @@ using Moq;
 using OpenSource1.Application.Data.Repositories;
 using OpenSource1.Application.Data.UnitOfWork;
 using OpenSource1.Core.Entities;
+using OpenSource1.SmokeTests.TestInfrastructure;
 
 namespace OpenSource1.SmokeTests.Features.CategoriasProducto.Handlers;
 
@@ -30,10 +31,14 @@ internal sealed class CategoriaProductoRepoFake
 
         UnitOfWork = new Mock<IUnitOfWork>();
         UnitOfWork.Setup(u => u.Repository<CategoriaProducto>()).Returns(Repo.Object);
+        UnitOfWork.Setup(u => u.Repository<Producto>()).Returns(Productos.Repo);
         UnitOfWork.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
     }
 
     public Mock<IGenericRepository<CategoriaProducto>> Repo { get; }
+
+    /// <summary>Productos simulados: una categoría con productos no se puede borrar.</summary>
+    public RepositorioEnMemoria<Producto> Productos { get; } = new();
     public Mock<IUnitOfWork> UnitOfWork { get; }
 
     /// <summary>Borrado lógico: a partir de aquí el repositorio simulado no la devuelve.</summary>

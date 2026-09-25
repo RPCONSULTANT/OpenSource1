@@ -8,7 +8,7 @@ using OpenSource1.Application.Features.Productos.Dtos;
 using OpenSource1.Application.Features.Productos.Queries;
 using OpenSource1.Application.Security;
 using OpenSource1.Core.Common;
-using OpenSource1.Core.ValueObjects;
+using OpenSource1.Core.Enums;
 
 namespace OpenSource1.Api.Controllers;
 
@@ -19,6 +19,7 @@ public sealed class ProductosController(ISender sender) : ControllerBase
     [HttpGet]
     [Authorize(Policy = ApplicationPolicies.CanConsult)]
     [ProducesResponseType<PagedResult<ProductoResponse>>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> List(
         [FromQuery] string? codigo,
         [FromQuery] string? nombre,
@@ -26,7 +27,7 @@ public sealed class ProductosController(ISender sender) : ControllerBase
         [FromQuery] string? categoriaNombre,
         [FromQuery] string? unidadMedidaCodigo,
         [FromQuery] string? unidadMedidaNombre,
-        [FromQuery] string? precio,
+        [FromQuery] string? precioVenta,
         [FromQuery] string? stock,
         [FromQuery] int pagina = 1,
         [FromQuery] int tamanoPagina = PageRequest.TamanoPorDefecto,
@@ -36,7 +37,7 @@ public sealed class ProductosController(ISender sender) : ControllerBase
     {
         var result = await sender.Send(
             new ListProductosQuery(
-                new ProductoSearchCriteria(codigo, nombre, categoriaCodigo, categoriaNombre, unidadMedidaCodigo, unidadMedidaNombre, precio, stock),
+                new ProductoSearchCriteria(codigo, nombre, categoriaCodigo, categoriaNombre, unidadMedidaCodigo, unidadMedidaNombre, precioVenta, stock),
                 new PageRequest(pagina, tamanoPagina, ordenarPor, descendente)),
             cancellationToken);
 
@@ -53,53 +54,47 @@ public sealed class ProductosController(ISender sender) : ControllerBase
         return item is null ? NotFound() : Ok(item);
     }
 
+    /// <summary>
+    /// Alta de producto. <c>categoriaId</c> y <c>unidadMedidaBaseId</c> son opcionales (por defecto la categoría GENERAL y la unidad
+    /// UND). <c>costoUnitario</c> y <c>costoAjustado</c> los mantiene el sistema: no forman parte del cuerpo y, si un cliente los
+    /// envía, se ignoran (el producto nace con costoUnitario = 0 y costoAjustado = true).
+    /// </summary>
     [HttpPost]
     [Authorize(Policy = ApplicationPolicies.CanAdd)]
     [ProducesResponseType<ProductoResponse>(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<ActionResult<ProductoResponse>> Create(CreateProductoRequest request, CancellationToken cancellationToken)
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> Create(CreateProductoRequest request, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(request.Codigo) ||
-            string.IsNullOrWhiteSpace(request.Nombre) ||
-            string.IsNullOrWhiteSpace(request.CategoriaCodigo) ||
-            string.IsNullOrWhiteSpace(request.CategoriaNombre) ||
-            !UnidadMedidaLegado.EsCodigoValido(request.UnidadMedidaCodigo) ||
-            request.Precio < 0 ||
-            request.Stock < 0)
-        {
-            return BadRequest();
-        }
-
         var result = await sender.Send(
-            new CreateProductoCommand(request.Codigo, request.Nombre, request.Precio, request.Stock, request.CategoriaCodigo, request.CategoriaNombre, request.UnidadMedidaCodigo, request.ImagePath),
+            new CreateProductoCommand(
+                request.Codigo, request.Nombre, request.PrecioVenta, request.Stock, request.CategoriaId, request.UnidadMedidaBaseId,
+                request.MetodoCosteo, request.CostoEstandar, request.Bloqueado, request.ImagePath),
             cancellationToken);
 
-        return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
+        return result.EsFallo
+            ? result.ToActionResult()
+            : CreatedAtAction(nameof(GetById), new { id = result.Valor.Id }, result.Valor);
     }
 
+    /// <summary>
+    /// Modificación de producto con semántica parcial (ver <see cref="UpdateProductoRequest"/>).
+    /// </summary>
     [HttpPut("{id:guid}")]
     [Authorize(Policy = ApplicationPolicies.CanModify)]
     [ProducesResponseType<ProductoResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<ActionResult<ProductoResponse>> Update(Guid id, UpdateProductoRequest request, CancellationToken cancellationToken)
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> Update(Guid id, UpdateProductoRequest request, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(request.Codigo) ||
-            string.IsNullOrWhiteSpace(request.Nombre) ||
-            string.IsNullOrWhiteSpace(request.CategoriaCodigo) ||
-            string.IsNullOrWhiteSpace(request.CategoriaNombre) ||
-            !UnidadMedidaLegado.EsCodigoValido(request.UnidadMedidaCodigo) ||
-            request.Precio < 0 ||
-            request.Stock < 0)
-        {
-            return BadRequest();
-        }
-
         var result = await sender.Send(
-            new UpdateProductoCommand(id, request.Codigo, request.Nombre, request.Precio, request.Stock, request.CategoriaCodigo, request.CategoriaNombre, request.UnidadMedidaCodigo, request.ImagePath),
+            new UpdateProductoCommand(
+                id, request.Codigo, request.Nombre, request.PrecioVenta, request.Stock, request.CategoriaId, request.UnidadMedidaBaseId,
+                request.MetodoCosteo, request.CostoEstandar, request.Bloqueado, request.ImagePath),
             cancellationToken);
 
-        return result is null ? NotFound() : Ok(result);
+        return result.EsFallo ? result.ToActionResult() : Ok(result.Valor);
     }
 
     [HttpDelete("{id:guid}")]
@@ -113,5 +108,35 @@ public sealed class ProductosController(ISender sender) : ControllerBase
     }
 }
 
-public sealed record CreateProductoRequest(string Codigo, string Nombre, decimal Precio, int Stock, string CategoriaCodigo, string CategoriaNombre, string UnidadMedidaCodigo, string? ImagePath = null);
-public sealed record UpdateProductoRequest(string Codigo, string Nombre, decimal Precio, int Stock, string CategoriaCodigo, string CategoriaNombre, string UnidadMedidaCodigo, string? ImagePath = null);
+// Alta: los valores por defecto (categoría GENERAL, unidad UND, método Promedio, costo estándar 0, sin bloqueo) permiten omitir los
+// campos nuevos. Un valor numérico fuera de un enum no se descarta aquí: lo rechaza el validador (400).
+public sealed record CreateProductoRequest(
+    string Codigo,
+    string Nombre,
+    decimal PrecioVenta = 0m,
+    int Stock = 0,
+    Guid? CategoriaId = null,
+    Guid? UnidadMedidaBaseId = null,
+    MetodoCosteo MetodoCosteo = MetodoCosteo.Promedio,
+    decimal CostoEstandar = 0m,
+    BloqueoProducto Bloqueado = BloqueoProducto.Ninguno,
+    string? ImagePath = null);
+
+/// <summary>
+/// Cuerpo de modificación con semántica de modificación parcial: <c>precioVenta</c>, <c>stock</c>, <c>categoriaId</c>,
+/// <c>unidadMedidaBaseId</c>, <c>metodoCosteo</c>, <c>costoEstandar</c> y <c>bloqueado</c> son NULABLES: ausente/<c>null</c> = conservar
+/// el valor guardado; informado = se aplica (se valida el resultado). Así, un PUT que solo renombra no desbloquea ni cambia el precio,
+/// la categoría, la unidad ni los costos del producto. <c>codigo</c>, <c>nombre</c> e <c>imagePath</c> son de reemplazo completo.
+/// <c>costoUnitario</c> y <c>costoAjustado</c> no se aceptan (los mantiene el sistema).
+/// </summary>
+public sealed record UpdateProductoRequest(
+    string Codigo,
+    string Nombre,
+    decimal? PrecioVenta = null,
+    int? Stock = null,
+    Guid? CategoriaId = null,
+    Guid? UnidadMedidaBaseId = null,
+    MetodoCosteo? MetodoCosteo = null,
+    decimal? CostoEstandar = null,
+    BloqueoProducto? Bloqueado = null,
+    string? ImagePath = null);

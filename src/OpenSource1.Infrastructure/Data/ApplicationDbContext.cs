@@ -117,7 +117,16 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.Property(x => x.Codigo).HasMaxLength(50).IsRequired();
             entity.Property(x => x.Nombre).HasMaxLength(200).IsRequired();
             entity.Property(x => x.ImagePath).HasMaxLength(500);
-            entity.Property(x => x.Precio).HasPrecision(18, 2);
+            entity.Property(x => x.PrecioVenta).HasPrecision(18, 4);
+            entity.Property(x => x.CostoUnitario).HasPrecision(18, 4);
+            entity.Property(x => x.CostoEstandar).HasPrecision(18, 4);
+            // MetodoCosteo, Bloqueado (enums con underlying short: smallint) y CostoAjustado no llevan default de BD: los rellena
+            // siempre el handler y la migración los puebla para las filas existentes (HasDefaultValue sobre un bool ignoraría
+            // un false explícito, porque coincide con el valor CLR por defecto).
+            // Restrict: el borrado del catálogo es lógico y los handlers de borrado de categoría/unidad rechazan el uso (409);
+            // la FK es la red de seguridad ante un borrado físico.
+            entity.HasOne<UnidadMedida>().WithMany().HasForeignKey(x => x.UnidadMedidaBaseId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<CategoriaProducto>().WithMany().HasForeignKey(x => x.CategoriaId).OnDelete(DeleteBehavior.Restrict);
             entity.Property(x => x.CreatedBy).HasMaxLength(100).IsRequired();
             entity.Property(x => x.UpdatedBy).HasMaxLength(100);
             // Mismo filtro parcial que AppSettings.Key: ver comentario de arriba.
@@ -127,17 +136,6 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.Property(x => x.IsDeleted).HasDefaultValue(false);
             entity.Property(x => x.DeletedBy).HasMaxLength(100);
             entity.HasQueryFilter(x => !x.IsDeleted);
-
-            entity.ComplexProperty(x => x.Categoria, categoria =>
-            {
-                categoria.Property(c => c.Codigo).HasColumnName("CategoriaCodigo").HasMaxLength(30).IsRequired();
-                categoria.Property(c => c.Nombre).HasColumnName("CategoriaNombre").HasMaxLength(100).IsRequired();
-            });
-            entity.ComplexProperty(x => x.UnidadMedida, unidad =>
-            {
-                unidad.Property(u => u.Codigo).HasColumnName("UnidadMedidaCodigo").HasMaxLength(10).IsRequired();
-                unidad.Property(u => u.Nombre).HasColumnName("UnidadMedidaNombre").HasMaxLength(50).IsRequired();
-            });
         });
 
         modelBuilder.Entity<TerminoPago>(entity =>
@@ -180,9 +178,9 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.Property(x => x.DeletedBy).HasMaxLength(100);
             entity.HasQueryFilter(x => !x.IsDeleted);
 
-            // Catálogo inicial: el que vivía hardcodeado en UnidadMedidaLegado, para que Producto
-            // (Task 2.9) tenga a qué apuntar al migrar sus filas existentes. Ids fijos para que
-            // el seed sea determinista entre entornos y migraciones.
+            // Catálogo inicial (el que vivía hardcodeado antes de existir el catálogo administrable), para que
+            // Producto tenga a qué apuntar al migrar sus filas existentes. Ids fijos para que el seed sea
+            // determinista entre entornos y migraciones.
             entity.HasData(
                 Semilla("a1000000-0000-0000-0000-000000000001", "UND", "Unidad", 0),
                 Semilla("a1000000-0000-0000-0000-000000000002", "KG", "Kilogramo", 3),
@@ -219,7 +217,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         {
             entity.ToTable("CategoriasProducto");
             entity.HasKey(x => x.Id);
-            // Máximos tomados del value object legado CategoriaProductoLegado (CategoriaCodigo/CategoriaNombre).
+            // Máximos heredados de las columnas de texto libre que tuvo Producto (CategoriaCodigo/CategoriaNombre).
             entity.Property(x => x.Codigo).HasMaxLength(30).IsRequired();
             entity.Property(x => x.Nombre).HasMaxLength(100).IsRequired();
             entity.Property(x => x.CreatedBy).HasMaxLength(100).IsRequired();
@@ -237,8 +235,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             // padre arrastra a sus hijos; el handler de borrado rechaza el borrado si hay hijos).
             entity.HasOne<CategoriaProducto>().WithMany().HasForeignKey(x => x.CategoriaPadreId).OnDelete(DeleteBehavior.Restrict);
 
-            // Categoría por defecto: la Task 2.9 la usará como destino de las categorías legadas de
-            // Producto sin coincidencia. Id y fecha fijos para que el seed sea determinista.
+            // Categoría por defecto: destino de las categorías legadas de Producto sin coincidencia y valor por
+            // defecto de un alta sin categoría. Id y fecha fijos para que el seed sea determinista.
             entity.HasData(new
             {
                 Id = Guid.Parse("c1000000-0000-0000-0000-000000000001"),

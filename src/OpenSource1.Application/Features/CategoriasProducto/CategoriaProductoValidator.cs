@@ -5,7 +5,7 @@ namespace OpenSource1.Application.Features.CategoriasProducto;
 /// <summary>
 /// Validación compartida entre Create/Update: CategoriaProducto es una entidad plana sin value
 /// objects, así que las reglas viven aquí (mismo patrón que <c>UnidadMedidaValidator</c>).
-/// Los máximos (30/100) son los del value object legado <c>CategoriaProductoLegado</c>.
+/// Los máximos (30/100) son los de las columnas de texto libre que tuvo <c>Producto</c> (código/nombre de categoría).
 /// </summary>
 internal static class CategoriaProductoValidator
 {

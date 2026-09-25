@@ -25,6 +25,29 @@ public sealed class UnidadMedidaApiClient(HttpClient httpClient, ILogger<UnidadM
             ?? PagedResult<UnidadMedidaResponse>.Vacio(paginacion ?? new PageRequest());
     }
 
+    public async Task<IReadOnlyList<UnidadMedidaResponse>> ListAllAsync(CancellationToken cancellationToken = default)
+    {
+        var todas = new List<UnidadMedidaResponse>();
+        var pagina = 1;
+
+        while (true)
+        {
+            var resultado = await ListAsync(
+                filter: null,
+                new PageRequest(pagina, PageRequest.TamanoMaximo, "Nombre", Descendente: false),
+                cancellationToken);
+
+            todas.AddRange(resultado.Items);
+
+            if (resultado.Items.Count == 0 || pagina >= resultado.TotalPaginas)
+            {
+                return todas;
+            }
+
+            pagina++;
+        }
+    }
+
     public async Task<UnidadMedidaResponse?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         using var response = await httpClient.GetAsync($"api/unidades-medida/{id}", cancellationToken);

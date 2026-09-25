@@ -6,6 +6,10 @@ namespace OpenSource1.Blazor.Services;
 public interface IUnidadMedidaApiClient
 {
     Task<PagedResult<UnidadMedidaResponse>> ListAsync(UnidadMedidaSearchFilter? filter = null, PageRequest? paginacion = null, CancellationToken cancellationToken = default);
+
+    /// <summary>Recorre todas las páginas del listado; alimenta el selector de unidad base del producto.</summary>
+    Task<IReadOnlyList<UnidadMedidaResponse>> ListAllAsync(CancellationToken cancellationToken = default);
+
     Task<UnidadMedidaResponse?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
     Task<UnidadMedidaOperationResult> CreateAsync(UnidadMedidaInput input, CancellationToken cancellationToken = default);
     Task<UnidadMedidaOperationResult> UpdateAsync(Guid id, UnidadMedidaInput input, CancellationToken cancellationToken = default);

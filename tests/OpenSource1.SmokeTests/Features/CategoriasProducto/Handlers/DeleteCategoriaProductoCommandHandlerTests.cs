@@ -64,4 +64,34 @@ public class DeleteCategoriaProductoCommandHandlerTests
         Assert.True(result.EsExito);
         fake.Repo.Verify(r => r.Remove(padre), Times.Once);
     }
+
+    [Fact]
+    public async Task Handle_ReturnsConflicto_WhenLaCategoriaTieneProductos()
+    {
+        var fake = new CategoriaProductoRepoFake();
+        var categoria = fake.Agregar("ALIM");
+        fake.Productos.Agregar(new Producto { Codigo = "P1", Nombre = "P", CategoriaId = categoria.Id, UnidadMedidaBaseId = Guid.NewGuid() });
+        var handler = new DeleteCategoriaProductoCommandHandler(fake.UnitOfWork.Object);
+
+        var result = await handler.Handle(new DeleteCategoriaProductoCommand(categoria.Id), default);
+
+        Assert.True(result.EsFallo);
+        Assert.Equal("categoria_producto.en_uso.conflicto", result.Errores[0].Codigo);
+        fake.Repo.Verify(r => r.Remove(It.IsAny<CategoriaProducto>()), Times.Never);
+        fake.UnitOfWork.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Handle_RemovesAndSaves_WhenLosUnicosProductosYaEstanBorradosLogicamente()
+    {
+        var fake = new CategoriaProductoRepoFake();
+        var categoria = fake.Agregar("ALIM");
+        fake.Productos.Agregar(new Producto { Codigo = "P1", Nombre = "P", CategoriaId = categoria.Id, UnidadMedidaBaseId = Guid.NewGuid(), IsDeleted = true });
+        var handler = new DeleteCategoriaProductoCommandHandler(fake.UnitOfWork.Object);
+
+        var result = await handler.Handle(new DeleteCategoriaProductoCommand(categoria.Id), default);
+
+        Assert.True(result.EsExito);
+        fake.Repo.Verify(r => r.Remove(categoria), Times.Once);
+    }
 }

@@ -5,6 +5,7 @@ using OpenSource1.Application.Data.UnitOfWork;
 using OpenSource1.Application.Features.UnidadesMedida.Commands;
 using OpenSource1.Application.Features.UnidadesMedida.Handlers;
 using OpenSource1.Core.Entities;
+using OpenSource1.SmokeTests.TestInfrastructure;
 
 namespace OpenSource1.SmokeTests.Features.UnidadesMedida.Handlers;
 
@@ -39,6 +40,23 @@ public class DeleteUnidadMedidaCommandHandlerTests
     }
 
     [Fact]
+    public async Task Handle_ReturnsConflicto_WhenUnidadEsLaBaseDeUnProducto()
+    {
+        var (unitOfWork, repo, entity) = Preparar(enUso: false);
+        var productos = new RepositorioEnMemoria<Producto>();
+        productos.Agregar(new Producto { Codigo = "P1", Nombre = "P", UnidadMedidaBaseId = entity.Id, CategoriaId = Guid.NewGuid() });
+        unitOfWork.Setup(u => u.Repository<Producto>()).Returns(productos.Repo);
+
+        var handler = new DeleteUnidadMedidaCommandHandler(unitOfWork.Object);
+        var result = await handler.Handle(new DeleteUnidadMedidaCommand(entity.Id), default);
+
+        Assert.True(result.EsFallo);
+        Assert.Equal("unidad_medida.en_uso.conflicto", result.Errores[0].Codigo);
+        repo.Verify(r => r.Remove(It.IsAny<UnidadMedida>()), Times.Never);
+        unitOfWork.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task Handle_ReturnsConflicto_WhenUnidadEstaAsociadaAUnProducto()
     {
         var (unitOfWork, repo, entity) = Preparar(enUso: true);
@@ -66,6 +84,7 @@ public class DeleteUnidadMedidaCommandHandlerTests
         var unitOfWork = new Mock<IUnitOfWork>();
         unitOfWork.Setup(u => u.Repository<UnidadMedida>()).Returns(repo.Object);
         unitOfWork.Setup(u => u.Repository<UnidadMedidaProducto>()).Returns(repoAsociaciones.Object);
+        unitOfWork.Setup(u => u.Repository<Producto>()).Returns(new RepositorioEnMemoria<Producto>().Repo);
         unitOfWork.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
 
         return (unitOfWork, repo, entity);

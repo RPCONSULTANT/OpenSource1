@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using OpenSource1.Application.Features.Productos.Dtos;
 using OpenSource1.Core.Common;
 
@@ -99,9 +100,9 @@ public sealed class ProductoApiClient(HttpClient httpClient, ILogger<ProductoApi
             parameters.Add($"unidadMedidaNombre={Uri.EscapeDataString(filter.UnidadMedidaNombre.Trim())}");
         }
 
-        if (!string.IsNullOrWhiteSpace(filter.Precio))
+        if (!string.IsNullOrWhiteSpace(filter.PrecioVenta))
         {
-            parameters.Add($"precio={Uri.EscapeDataString(filter.Precio.Trim())}");
+            parameters.Add($"precioVenta={Uri.EscapeDataString(filter.PrecioVenta.Trim())}");
         }
 
         if (!string.IsNullOrWhiteSpace(filter.Stock))
@@ -165,17 +166,80 @@ public sealed class ProductoApiClient(HttpClient httpClient, ILogger<ProductoApi
             return new ProductoOperationResult(true, successMessage, entityId);
         }
 
+        var body = await response.Content.ReadAsStringAsync(cancellationToken);
+        logger.LogWarning("Productos API returned {StatusCode}. Body: {Body}", response.StatusCode, body);
+
+        // Los 400/409/422 de la API traen mensajes de validación propios (texto seguro, en español): se muestran tal cual. Si no se
+        // pueden leer, se cae al mensaje genérico de cada estado.
+        var mensajes = response.StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.Conflict or HttpStatusCode.UnprocessableEntity
+            ? ExtraerMensajes(body)
+            : [];
+
         var safe = response.StatusCode switch
         {
             HttpStatusCode.Unauthorized => "Debe iniciar sesión nuevamente.",
             HttpStatusCode.Forbidden => "No tiene permisos para realizar esta operación.",
             HttpStatusCode.NotFound => "No se encontró el producto indicado.",
-            HttpStatusCode.BadRequest => "Revise los datos del formulario.",
+            HttpStatusCode.BadRequest => mensajes.Count > 0 ? "Revise los datos del formulario:" : "Revise los datos del formulario.",
+            HttpStatusCode.Conflict => mensajes.Count > 0 ? string.Join(" ", mensajes) : "Ya existe un producto con ese código o la operación entra en conflicto con otro registro.",
+            HttpStatusCode.UnprocessableEntity => mensajes.Count > 0 ? string.Join(" ", mensajes) : "La operación no está permitida para este producto.",
             _ => "No fue posible completar la operación."
         };
 
-        var body = await response.Content.ReadAsStringAsync(cancellationToken);
-        logger.LogWarning("Productos API returned {StatusCode}. Body: {Body}", response.StatusCode, body);
-        return new ProductoOperationResult(false, safe);
+        // En un 409/422 el mensaje ya es la lista completa; en un 400 la lista se muestra aparte, por campo.
+        var errores = response.StatusCode == HttpStatusCode.BadRequest ? mensajes : [];
+        return new ProductoOperationResult(false, safe, Errors: errores);
+    }
+
+    /// <summary>
+    /// Mensajes de un cuerpo de error de la API: el <c>ValidationProblemDetails</c> estándar (<c>errors</c> = objeto campo -> mensajes)
+    /// o la lista plana de errores de binding (<c>errors</c> = array de textos). Sin duplicados; vacío si el cuerpo no tiene esa forma.
+    /// </summary>
+    private static List<string> ExtraerMensajes(string body)
+    {
+        var mensajes = new List<string>();
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            if (!doc.RootElement.TryGetProperty("errors", out var errores))
+            {
+                return mensajes;
+            }
+
+            var valores = new List<JsonElement>();
+            if (errores.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var campo in errores.EnumerateObject())
+                {
+                    if (campo.Value.ValueKind == JsonValueKind.Array)
+                    {
+                        valores.AddRange(campo.Value.EnumerateArray());
+                    }
+                    else
+                    {
+                        valores.Add(campo.Value);
+                    }
+                }
+            }
+            else if (errores.ValueKind == JsonValueKind.Array)
+            {
+                valores.AddRange(errores.EnumerateArray());
+            }
+
+            foreach (var valor in valores)
+            {
+                var texto = valor.ValueKind == JsonValueKind.String ? valor.GetString() : null;
+                if (!string.IsNullOrWhiteSpace(texto) && !mensajes.Contains(texto))
+                {
+                    mensajes.Add(texto);
+                }
+            }
+        }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException)
+        {
+            mensajes.Clear();
+        }
+
+        return mensajes;
     }
 }

@@ -250,14 +250,16 @@ public sealed class ConversionUnidadMedidaServiceTests : IClassFixture<PostgresT
     private async Task<(Guid ProductoId, Guid UnidadMedidaId)> SembrarAsync(string codigoBase, string codigoUnidad, decimal factor)
     {
         await using var contexto = NuevoContexto();
+        var categoriaId = await contexto.CategoriasProducto.Where(c => c.Codigo == "GENERAL").Select(c => c.Id).SingleAsync();
+        var unidadBaseId = await contexto.UnidadesMedida.Where(u => u.Codigo == codigoBase).Select(u => u.Id).SingleAsync();
         var producto = new Producto
         {
             Codigo = $"P{Guid.NewGuid():N}"[..20],
             Nombre = "Producto de prueba de conversión",
-            Precio = 1m,
+            PrecioVenta = 1m,
             Stock = 0,
-            Categoria = CategoriaProductoLegado.Of("BASE", "Base"),
-            UnidadMedida = UnidadMedidaLegado.Of(codigoBase),
+            CategoriaId = categoriaId,
+            UnidadMedidaBaseId = unidadBaseId,
         };
         contexto.Productos.Add(producto);
 

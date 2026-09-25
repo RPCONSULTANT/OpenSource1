@@ -22,14 +22,31 @@ public static partial class EntradaDecimal
     [GeneratedRegex(@"^-?\d{1,3}([ \u00A0\u2009\u202F]\d{3})+([.,]\d+)?$")]
     private static partial Regex EspaciosComoMiles();
 
+    /// <summary>Rótulo por defecto de los mensajes (el primer uso fue el límite de crédito del socio).</summary>
+    public const string EtiquetaPorDefecto = "El límite de crédito";
+
     public const string MensajeInvalido =
         "El límite de crédito no es válido. Escríbalo con punto o coma decimal y sin separador de miles, por ejemplo 1500.50.";
 
     public const string MensajeAmbiguo =
         "El límite de crédito es ambiguo: con un solo separador y tres dígitos detrás no se sabe si es de miles o decimal. Escriba 1500.00 (o 1500 si no lleva decimales).";
 
-    /// <summary>Intenta leer el importe. Vacío o solo espacios = 0. Devuelve el mensaje de error si falla.</summary>
-    public static bool TryParse(string? texto, out decimal valor, out string? error)
+    /// <summary>
+    /// Intenta leer el importe. Vacío o solo espacios = 0. Devuelve el mensaje de error si falla; <paramref name="etiqueta"/> es el
+    /// sujeto del mensaje (p. ej. <c>"El precio de venta"</c>, por defecto <see cref="EtiquetaPorDefecto"/>).
+    /// </summary>
+    public static bool TryParse(string? texto, out decimal valor, out string? error, string etiqueta = EtiquetaPorDefecto)
+    {
+        var ok = TryParseInterno(texto, out valor, out error);
+        if (!ok && error is not null && etiqueta != EtiquetaPorDefecto)
+        {
+            error = error.Replace(EtiquetaPorDefecto, etiqueta, StringComparison.Ordinal);
+        }
+
+        return ok;
+    }
+
+    private static bool TryParseInterno(string? texto, out decimal valor, out string? error)
     {
         valor = 0m;
         error = null;

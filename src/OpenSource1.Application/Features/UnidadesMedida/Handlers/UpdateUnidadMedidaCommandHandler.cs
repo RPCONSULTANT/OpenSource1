@@ -28,7 +28,17 @@ public sealed class UpdateUnidadMedidaCommandHandler(IUnitOfWork unitOfWork)
                 "unidad_medida.no_encontrado", "No se encontró la unidad de medida solicitada.", "Id"));
         }
 
-        entity.Codigo = UnidadMedidaValidator.NormalizarCodigo(request.Codigo);
+        // El Código identifica la unidad en conversiones e informes: cambiarlo mientras un producto la usa (como unidad base o
+        // en una equivalencia) dejaría esos datos apuntando a un código distinto del que se registró.
+        var nuevoCodigo = UnidadMedidaValidator.NormalizarCodigo(request.Codigo);
+        if (nuevoCodigo != entity.Codigo && await UnidadMedidaUso.EstaEnUsoAsync(unitOfWork, entity.Id, cancellationToken))
+        {
+            return Result<UnidadMedidaResponse>.Fallo(new Error(
+                "unidad_medida.en_uso.conflicto",
+                "No se puede cambiar el código de la unidad de medida porque está asociada a uno o más productos.", "Codigo"));
+        }
+
+        entity.Codigo = nuevoCodigo;
         entity.Nombre = request.Nombre.Trim();
         entity.Decimales = request.Decimales;
 

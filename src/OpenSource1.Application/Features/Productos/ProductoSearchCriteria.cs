@@ -7,5 +7,5 @@ public sealed record ProductoSearchCriteria(
     string? CategoriaNombre,
     string? UnidadMedidaCodigo,
     string? UnidadMedidaNombre,
-    string? Precio,
+    string? PrecioVenta,
     string? Stock);

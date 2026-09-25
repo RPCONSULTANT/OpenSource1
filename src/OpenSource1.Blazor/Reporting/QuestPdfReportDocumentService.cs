@@ -112,7 +112,7 @@ public sealed class QuestPdfReportDocumentService : IReportDocumentService
                     {
                         HeaderCell(header.Cell(), "Código");
                         HeaderCell(header.Cell(), "Nombre");
-                        HeaderCell(header.Cell(), "Precio");
+                        HeaderCell(header.Cell(), "Precio de venta");
                         HeaderCell(header.Cell(), "Stock");
                         HeaderCell(header.Cell(), "Categoría");
                     });
@@ -121,7 +121,7 @@ public sealed class QuestPdfReportDocumentService : IReportDocumentService
                     {
                         BodyCell(table, producto.Codigo);
                         BodyCell(table, producto.Nombre);
-                        BodyCell(table, producto.Precio.ToString("N2"));
+                        BodyCell(table, producto.PrecioVenta.ToString("N2"));
                         BodyCell(table, producto.Stock.ToString());
                         BodyCell(table, producto.CategoriaNombre);
                     }
@@ -194,7 +194,7 @@ public sealed class QuestPdfReportDocumentService : IReportDocumentService
         sheet.Cell(2, 1).Value = $"Fecha de generación: {DateTimeOffset.Now:dd/MM/yyyy HH:mm}";
         sheet.Range(2, 1, 2, 5).Merge();
 
-        string[] headers = ["Código", "Nombre", "Precio", "Stock", "Categoría"];
+        string[] headers = ["Código", "Nombre", "Precio de venta", "Stock", "Categoría"];
         for (var i = 0; i < headers.Length; i++)
         {
             var cell = sheet.Cell(4, i + 1);
@@ -207,7 +207,7 @@ public sealed class QuestPdfReportDocumentService : IReportDocumentService
         {
             sheet.Cell(row, 1).Value = producto.Codigo;
             sheet.Cell(row, 2).Value = producto.Nombre;
-            sheet.Cell(row, 3).Value = producto.Precio;
+            sheet.Cell(row, 3).Value = producto.PrecioVenta;
             sheet.Cell(row, 4).Value = producto.Stock;
             sheet.Cell(row, 5).Value = producto.CategoriaNombre;
             row++;
@@ -295,7 +295,13 @@ public sealed class QuestPdfReportDocumentService : IReportDocumentService
         using var workbook = new XLWorkbook();
         var sheet = workbook.Worksheets.Add("Productos");
 
-        string[] headers = ["Id", "Codigo", "Nombre", "Precio", "Stock", "CategoriaCodigo", "CategoriaNombre", "UnidadMedidaCodigo", "UnidadMedidaNombre", "ImagePath", "CreatedAtUtc", "UpdatedAtUtc", "CreatedBy", "UpdatedBy"];
+        // Dato crudo (Power BI y otras herramientas): los enums van como código numérico y, al lado, su nombre.
+        string[] headers =
+        [
+            "Id", "Codigo", "Nombre", "PrecioVenta", "Stock", "CategoriaId", "CategoriaCodigo", "CategoriaNombre", "UnidadMedidaBaseId",
+            "UnidadMedidaCodigo", "UnidadMedidaNombre", "MetodoCosteo", "MetodoCosteoNombre", "CostoUnitario", "CostoEstandar", "CostoAjustado",
+            "Bloqueado", "BloqueadoNombre", "ImagePath", "CreatedAtUtc", "UpdatedAtUtc", "CreatedBy", "UpdatedBy"
+        ];
         for (var i = 0; i < headers.Length; i++)
         {
             var cell = sheet.Cell(1, i + 1);
@@ -306,23 +312,37 @@ public sealed class QuestPdfReportDocumentService : IReportDocumentService
         var row = 2;
         foreach (var producto in productos)
         {
-            sheet.Cell(row, 1).Value = producto.Id.ToString();
-            sheet.Cell(row, 2).Value = producto.Codigo;
-            sheet.Cell(row, 3).Value = producto.Nombre;
-            sheet.Cell(row, 4).Value = producto.Precio;
-            sheet.Cell(row, 5).Value = producto.Stock;
-            sheet.Cell(row, 6).Value = producto.CategoriaCodigo;
-            sheet.Cell(row, 7).Value = producto.CategoriaNombre;
-            sheet.Cell(row, 8).Value = producto.UnidadMedidaCodigo;
-            sheet.Cell(row, 9).Value = producto.UnidadMedidaNombre;
-            sheet.Cell(row, 10).Value = producto.ImagePath ?? string.Empty;
-            sheet.Cell(row, 11).Value = producto.CreatedAtUtc;
+            var col = 1;
+            sheet.Cell(row, col++).Value = producto.Id.ToString();
+            sheet.Cell(row, col++).Value = producto.Codigo;
+            sheet.Cell(row, col++).Value = producto.Nombre;
+            sheet.Cell(row, col).Value = producto.PrecioVenta;
+            sheet.Cell(row, col++).Style.NumberFormat.Format = "0.0000";
+            sheet.Cell(row, col++).Value = producto.Stock;
+            sheet.Cell(row, col++).Value = producto.CategoriaId.ToString();
+            sheet.Cell(row, col++).Value = producto.CategoriaCodigo;
+            sheet.Cell(row, col++).Value = producto.CategoriaNombre;
+            sheet.Cell(row, col++).Value = producto.UnidadMedidaBaseId.ToString();
+            sheet.Cell(row, col++).Value = producto.UnidadMedidaCodigo;
+            sheet.Cell(row, col++).Value = producto.UnidadMedidaNombre;
+            sheet.Cell(row, col++).Value = (int)producto.MetodoCosteo;
+            sheet.Cell(row, col++).Value = ProductoEtiquetas.Metodo(producto.MetodoCosteo);
+            sheet.Cell(row, col).Value = producto.CostoUnitario;
+            sheet.Cell(row, col++).Style.NumberFormat.Format = "0.0000";
+            sheet.Cell(row, col).Value = producto.CostoEstandar;
+            sheet.Cell(row, col++).Style.NumberFormat.Format = "0.0000";
+            sheet.Cell(row, col++).Value = producto.CostoAjustado;
+            sheet.Cell(row, col++).Value = (int)producto.Bloqueado;
+            sheet.Cell(row, col++).Value = ProductoEtiquetas.Bloqueo(producto.Bloqueado);
+            sheet.Cell(row, col++).Value = producto.ImagePath ?? string.Empty;
+            sheet.Cell(row, col++).Value = producto.CreatedAtUtc;
             if (producto.UpdatedAtUtc is { } updatedAt)
             {
-                sheet.Cell(row, 12).Value = updatedAt;
+                sheet.Cell(row, col).Value = updatedAt;
             }
-            sheet.Cell(row, 13).Value = producto.CreatedBy;
-            sheet.Cell(row, 14).Value = producto.UpdatedBy ?? string.Empty;
+            col++;
+            sheet.Cell(row, col++).Value = producto.CreatedBy;
+            sheet.Cell(row, col).Value = producto.UpdatedBy ?? string.Empty;
             row++;
         }
 

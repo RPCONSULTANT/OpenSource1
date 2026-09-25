@@ -66,10 +66,11 @@
                 <div class="mt-4 space-y-3 text-sm">
                     <div><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">General</p><p class="mt-1 font-semibold text-slate-800 dark:text-slate-200">@factProducto.Nombre</p></div>
                     <div><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Código</p><p class="mt-1 text-slate-700 dark:text-slate-300">@factProducto.Codigo</p></div>
-                    <div><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Precio</p><p class="mt-1 text-slate-700 dark:text-slate-300">@factProducto.Precio.ToString("N2")</p></div>
+                    <div><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Precio de venta</p><p class="mt-1 text-slate-700 dark:text-slate-300">@factProducto.PrecioVenta.ToString("N2")</p></div>
                     <div><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Stock</p><p class="mt-1 text-slate-700 dark:text-slate-300">@factProducto.Stock</p></div>
                     <div><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Categoría</p><p class="mt-1 text-slate-700 dark:text-slate-300">@factProducto.CategoriaNombre (@factProducto.CategoriaCodigo)</p></div>
-                    <div><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Unidad de medida</p><p class="mt-1 text-slate-700 dark:text-slate-300">@factProducto.UnidadMedidaNombre (@factProducto.UnidadMedidaCodigo)</p></div>
+                    <div><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Unidad de medida base</p><p class="mt-1 text-slate-700 dark:text-slate-300">@factProducto.UnidadMedidaNombre (@factProducto.UnidadMedidaCodigo)</p></div>
+                    <div><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Bloqueo</p><p class="mt-1 text-slate-700 dark:text-slate-300">@ProductoEtiquetas.Bloqueo(factProducto.Bloqueado)</p></div>
                 </div>
             }
         </div>
@@ -117,7 +118,7 @@
                                 <th class="px-4 py-3 text-left"><span class="sr-only">Seleccionar</span></th>
                                 <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Código</th>
                                 <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Nombre</th>
-                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Precio</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Precio de venta</th>
                                 <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Stock</th>
                                 <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Categoría</th>
                                 <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Acciones</th>
@@ -130,7 +131,7 @@
                                     <td class="px-4 py-3"><input type="checkbox" name="SelectedIds" value="@producto.Id" checked="@(producto.Id == FocusProductoId)" onchange="@EntityFabOnChange" class="size-4 rounded border-slate-300 text-brand-600 focus:ring-brand-600 dark:border-slate-600" /></td>
                                     <td class="px-4 py-3 font-semibold text-slate-800 dark:text-slate-200">@producto.Codigo</td>
                                     <td class="px-4 py-3 text-slate-700 dark:text-slate-300">@producto.Nombre</td>
-                                    <td class="px-4 py-3 text-slate-700 dark:text-slate-300">@producto.Precio.ToString("N2")</td>
+                                    <td class="px-4 py-3 text-slate-700 dark:text-slate-300">@producto.PrecioVenta.ToString("N2")</td>
                                     <td class="px-4 py-3 text-slate-700 dark:text-slate-300">@producto.Stock</td>
                                     <td class="px-4 py-3 text-slate-700 dark:text-slate-300">@producto.CategoriaNombre</td>
                                     <td class="px-4 py-3 text-right">
@@ -164,7 +165,7 @@
                                 <p class="mt-1 text-sm text-slate-500 truncate dark:text-slate-400">Código: <span class="font-semibold text-slate-700 dark:text-slate-300">@producto.Codigo</span></p>
                             </div>
                             <div class="grid min-w-0 flex-1 grid-cols-1 gap-3 text-sm sm:grid-cols-3">
-                                <div class="min-w-0 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5 dark:border-slate-700/60 dark:bg-slate-900/40"><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Precio</p><p class="mt-1 truncate text-slate-700 dark:text-slate-300">@producto.Precio.ToString("N2")</p></div>
+                                <div class="min-w-0 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5 dark:border-slate-700/60 dark:bg-slate-900/40"><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Precio de venta</p><p class="mt-1 truncate text-slate-700 dark:text-slate-300">@producto.PrecioVenta.ToString("N2")</p></div>
                                 <div class="min-w-0 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5 dark:border-slate-700/60 dark:bg-slate-900/40"><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Stock</p><p class="mt-1 truncate text-slate-700 dark:text-slate-300">@producto.Stock</p></div>
                                 <div class="min-w-0 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5 dark:border-slate-700/60 dark:bg-slate-900/40"><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Categoría</p><p class="mt-1 truncate text-slate-700 dark:text-slate-300" title="@producto.CategoriaNombre">@producto.CategoriaNombre</p></div>
                             </div>
@@ -326,7 +327,7 @@
         ("categoriaNombre", "Nombre de categoría"),
         ("unidadMedidaCodigo", "Código de unidad"),
         ("unidadMedidaNombre", "Nombre de unidad"),
-        ("precio", "Precio"),
+        ("precioVenta", "Precio de venta"),
         ("stock", "Stock"),
     ];
 
@@ -336,7 +337,7 @@
     [SupplyParameterFromQuery(Name = "categoriaNombre")] private string? SearchCategoriaNombre { get; set; }
     [SupplyParameterFromQuery(Name = "unidadMedidaCodigo")] private string? SearchUnidadMedidaCodigo { get; set; }
     [SupplyParameterFromQuery(Name = "unidadMedidaNombre")] private string? SearchUnidadMedidaNombre { get; set; }
-    [SupplyParameterFromQuery(Name = "precio")] private string? SearchPrecio { get; set; }
+    [SupplyParameterFromQuery(Name = "precioVenta")] private string? SearchPrecioVenta { get; set; }
     [SupplyParameterFromQuery(Name = "stock")] private string? SearchStock { get; set; }
     [SupplyParameterFromQuery(Name = "filters")] private string? FiltersRaw { get; set; }
     [SupplyParameterFromQuery(Name = "addField")] private string? AddField { get; set; }
@@ -370,10 +371,10 @@
         await LoadAsync();
         if(Ok is not null){(messageType, message)=Ok switch {"created"=>("success","Producto creado satisfactoriamente."),"updated"=>("success","Producto modificado satisfactoriamente."),"deleted"=>("success","Producto eliminado satisfactoriamente."),"report-select-required"=>("warning","Seleccione al menos un producto para generar el reporte."),"report-no-data"=>("warning","No hay datos para generar el reporte solicitado."),_ =>("info",null)};}
     }
-    private async Task LoadAsync(){try{var pagina=await ProductoApiClient.ListAsync(new ProductoSearchFilter(GetActiveValue("codigo", SearchCodigo), EmptyAsNull(SearchNombre), GetActiveValue("categoriaCodigo", SearchCategoriaCodigo), GetActiveValue("categoriaNombre", SearchCategoriaNombre), GetActiveValue("unidadMedidaCodigo", SearchUnidadMedidaCodigo), GetActiveValue("unidadMedidaNombre", SearchUnidadMedidaNombre), GetActiveValue("precio", SearchPrecio), GetActiveValue("stock", SearchStock)), new PageRequest(Pagina, PageRequest.TamanoPorDefecto)); productos=pagina.Items; totalProductos=pagina.Total; totalPaginas=pagina.TotalPaginas;} catch(Exception ex){Logger.LogWarning(ex,"Could not load productos from API."); message="No fue posible cargar los productos."; messageType="danger";}}
+    private async Task LoadAsync(){try{var pagina=await ProductoApiClient.ListAsync(new ProductoSearchFilter(GetActiveValue("codigo", SearchCodigo), EmptyAsNull(SearchNombre), GetActiveValue("categoriaCodigo", SearchCategoriaCodigo), GetActiveValue("categoriaNombre", SearchCategoriaNombre), GetActiveValue("unidadMedidaCodigo", SearchUnidadMedidaCodigo), GetActiveValue("unidadMedidaNombre", SearchUnidadMedidaNombre), GetActiveValue("precioVenta", SearchPrecioVenta), GetActiveValue("stock", SearchStock)), new PageRequest(Pagina, PageRequest.TamanoPorDefecto)); productos=pagina.Items; totalProductos=pagina.Total; totalPaginas=pagina.TotalPaginas;} catch(Exception ex){Logger.LogWarning(ex,"Could not load productos from API."); message="No fue posible cargar los productos."; messageType="danger";}}
     private async Task DeleteAsync(){if(!DeleteId.HasValue){modalError="No se pudo identificar el producto. Intente de nuevo."; return;} var result=await ProductoApiClient.DeleteAsync(DeleteId.Value); if(result.Succeeded) Nav.NavigateTo(BuildListUrl(ok:"deleted")); else modalError=result.Message;}
     private string? GetActiveValue(string key, string? value) => ActiveFilterFields.Contains(key) ? EmptyAsNull(value) : null;
-    private string? GetFieldValue(string key) => key switch { "codigo" => SearchCodigo, "categoriaCodigo" => SearchCategoriaCodigo, "categoriaNombre" => SearchCategoriaNombre, "unidadMedidaCodigo" => SearchUnidadMedidaCodigo, "unidadMedidaNombre" => SearchUnidadMedidaNombre, "precio" => SearchPrecio, "stock" => SearchStock, _ => null };
+    private string? GetFieldValue(string key) => key switch { "codigo" => SearchCodigo, "categoriaCodigo" => SearchCategoriaCodigo, "categoriaNombre" => SearchCategoriaNombre, "unidadMedidaCodigo" => SearchUnidadMedidaCodigo, "unidadMedidaNombre" => SearchUnidadMedidaNombre, "precioVenta" => SearchPrecioVenta, "stock" => SearchStock, _ => null };
     private static List<string> ParseActiveFields(string? raw) => string.IsNullOrWhiteSpace(raw) ? [] : [.. raw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Where(f => FilterableFields.Any(field => field.Key == f)).Distinct()];
     private string BuildListUrl(Guid? deleteId=null, bool? showFilters=null, string? ok=null, string? view=null, bool? report=null, Guid? focusId=null, IReadOnlyList<string>? activeFiltersOverride=null, int? pagina=null)
     {
@@ -385,7 +386,7 @@
         if (activeFields.Contains("categoriaNombre")) AddParameter(parameters,"categoriaNombre",SearchCategoriaNombre);
         if (activeFields.Contains("unidadMedidaCodigo")) AddParameter(parameters,"unidadMedidaCodigo",SearchUnidadMedidaCodigo);
         if (activeFields.Contains("unidadMedidaNombre")) AddParameter(parameters,"unidadMedidaNombre",SearchUnidadMedidaNombre);
-        if (activeFields.Contains("precio")) AddParameter(parameters,"precio",SearchPrecio);
+        if (activeFields.Contains("precioVenta")) AddParameter(parameters,"precioVenta",SearchPrecioVenta);
         if (activeFields.Contains("stock")) AddParameter(parameters,"stock",SearchStock);
         if (activeFields.Count > 0) parameters.Add($"filters={Uri.EscapeDataString(string.Join(",", activeFields))}");
         AddParameter(parameters,"view", view ?? View);

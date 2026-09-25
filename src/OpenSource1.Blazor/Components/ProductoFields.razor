@@ -1,51 +1,117 @@
 <div class="space-y-4">
     <div>
         <label class="block text-sm font-semibold text-slate-700 mb-1.5">Código <span class="text-red-500">*</span></label>
-        <input type="text" name="@($"{Prefix}.Codigo")" value="@Model.Codigo" placeholder="Código del producto" class="block w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20" />
+        <input type="text" name="@($"{Prefix}.Codigo")" value="@Model.Codigo" placeholder="Código del producto" class="@InputCss" />
         <ValidationMessage For="() => Model.Codigo" />
     </div>
     <div>
         <label class="block text-sm font-semibold text-slate-700 mb-1.5">Nombre <span class="text-red-500">*</span></label>
-        <input type="text" name="@($"{Prefix}.Nombre")" value="@Model.Nombre" placeholder="Nombre del producto" class="block w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20" />
+        <input type="text" name="@($"{Prefix}.Nombre")" value="@Model.Nombre" placeholder="Nombre del producto" class="@InputCss" />
         <ValidationMessage For="() => Model.Nombre" />
     </div>
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
-            <label class="block text-sm font-semibold text-slate-700 mb-1.5">Precio <span class="text-red-500">*</span></label>
-            <input type="number" step="0.01" min="0" name="@($"{Prefix}.Precio")" value="@Model.Precio" class="block w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20" />
-            <ValidationMessage For="() => Model.Precio" />
+            <label class="block text-sm font-semibold text-slate-700 mb-1.5" for="@($"{Prefix}_PrecioVentaTexto")">Precio de venta <span class="text-red-500">*</span></label>
+            <input id="@($"{Prefix}_PrecioVentaTexto")" type="text" inputmode="decimal" name="@($"{Prefix}.PrecioVentaTexto")" value="@Model.PrecioVentaTexto" placeholder="0.00" class="@InputCss" />
+            <p class="mt-1 text-xs text-slate-400">Punto o coma decimal, sin separador de miles (ej. 1500.50).</p>
+            <ValidationMessage For="() => Model.PrecioVentaTexto" />
         </div>
         <div>
             <label class="block text-sm font-semibold text-slate-700 mb-1.5">Stock <span class="text-red-500">*</span></label>
-            <input type="number" step="1" min="0" name="@($"{Prefix}.Stock")" value="@Model.Stock" class="block w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20" />
+            <input type="number" step="1" min="0" name="@($"{Prefix}.Stock")" value="@Model.Stock" class="@InputCss" />
             <ValidationMessage For="() => Model.Stock" />
         </div>
     </div>
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
-            <label class="block text-sm font-semibold text-slate-700 mb-1.5">Código de categoría <span class="text-red-500">*</span></label>
-            <input type="text" name="@($"{Prefix}.CategoriaCodigo")" value="@Model.CategoriaCodigo" placeholder="ej: ELEC" class="block w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20" />
-            <ValidationMessage For="() => Model.CategoriaCodigo" />
+            <label class="block text-sm font-semibold text-slate-700 mb-1.5" for="@($"{Prefix}_CategoriaId")">Categoría <span class="text-red-500">*</span></label>
+            <select id="@($"{Prefix}_CategoriaId")" name="@($"{Prefix}.CategoriaId")" class="@InputCss">
+                @if (!EsEdicion)
+                {
+                    <option value="" selected="@(Model.CategoriaId is null)">— Por defecto (General) —</option>
+                }
+                @* La categoría vigente se ofrece SIEMPRE, aunque no esté en Categorias (listado caído, vacío o categoría borrada):
+                   sin esto el <select> no reflejaría la categoría guardada y guardar la cambiaría en silencio. *@
+                @if (Model.CategoriaId is { } categoriaVigenteId && Categorias.All(c => c.Id != categoriaVigenteId))
+                {
+                    <option value="@categoriaVigenteId" selected="selected">@(CategoriaActualId == categoriaVigenteId && !string.IsNullOrWhiteSpace(CategoriaActualNombre) ? CategoriaActualNombre : $"Categoría no disponible ({categoriaVigenteId})")</option>
+                }
+                @foreach (var categoria in Categorias)
+                {
+                    <option value="@categoria.Id" selected="@(categoria.Id == Model.CategoriaId)">@categoria.Codigo — @categoria.Nombre</option>
+                }
+            </select>
+            <ValidationMessage For="() => Model.CategoriaId" />
         </div>
         <div>
-            <label class="block text-sm font-semibold text-slate-700 mb-1.5">Nombre de categoría <span class="text-red-500">*</span></label>
-            <input type="text" name="@($"{Prefix}.CategoriaNombre")" value="@Model.CategoriaNombre" placeholder="ej: Electrónica" class="block w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20" />
-            <ValidationMessage For="() => Model.CategoriaNombre" />
+            <label class="block text-sm font-semibold text-slate-700 mb-1.5" for="@($"{Prefix}_UnidadMedidaBaseId")">Unidad de medida base <span class="text-red-500">*</span></label>
+            <select id="@($"{Prefix}_UnidadMedidaBaseId")" name="@($"{Prefix}.UnidadMedidaBaseId")" class="@InputCss">
+                @if (!EsEdicion)
+                {
+                    <option value="" selected="@(Model.UnidadMedidaBaseId is null)">— Por defecto (Unidad) —</option>
+                }
+                @if (Model.UnidadMedidaBaseId is { } unidadVigenteId && Unidades.All(u => u.Id != unidadVigenteId))
+                {
+                    <option value="@unidadVigenteId" selected="selected">@(UnidadActualId == unidadVigenteId && !string.IsNullOrWhiteSpace(UnidadActualNombre) ? UnidadActualNombre : $"Unidad no disponible ({unidadVigenteId})")</option>
+                }
+                @foreach (var unidad in Unidades)
+                {
+                    <option value="@unidad.Id" selected="@(unidad.Id == Model.UnidadMedidaBaseId)">@unidad.Nombre (@unidad.Codigo)</option>
+                }
+            </select>
+            <ValidationMessage For="() => Model.UnidadMedidaBaseId" />
+        </div>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+            <label class="block text-sm font-semibold text-slate-700 mb-1.5" for="@($"{Prefix}_MetodoCosteo")">Método de costeo</label>
+            <select id="@($"{Prefix}_MetodoCosteo")" name="@($"{Prefix}.MetodoCosteo")" class="@InputCss">
+                @foreach (var metodo in ProductoEtiquetas.Metodos)
+                {
+                    <option value="@((short)metodo)" selected="@(metodo == Model.MetodoCosteo)">@ProductoEtiquetas.Metodo(metodo)</option>
+                }
+            </select>
+            <ValidationMessage For="() => Model.MetodoCosteo" />
+        </div>
+        <div>
+            <label class="block text-sm font-semibold text-slate-700 mb-1.5" for="@($"{Prefix}_CostoEstandarTexto")">Costo estándar</label>
+            <input id="@($"{Prefix}_CostoEstandarTexto")" type="text" inputmode="decimal" name="@($"{Prefix}.CostoEstandarTexto")" value="@Model.CostoEstandarTexto" placeholder="0.00" class="@InputCss" />
+            <p class="mt-1 text-xs text-slate-400">Informativo. El costo unitario lo calcula el sistema.</p>
+            <ValidationMessage For="() => Model.CostoEstandarTexto" />
         </div>
     </div>
     <div>
-        <label class="block text-sm font-semibold text-slate-700 mb-1.5">Unidad de medida <span class="text-red-500">*</span></label>
-        <select name="@($"{Prefix}.UnidadMedidaCodigo")" class="block w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20">
-            @foreach (var unidad in OpenSource1.Core.ValueObjects.UnidadMedidaLegado.Catalogo)
+        <label class="block text-sm font-semibold text-slate-700 mb-1.5" for="@($"{Prefix}_Bloqueado")">Bloqueo</label>
+        <select id="@($"{Prefix}_Bloqueado")" name="@($"{Prefix}.Bloqueado")" class="@InputCss">
+            @foreach (var bloqueo in ProductoEtiquetas.Bloqueos)
             {
-                <option value="@unidad.Codigo" selected="@(unidad.Codigo == Model.UnidadMedidaCodigo)">@unidad.Nombre (@unidad.Codigo)</option>
+                <option value="@((short)bloqueo)" selected="@(bloqueo == Model.Bloqueado)">@ProductoEtiquetas.Bloqueo(bloqueo)</option>
             }
         </select>
-        <ValidationMessage For="() => Model.UnidadMedidaCodigo" />
+        <ValidationMessage For="() => Model.Bloqueado" />
     </div>
 </div>
 
 @code {
+    private const string InputCss = "block w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20";
+
     [Parameter, EditorRequired] public ProductoEditorForm Model { get; set; } = default!;
     [Parameter, EditorRequired] public string Prefix { get; set; } = default!;
+
+    /// <summary>En la edición el selector no ofrece "por defecto": la categoría y la unidad siempre están definidas.</summary>
+    [Parameter] public bool EsEdicion { get; set; }
+
+    /// <summary>Categorías elegibles (todas las páginas de la API). Vacío si no cargaron.</summary>
+    [Parameter] public IReadOnlyList<OpenSource1.Application.Features.CategoriasProducto.Dtos.CategoriaProductoResponse> Categorias { get; set; } = [];
+
+    /// <summary>Unidades de medida elegibles (todas las páginas de la API). Vacío si no cargaron.</summary>
+    [Parameter] public IReadOnlyList<OpenSource1.Application.Features.UnidadesMedida.Dtos.UnidadMedidaResponse> Unidades { get; set; } = [];
+
+    /// <summary>Categoría guardada del producto y su rótulo (del propio producto), para rotular su opción si no viene en <see cref="Categorias"/>.</summary>
+    [Parameter] public Guid? CategoriaActualId { get; set; }
+    [Parameter] public string? CategoriaActualNombre { get; set; }
+
+    /// <summary>Unidad base guardada del producto y su rótulo, para rotular su opción si no viene en <see cref="Unidades"/>.</summary>
+    [Parameter] public Guid? UnidadActualId { get; set; }
+    [Parameter] public string? UnidadActualNombre { get; set; }
 }

@@ -1,9 +1,8 @@
 namespace OpenSource1.Core.Entities;
 
 /// <summary>
-/// Unidad de medida administrable (catálogo). Reemplaza al catálogo estático hardcodeado que
-/// vivía en <c>UnidadMedidaLegado</c>, que sigue existiendo hasta la Task 2.9 porque
-/// <see cref="Producto"/> todavía lo usa.
+/// Unidad de medida administrable (catálogo). <see cref="Producto"/> la referencia por
+/// <c>UnidadMedidaBaseId</c>.
 /// </summary>
 public sealed class UnidadMedida : BaseEntity
 {
