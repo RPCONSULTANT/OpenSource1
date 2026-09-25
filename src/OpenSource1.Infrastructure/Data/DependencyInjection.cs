@@ -6,6 +6,7 @@ using OpenSource1.Application.Data;
 using OpenSource1.Application.Data.Repositories;
 using OpenSource1.Application.Data.UnitOfWork;
 using OpenSource1.Application.Features.SociosNegocio;
+using OpenSource1.Application.Features.Almacenes;
 using OpenSource1.Application.Features.AppSettings;
 using OpenSource1.Application.Features.CategoriasProducto;
 using OpenSource1.Application.Features.Entradas;
@@ -68,6 +69,7 @@ public static class DependencyInjection
         services.AddScoped<ITerminoPagoReadRepository, DapperTerminoPagoReadRepository>();
         services.AddScoped<IUnidadMedidaReadRepository, DapperUnidadMedidaReadRepository>();
         services.AddScoped<ICategoriaProductoReadRepository, DapperCategoriaProductoReadRepository>();
+        services.AddScoped<IAlmacenReadRepository, DapperAlmacenReadRepository>();
         services.AddScoped<IConversionUnidadMedidaService, ConversionUnidadMedidaService>();
         services.AddScoped<IGeneradorNumeroDocumento, GeneradorNumeroDocumento>();
         services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));

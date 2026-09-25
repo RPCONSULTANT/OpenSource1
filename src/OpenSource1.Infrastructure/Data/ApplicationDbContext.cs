@@ -16,6 +16,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<CategoriaProducto> CategoriasProducto => Set<CategoriaProducto>();
     public DbSet<Serie>      Series       => Set<Serie>();
     public DbSet<LineaSerie> LineasSerie  => Set<LineaSerie>();
+    public DbSet<Almacen>    Almacenes    => Set<Almacen>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -286,6 +287,51 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                 .WithMany()
                 .HasForeignKey(x => x.SerieId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<Almacen>(entity =>
+        {
+            entity.ToTable("Almacenes");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Codigo).HasMaxLength(10).IsRequired();
+            entity.Property(x => x.Nombre).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.DireccionLinea1).HasMaxLength(300);
+            entity.Property(x => x.DireccionLinea2).HasMaxLength(300);
+            entity.Property(x => x.Ciudad).HasMaxLength(100);
+            entity.Property(x => x.PaisCodigo).HasMaxLength(2);
+            entity.Property(x => x.CreatedBy).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.UpdatedBy).HasMaxLength(100);
+            // Mismo patrón de índice único parcial que TerminoPago/UnidadMedida: permite reutilizar
+            // el Código de un almacén borrado lógicamente.
+            entity.HasIndex(x => x.Codigo).IsUnique().HasFilter("\"IsDeleted\" = false");
+            // A lo sumo un almacén predeterminado entre los no borrados. El índice parcial es la
+            // red de seguridad final: los handlers de alta/modificación ya mueven la marca en
+            // transacción, pero dos altas concurrentes con EsPredeterminado = true solo pueden
+            // dejar una fila viva gracias a este índice (23505 en la perdedora -> 409).
+            entity.HasIndex(x => x.EsPredeterminado)
+                .IsUnique()
+                .HasDatabaseName("IX_Almacenes_EsPredeterminado")
+                .HasFilter("\"EsPredeterminado\" = true AND \"IsDeleted\" = false");
+            entity.HasIndex(x => x.CreatedAtUtc).HasDatabaseName("IX_Almacenes_CreatedAtUtc");
+            entity.Property<uint>("xmin").HasColumnName("xmin").IsRowVersion();
+            entity.Property(x => x.IsDeleted).HasDefaultValue(false);
+            entity.Property(x => x.DeletedBy).HasMaxLength(100);
+            entity.HasQueryFilter(x => !x.IsDeleted);
+
+            // Almacén principal: destino por defecto de la apertura del libro de inventario
+            // (Task 3.6) y único predeterminado al migrar. Id y fecha fijos para que el seed sea
+            // determinista entre entornos y migraciones.
+            entity.HasData(new
+            {
+                Id = AlmacenIds.Principal,
+                Codigo = "PRINCIPAL",
+                Nombre = "Almacén principal",
+                Bloqueado = false,
+                EsPredeterminado = true,
+                CreatedAtUtc = new DateTimeOffset(2026, 9, 25, 0, 0, 0, TimeSpan.Zero),
+                CreatedBy = "system",
+                IsDeleted = false
+            });
         });
     }
 
