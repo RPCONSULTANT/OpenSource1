@@ -38,9 +38,12 @@ namespace OpenSource1.Infrastructure.Services.Inventario;
 /// idempotente.
 /// </para>
 /// <para>
-/// <b>Divergencia residual con el posteo.</b> <see cref="CostoPromedioCalculadora"/> no conoce el futuro: una salida
-/// posteada en un día con <c>Q &lt;= 0</c> se valora a <c>Producto.CostoUnitario</c>. Como <c>RegistrarAsync</c> marca
-/// <c>CostoAjustado = false</c> en toda salida, la siguiente pasada de esta rutina la corrige.
+/// <b>Divergencia transitoria con el posteo</b> (<see cref="CostoPromedioCalculadora"/> no conoce el futuro), en dos formas:
+/// (1) una salida posteada en un día con <c>Q &lt;= 0</c> se valora a <c>Producto.CostoUnitario</c>; (2) una entrada
+/// posteada después cambia el pool que valora un día con <c>Q &lt;= 0</c> ya ajustado (p. ej. una entrada fechada entre ese
+/// día y la entrada que lo valoraba, o posterior a todo el historial cuando el día se valoró con el último promedio o quedó
+/// pendiente). En ambas el producto queda pendiente: <c>RegistrarAsync</c> marca <c>CostoAjustado = false</c> en toda
+/// salida y en toda entrada de un producto que ya tiene alguna salida (Ruling AS), y la siguiente pasada lo corrige.
 /// </para>
 /// <para>
 /// <b>Redondeo.</b> Si al cierre de un día la cantidad valorada acumulada es 0 y queda un valor residual menor que 0.01 en

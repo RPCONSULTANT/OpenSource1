@@ -390,19 +390,33 @@ public sealed class RegistroMovimientosInventarioTests(PostgresTestFixture fixtu
     }
 
     [Fact]
-    public async Task EntradaFechadaAntesDeLaUltimaSalida_MarcaCostoNoAjustado_YPosteriorNo()
+    public async Task EntradaDeProductoConSalidas_MarcaCostoNoAjustado_TantoAnteriorComoPosteriorALaUltimaSalida()
     {
         var producto = await _prueba.SembrarProductoAsync();
         var almacen = await _prueba.SembrarAlmacenAsync();
         await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Entrada(producto, almacen, 10m, 10m, D1));
         await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Salida(producto, almacen, 2m, D3));
 
+        // Posterior a todo el historial: también marca (Ruling AS; puede cambiar el costo de un día con Q <= 0).
         await EstablecerCostoAjustadoAsync(producto, true);
         await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Entrada(producto, almacen, 1m, 10m, D4));
-        Assert.True(await CostoAjustadoAsync(producto));
+        Assert.False(await CostoAjustadoAsync(producto));
 
+        await EstablecerCostoAjustadoAsync(producto, true);
         await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Entrada(producto, almacen, 1m, 10m, D2));
         Assert.False(await CostoAjustadoAsync(producto));
+    }
+
+    [Fact]
+    public async Task EntradaDeProductoSinSalidas_NoMarcaCostoNoAjustado()
+    {
+        var producto = await _prueba.SembrarProductoAsync();
+        var almacen = await _prueba.SembrarAlmacenAsync();
+        await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Entrada(producto, almacen, 10m, 10m, D2));
+        await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Entrada(producto, almacen, 5m, 20m, D1));
+        await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Entrada(producto, almacen, 5m, 30m, D4));
+
+        Assert.True(await CostoAjustadoAsync(producto));
     }
 
     [Fact]

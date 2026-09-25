@@ -270,13 +270,48 @@ public sealed class AjusteCostoInventarioTests(PostgresTestFixture fixture)
         Assert.Equal(filas, await _prueba.ContarFilasAsync(producto));
         Assert.False(await CostoAjustadoAsync(producto));
 
-        // Llega la entrada (D2 > última salida: el posteo no marca nada, pero el producto sigue pendiente) y la siguiente
+        // Llega la entrada (el posteo la marca pendiente: el producto tiene salidas; ya lo estaba) y la siguiente
         // pasada lo resuelve.
         await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Entrada(producto, almacen, 5m, 20m, D2));
         Assert.False(await CostoAjustadoAsync(producto));
         Assert.Equal(new ResultadoAjusteCosto(1, 1), await _prueba.AjustarOkAsync(producto));
         Assert.Equal(0m, await ValorTotalAsync(producto));
         Assert.True(await CostoAjustadoAsync(producto));
+    }
+
+    [Fact]
+    public async Task EntradaIntermediaPosteriorAlAjuste_DejaPendiente_YLaPasadaGlobalRevaloraElDiaSinCosto()
+    {
+        // Ruling AS: −5 a 7 en D1, +5 a 20 en D3 → ajuste (salida −100). Después se postea +5 a 30 con fecha D2: cambia el
+        // pool que valora D1 (ahora 30 → −150), así que el posteo debe dejar el producto pendiente aunque D2 > D1, y la
+        // pasada GLOBAL lo recoge e inserta −50.
+        var producto = await _prueba.SembrarProductoAsync(costoUnitario: 7m);
+        var almacen = await _prueba.SembrarAlmacenAsync();
+        var apertura = await InsertarSalidaDeAperturaAsync(producto, almacen, 5m, 7m, D1);
+        await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Entrada(producto, almacen, 5m, 20m, D3));
+        Assert.Equal(new ResultadoAjusteCosto(1, 1), await _prueba.AjustarOkAsync(producto));
+        Assert.True(await CostoAjustadoAsync(producto));
+
+        await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Entrada(producto, almacen, 5m, 30m, D2));
+        Assert.False(await CostoAjustadoAsync(producto));
+
+        var global = await _prueba.AjustarOkAsync(null);
+
+        Assert.True(global.MovimientosValorCreados >= 1);
+        var ajustes = await AjustesAsync(producto);
+        Assert.Equal([-65m, -50m], ajustes.Select(a => a.ImporteCosto));
+        Assert.All(ajustes, a => Assert.Equal(apertura, a.MovimientoProductoId));
+        Assert.True(await CostoAjustadoAsync(producto));
+
+        var costo = await CostoUnitarioAsync(producto);
+        var existencia = await _prueba.ConsultarAsync(c => c.ExistenciaAsync(producto, null, null));
+        Assert.Equal(20m, costo);
+        Assert.Equal(5m, existencia);
+        Assert.Equal(existencia * costo, await ValorTotalAsync(producto));
+
+        var filas = await _prueba.ContarFilasAsync(producto);
+        Assert.Equal(0, (await _prueba.AjustarOkAsync(null)).MovimientosValorCreados);
+        Assert.Equal(filas, await _prueba.ContarFilasAsync(producto));
     }
 
     [Fact]

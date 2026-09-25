@@ -186,12 +186,14 @@ public sealed class RegistroMovimientosInventario(
             cantidadValorada = cantidadBase;
             movimientoProductoId = await InsertarMovimientoProductoAsync(solicitud, cantidadBase, cantidadBase, factor, ahora, creadoPor, ct);
 
-            // 7. Una entrada con fecha igual o anterior a la última salida cambia el costo de esa salida: queda pendiente
-            //    de ajuste. (Igual y no solo anterior: las entradas del mismo día entran en el promedio de sus salidas.)
-            var ultimaSalida = await session.Connection.ExecuteScalarAsync<DateOnly?>(new CommandDefinition(
-                """SELECT MAX("FechaRegistro") FROM "MovimientosProducto" WHERE "ProductoId" = @ProductoId AND "Cantidad" < 0""",
+            // 7. Ruling AS: TODA entrada de un producto que ya tiene alguna salida (de cualquier fecha) lo deja pendiente de
+            //    ajuste. Una entrada anterior o del mismo día cambia el promedio de salidas ya registradas; una POSTERIOR
+            //    puede cambiar el costo de un día sin costo calculable (Q <= 0), que la rutina de ajuste valora con el pool
+            //    de entradas del primer día posterior que las tenga, o dejar resoluble un día que quedó pendiente.
+            var tieneSalidas = await session.Connection.ExecuteScalarAsync<bool>(new CommandDefinition(
+                """SELECT EXISTS (SELECT 1 FROM "MovimientosProducto" WHERE "ProductoId" = @ProductoId AND "Cantidad" < 0)""",
                 new { solicitud.ProductoId }, tx, cancellationToken: ct));
-            if (ultimaSalida is not null && solicitud.FechaRegistro <= ultimaSalida.Value)
+            if (tieneSalidas)
             {
                 marcarAjuste = true;
             }
