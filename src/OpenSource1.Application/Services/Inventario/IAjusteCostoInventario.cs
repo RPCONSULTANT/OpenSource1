@@ -3,7 +3,8 @@ using OpenSource1.Core.Common;
 namespace OpenSource1.Application.Services.Inventario;
 
 /// <summary>Resultado de <see cref="IAjusteCostoInventario.AjustarAsync"/>.</summary>
-/// <param name="ProductosAjustados">Productos recorridos y confirmados (cada uno en su propia transacción).</param>
+/// <param name="ProductosAjustados">Productos que quedaron con <c>CostoAjustado = true</c> (cada uno en su propia transacción); no cuenta los que
+/// siguen pendientes por una salida sin costo determinable (sus movimientos insertados sí cuentan en el otro campo).</param>
 /// <param name="MovimientosValorCreados">Filas de <c>MovimientosValor</c> insertadas (ajustes de costo + redondeos).</param>
 public sealed record ResultadoAjusteCosto(int ProductosAjustados, int MovimientosValorCreados);
 

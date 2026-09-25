@@ -39,8 +39,6 @@ internal sealed class LibroInventarioPrueba(PostgresTestFixture fixture) : IAsyn
         var services = new ServiceCollection();
         services.AddSingleton<IConfiguration>(configuration);
         services.AddLogging();
-        // IUnitOfWork (lo usa el ajuste de costo, Task 3.5) depende de IHttpContextAccessor; fuera de HTTP su contexto es null.
-        services.AddHttpContextAccessor();
         services.AddApplicationData(configuration);
         Provider = services.BuildServiceProvider();
 

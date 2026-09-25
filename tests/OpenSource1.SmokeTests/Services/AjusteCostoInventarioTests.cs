@@ -19,6 +19,7 @@ public sealed class AjusteCostoInventarioTests(PostgresTestFixture fixture)
     private static readonly DateOnly D1 = new(2026, 4, 1);
     private static readonly DateOnly D2 = new(2026, 4, 2);
     private static readonly DateOnly D3 = new(2026, 4, 3);
+    private static readonly DateOnly D4 = new(2026, 4, 4);
 
     private readonly LibroInventarioPrueba _prueba = new(fixture);
 
@@ -212,22 +213,91 @@ public sealed class AjusteCostoInventarioTests(PostgresTestFixture fixture)
     }
 
     [Fact]
-    public async Task SalidaSinCostoHistorico_ConservaSuImporte_YEsIdempotenteAunqueCambieElCostoUnitario()
+    public async Task StockNegativoLegado_CompraPosteriorQueLoCompensa_ValoraLaSalidaAlCostoDeEsaCompraYDejaValorCero()
     {
-        // Salida de apertura con existencia negativa (como la migración del Stock legado negativo): el primer día Q <= 0 y
-        // no hay promedio previo. La rutina no la revalora (usar Producto.CostoUnitario la haría depender de un valor que
-        // la propia rutina reescribe: la segunda pasada insertaría otro ajuste).
+        // (a) Salida de apertura −5 a 7 en D1 (el Stock negativo que migra la Task 3.6) y compra de 5 a 20 en D2: D1 no tiene
+        // costo calculable (Q <= 0) → toma el del pool de D2 (20): esperado −100, actual −35 → delta −65.
+        var producto = await _prueba.SembrarProductoAsync(costoUnitario: 7m);
+        var almacen = await _prueba.SembrarAlmacenAsync();
+        var apertura = await InsertarSalidaDeAperturaAsync(producto, almacen, 5m, 7m, D1);
+        await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Entrada(producto, almacen, 5m, 20m, D2));
+
+        Assert.Equal(new ResultadoAjusteCosto(1, 1), await _prueba.AjustarOkAsync(producto));
+
+        var ajuste = Assert.Single(await AjustesAsync(producto));
+        Assert.Equal(apertura, ajuste.MovimientoProductoId);
+        Assert.Equal(-65m, ajuste.ImporteCosto);
+        Assert.Equal(0m, await ValorTotalAsync(producto));
+        Assert.True(await CostoAjustadoAsync(producto));
+
+        var filas = await _prueba.ContarFilasAsync(producto);
+        Assert.Equal(new ResultadoAjusteCosto(1, 0), await _prueba.AjustarOkAsync(producto));
+        Assert.Equal(filas, await _prueba.ContarFilasAsync(producto));
+    }
+
+    [Fact]
+    public async Task StockNegativoLegado_CompraMayor_PromedioFinalEsElDeLaCompra()
+    {
+        // (b) −5 a 7 en D1, +10 a 20 en D2 → la salida vale −100 (delta −65); quedan 5 unidades por 100 → promedio 20.
         var producto = await _prueba.SembrarProductoAsync(costoUnitario: 7m);
         var almacen = await _prueba.SembrarAlmacenAsync();
         await InsertarSalidaDeAperturaAsync(producto, almacen, 5m, 7m, D1);
         await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Entrada(producto, almacen, 10m, 20m, D2));
 
-        var primera = await _prueba.AjustarOkAsync(producto);
+        Assert.Equal(new ResultadoAjusteCosto(1, 1), await _prueba.AjustarOkAsync(producto));
 
-        Assert.Equal(new ResultadoAjusteCosto(1, 0), primera);
-        Assert.Equal(33m, await CostoUnitarioAsync(producto)); // (−35 + 200) / 5
+        Assert.Equal(-65m, Assert.Single(await AjustesAsync(producto)).ImporteCosto);
+        Assert.Equal(20m, await CostoUnitarioAsync(producto));
+        Assert.Equal(5m, await _prueba.ConsultarAsync(c => c.ExistenciaAsync(producto, null, null)));
+        Assert.Equal(100m, await ValorTotalAsync(producto));
         Assert.Equal(new ResultadoAjusteCosto(1, 0), await _prueba.AjustarOkAsync(producto));
-        Assert.Equal(33m, await CostoUnitarioAsync(producto));
+    }
+
+    [Fact]
+    public async Task StockNegativoLegadoSinEntradasNiHistoria_ConservaElImporteYQuedaPendiente_HastaQueLlegaUnaEntrada()
+    {
+        // (c) Solo −5 a 7: sin días posteriores con entradas ni promedio previo → conserva −35 y CostoAjustado sigue false.
+        var producto = await _prueba.SembrarProductoAsync(costoUnitario: 7m);
+        var almacen = await _prueba.SembrarAlmacenAsync();
+        await InsertarSalidaDeAperturaAsync(producto, almacen, 5m, 7m, D1);
+        var filas = await _prueba.ContarFilasAsync(producto);
+
+        Assert.Equal(new ResultadoAjusteCosto(0, 0), await _prueba.AjustarOkAsync(producto));
+        Assert.Equal(-35m, await ValorTotalAsync(producto));
+        Assert.False(await CostoAjustadoAsync(producto));
+
+        Assert.Equal(new ResultadoAjusteCosto(0, 0), await _prueba.AjustarOkAsync(producto));
+        Assert.Equal(filas, await _prueba.ContarFilasAsync(producto));
+        Assert.False(await CostoAjustadoAsync(producto));
+
+        // Llega la entrada (D2 > última salida: el posteo no marca nada, pero el producto sigue pendiente) y la siguiente
+        // pasada lo resuelve.
+        await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Entrada(producto, almacen, 5m, 20m, D2));
+        Assert.False(await CostoAjustadoAsync(producto));
+        Assert.Equal(new ResultadoAjusteCosto(1, 1), await _prueba.AjustarOkAsync(producto));
+        Assert.Equal(0m, await ValorTotalAsync(producto));
+        Assert.True(await CostoAjustadoAsync(producto));
+    }
+
+    [Fact]
+    public async Task DiaSinCostoCalculableConHistoriaPrevia_TomaElCostoDeLaSiguienteEntrada_NoElUltimoPromedio()
+    {
+        // (d) Entrada 10 a 10 (D1); salida 15 en D2 (Q del día = 10 → costo 10, deja Q = −5); salida 2 en D3 (Q <= 0: no
+        // calculable) y entrada a 30 en D4 → la salida de D3 toma 30 (no el último promedio, 10): −60, delta −40.
+        var producto = await _prueba.SembrarProductoAsync(costoUnitario: 10m);
+        var almacen = await _prueba.SembrarAlmacenAsync();
+        await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Entrada(producto, almacen, 10m, 10m, D1));
+        await InsertarSalidaDeAperturaAsync(producto, almacen, 15m, 10m, D2);
+        var salidaD3 = await InsertarSalidaDeAperturaAsync(producto, almacen, 2m, 10m, D3);
+        await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Entrada(producto, almacen, 10m, 30m, D4));
+
+        Assert.Equal(new ResultadoAjusteCosto(1, 1), await _prueba.AjustarOkAsync(producto));
+
+        var ajuste = Assert.Single(await AjustesAsync(producto));
+        Assert.Equal(salidaD3, ajuste.MovimientoProductoId);
+        Assert.Equal(-40m, ajuste.ImporteCosto);
+        Assert.True(await CostoAjustadoAsync(producto));
+        Assert.Equal(new ResultadoAjusteCosto(1, 0), await _prueba.AjustarOkAsync(producto));
     }
 
     [Fact]
@@ -302,7 +372,7 @@ public sealed class AjusteCostoInventarioTests(PostgresTestFixture fixture)
     }
 
     /// <summary>Salida sin aplicaciones ni existencia previa (el caso del Stock negativo migrado) y marca el producto pendiente.</summary>
-    private async Task InsertarSalidaDeAperturaAsync(Guid productoId, Guid almacenId, decimal cantidad, decimal costo, DateOnly fecha)
+    private async Task<long> InsertarSalidaDeAperturaAsync(Guid productoId, Guid almacenId, decimal cantidad, decimal costo, DateOnly fecha)
     {
         await using var conexion = _prueba.NuevaConexion();
         var clave = $"APERTURA-{Guid.NewGuid():N}"[..40];
@@ -329,5 +399,6 @@ public sealed class AjusteCostoInventarioTests(PostgresTestFixture fixture)
             new { movimientoId, productoId, almacenId, fecha, cantidad = -cantidad, importe = -cantidad * costo, costo, clave });
         await conexion.ExecuteAsync(
             """UPDATE "Productos" SET "CostoAjustado" = false WHERE "Id" = @productoId""", new { productoId });
+        return movimientoId;
     }
 }

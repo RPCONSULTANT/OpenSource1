@@ -1,6 +1,5 @@
 using Dapper;
 using OpenSource1.Application.Data;
-using OpenSource1.Application.Data.UnitOfWork;
 using OpenSource1.Application.Services.Inventario;
 using OpenSource1.Core.Common;
 using OpenSource1.Core.Enums;
@@ -29,9 +28,19 @@ namespace OpenSource1.Infrastructure.Services.Inventario;
 /// calculadora). Una entrada de transferencia registrada con costo explícito también se revalora al promedio del día.
 /// </para>
 /// <para>
-/// <b>Sin costo histórico.</b> Si en el día <c>Q &lt;= 0</c> se usa el último promedio con <c>Q &gt; 0</c>; si todavía no
-/// hubo ninguno, la salida conserva el importe con que se registró (no se revalora a <c>Producto.CostoUnitario</c>: la
-/// rutina reescribe ese valor al final, y usarlo haría que la segunda pasada insertara otro ajuste).
+/// <b>Costo no calculable (<c>Q &lt;= 0</c> en el día, p. ej. Stock negativo migrado).</b> Las salidas y transferencias de ese
+/// día se valoran al costo del pool de entradas (mismo filtro: <c>CantidadValorada &gt; 0</c>, no transferencia;
+/// <c>Σ ImporteCosto / Σ CantidadValorada</c> del día) del PRIMER día posterior que tenga entradas. Es determinista porque
+/// las entradas nunca se revaloran (los pools se precalculan en una primera pasada). Si no hay ningún día posterior con
+/// entradas se usa el último promedio con <c>Q &gt; 0</c>; si tampoco lo hay, la salida conserva el importe registrado y el
+/// producto queda con <c>CostoAjustado = false</c> (pendiente: lo resolverá la siguiente ejecución cuando llegue una
+/// entrada). No se usa <c>Producto.CostoUnitario</c>: la rutina lo reescribe al final y la segunda pasada ya no sería
+/// idempotente.
+/// </para>
+/// <para>
+/// <b>Divergencia residual con el posteo.</b> <see cref="CostoPromedioCalculadora"/> no conoce el futuro: una salida
+/// posteada en un día con <c>Q &lt;= 0</c> se valora a <c>Producto.CostoUnitario</c>. Como <c>RegistrarAsync</c> marca
+/// <c>CostoAjustado = false</c> en toda salida, la siguiente pasada de esta rutina la corrige.
 /// </para>
 /// <para>
 /// <b>Redondeo.</b> Si al cierre de un día la cantidad valorada acumulada es 0 y queda un valor residual menor que 0.01 en
@@ -40,7 +49,7 @@ namespace OpenSource1.Infrastructure.Services.Inventario;
 /// pasada los desharía con un ajuste).
 /// </para>
 /// </remarks>
-public sealed class AjusteCostoInventario(IDbSession session, IUnitOfWork unitOfWork, IUsuarioActual usuario)
+public sealed class AjusteCostoInventario(IDbSession session, IUsuarioActual usuario)
     : IAjusteCostoInventario
 {
     private const int LongitudCreatedBy = 100;
@@ -84,24 +93,32 @@ public sealed class AjusteCostoInventario(IDbSession session, IUnitOfWork unitOf
         var creados = 0;
         foreach (var producto in productos)
         {
-            await using var ambito = await unitOfWork.BeginTransactionAsync(ct);
+            // Transacción de la sesión (solo Dapper): no se enrola en el DbContext, que de otro modo conservaría desde el
+            // segundo producto una transacción ya confirmada.
+            await using var ambito = await session.BeginTransactionAsync(ct);
             await BloqueoInventarioProducto.AdquirirAsync(session, producto, ct);
 
-            var insertados = await AjustarProductoAsync(producto, soloSiPendiente: productoId is null, ct);
-            await unitOfWork.CommitAsync(ct);
+            var resultado = await AjustarProductoAsync(producto, soloSiPendiente: productoId is null, ct);
+            await session.CommitAsync(ct);
 
-            if (insertados is { } n)
+            if (resultado is { } r)
             {
-                ajustados++;
-                creados += n;
+                creados += r.Insertados;
+                if (r.Ajustado)
+                {
+                    ajustados++;
+                }
             }
         }
 
         return Result<ResultadoAjusteCosto>.Exito(new ResultadoAjusteCosto(ajustados, creados));
     }
 
-    /// <summary>Movimientos de valor insertados, o null si el producto ya no estaba pendiente (lo ajustó otra ejecución).</summary>
-    private async Task<int?> AjustarProductoAsync(Guid productoId, bool soloSiPendiente, CancellationToken ct)
+    /// <summary>
+    /// Movimientos de valor insertados y si el producto quedó ajustado (false: alguna salida sin costo determinable sigue
+    /// pendiente); null si el producto ya no estaba pendiente (lo ajustó otra ejecución).
+    /// </summary>
+    private async Task<(int Insertados, bool Ajustado)?> AjustarProductoAsync(Guid productoId, bool soloSiPendiente, CancellationToken ct)
     {
         var tx = session.CurrentTransaction;
 
@@ -140,12 +157,29 @@ public sealed class AjusteCostoInventario(IDbSession session, IUnitOfWork unitOf
         var fechas = valores.Select(v => v.FechaRegistro)
             .Concat(movimientos.Select(m => m.FechaRegistro))
             .Distinct()
-            .Order();
+            .Order()
+            .ToList();
+
+        // Primera pasada: pool de entradas de cada día (las entradas nunca se revaloran, así que es fijo). Para cada día,
+        // el costo del pool del PRIMER día posterior con entradas (lo usan los días con costo no calculable).
+        var costoPoolPosterior = new Dictionary<DateOnly, decimal?>();
+        decimal? siguientePool = null;
+        for (var i = fechas.Count - 1; i >= 0; i--)
+        {
+            costoPoolPosterior[fechas[i]] = siguientePool;
+            var pool = valoresPorFecha[fechas[i]].Where(EntraEnPromedioDelDia).ToList();
+            var cantidadPool = pool.Sum(v => v.CantidadValorada);
+            if (cantidadPool > 0)
+            {
+                siguientePool = pool.Sum(v => v.ImporteCosto) / cantidadPool;
+            }
+        }
 
         var contexto = new ContextoInsercion(productoId, DateTimeOffset.UtcNow, CreadoPor(), usuario.Id);
         decimal valor = 0m, cantidad = 0m;
         decimal? ultimoCosto = null;
         var insertados = 0;
+        var pendiente = false;
 
         foreach (var fecha in fechas)
         {
@@ -154,10 +188,15 @@ public sealed class AjusteCostoInventario(IDbSession session, IUnitOfWork unitOf
             // Costo del día: idéntico a CostoPromedioCalculadora.SumasSql para una salida con esta fecha.
             var valorPromedio = valor + delDia.Where(EntraEnPromedioDelDia).Sum(v => v.ImporteCosto);
             var cantidadPromedio = cantidad + delDia.Where(EntraEnPromedioDelDia).Sum(v => v.CantidadValorada);
-            var costo = CostoPromedioCalculadora.Calcular(valorPromedio, cantidadPromedio) ?? ultimoCosto;
-            if (cantidadPromedio > 0)
+            var costo = CostoPromedioCalculadora.Calcular(valorPromedio, cantidadPromedio);
+            if (costo is not null)
             {
                 ultimoCosto = costo;
+            }
+            else
+            {
+                // No calculable: pool del primer día posterior con entradas; si no lo hay, el último promedio.
+                costo = costoPoolPosterior[fecha] ?? ultimoCosto;
             }
 
             var importeNuevoDelDia = 0m;
@@ -173,7 +212,8 @@ public sealed class AjusteCostoInventario(IDbSession session, IUnitOfWork unitOf
 
                 if (costo is null)
                 {
-                    continue; // Sin costo histórico: conserva el importe registrado.
+                    pendiente = true; // Sin costo determinable: conserva el importe registrado y queda pendiente.
+                    continue;
                 }
 
                 var importe = CostoPromedioCalculadora.Importe(Math.Abs(movimiento.Cantidad), costo.Value);
@@ -206,15 +246,16 @@ public sealed class AjusteCostoInventario(IDbSession session, IUnitOfWork unitOf
         }
 
         // Dos columnas por SQL y solo si cambian: no se pisa el resto del maestro ni se toca su xmin sin necesidad.
+        var ajustado = !pendiente;
         var costoFinal = CostoPromedioCalculadora.CostoPorUnidad(ultimoCosto ?? producto.CostoUnitario);
         await session.Connection.ExecuteAsync(new CommandDefinition(
             """
-            UPDATE "Productos" SET "CostoAjustado" = true, "CostoUnitario" = @costoFinal
-            WHERE "Id" = @productoId AND ("CostoAjustado" = false OR "CostoUnitario" <> @costoFinal)
+            UPDATE "Productos" SET "CostoAjustado" = @ajustado, "CostoUnitario" = @costoFinal
+            WHERE "Id" = @productoId AND ("CostoAjustado" <> @ajustado OR "CostoUnitario" <> @costoFinal)
             """,
-            new { productoId, costoFinal }, tx, cancellationToken: ct));
+            new { productoId, ajustado, costoFinal }, tx, cancellationToken: ct));
 
-        return insertados;
+        return (insertados, ajustado);
     }
 
     /// <summary>Filtro de <see cref="CostoPromedioCalculadora.SumasSql"/> para las filas del mismo día.</summary>
