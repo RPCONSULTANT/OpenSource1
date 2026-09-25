@@ -31,7 +31,7 @@ el informe de investigación.
 | D5 | Toda fila de libro lleva `(TipoOrigen, ClaveOrigen)` | El par AWTYP/AWKEY de SAP. Dos columnas, gratis ahora, doloroso de retrofitear |
 | D6 | **Borrador y posteado son tablas distintas**; lo posteado es inmutable y **sin discriminador de tipo** | BC copia a `Sales Invoice Header` cuya PK es `No.` a secas, sin `Document Type` |
 | D7 | "Abierta/cerrada" **se deriva**, no se persiste en tablas separadas | SAP usó BSID/BSAD/BSIK/BSAK y en S/4HANA los eliminó: ahora son vistas |
-| D8 | Las líneas **congelan** factor de UdM, `% IVA`, grupos contables y costo unitario | Un `JOIN` al maestro actual reescribiría la historia |
+| D8 | Las líneas **congelan** factor de UdM, `% IVA`, grupos contables y costo unitario. Si la línea usa la unidad base del producto, el factor congelado es 1 (identidad; no existe fila en `UnidadesMedidaProducto` para la unidad base, ver 2.2) | Un `JOIN` al maestro actual reescribiría la historia |
 | D9 | Series de numeración **separadas** para borrador (con huecos) y posteado (sin huecos) | Gapless implica bloqueo de fila hasta el commit. No hay truco; solo se limita el alcance del bloqueo |
 
 ### Convenciones transversales
@@ -353,20 +353,26 @@ requerido.
 Tabla `UnidadesMedida` (catálogo global): `Id uuid`, `Codigo varchar(10)` UNIQUE,
 `Nombre varchar(50)`, `Decimales smallint` (redondeo de cantidades).
 
-Tabla `UnidadesMedidaProducto` (equivalente a `Item Unit of Measure` 5404):
+Tabla `UnidadesMedidaProducto` (equivalente a `Item Unit of Measure` 5404): guarda **solo
+las unidades ALTERNATIVAS** del producto, nunca su unidad base. La unidad base
+(`Producto.UnidadMedidaBaseId`) es **implícita, con factor 1**: no tiene fila en esta
+tabla, y `ConversionUnidadMedidaService` la trata como identidad (factor 1) sin
+consultarla. Cuando exista alta/edición de equivalencias (hoy no hay UI ni endpoint para
+esto), debe **rechazar** que se dé de alta una fila para la unidad base del producto.
 
 | Columna | Tipo | Notas |
 |---|---|---|
 | `Id` | `uuid` PK | |
 | `ProductoId` | `uuid` | FK |
-| `UnidadMedidaId` | `uuid` | FK |
+| `UnidadMedidaId` | `uuid` | FK; nunca `Producto.UnidadMedidaBaseId` de ese mismo producto |
 | `CantidadPorUnidadMedida` | `numeric(18,6)` | NOT NULL, > 0 |
 
-UNIQUE(`ProductoId`, `UnidadMedidaId`). La unidad base del producto tiene factor 1 y su
-fila es obligatoria.
+UNIQUE(`ProductoId`, `UnidadMedidaId`).
 
-**Conversión:** `cantidadBase = cantidad * CantidadPorUnidadMedida`. El factor se
-**congela** en cada línea de documento y de libro (D8).
+**Conversión:** `cantidadBase = cantidad * CantidadPorUnidadMedida`. Para la unidad base
+del producto, `CantidadPorUnidadMedida` vale 1 por identidad, sin leer la tabla. El factor
+se **congela** en cada línea de documento y de libro (D8); en una línea capturada con la
+unidad base, el factor congelado es 1.
 
 El VO `UnidadMedida` estático se elimina; las validaciones pasan a resolverse contra la
 tabla. El VO `Pais` se conserva tal cual (los países no necesitan administración).
@@ -425,10 +431,12 @@ huecos.
   conserva la etiqueta "Clientes"; la ruta de la API pasa a `api/socios-negocio`.
 - Los VOs estáticos `UnidadMedida` y `CategoriaProducto` se renombran a `...Legado` en las tareas 2.3/2.4 y se
   borran en la 2.9, cuando `Producto` pasa a las claves foráneas.
-- La fila de la unidad base con factor 1 en `UnidadesMedidaProducto` NO se almacena (la tabla del apartado 2.2 la
-  describe como obligatoria; no se crea en ningún flujo). `ConversionUnidadMedidaService` trata la unidad base del
-  producto (`Producto.UnidadMedidaBaseId`) como identidad: factor 1 sin consultar la tabla, aunque exista una fila
-  con otro factor. Solo las unidades distintas de la base exigen fila (`conversion.unidad_no_asociada`).
+- El apartado 2.2 describía originalmente la fila de la unidad base con factor 1 en `UnidadesMedidaProducto` como
+  obligatoria; no se llegó a crear en ningún flujo, y prevalece el diseño implementado: la unidad base es
+  **implícita** (factor 1, sin fila), tal como ya lo refleja el texto actual de 2.2. `ConversionUnidadMedidaService`
+  trata la unidad base del producto (`Producto.UnidadMedidaBaseId`) como identidad — factor 1 sin consultar la
+  tabla — aunque exista una fila con otro factor. Solo las unidades ALTERNATIVAS a la base exigen fila
+  (`conversion.unidad_no_asociada`).
 
 **Verificación de la Fase 2:** build verde; migración aplicada sin pérdida de datos de
 `Clientes`/`Productos`; tests de conversión de unidades, de generación de números
