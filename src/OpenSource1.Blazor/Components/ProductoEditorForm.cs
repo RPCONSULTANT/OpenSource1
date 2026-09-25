@@ -17,9 +17,8 @@ public sealed class ProductoEditorForm : IValidatableObject
     // servidor y leería "1500,50" como 150050.
     public string? PrecioVentaTexto { get; set; } = EntradaDecimal.Formatear(0m);
 
-    // LEGADO: se reemplaza por existencia derivada en la Fase 3 (libro de inventario)
-    [Range(0, int.MaxValue, ErrorMessage = "El stock no puede ser negativo.")]
-    public int Stock { get; set; }
+    // Stock (Task 3.6): eliminado del alta/edición. La existencia se deriva del libro de inventario y se registra
+    // con diarios de inventario (Fase 4), no desde la ficha del producto.
 
     // "" (opción "— Por defecto —" del alta) llega como null desde el <select>: la API usa la categoría GENERAL / la unidad UND.
     public Guid? CategoriaId { get; set; }

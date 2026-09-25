@@ -38,7 +38,7 @@ else
             <p class="mt-1 text-2xl font-extrabold text-slate-900 dark:text-slate-100">@porCategoria.Count</p>
         </div>
         <div class="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
-            <p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Sin stock</p>
+            <p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Sin existencia</p>
             <p class="mt-1 text-2xl font-extrabold @(sinStock > 0 ? "text-red-600 dark:text-red-400" : "text-slate-900 dark:text-slate-100")">@sinStock</p>
         </div>
         <div class="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
@@ -65,7 +65,7 @@ else
             @if (menorStock.Count > 0)
             {
                 <ChartCanvas Id="chart-productos-stock" Type="bar" Labels="@menorStock.Select(p => p.Nombre).ToList()"
-                             Datasets="@(new List<ChartDataset> { new("Stock", menorStock.Select(p => (double)p.Stock).ToList(), [ChartPalette.Pick(2)]) })" />
+                             Datasets="@(new List<ChartDataset> { new("Existencia", menorStock.Select(p => (double)p.Existencia).ToList(), [ChartPalette.Pick(2)]) })" />
             }
             else
             {
@@ -87,7 +87,7 @@ else
                 <tr class="text-left text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">
                     <th class="px-5 py-2.5">Categoría</th>
                     <th class="px-5 py-2.5">Cantidad</th>
-                    <th class="px-5 py-2.5">Stock total</th>
+                    <th class="px-5 py-2.5">Existencia total</th>
                     <th class="px-5 py-2.5">Precio de venta promedio</th>
                 </tr>
             </thead>
@@ -97,7 +97,7 @@ else
                     <tr>
                         <td class="px-5 py-2.5 font-semibold text-slate-800 dark:text-slate-200">@fila.Categoria</td>
                         <td class="px-5 py-2.5 text-slate-600 dark:text-slate-400">@fila.Cantidad</td>
-                        <td class="px-5 py-2.5 text-slate-600 dark:text-slate-400">@fila.StockTotal</td>
+                        <td class="px-5 py-2.5 text-slate-600 dark:text-slate-400">@fila.ExistenciaTotal.ToString("N2", CultureInfo.GetCultureInfo("es-DO"))</td>
                         <td class="px-5 py-2.5 text-slate-600 dark:text-slate-400">@fila.PrecioPromedio.ToString("C2", CultureInfo.GetCultureInfo("es-DO"))</td>
                     </tr>
                 }
@@ -123,15 +123,15 @@ else
             var productos = await ProductoApiClient.ListAllAsync();
 
             total = productos.Count;
-            sinStock = productos.Count(p => p.Stock <= 0);
-            valorInventario = productos.Sum(p => p.PrecioVenta * p.Stock);
+            sinStock = productos.Count(p => p.Existencia <= 0);
+            valorInventario = productos.Sum(p => p.PrecioVenta * p.Existencia);
 
             porCategoria = productos
                 .GroupBy(p => p.CategoriaCodigo)
                 .OrderByDescending(g => g.Count())
                 .ToDictionary(g => g.First().CategoriaNombre, g => g.Count());
 
-            menorStock = productos.OrderBy(p => p.Stock).Take(10).ToList();
+            menorStock = productos.OrderBy(p => p.Existencia).Take(10).ToList();
 
             var culture = CultureInfo.GetCultureInfo("es-ES");
             var hoy = DateTime.UtcNow;
@@ -143,7 +143,7 @@ else
 
             resumenCategoria = productos
                 .GroupBy(p => p.CategoriaCodigo)
-                .Select(g => new ResumenCategoriaRow(g.First().CategoriaNombre, g.Count(), g.Sum(p => p.Stock), g.Average(p => p.PrecioVenta)))
+                .Select(g => new ResumenCategoriaRow(g.First().CategoriaNombre, g.Count(), g.Sum(p => p.Existencia), g.Average(p => p.PrecioVenta)))
                 .OrderByDescending(r => r.Cantidad)
                 .ToList();
         }
@@ -154,5 +154,5 @@ else
         }
     }
 
-    private sealed record ResumenCategoriaRow(string Categoria, int Cantidad, int StockTotal, decimal PrecioPromedio);
+    private sealed record ResumenCategoriaRow(string Categoria, int Cantidad, decimal ExistenciaTotal, decimal PrecioPromedio);
 }

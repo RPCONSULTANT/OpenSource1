@@ -10,8 +10,9 @@ public sealed class Producto : BaseEntity
     /// <summary>Precio de venta (antes <c>Precio</c>). <c>numeric(18,4)</c>.</summary>
     public decimal PrecioVenta { get; set; }
 
-    // LEGADO: se reemplaza por existencia derivada en la Fase 3 (libro de inventario)
-    public int Stock { get; set; }
+    // Stock (Task 3.6): eliminado. La existencia se deriva del libro de inventario (MovimientosProducto),
+    // sumando "Cantidad" por producto/almacén/fecha (ver IConsultaInventario). El Stock legado se migró a
+    // movimientos de apertura con TipoOrigen = Migracion en el almacén PRINCIPAL.
 
     /// <summary>Unidad de medida base del producto (catálogo <see cref="UnidadMedida"/>).</summary>
     public Guid UnidadMedidaBaseId { get; set; }

@@ -352,7 +352,6 @@ public sealed class ConversionUnidadMedidaServiceTests : IClassFixture<PostgresT
             Codigo = $"P{Guid.NewGuid():N}"[..20],
             Nombre = "Producto de prueba de conversión",
             PrecioVenta = 1m,
-            Stock = 0,
             CategoriaId = categoriaId,
             UnidadMedidaBaseId = unidadBaseId,
         };

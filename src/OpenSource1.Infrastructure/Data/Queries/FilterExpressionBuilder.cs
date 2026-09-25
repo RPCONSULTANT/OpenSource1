@@ -49,6 +49,22 @@ internal static class FilterExpressionBuilder
     public static Result AddExactFilter<T>(
         List<string> filters, DynamicParameters parameters, ColumnasPermitidas permitidas, string column, string? rawValue,
         Func<string, (bool Ok, T Value)> tryParse)
+        where T : struct =>
+        AddComparisonFilter(filters, parameters, permitidas, column, rawValue, tryParse, "=");
+
+    /// <summary>
+    /// Como <see cref="AddExactFilter{T}"/> pero con "mayor o igual que" en vez de igualdad exacta (Task 3.6: filtro
+    /// <c>existencia</c>, una cantidad derivada con decimales donde una igualdad exacta es poco útil).
+    /// </summary>
+    public static Result AddMinimumFilter<T>(
+        List<string> filters, DynamicParameters parameters, ColumnasPermitidas permitidas, string column, string? rawValue,
+        Func<string, (bool Ok, T Value)> tryParse)
+        where T : struct =>
+        AddComparisonFilter(filters, parameters, permitidas, column, rawValue, tryParse, ">=");
+
+    private static Result AddComparisonFilter<T>(
+        List<string> filters, DynamicParameters parameters, ColumnasPermitidas permitidas, string column, string? rawValue,
+        Func<string, (bool Ok, T Value)> tryParse, string comparador)
         where T : struct
     {
         var columnaCitada = permitidas.Citar(column);
@@ -76,7 +92,7 @@ internal static class FilterExpressionBuilder
                 }
 
                 var paramName = $"{column}Val{index++}";
-                orClauses.Add($"{columnaCitada} = @{paramName}");
+                orClauses.Add($"{columnaCitada} {comparador} @{paramName}");
                 parameters.Add(paramName, value);
             }
 

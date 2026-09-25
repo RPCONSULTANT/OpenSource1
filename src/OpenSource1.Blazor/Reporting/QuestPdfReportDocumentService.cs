@@ -113,7 +113,7 @@ public sealed class QuestPdfReportDocumentService : IReportDocumentService
                         HeaderCell(header.Cell(), "Código");
                         HeaderCell(header.Cell(), "Nombre");
                         HeaderCell(header.Cell(), "Precio de venta");
-                        HeaderCell(header.Cell(), "Stock");
+                        HeaderCell(header.Cell(), "Existencia");
                         HeaderCell(header.Cell(), "Categoría");
                     });
 
@@ -122,7 +122,7 @@ public sealed class QuestPdfReportDocumentService : IReportDocumentService
                         BodyCell(table, producto.Codigo);
                         BodyCell(table, producto.Nombre);
                         BodyCell(table, producto.PrecioVenta.ToString("N2"));
-                        BodyCell(table, producto.Stock.ToString());
+                        BodyCell(table, ProductoEtiquetas.Existencia(producto.Existencia, producto.UnidadMedidaBaseDecimales));
                         BodyCell(table, producto.CategoriaNombre);
                     }
                 });
@@ -194,7 +194,7 @@ public sealed class QuestPdfReportDocumentService : IReportDocumentService
         sheet.Cell(2, 1).Value = $"Fecha de generación: {DateTimeOffset.Now:dd/MM/yyyy HH:mm}";
         sheet.Range(2, 1, 2, 5).Merge();
 
-        string[] headers = ["Código", "Nombre", "Precio de venta", "Stock", "Categoría"];
+        string[] headers = ["Código", "Nombre", "Precio de venta", "Existencia", "Categoría"];
         for (var i = 0; i < headers.Length; i++)
         {
             var cell = sheet.Cell(4, i + 1);
@@ -208,7 +208,8 @@ public sealed class QuestPdfReportDocumentService : IReportDocumentService
             sheet.Cell(row, 1).Value = producto.Codigo;
             sheet.Cell(row, 2).Value = producto.Nombre;
             sheet.Cell(row, 3).Value = producto.PrecioVenta;
-            sheet.Cell(row, 4).Value = producto.Stock;
+            sheet.Cell(row, 4).Value = producto.Existencia;
+            sheet.Cell(row, 4).Style.NumberFormat.Format = FormatoNumericoExcel(producto.UnidadMedidaBaseDecimales);
             sheet.Cell(row, 5).Value = producto.CategoriaNombre;
             row++;
         }
@@ -298,7 +299,7 @@ public sealed class QuestPdfReportDocumentService : IReportDocumentService
         // Dato crudo (Power BI y otras herramientas): los enums van como código numérico y, al lado, su nombre.
         string[] headers =
         [
-            "Id", "Codigo", "Nombre", "PrecioVenta", "Stock", "CategoriaId", "CategoriaCodigo", "CategoriaNombre", "UnidadMedidaBaseId",
+            "Id", "Codigo", "Nombre", "PrecioVenta", "Existencia", "CategoriaId", "CategoriaCodigo", "CategoriaNombre", "UnidadMedidaBaseId",
             "UnidadMedidaCodigo", "UnidadMedidaNombre", "MetodoCosteo", "MetodoCosteoNombre", "CostoUnitario", "CostoEstandar", "CostoAjustado",
             "Bloqueado", "BloqueadoNombre", "ImagePath", "CreatedAtUtc", "UpdatedAtUtc", "CreatedBy", "UpdatedBy"
         ];
@@ -318,7 +319,8 @@ public sealed class QuestPdfReportDocumentService : IReportDocumentService
             sheet.Cell(row, col++).Value = producto.Nombre;
             sheet.Cell(row, col).Value = producto.PrecioVenta;
             sheet.Cell(row, col++).Style.NumberFormat.Format = "0.0000";
-            sheet.Cell(row, col++).Value = producto.Stock;
+            sheet.Cell(row, col).Value = producto.Existencia;
+            sheet.Cell(row, col++).Style.NumberFormat.Format = FormatoNumericoExcel(producto.UnidadMedidaBaseDecimales);
             sheet.Cell(row, col++).Value = producto.CategoriaId.ToString();
             sheet.Cell(row, col++).Value = producto.CategoriaCodigo;
             sheet.Cell(row, col++).Value = producto.CategoriaNombre;
@@ -354,6 +356,13 @@ public sealed class QuestPdfReportDocumentService : IReportDocumentService
             $"productos-crudo-{DateTime.UtcNow:yyyyMMddHHmmss}.xlsx",
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             stream.ToArray());
+    }
+
+    /// <summary>Formato numérico de ClosedXML para la existencia (Task 3.6), con los decimales de la unidad base (0-6, sin notación científica).</summary>
+    private static string FormatoNumericoExcel(short decimales)
+    {
+        var n = Math.Clamp(decimales, (short)0, (short)6);
+        return n == 0 ? "0" : "0." + new string('0', n);
     }
 
     private static string DireccionDisplay(string? linea1, string? linea2)

@@ -39,7 +39,6 @@ public sealed class CreateProductoCommandHandler(IUnitOfWork unitOfWork)
             Codigo = request.Codigo.Trim(),
             Nombre = request.Nombre.Trim(),
             PrecioVenta = request.PrecioVenta,
-            Stock = request.Stock,
             UnidadMedidaBaseId = catalogo.Unidad.Id,
             CategoriaId = catalogo.Categoria.Id,
             MetodoCosteo = request.MetodoCosteo,
@@ -52,23 +51,25 @@ public sealed class CreateProductoCommandHandler(IUnitOfWork unitOfWork)
         };
         await unitOfWork.Repository<Producto>().AddAsync(entity, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
-        return Result<ProductoResponse>.Exito(ToResponse(entity, catalogo.Categoria, catalogo.Unidad));
+        // Un producto recién creado no tiene movimientos: su existencia es 0 sin necesidad de consultar el libro.
+        return Result<ProductoResponse>.Exito(ToResponse(entity, catalogo.Categoria, catalogo.Unidad, existencia: 0m));
     }
 
     /// <summary>Respuesta del alta/modificación: los nombres de categoría y unidad salen del catálogo (cadena vacía si la fila ya no existe).</summary>
-    public static ProductoResponse ToResponse(Producto x, CategoriaProducto? categoria, UnidadMedida? unidad) => new()
+    public static ProductoResponse ToResponse(Producto x, CategoriaProducto? categoria, UnidadMedida? unidad, decimal existencia) => new()
     {
         Id = x.Id,
         Codigo = x.Codigo,
         Nombre = x.Nombre,
         PrecioVenta = x.PrecioVenta,
-        Stock = x.Stock,
+        Existencia = existencia,
         CategoriaId = x.CategoriaId,
         CategoriaCodigo = categoria?.Codigo ?? string.Empty,
         CategoriaNombre = categoria?.Nombre ?? string.Empty,
         UnidadMedidaBaseId = x.UnidadMedidaBaseId,
         UnidadMedidaCodigo = unidad?.Codigo ?? string.Empty,
         UnidadMedidaNombre = unidad?.Nombre ?? string.Empty,
+        UnidadMedidaBaseDecimales = unidad?.Decimales ?? 0,
         MetodoCosteo = x.MetodoCosteo,
         CostoUnitario = x.CostoUnitario,
         CostoEstandar = x.CostoEstandar,

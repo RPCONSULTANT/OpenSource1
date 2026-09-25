@@ -70,7 +70,6 @@ internal sealed class LibroInventarioPrueba(PostgresTestFixture fixture) : IAsyn
             Codigo = $"INV{Guid.NewGuid():N}"[..20],
             Nombre = "Producto de prueba del libro de inventario",
             PrecioVenta = 1m,
-            Stock = 0,
             CategoriaId = CategoriaGeneral,
             UnidadMedidaBaseId = UnidadUnd,
             CostoUnitario = costoUnitario,

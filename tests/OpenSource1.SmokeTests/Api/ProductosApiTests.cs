@@ -3,9 +3,12 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using OpenSource1.Application.Data;
 using OpenSource1.Application.Features.CategoriasProducto.Dtos;
 using OpenSource1.Application.Features.Productos.Dtos;
 using OpenSource1.Application.Features.UnidadesMedida.Dtos;
+using OpenSource1.Application.Services.Inventario;
 using OpenSource1.Core.Enums;
 using OpenSource1.Infrastructure.Data;
 using OpenSource1.Core.Common;
@@ -16,13 +19,38 @@ namespace OpenSource1.SmokeTests.Api;
 [Collection(PostgresCollection.Name)]
 public sealed class ProductosApiTests : IClassFixture<PostgresTestFixture>
 {
+    private static readonly Guid AlmacenPrincipal = Guid.Parse("b1000000-0000-0000-0000-000000000001");
+    private static readonly Guid UnidadUnd = Guid.Parse("a1000000-0000-0000-0000-000000000001");
+
     private readonly PostgresTestFixture _fixture;
+    private readonly WebApplicationFactory<Program> _factory;
     private readonly HttpClient _client;
 
     public ProductosApiTests(PostgresTestFixture fixture)
     {
         _fixture = fixture;
-        _client = fixture.CreateFactory().CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        _factory = fixture.CreateFactory();
+        _client = _factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+    }
+
+    /// <summary>
+    /// Registra una entrada con <see cref="IRegistroMovimientosInventario"/> (Task 3.4), en su propio scope/transacción,
+    /// para que los tests de <c>existencia</c>/<c>stockState</c>/<c>/existencias</c> tengan movimientos reales del libro.
+    /// </summary>
+    private async Task RegistrarEntradaAsync(Guid productoId, decimal cantidad, decimal costoUnitario = 1m, Guid? almacenId = null, Guid? unidadMedidaId = null)
+    {
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var sesion = scope.ServiceProvider.GetRequiredService<IDbSession>();
+        var registro = scope.ServiceProvider.GetRequiredService<IRegistroMovimientosInventario>();
+
+        await using var tx = await sesion.BeginTransactionAsync();
+        var fecha = DateOnly.FromDateTime(DateTime.UtcNow);
+        var solicitud = new MovimientoInventarioSolicitud(
+            productoId, almacenId ?? AlmacenPrincipal, TipoMovimientoInventario.Compra, cantidad, EsEntrada: true, unidadMedidaId ?? UnidadUnd, costoUnitario,
+            fecha, fecha, TipoDocumentoInventario.RegistroDiario, "DOC-TEST", 1, TipoOrigenMovimiento.Diario, $"T-{Guid.NewGuid():N}");
+        var resultado = await registro.RegistrarAsync(solicitud);
+        Assert.True(resultado.EsExito, resultado.EsFallo ? string.Join("; ", resultado.Errores.Select(e => $"{e.Codigo}: {e.Mensaje}")) : string.Empty);
+        await sesion.CommitAsync();
     }
 
     [Fact]
@@ -259,7 +287,6 @@ public sealed class ProductosApiTests : IClassFixture<PostgresTestFixture>
     [InlineData("{\"costoEstandar\": 1.23456}", "CostoEstandar")]
     [InlineData("{\"bloqueado\": 9}", "Bloqueado")]
     [InlineData("{\"metodoCosteo\": 7}", "MetodoCosteo")]
-    [InlineData("{\"stock\": -3}", "Stock")]
     public async Task Create_ConValoresInvalidos_Devuelve400ConElCampo(string extraJson, string campo)
     {
         var client = CreateClient("Administrador");
@@ -275,14 +302,14 @@ public sealed class ProductosApiTests : IClassFixture<PostgresTestFixture>
     }
 
     [Fact]
-    public async Task Update_SoloElNombre_ConservaCategoriaUnidadBloqueoCostosPrecioYStock()
+    public async Task Update_SoloElNombre_ConservaCategoriaUnidadBloqueoCostosYPrecio()
     {
         var client = CreateClient("Administrador");
         var categoria = await CrearCategoriaAsync(client);
         var unidad = await CrearUnidadAsync(client);
         var create = await client.PostAsJsonAsync("/api/productos", new
         {
-            codigo = CodigoUnico("PAR"), nombre = "Original", precioVenta = 33.3333m, stock = 21,
+            codigo = CodigoUnico("PAR"), nombre = "Original", precioVenta = 33.3333m,
             categoriaId = categoria.Id, unidadMedidaBaseId = unidad.Id, costoEstandar = 5.5m, bloqueado = 2
         });
         var creado = (await create.Content.ReadFromJsonAsync<ProductoResponse>())!;
@@ -296,7 +323,8 @@ public sealed class ProductosApiTests : IClassFixture<PostgresTestFixture>
         var tras = (await client.GetFromJsonAsync<ProductoResponse>($"/api/productos/{creado.Id}"))!;
         Assert.Equal("Renombrado", tras.Nombre);
         Assert.Equal(33.3333m, tras.PrecioVenta);
-        Assert.Equal(21, tras.Stock);
+        // Sin movimientos registrados: la existencia derivada (Task 3.6) es 0, no se guarda ni se "conserva" en el maestro.
+        Assert.Equal(0m, tras.Existencia);
         Assert.Equal(categoria.Id, tras.CategoriaId);
         Assert.Equal(unidad.Id, tras.UnidadMedidaBaseId);
         Assert.Equal(BloqueoProducto.Todo, tras.Bloqueado);
@@ -328,6 +356,77 @@ public sealed class ProductosApiTests : IClassFixture<PostgresTestFixture>
         Assert.Equal(BloqueoProducto.Venta, tras.Bloqueado);
         Assert.Equal(0m, tras.CostoUnitario);
         Assert.True(tras.CostoAjustado);
+    }
+
+    [Fact]
+    public async Task Create_ConStockEnElCuerpo_SeIgnora_YLaExistenciaNaceEn0()
+    {
+        // Task 3.6: la columna Stock ya no existe; System.Text.Json ignora en silencio la propiedad desconocida.
+        var client = CreateClient("Administrador");
+
+        var create = await client.PostAsJsonAsync("/api/productos", new { codigo = CodigoUnico("STK"), nombre = "Con stock ignorado", precioVenta = 1m, stock = 50 });
+
+        Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+        var creado = (await create.Content.ReadFromJsonAsync<ProductoResponse>())!;
+        Assert.Equal(0m, creado.Existencia);
+
+        var put = await client.PutAsJsonAsync($"/api/productos/{creado.Id}", new { codigo = creado.Codigo, nombre = "B", stock = 999 });
+        Assert.Equal(HttpStatusCode.OK, put.StatusCode);
+        var tras = (await put.Content.ReadFromJsonAsync<ProductoResponse>())!;
+        Assert.Equal(0m, tras.Existencia);
+    }
+
+    [Fact]
+    public async Task List_FiltraPorExistenciaConSemanticaMayorOIgual_YPorStockState()
+    {
+        var client = CreateClient("Administrador");
+        var sufijo = Guid.NewGuid().ToString("N")[..8];
+        var conExistencia = (await (await client.PostAsJsonAsync("/api/productos", new { codigo = $"EX1-{sufijo}", nombre = $"Con existencia {sufijo}", precioVenta = 1m })).Content.ReadFromJsonAsync<ProductoResponse>())!;
+        var sinExistencia = (await (await client.PostAsJsonAsync("/api/productos", new { codigo = $"EX0-{sufijo}", nombre = $"Sin existencia {sufijo}", precioVenta = 1m })).Content.ReadFromJsonAsync<ProductoResponse>())!;
+        await RegistrarEntradaAsync(conExistencia.Id, 10m);
+
+        // existencia=10 (>=): incluye al de existencia 10, no al de existencia 0.
+        var porExistencia = (await client.GetFromJsonAsync<PagedResult<ProductoResponse>>($"/api/productos?codigo={sufijo}&existencia=10"))!;
+        Assert.Contains(porExistencia.Items, p => p.Id == conExistencia.Id);
+        Assert.DoesNotContain(porExistencia.Items, p => p.Id == sinExistencia.Id);
+
+        // existencia=11 (>=): ya no incluye al de existencia 10.
+        var porExistenciaAlta = (await client.GetFromJsonAsync<PagedResult<ProductoResponse>>($"/api/productos?codigo={sufijo}&existencia=11"))!;
+        Assert.DoesNotContain(porExistenciaAlta.Items, p => p.Id == conExistencia.Id);
+
+        // stockState=with / without / all, calculado sobre la existencia derivada.
+        var conStock = (await client.GetFromJsonAsync<PagedResult<ProductoResponse>>($"/api/productos?codigo={sufijo}&stockState=with"))!;
+        Assert.Contains(conStock.Items, p => p.Id == conExistencia.Id);
+        Assert.DoesNotContain(conStock.Items, p => p.Id == sinExistencia.Id);
+
+        var sinStock = (await client.GetFromJsonAsync<PagedResult<ProductoResponse>>($"/api/productos?codigo={sufijo}&stockState=without"))!;
+        Assert.DoesNotContain(sinStock.Items, p => p.Id == conExistencia.Id);
+        Assert.Contains(sinStock.Items, p => p.Id == sinExistencia.Id);
+
+        var todos = (await client.GetFromJsonAsync<PagedResult<ProductoResponse>>($"/api/productos?codigo={sufijo}&stockState=all"))!;
+        Assert.Equal(2, todos.Items.Count(p => p.Id == conExistencia.Id || p.Id == sinExistencia.Id));
+    }
+
+    [Fact]
+    public async Task GetExistencias_DevuelveSoloAlmacenesConMovimientos_Y404SiElProductoNoExiste()
+    {
+        var client = CreateClient("Administrador");
+        var creado = (await (await client.PostAsJsonAsync("/api/productos", new { codigo = CodigoUnico("EXA"), nombre = "Con almacenes", precioVenta = 1m })).Content.ReadFromJsonAsync<ProductoResponse>())!;
+
+        var sinMovimientos = await client.GetFromJsonAsync<List<ExistenciaAlmacen>>($"/api/productos/{creado.Id}/existencias");
+        Assert.NotNull(sinMovimientos);
+        Assert.Empty(sinMovimientos);
+
+        await RegistrarEntradaAsync(creado.Id, 25m);
+
+        var conMovimientos = await client.GetFromJsonAsync<List<ExistenciaAlmacen>>($"/api/productos/{creado.Id}/existencias");
+        Assert.NotNull(conMovimientos);
+        var almacen = Assert.Single(conMovimientos);
+        Assert.Equal(AlmacenPrincipal, almacen.AlmacenId);
+        Assert.Equal(25m, almacen.Existencia);
+
+        var noExiste = await client.GetAsync($"/api/productos/{Guid.NewGuid()}/existencias");
+        Assert.Equal(HttpStatusCode.NotFound, noExiste.StatusCode);
     }
 
     [Fact]
@@ -365,10 +464,11 @@ public sealed class ProductosApiTests : IClassFixture<PostgresTestFixture>
         var codigo = $"FIL-{sufijo}";
         var create = await client.PostAsJsonAsync("/api/productos", new
         {
-            codigo, nombre = $"Nombre {sufijo}", precioVenta = 4321.5m, stock = 4321, categoriaId = categoria.Id, unidadMedidaBaseId = unidad.Id
+            codigo, nombre = $"Nombre {sufijo}", precioVenta = 4321.5m, categoriaId = categoria.Id, unidadMedidaBaseId = unidad.Id
         });
         Assert.Equal(HttpStatusCode.Created, create.StatusCode);
         var id = (await create.Content.ReadFromJsonAsync<ProductoResponse>())!.Id;
+        await RegistrarEntradaAsync(id, 4321m, unidadMedidaId: unidad.Id);
 
         var filtros = new (string Consulta, string Descripcion)[]
         {
@@ -379,7 +479,7 @@ public sealed class ProductosApiTests : IClassFixture<PostgresTestFixture>
             ($"unidadMedidaCodigo={unidad.Codigo}", "UnidadMedidaCodigo"),
             ($"unidadMedidaNombre={Uri.EscapeDataString(unidad.Nombre)}", "UnidadMedidaNombre"),
             ("precioVenta=4321.5", "PrecioVenta"),
-            ("stock=4321", "Stock"),
+            ("existencia=4321", "Existencia"),
         };
 
         foreach (var (consulta, descripcion) in filtros)
@@ -403,7 +503,7 @@ public sealed class ProductosApiTests : IClassFixture<PostgresTestFixture>
         Assert.Empty(ninguno.Items);
 
         // Orden por cada columna ordenable, ascendente y descendente (con filtro y sin él).
-        foreach (var columna in new[] { "Codigo", "Nombre", "CategoriaCodigo", "CategoriaNombre", "UnidadMedidaCodigo", "UnidadMedidaNombre", "PrecioVenta", "Stock", "CreatedAtUtc" })
+        foreach (var columna in new[] { "Codigo", "Nombre", "CategoriaCodigo", "CategoriaNombre", "UnidadMedidaCodigo", "UnidadMedidaNombre", "PrecioVenta", "Existencia", "CreatedAtUtc" })
         {
             foreach (var descendente in new[] { true, false })
             {

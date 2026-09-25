@@ -39,11 +39,6 @@ internal static class ProductoValidator
         ValidarImporte(errores, datos.PrecioVenta, nameof(datos.PrecioVenta), "precio de venta", "producto.precio_venta_invalido");
         ValidarImporte(errores, datos.CostoEstandar, nameof(datos.CostoEstandar), "costo estándar", "producto.costo_estandar_invalido");
 
-        if (datos.Stock < 0)
-        {
-            errores.Add(new Error("producto.stock_invalido", "El stock no puede ser negativo.", nameof(datos.Stock)));
-        }
-
         if (!Enum.IsDefined(datos.MetodoCosteo))
         {
             errores.Add(new Error("producto.metodo_costeo_invalido", "El método de costeo no es válido (1=Promedio).", nameof(datos.MetodoCosteo)));

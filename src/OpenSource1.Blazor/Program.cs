@@ -313,8 +313,8 @@ app.MapPost("/reports/productos/selected", async (
 
     productos = form?.StockState switch
     {
-        "with-stock" => productos.Where(x => x.Stock > 0).ToList(),
-        "without-stock" => productos.Where(x => x.Stock <= 0).ToList(),
+        "with" => productos.Where(x => x.Existencia > 0).ToList(),
+        "without" => productos.Where(x => x.Existencia <= 0).ToList(),
         _ => productos
     };
 
@@ -355,8 +355,8 @@ app.MapPost("/reports/productos/selected.xlsx", async (
 
     productos = form?.StockState switch
     {
-        "with-stock" => productos.Where(x => x.Stock > 0).ToList(),
-        "without-stock" => productos.Where(x => x.Stock <= 0).ToList(),
+        "with" => productos.Where(x => x.Existencia > 0).ToList(),
+        "without" => productos.Where(x => x.Existencia <= 0).ToList(),
         _ => productos
     };
 
@@ -415,8 +415,8 @@ app.MapPost("/reports/productos/history", async (
     var productos = await productoApiClient.ListAllAsync();
     productos = form?.StockState switch
     {
-        "with-stock" => productos.Where(x => x.Stock > 0).ToList(),
-        "without-stock" => productos.Where(x => x.Stock <= 0).ToList(),
+        "with" => productos.Where(x => x.Existencia > 0).ToList(),
+        "without" => productos.Where(x => x.Existencia <= 0).ToList(),
         _ => productos
     };
     if (productos.Count == 0)
@@ -436,8 +436,8 @@ app.MapPost("/reports/productos/history.xlsx", async (
     var productos = await productoApiClient.ListAllAsync();
     productos = form?.StockState switch
     {
-        "with-stock" => productos.Where(x => x.Stock > 0).ToList(),
-        "without-stock" => productos.Where(x => x.Stock <= 0).ToList(),
+        "with" => productos.Where(x => x.Existencia > 0).ToList(),
+        "without" => productos.Where(x => x.Existencia <= 0).ToList(),
         _ => productos
     };
     if (productos.Count == 0)

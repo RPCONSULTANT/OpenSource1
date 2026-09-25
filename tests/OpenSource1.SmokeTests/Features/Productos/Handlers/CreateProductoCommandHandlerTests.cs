@@ -17,14 +17,13 @@ public class CreateProductoCommandHandlerTests
 
         var handler = new CreateProductoCommandHandler(fake.UnitOfWork.Object);
         var result = await handler.Handle(
-            new CreateProductoCommand("  COD-1 ", "  Producto ", 10.5m, 5, categoria.Id, unidad.Id, MetodoCosteo.Promedio, 7.25m, BloqueoProducto.Venta), default);
+            new CreateProductoCommand("  COD-1 ", "  Producto ", 10.5m, categoria.Id, unidad.Id, MetodoCosteo.Promedio, 7.25m, BloqueoProducto.Venta), default);
 
         Assert.True(result.EsExito, result.EsFallo ? result.Errores[0].Mensaje : null);
         var added = Assert.Single(fake.Productos.Datos);
         Assert.Equal("COD-1", added.Codigo);
         Assert.Equal("Producto", added.Nombre);
         Assert.Equal(10.5m, added.PrecioVenta);
-        Assert.Equal(5, added.Stock);
         Assert.Equal(categoria.Id, added.CategoriaId);
         Assert.Equal(unidad.Id, added.UnidadMedidaBaseId);
         Assert.Equal(7.25m, added.CostoEstandar);
@@ -39,6 +38,8 @@ public class CreateProductoCommandHandlerTests
         Assert.Equal("KG", result.Valor.UnidadMedidaCodigo);
         Assert.Equal("Kilogramo", result.Valor.UnidadMedidaNombre);
         Assert.Equal(10.5m, result.Valor.PrecioVenta);
+        // Un producto recién creado no tiene movimientos: la existencia derivada (Task 3.6) es 0.
+        Assert.Equal(0m, result.Valor.Existencia);
         fake.UnitOfWork.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -49,7 +50,7 @@ public class CreateProductoCommandHandlerTests
         fake.AgregarCategoria("OTRA", "Otra");
 
         var result = await new CreateProductoCommandHandler(fake.UnitOfWork.Object)
-            .Handle(new CreateProductoCommand("C", "N", 1m, 0), default);
+            .Handle(new CreateProductoCommand("C", "N", 1m), default);
 
         Assert.True(result.EsExito);
         var added = Assert.Single(fake.Productos.Datos);
@@ -65,7 +66,7 @@ public class CreateProductoCommandHandlerTests
         var fake = new ProductosFake();
 
         var result = await new CreateProductoCommandHandler(fake.UnitOfWork.Object)
-            .Handle(new CreateProductoCommand("C", "N", 1m, 0, Guid.NewGuid()), default);
+            .Handle(new CreateProductoCommand("C", "N", 1m, Guid.NewGuid()), default);
 
         Assert.True(result.EsFallo);
         Assert.Equal("CategoriaId", result.Errores[0].Campo);
@@ -82,7 +83,7 @@ public class CreateProductoCommandHandlerTests
         borrada.IsDeleted = true;
 
         var result = await new CreateProductoCommandHandler(fake.UnitOfWork.Object)
-            .Handle(new CreateProductoCommand("C", "N", 1m, 0, borrada.Id), default);
+            .Handle(new CreateProductoCommand("C", "N", 1m, borrada.Id), default);
 
         Assert.True(result.EsFallo);
         Assert.Equal("CategoriaId", result.Errores[0].Campo);
@@ -94,7 +95,7 @@ public class CreateProductoCommandHandlerTests
         var fake = new ProductosFake();
 
         var result = await new CreateProductoCommandHandler(fake.UnitOfWork.Object)
-            .Handle(new CreateProductoCommand("C", "N", 1m, 0, null, Guid.NewGuid()), default);
+            .Handle(new CreateProductoCommand("C", "N", 1m, null, Guid.NewGuid()), default);
 
         Assert.True(result.EsFallo);
         Assert.Equal("UnidadMedidaBaseId", result.Errores[0].Campo);
@@ -108,28 +109,27 @@ public class CreateProductoCommandHandlerTests
         fake.General.IsDeleted = true;
 
         var result = await new CreateProductoCommandHandler(fake.UnitOfWork.Object)
-            .Handle(new CreateProductoCommand("C", "N", 1m, 0), default);
+            .Handle(new CreateProductoCommand("C", "N", 1m), default);
 
         Assert.True(result.EsFallo);
         Assert.Equal("CategoriaId", result.Errores[0].Campo);
     }
 
     [Theory]
-    [InlineData("", "N", 1, 0, 0, 0, "Codigo")]
-    [InlineData("C", " ", 1, 0, 0, 0, "Nombre")]
-    [InlineData("C", "N", -1, 0, 0, 0, "PrecioVenta")]
-    [InlineData("C", "N", 1.00001, 0, 0, 0, "PrecioVenta")]
-    [InlineData("C", "N", 1, -1, 0, 0, "Stock")]
-    [InlineData("C", "N", 1, 0, -0.5, 0, "CostoEstandar")]
-    [InlineData("C", "N", 1, 0, 1.23456, 0, "CostoEstandar")]
-    [InlineData("C", "N", 1, 0, 0, 9, "Bloqueado")]
+    [InlineData("", "N", 1, 0, 0, "Codigo")]
+    [InlineData("C", " ", 1, 0, 0, "Nombre")]
+    [InlineData("C", "N", -1, 0, 0, "PrecioVenta")]
+    [InlineData("C", "N", 1.00001, 0, 0, "PrecioVenta")]
+    [InlineData("C", "N", 1, -0.5, 0, "CostoEstandar")]
+    [InlineData("C", "N", 1, 1.23456, 0, "CostoEstandar")]
+    [InlineData("C", "N", 1, 0, 9, "Bloqueado")]
     public async Task Handle_DatosInvalidos_DevuelveFalloConElCampoDelDto(
-        string codigo, string nombre, double precio, int stock, double costo, int bloqueo, string campo)
+        string codigo, string nombre, double precio, double costo, int bloqueo, string campo)
     {
         var fake = new ProductosFake();
 
         var result = await new CreateProductoCommandHandler(fake.UnitOfWork.Object).Handle(
-            new CreateProductoCommand(codigo, nombre, (decimal)precio, stock, null, null, MetodoCosteo.Promedio, (decimal)costo, (BloqueoProducto)bloqueo), default);
+            new CreateProductoCommand(codigo, nombre, (decimal)precio, null, null, MetodoCosteo.Promedio, (decimal)costo, (BloqueoProducto)bloqueo), default);
 
         Assert.True(result.EsFallo);
         Assert.Contains(result.Errores, e => e.Campo == campo);
@@ -142,7 +142,7 @@ public class CreateProductoCommandHandlerTests
         var fake = new ProductosFake();
 
         var result = await new CreateProductoCommandHandler(fake.UnitOfWork.Object).Handle(
-            new CreateProductoCommand("C", "N", 1m, 0, null, null, (MetodoCosteo)7), default);
+            new CreateProductoCommand("C", "N", 1m, null, null, (MetodoCosteo)7), default);
 
         Assert.True(result.EsFallo);
         Assert.Contains(result.Errores, e => e.Campo == "MetodoCosteo");
@@ -154,7 +154,7 @@ public class CreateProductoCommandHandlerTests
         var fake = new ProductosFake();
 
         var result = await new CreateProductoCommandHandler(fake.UnitOfWork.Object).Handle(
-            new CreateProductoCommand("C", "N", 1m, 0, ImagePath: "/uploads/clientes/x.png"), default);
+            new CreateProductoCommand("C", "N", 1m, ImagePath: "/uploads/clientes/x.png"), default);
 
         Assert.True(result.EsFallo);
         Assert.Contains(result.Errores, e => e.Campo == "ImagePath");
@@ -170,7 +170,7 @@ public class CreateProductoCommandHandlerTests
         });
 
         var result = await new CreateProductoCommandHandler(fake.UnitOfWork.Object).Handle(
-            new CreateProductoCommand("C", "N", 1m, 0, ImagePath: "/uploads/productos/a.png"), default);
+            new CreateProductoCommand("C", "N", 1m, ImagePath: "/uploads/productos/a.png"), default);
 
         Assert.True(result.EsFallo);
         Assert.Equal("producto.imagen_en_uso", result.Errores[0].Codigo);

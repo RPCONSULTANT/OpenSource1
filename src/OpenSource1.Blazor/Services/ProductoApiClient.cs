@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using OpenSource1.Application.Features.Productos.Dtos;
+using OpenSource1.Application.Services.Inventario;
 using OpenSource1.Core.Common;
 
 namespace OpenSource1.Blazor.Services;
@@ -60,6 +61,19 @@ public sealed class ProductoApiClient(HttpClient httpClient, ILogger<ProductoApi
         return await response.Content.ReadFromJsonAsync<ProductoResponse>(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<ExistenciaAlmacen>?> GetExistenciasAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        using var response = await httpClient.GetAsync($"api/productos/{id}/existencias", cancellationToken);
+        if (response.StatusCode == HttpStatusCode.NotFound) return null;
+        if (!response.IsSuccessStatusCode)
+        {
+            var body = await response.Content.ReadAsStringAsync(cancellationToken);
+            logger.LogWarning("Productos GET EXISTENCIAS returned {StatusCode}. Body: {Body}", response.StatusCode, body);
+            throw new HttpRequestException($"El servidor devolvió {(int)response.StatusCode} al obtener las existencias.", inner: null, statusCode: response.StatusCode);
+        }
+        return await response.Content.ReadFromJsonAsync<List<ExistenciaAlmacen>>(cancellationToken);
+    }
+
     private static string BuildListUrl(ProductoSearchFilter? filter, PageRequest? paginacion = null)
     {
         var parameters = new List<string>();
@@ -105,9 +119,14 @@ public sealed class ProductoApiClient(HttpClient httpClient, ILogger<ProductoApi
             parameters.Add($"precioVenta={Uri.EscapeDataString(filter.PrecioVenta.Trim())}");
         }
 
-        if (!string.IsNullOrWhiteSpace(filter.Stock))
+        if (!string.IsNullOrWhiteSpace(filter.Existencia))
         {
-            parameters.Add($"stock={Uri.EscapeDataString(filter.Stock.Trim())}");
+            parameters.Add($"existencia={Uri.EscapeDataString(filter.Existencia.Trim())}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter.StockState))
+        {
+            parameters.Add($"stockState={Uri.EscapeDataString(filter.StockState.Trim())}");
         }
 
         AddPaginationParameters(parameters, paginacion);

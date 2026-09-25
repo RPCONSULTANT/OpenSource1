@@ -2,6 +2,7 @@ using MediatR;
 using OpenSource1.Application.Data.UnitOfWork;
 using OpenSource1.Application.Features.Productos.Commands;
 using OpenSource1.Application.Features.Productos.Dtos;
+using OpenSource1.Application.Services.Inventario;
 using OpenSource1.Core.Common;
 using OpenSource1.Core.Entities;
 using OpenSource1.Core.Enums;
@@ -10,10 +11,11 @@ namespace OpenSource1.Application.Features.Productos.Handlers;
 
 /// <summary>
 /// Modificación de un producto con semántica parcial (ver <see cref="UpdateProductoCommand"/>): los campos no informados se
-/// resuelven contra los valores guardados ANTES de validar, de modo que un PUT que solo renombra no toca precio, stock, categoría,
-/// unidad, costeo ni bloqueo. <c>CostoUnitario</c> y <c>CostoAjustado</c> nunca se tocan aquí (los mantiene el sistema).
+/// resuelven contra los valores guardados ANTES de validar, de modo que un PUT que solo renombra no toca precio, categoría,
+/// unidad, costeo ni bloqueo. <c>CostoUnitario</c> y <c>CostoAjustado</c> nunca se tocan aquí (los mantiene el sistema); la
+/// existencia (Task 3.6) tampoco: se consulta al libro solo para devolverla en la respuesta.
 /// </summary>
-public sealed class UpdateProductoCommandHandler(IUnitOfWork unitOfWork)
+public sealed class UpdateProductoCommandHandler(IUnitOfWork unitOfWork, IConsultaInventario consultaInventario)
     : IRequestHandler<UpdateProductoCommand, Result<ProductoResponse>>
 {
     public async Task<Result<ProductoResponse>> Handle(UpdateProductoCommand request, CancellationToken cancellationToken)
@@ -59,7 +61,6 @@ public sealed class UpdateProductoCommandHandler(IUnitOfWork unitOfWork)
         entity.Codigo = datos.Codigo.Trim();
         entity.Nombre = datos.Nombre.Trim();
         entity.PrecioVenta = datos.PrecioVenta;
-        entity.Stock = datos.Stock;
         entity.CategoriaId = datos.CategoriaId;
         entity.UnidadMedidaBaseId = datos.UnidadMedidaBaseId;
         entity.MetodoCosteo = datos.MetodoCosteo;
@@ -70,7 +71,8 @@ public sealed class UpdateProductoCommandHandler(IUnitOfWork unitOfWork)
         repo.Update(entity);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
-        return Result<ProductoResponse>.Exito(CreateProductoCommandHandler.ToResponse(entity, categoria, unidad));
+        var existencia = await consultaInventario.ExistenciaAsync(entity.Id, almacenId: null, fecha: null, cancellationToken);
+        return Result<ProductoResponse>.Exito(CreateProductoCommandHandler.ToResponse(entity, categoria, unidad, existencia));
     }
 
     /// <summary>Comando + valores guardados = datos finales del producto tras la modificación.</summary>
@@ -78,7 +80,6 @@ public sealed class UpdateProductoCommandHandler(IUnitOfWork unitOfWork)
         string Codigo,
         string Nombre,
         decimal PrecioVenta,
-        int Stock,
         Guid CategoriaId,
         Guid UnidadMedidaBaseId,
         MetodoCosteo MetodoCosteo,
@@ -90,7 +91,6 @@ public sealed class UpdateProductoCommandHandler(IUnitOfWork unitOfWork)
             c.Codigo,
             c.Nombre,
             c.PrecioVenta ?? actual.PrecioVenta,
-            c.Stock ?? actual.Stock,
             // Guid.Empty no es una referencia válida: se rechaza en la comprobación de existencia (no significa "conservar").
             c.CategoriaId ?? actual.CategoriaId,
             c.UnidadMedidaBaseId ?? actual.UnidadMedidaBaseId,

@@ -14,7 +14,6 @@ public sealed record CreateProductoCommand(
     string Codigo,
     string Nombre,
     decimal PrecioVenta,
-    int Stock,
     Guid? CategoriaId = null,
     Guid? UnidadMedidaBaseId = null,
     MetodoCosteo MetodoCosteo = MetodoCosteo.Promedio,

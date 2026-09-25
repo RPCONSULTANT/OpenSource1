@@ -105,11 +105,11 @@
                         </a>
                     </div>
                     <div class="rounded-2xl border border-slate-200 bg-white shadow-sm px-5 py-4 dark:border-slate-700 dark:bg-slate-800">
-                        <p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Sin stock</p>
+                        <p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Sin existencia</p>
                         <p class="mt-1 text-2xl font-extrabold @(productosSinStock > 0 ?"text-red-600 dark:text-red-400" : "text-slate-900 dark:text-slate-100")">@productosSinStock</p>
                     </div>
                     <div class="rounded-2xl border border-slate-200 bg-white shadow-sm px-5 py-4 dark:border-slate-700 dark:bg-slate-800">
-                        <p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Stock bajo (&le;5)</p>
+                        <p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Existencia baja (&le;5)</p>
                         <p class="mt-1 text-2xl font-extrabold @(productosStockBajo > 0 ?"text-amber-600 dark:text-amber-400" : "text-slate-900 dark:text-slate-100")">@productosStockBajo</p>
                     </div>
                 </div>
@@ -394,8 +394,8 @@
 
             totalClientes = clientes.Count;
             totalProductos = productos.Count;
-            productosSinStock = productos.Count(p => p.Stock <= 0);
-            productosStockBajo = productos.Count(p => p.Stock is > 0 and <= 5);
+            productosSinStock = productos.Count(p => p.Existencia <= 0);
+            productosStockBajo = productos.Count(p => p.Existencia is > 0 and <= 5);
 
             actividadReciente = clientes
                 .Select(c => new ActividadItem("Cliente", c.NombreComercial, c.UpdatedAtUtc ?? c.CreatedAtUtc))

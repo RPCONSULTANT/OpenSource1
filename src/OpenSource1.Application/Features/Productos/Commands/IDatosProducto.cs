@@ -12,7 +12,6 @@ public interface IDatosProducto
     string Codigo { get; }
     string Nombre { get; }
     decimal PrecioVenta { get; }
-    int Stock { get; }
     MetodoCosteo MetodoCosteo { get; }
     decimal CostoEstandar { get; }
     BloqueoProducto Bloqueado { get; }

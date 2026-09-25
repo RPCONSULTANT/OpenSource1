@@ -1,6 +1,7 @@
 using Moq;
 using OpenSource1.Application.Features.Productos.Commands;
 using OpenSource1.Application.Features.Productos.Handlers;
+using OpenSource1.Application.Services.Inventario;
 using OpenSource1.Core.Entities;
 using OpenSource1.Core.Enums;
 
@@ -13,8 +14,8 @@ public class UpdateProductoCommandHandlerTests
     {
         var fake = new ProductosFake();
 
-        var result = await new UpdateProductoCommandHandler(fake.UnitOfWork.Object)
-            .Handle(new UpdateProductoCommand(Guid.NewGuid(), "C", "N", 1, 1, null, null, null, null, null), default);
+        var result = await Handler(fake)
+            .Handle(new UpdateProductoCommand(Guid.NewGuid(), "C", "N", 1, null, null, null, null, null), default);
 
         Assert.True(result.EsFallo);
         Assert.Equal("producto.no_encontrado", result.Errores[0].Codigo);
@@ -28,20 +29,21 @@ public class UpdateProductoCommandHandlerTests
         var categoria = fake.AgregarCategoria("ELEC", "Electrónica");
         var unidad = fake.AgregarUnidad("KG", "Kilogramo");
 
-        var result = await new UpdateProductoCommandHandler(fake.UnitOfWork.Object).Handle(
-            new UpdateProductoCommand(entity.Id, " NEW ", " Nuevo ", 3.25m, 9, categoria.Id, unidad.Id, MetodoCosteo.Promedio, 2m, BloqueoProducto.Todo), default);
+        var result = await Handler(fake, existencia: 4.5m).Handle(
+            new UpdateProductoCommand(entity.Id, " NEW ", " Nuevo ", 3.25m, categoria.Id, unidad.Id, MetodoCosteo.Promedio, 2m, BloqueoProducto.Todo), default);
 
         Assert.True(result.EsExito, result.EsFallo ? result.Errores[0].Mensaje : null);
         Assert.Equal("NEW", entity.Codigo);
         Assert.Equal("Nuevo", entity.Nombre);
         Assert.Equal(3.25m, entity.PrecioVenta);
-        Assert.Equal(9, entity.Stock);
         Assert.Equal(categoria.Id, entity.CategoriaId);
         Assert.Equal(unidad.Id, entity.UnidadMedidaBaseId);
         Assert.Equal(2m, entity.CostoEstandar);
         Assert.Equal(BloqueoProducto.Todo, entity.Bloqueado);
         Assert.Equal("ELEC", result.Valor.CategoriaCodigo);
         Assert.Equal("KG", result.Valor.UnidadMedidaCodigo);
+        // La existencia de la respuesta viene del libro (Task 3.6), no del comando.
+        Assert.Equal(4.5m, result.Valor.Existencia);
         fake.Productos.Mock.Verify(r => r.Update(entity), Times.Once);
         fake.UnitOfWork.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
@@ -57,20 +59,18 @@ public class UpdateProductoCommandHandlerTests
         entity.CategoriaId = categoria.Id;
         entity.UnidadMedidaBaseId = unidad.Id;
         entity.PrecioVenta = 99.9999m;
-        entity.Stock = 42;
         entity.CostoEstandar = 12.5m;
         entity.CostoUnitario = 8.75m;
         entity.CostoAjustado = false;
         entity.Bloqueado = BloqueoProducto.Venta;
         entity.MetodoCosteo = MetodoCosteo.Promedio;
 
-        var result = await new UpdateProductoCommandHandler(fake.UnitOfWork.Object)
-            .Handle(new UpdateProductoCommand(entity.Id, "OLD", "Renombrado", null, null, null, null, null, null, null), default);
+        var result = await Handler(fake)
+            .Handle(new UpdateProductoCommand(entity.Id, "OLD", "Renombrado", null, null, null, null, null, null), default);
 
         Assert.True(result.EsExito);
         Assert.Equal("Renombrado", entity.Nombre);
         Assert.Equal(99.9999m, entity.PrecioVenta);
-        Assert.Equal(42, entity.Stock);
         Assert.Equal(categoria.Id, entity.CategoriaId);
         Assert.Equal(unidad.Id, entity.UnidadMedidaBaseId);
         Assert.Equal(12.5m, entity.CostoEstandar);
@@ -86,8 +86,8 @@ public class UpdateProductoCommandHandlerTests
         var fake = new ProductosFake();
         var entity = ProductoExistente(fake);
 
-        var result = await new UpdateProductoCommandHandler(fake.UnitOfWork.Object)
-            .Handle(new UpdateProductoCommand(entity.Id, "OLD", "Otro", null, null, Guid.NewGuid(), null, null, null, null), default);
+        var result = await Handler(fake)
+            .Handle(new UpdateProductoCommand(entity.Id, "OLD", "Otro", null, Guid.NewGuid(), null, null, null, null), default);
 
         Assert.True(result.EsFallo);
         Assert.Equal("CategoriaId", result.Errores[0].Campo);
@@ -102,8 +102,8 @@ public class UpdateProductoCommandHandlerTests
         var fake = new ProductosFake();
         var entity = ProductoExistente(fake);
 
-        var result = await new UpdateProductoCommandHandler(fake.UnitOfWork.Object)
-            .Handle(new UpdateProductoCommand(entity.Id, "OLD", "Otro", null, null, Guid.Empty, null, null, null, null), default);
+        var result = await Handler(fake)
+            .Handle(new UpdateProductoCommand(entity.Id, "OLD", "Otro", null, Guid.Empty, null, null, null, null), default);
 
         Assert.True(result.EsFallo);
         Assert.Equal("CategoriaId", result.Errores[0].Campo);
@@ -117,8 +117,8 @@ public class UpdateProductoCommandHandlerTests
         var borrada = fake.AgregarUnidad("VIEJA", "Vieja");
         borrada.IsDeleted = true;
 
-        var result = await new UpdateProductoCommandHandler(fake.UnitOfWork.Object)
-            .Handle(new UpdateProductoCommand(entity.Id, "OLD", "Otro", null, null, null, borrada.Id, null, null, null), default);
+        var result = await Handler(fake)
+            .Handle(new UpdateProductoCommand(entity.Id, "OLD", "Otro", null, null, borrada.Id, null, null, null), default);
 
         Assert.True(result.EsFallo);
         Assert.Equal("UnidadMedidaBaseId", result.Errores[0].Campo);
@@ -134,8 +134,8 @@ public class UpdateProductoCommandHandlerTests
         entity.CategoriaId = vieja.Id;
         vieja.IsDeleted = true;
 
-        var result = await new UpdateProductoCommandHandler(fake.UnitOfWork.Object)
-            .Handle(new UpdateProductoCommand(entity.Id, "OLD", "Renombrado", null, null, null, null, null, null, null), default);
+        var result = await Handler(fake)
+            .Handle(new UpdateProductoCommand(entity.Id, "OLD", "Renombrado", null, null, null, null, null, null), default);
 
         Assert.True(result.EsExito);
         Assert.Equal(vieja.Id, entity.CategoriaId);
@@ -143,25 +143,23 @@ public class UpdateProductoCommandHandlerTests
     }
 
     [Theory]
-    [InlineData(-1, 0, 0, "PrecioVenta")]
-    [InlineData(1.00001, 0, 0, "PrecioVenta")]
-    [InlineData(1, -1, 0, "Stock")]
-    [InlineData(1, 0, -1, "CostoEstandar")]
-    [InlineData(1, 0, 9, "Bloqueado")]
-    public async Task Handle_ValoresInformadosInvalidos_DevuelveFalloConElCampo(double precio, int stock, double costoOBloqueo, string campo)
+    [InlineData(-1, 0, "PrecioVenta")]
+    [InlineData(1.00001, 0, "PrecioVenta")]
+    [InlineData(1, -1, "CostoEstandar")]
+    [InlineData(1, 9, "Bloqueado")]
+    public async Task Handle_ValoresInformadosInvalidos_DevuelveFalloConElCampo(double precio, double costoOBloqueo, string campo)
     {
         var fake = new ProductosFake();
         var entity = ProductoExistente(fake);
 
         var comando = campo switch
         {
-            "Bloqueado" => new UpdateProductoCommand(entity.Id, "OLD", "N", null, null, null, null, null, null, (BloqueoProducto)(int)costoOBloqueo),
-            "CostoEstandar" => new UpdateProductoCommand(entity.Id, "OLD", "N", null, null, null, null, null, (decimal)costoOBloqueo, null),
-            "Stock" => new UpdateProductoCommand(entity.Id, "OLD", "N", null, stock, null, null, null, null, null),
-            _ => new UpdateProductoCommand(entity.Id, "OLD", "N", (decimal)precio, null, null, null, null, null, null),
+            "Bloqueado" => new UpdateProductoCommand(entity.Id, "OLD", "N", null, null, null, null, null, (BloqueoProducto)(int)costoOBloqueo),
+            "CostoEstandar" => new UpdateProductoCommand(entity.Id, "OLD", "N", null, null, null, null, (decimal)costoOBloqueo, null),
+            _ => new UpdateProductoCommand(entity.Id, "OLD", "N", (decimal)precio, null, null, null, null, null),
         };
 
-        var result = await new UpdateProductoCommandHandler(fake.UnitOfWork.Object).Handle(comando, default);
+        var result = await Handler(fake).Handle(comando, default);
 
         Assert.True(result.EsFallo);
         Assert.Contains(result.Errores, e => e.Campo == campo);
@@ -174,8 +172,8 @@ public class UpdateProductoCommandHandlerTests
         var fake = new ProductosFake();
         var entity = ProductoExistente(fake);
 
-        var result = await new UpdateProductoCommandHandler(fake.UnitOfWork.Object)
-            .Handle(new UpdateProductoCommand(entity.Id, "OLD", "N", null, null, null, null, (MetodoCosteo)5, null, null), default);
+        var result = await Handler(fake)
+            .Handle(new UpdateProductoCommand(entity.Id, "OLD", "N", null, null, null, (MetodoCosteo)5, null, null), default);
 
         Assert.True(result.EsFallo);
         Assert.Contains(result.Errores, e => e.Campo == "MetodoCosteo");
@@ -186,8 +184,19 @@ public class UpdateProductoCommandHandlerTests
         Codigo = "OLD",
         Nombre = "Old",
         PrecioVenta = 1,
-        Stock = 1,
         CategoriaId = fake.General.Id,
         UnidadMedidaBaseId = fake.Unidad.Id,
     });
+
+    /// <summary>El handler consulta el libro (Task 3.6) solo para poblar <c>Existencia</c> en la respuesta; el mock siempre
+    /// puede responder porque un <see cref="OpenSource1.Application.Features.Productos.Commands.UpdateProductoCommand"/> con
+    /// fallo nunca llega a invocarlo.</summary>
+    private static UpdateProductoCommandHandler Handler(ProductosFake fake, decimal existencia = 0m)
+    {
+        var consultaInventario = new Mock<IConsultaInventario>();
+        consultaInventario
+            .Setup(c => c.ExistenciaAsync(It.IsAny<Guid>(), null, null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(existencia);
+        return new UpdateProductoCommandHandler(fake.UnitOfWork.Object, consultaInventario.Object);
+    }
 }

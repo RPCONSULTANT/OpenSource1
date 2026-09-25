@@ -79,7 +79,6 @@ public sealed class InventarioApiTests : IClassFixture<PostgresTestFixture>
             Codigo = $"AJ{Guid.NewGuid():N}"[..20],
             Nombre = "Producto pendiente de ajuste",
             PrecioVenta = 1m,
-            Stock = 0,
             CategoriaId = CategoriaGeneral,
             UnidadMedidaBaseId = UnidadUnd,
             CostoUnitario = 5m,

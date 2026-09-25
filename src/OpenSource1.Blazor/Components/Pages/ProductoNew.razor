@@ -54,7 +54,6 @@
         form.Codigo.Trim(),
         form.Nombre.Trim(),
         form.PrecioVenta,
-        form.Stock,
         form.CategoriaId is { } categoriaId && categoriaId != Guid.Empty ? categoriaId : null,
         form.UnidadMedidaBaseId is { } unidadId && unidadId != Guid.Empty ? unidadId : null,
         form.MetodoCosteo,

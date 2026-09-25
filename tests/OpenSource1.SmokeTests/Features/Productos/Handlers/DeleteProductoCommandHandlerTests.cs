@@ -26,7 +26,7 @@ public class DeleteProductoCommandHandlerTests
     [Fact]
     public async Task Handle_RemovesAndSaves_WhenProductoExists()
     {
-        var entity = new Producto { Codigo = "COD", Nombre = "Test", PrecioVenta = 1, Stock = 1, CategoriaId = Guid.NewGuid(), UnidadMedidaBaseId = Guid.NewGuid() };
+        var entity = new Producto { Codigo = "COD", Nombre = "Test", PrecioVenta = 1, CategoriaId = Guid.NewGuid(), UnidadMedidaBaseId = Guid.NewGuid() };
         var repo = new Mock<IGenericRepository<Producto>>();
         repo.Setup(r => r.GetByIdAsync(It.IsAny<object[]>(), It.IsAny<CancellationToken>())).ReturnsAsync(entity);
 

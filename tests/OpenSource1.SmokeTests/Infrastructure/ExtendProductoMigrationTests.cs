@@ -18,6 +18,12 @@ namespace OpenSource1.SmokeTests.Infrastructure;
 public sealed class ExtendProductoMigrationTests(PostgresTestFixture fixture) : IClassFixture<PostgresTestFixture>
 {
     private const string MigracionAnterior = "20260924225654_ExtendSocioNegocio";
+
+    // Última migración que todavía conserva la columna "Stock" (la Task 3.6, "ReemplazarStockPorLibro", la elimina):
+    // este test verifica el comportamiento de ExtendProducto en concreto, así que migra hasta AQUÍ, no hasta la última
+    // migración del ensamblado, para no depender de si Stock sigue existiendo más adelante.
+    private const string MigracionObjetivo = "20260925144612_AddLibroInventario";
+
     private const string CategoriaGeneralSemilla = "c1000000-0000-0000-0000-000000000001";
 
     private static readonly string Codigo30 = new('C', 30);
@@ -48,7 +54,7 @@ public sealed class ExtendProductoMigrationTests(PostgresTestFixture fixture) : 
             ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','P10','Categoria borrada',6.00,1,'del','Del','DOC','Docena','2026-01-10 10:00:00+00','admin',false,NULL,NULL);
             """);
 
-        await migrador.MigrateAsync();
+        await migrador.MigrateAsync(MigracionObjetivo);
 
         // 1. Cada producto conserva su categoría y su unidad por coincidencia de código (o el destino por defecto).
         var filas = await LeerAsync(
@@ -140,7 +146,7 @@ public sealed class ExtendProductoMigrationTests(PostgresTestFixture fixture) : 
         Assert.Equal([7, 3, 0, 11, 12, 5, 9, 4, 2, 1], abajo.Select(f => (int)f[6]!));
 
         // 7. Up() de nuevo: mismo resultado, sin categorías duplicadas.
-        await migrador.MigrateAsync();
+        await migrador.MigrateAsync(MigracionObjetivo);
         var otraVez = await LeerAsync(
             """
             SELECT p."Codigo", c."Codigo", u."Codigo" FROM "Productos" p
@@ -166,7 +172,7 @@ public sealed class ExtendProductoMigrationTests(PostgresTestFixture fixture) : 
             ('11111111-1111-1111-1111-111111111111','Q1','Sin coincidencia',1.00,1,'','','ZZZ','Rara','2026-01-01 10:00:00+00','admin',false);
             """);
 
-        await migrador.MigrateAsync();
+        await migrador.MigrateAsync(MigracionObjetivo);
 
         var filas = await LeerAsync(
             """

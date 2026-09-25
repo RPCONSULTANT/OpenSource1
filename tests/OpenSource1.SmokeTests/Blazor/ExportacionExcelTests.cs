@@ -90,13 +90,14 @@ public sealed class ExportacionExcelTests
         Codigo = "P-1",
         Nombre = texto,
         PrecioVenta = 12.3456m,
-        Stock = 7,
+        Existencia = 7m,
         CategoriaId = Guid.NewGuid(),
         CategoriaCodigo = texto,
         CategoriaNombre = texto,
         UnidadMedidaBaseId = Guid.NewGuid(),
         UnidadMedidaCodigo = texto,
         UnidadMedidaNombre = texto,
+        UnidadMedidaBaseDecimales = 0,
         CostoEstandar = 3m,
         Bloqueado = BloqueoProducto.Venta,
         CreatedAtUtc = DateTime.UtcNow,
@@ -125,14 +126,15 @@ public sealed class ExportacionExcelTests
 
         Assert.Contains("PrecioVenta", cabeceras);
         Assert.DoesNotContain("Precio", cabeceras);
-        foreach (var esperada in new[] { "Stock", "CategoriaId", "CategoriaCodigo", "UnidadMedidaBaseId", "UnidadMedidaCodigo", "MetodoCosteo", "CostoUnitario", "CostoEstandar", "CostoAjustado", "Bloqueado", "BloqueadoNombre" })
+        foreach (var esperada in new[] { "Existencia", "CategoriaId", "CategoriaCodigo", "UnidadMedidaBaseId", "UnidadMedidaCodigo", "MetodoCosteo", "CostoUnitario", "CostoEstandar", "CostoAjustado", "Bloqueado", "BloqueadoNombre" })
         {
             Assert.Contains(esperada, cabeceras);
         }
+        Assert.DoesNotContain("Stock", cabeceras);
 
         var fila = hoja.Row(2);
         Assert.Equal(12.3456m, fila.Cell(cabeceras.IndexOf("PrecioVenta") + 1).GetValue<decimal>());
-        Assert.Equal(7, fila.Cell(cabeceras.IndexOf("Stock") + 1).GetValue<int>());
+        Assert.Equal(7m, fila.Cell(cabeceras.IndexOf("Existencia") + 1).GetValue<decimal>());
         Assert.Equal(1, fila.Cell(cabeceras.IndexOf("Bloqueado") + 1).GetValue<int>());
         Assert.Equal("Bloqueado para la venta", fila.Cell(cabeceras.IndexOf("BloqueadoNombre") + 1).GetString());
         Assert.True(fila.Cell(cabeceras.IndexOf("CostoAjustado") + 1).GetValue<bool>());
