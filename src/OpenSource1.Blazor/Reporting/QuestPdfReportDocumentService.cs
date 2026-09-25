@@ -1,6 +1,9 @@
+using System.Globalization;
 using ClosedXML.Excel;
+using OpenSource1.Blazor.Components;
 using OpenSource1.Application.Features.SociosNegocio.Dtos;
 using OpenSource1.Application.Features.Productos.Dtos;
+using OpenSource1.Core.Enums;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
@@ -16,6 +19,8 @@ public sealed class QuestPdfReportDocumentService : IReportDocumentService
         {
             container.Page(page =>
             {
+                // Apaisado: con los campos de facturación la tabla ya no cabe en vertical.
+                page.Size(PageSizes.A4.Landscape());
                 page.Margin(24);
                 page.Header().Column(column =>
                 {
@@ -28,26 +33,41 @@ public sealed class QuestPdfReportDocumentService : IReportDocumentService
                 {
                     table.ColumnsDefinition(columns =>
                     {
-                        columns.RelativeColumn(2.2f);
-                        columns.RelativeColumn(1.6f);
-                        columns.RelativeColumn(1.1f);
-                        columns.RelativeColumn(1.7f);
+                        columns.RelativeColumn(0.9f);  // Código
+                        columns.RelativeColumn(2.0f);  // Nombre comercial
+                        columns.RelativeColumn(1.1f);  // Tipo
+                        columns.RelativeColumn(1.5f);  // Documento fiscal
+                        columns.RelativeColumn(1.8f);  // Correo
+                        columns.RelativeColumn(1.1f);  // Teléfono
+                        columns.RelativeColumn(1.8f);  // Dirección
+                        columns.RelativeColumn(1.1f);  // Límite de crédito
+                        columns.RelativeColumn(1.2f);  // Bloqueo
                     });
 
                     table.Header(header =>
                     {
+                        HeaderCell(header.Cell(), "Código");
                         HeaderCell(header.Cell(), "Nombre comercial");
+                        HeaderCell(header.Cell(), "Tipo");
+                        HeaderCell(header.Cell(), "Documento fiscal");
                         HeaderCell(header.Cell(), "Correo");
                         HeaderCell(header.Cell(), "Teléfono");
                         HeaderCell(header.Cell(), "Dirección");
+                        HeaderCell(header.Cell(), "Límite de crédito");
+                        HeaderCell(header.Cell(), "Bloqueo");
                     });
 
                     foreach (var cliente in clientes)
                     {
+                        BodyCell(table, cliente.Codigo);
                         BodyCell(table, cliente.NombreComercial);
+                        BodyCell(table, SocioNegocioEtiquetas.Tipo(cliente.Tipo));
+                        BodyCell(table, SocioNegocioEtiquetas.Documento(cliente.TipoDocumentoFiscal, cliente.NumeroDocumentoFiscal));
                         BodyCell(table, cliente.Email ?? "—");
                         BodyCell(table, cliente.Telefono ?? "—");
                         BodyCell(table, DireccionDisplay(cliente.DireccionLinea1, cliente.DireccionLinea2));
+                        BodyCell(table, cliente.LimiteCredito.ToString("N2", CultureInfo.InvariantCulture));
+                        BodyCell(table, cliente.Bloqueado == BloqueoSocioNegocio.Ninguno ? "—" : SocioNegocioEtiquetas.Bloqueo(cliente.Bloqueado));
                     }
                 });
 
@@ -123,12 +143,13 @@ public sealed class QuestPdfReportDocumentService : IReportDocumentService
         using var workbook = new XLWorkbook();
         var sheet = workbook.Worksheets.Add("Clientes");
 
-        sheet.Cell(1, 1).Value = title;
-        sheet.Range(1, 1, 1, 4).Merge().Style.Font.SetBold().Font.SetFontSize(14);
-        sheet.Cell(2, 1).Value = $"Fecha de generación: {DateTimeOffset.Now:dd/MM/yyyy HH:mm}";
-        sheet.Range(2, 1, 2, 4).Merge();
+        string[] headers = ["Código", "Nombre comercial", "Tipo", "Documento fiscal", "Correo", "Teléfono", "Dirección", "Límite de crédito", "Bloqueo"];
 
-        string[] headers = ["Nombre comercial", "Correo", "Teléfono", "Dirección"];
+        sheet.Cell(1, 1).Value = title;
+        sheet.Range(1, 1, 1, headers.Length).Merge().Style.Font.SetBold().Font.SetFontSize(14);
+        sheet.Cell(2, 1).Value = $"Fecha de generación: {DateTimeOffset.Now:dd/MM/yyyy HH:mm}";
+        sheet.Range(2, 1, 2, headers.Length).Merge();
+
         for (var i = 0; i < headers.Length; i++)
         {
             var cell = sheet.Cell(4, i + 1);
@@ -139,10 +160,17 @@ public sealed class QuestPdfReportDocumentService : IReportDocumentService
         var row = 5;
         foreach (var cliente in clientes)
         {
-            sheet.Cell(row, 1).Value = cliente.NombreComercial;
-            sheet.Cell(row, 2).Value = cliente.Email ?? "—";
-            sheet.Cell(row, 3).Value = cliente.Telefono ?? "—";
-            sheet.Cell(row, 4).Value = DireccionDisplay(cliente.DireccionLinea1, cliente.DireccionLinea2);
+            // El código es texto (conserva los ceros a la izquierda: "000012").
+            sheet.Cell(row, 1).SetValue(cliente.Codigo);
+            sheet.Cell(row, 2).Value = cliente.NombreComercial;
+            sheet.Cell(row, 3).Value = SocioNegocioEtiquetas.Tipo(cliente.Tipo);
+            sheet.Cell(row, 4).Value = SocioNegocioEtiquetas.Documento(cliente.TipoDocumentoFiscal, cliente.NumeroDocumentoFiscal);
+            sheet.Cell(row, 5).Value = cliente.Email ?? "—";
+            sheet.Cell(row, 6).Value = cliente.Telefono ?? "—";
+            sheet.Cell(row, 7).Value = DireccionDisplay(cliente.DireccionLinea1, cliente.DireccionLinea2);
+            sheet.Cell(row, 8).Value = cliente.LimiteCredito;
+            sheet.Cell(row, 8).Style.NumberFormat.Format = "#,##0.00";
+            sheet.Cell(row, 9).Value = cliente.Bloqueado == BloqueoSocioNegocio.Ninguno ? "—" : SocioNegocioEtiquetas.Bloqueo(cliente.Bloqueado);
             row++;
         }
 
@@ -200,7 +228,13 @@ public sealed class QuestPdfReportDocumentService : IReportDocumentService
         using var workbook = new XLWorkbook();
         var sheet = workbook.Worksheets.Add("Clientes");
 
-        string[] headers = ["Id", "NombreComercial", "Email", "Telefono", "DireccionLinea1", "DireccionLinea2", "Sector", "PaisCodigo", "PaisNombre", "ImagePath", "CreatedAtUtc", "UpdatedAtUtc", "CreatedBy", "UpdatedBy"];
+        // Dato crudo (Power BI y otras herramientas): los enums van como código numérico y, al lado, su nombre.
+        string[] headers =
+        [
+            "Id", "Codigo", "Tipo", "TipoNombre", "NombreComercial", "RazonSocial", "TipoDocumentoFiscal", "TipoDocumentoFiscalNombre",
+            "NumeroDocumentoFiscal", "Email", "Telefono", "DireccionLinea1", "DireccionLinea2", "Ciudad", "Sector", "PaisCodigo", "PaisNombre",
+            "TerminoPagoId", "LimiteCredito", "Bloqueado", "BloqueadoNombre", "ImagePath", "CreatedAtUtc", "UpdatedAtUtc", "CreatedBy", "UpdatedBy"
+        ];
         for (var i = 0; i < headers.Length; i++)
         {
             var cell = sheet.Cell(1, i + 1);
@@ -211,23 +245,38 @@ public sealed class QuestPdfReportDocumentService : IReportDocumentService
         var row = 2;
         foreach (var cliente in clientes)
         {
-            sheet.Cell(row, 1).Value = cliente.Id.ToString();
-            sheet.Cell(row, 2).Value = cliente.NombreComercial;
-            sheet.Cell(row, 3).Value = cliente.Email ?? string.Empty;
-            sheet.Cell(row, 4).Value = cliente.Telefono ?? string.Empty;
-            sheet.Cell(row, 5).Value = cliente.DireccionLinea1 ?? string.Empty;
-            sheet.Cell(row, 6).Value = cliente.DireccionLinea2 ?? string.Empty;
-            sheet.Cell(row, 7).Value = cliente.Sector ?? string.Empty;
-            sheet.Cell(row, 8).Value = cliente.PaisCodigo ?? string.Empty;
-            sheet.Cell(row, 9).Value = cliente.PaisNombre ?? string.Empty;
-            sheet.Cell(row, 10).Value = cliente.ImagePath ?? string.Empty;
-            sheet.Cell(row, 11).Value = cliente.CreatedAtUtc;
+            var col = 1;
+            sheet.Cell(row, col++).Value = cliente.Id.ToString();
+            sheet.Cell(row, col++).SetValue(cliente.Codigo);
+            sheet.Cell(row, col++).Value = (int)cliente.Tipo;
+            sheet.Cell(row, col++).Value = SocioNegocioEtiquetas.Tipo(cliente.Tipo);
+            sheet.Cell(row, col++).Value = cliente.NombreComercial;
+            sheet.Cell(row, col++).Value = cliente.RazonSocial ?? string.Empty;
+            sheet.Cell(row, col++).Value = (int)cliente.TipoDocumentoFiscal;
+            sheet.Cell(row, col++).Value = SocioNegocioEtiquetas.TipoDocumento(cliente.TipoDocumentoFiscal);
+            sheet.Cell(row, col++).Value = cliente.NumeroDocumentoFiscal ?? string.Empty;
+            sheet.Cell(row, col++).Value = cliente.Email ?? string.Empty;
+            sheet.Cell(row, col++).Value = cliente.Telefono ?? string.Empty;
+            sheet.Cell(row, col++).Value = cliente.DireccionLinea1 ?? string.Empty;
+            sheet.Cell(row, col++).Value = cliente.DireccionLinea2 ?? string.Empty;
+            sheet.Cell(row, col++).Value = cliente.Ciudad ?? string.Empty;
+            sheet.Cell(row, col++).Value = cliente.Sector ?? string.Empty;
+            sheet.Cell(row, col++).Value = cliente.PaisCodigo ?? string.Empty;
+            sheet.Cell(row, col++).Value = cliente.PaisNombre ?? string.Empty;
+            sheet.Cell(row, col++).Value = cliente.TerminoPagoId?.ToString() ?? string.Empty;
+            sheet.Cell(row, col).Value = cliente.LimiteCredito;
+            sheet.Cell(row, col++).Style.NumberFormat.Format = "0.0000";
+            sheet.Cell(row, col++).Value = (int)cliente.Bloqueado;
+            sheet.Cell(row, col++).Value = SocioNegocioEtiquetas.Bloqueo(cliente.Bloqueado);
+            sheet.Cell(row, col++).Value = cliente.ImagePath ?? string.Empty;
+            sheet.Cell(row, col++).Value = cliente.CreatedAtUtc;
             if (cliente.UpdatedAtUtc is { } updatedAt)
             {
-                sheet.Cell(row, 12).Value = updatedAt;
+                sheet.Cell(row, col).Value = updatedAt;
             }
-            sheet.Cell(row, 13).Value = cliente.CreatedBy;
-            sheet.Cell(row, 14).Value = cliente.UpdatedBy ?? string.Empty;
+            col++;
+            sheet.Cell(row, col++).Value = cliente.CreatedBy;
+            sheet.Cell(row, col).Value = cliente.UpdatedBy ?? string.Empty;
             row++;
         }
 
