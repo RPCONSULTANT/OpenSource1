@@ -563,6 +563,30 @@ test de que el costo promedio con entradas a precios distintos da el ponderado c
 test de que `AjustarCostoMovimientos` es idempotente; test de que ningún camino de código
 hace `UPDATE` ni `DELETE` sobre los libros.
 
+**Desviaciones acordadas durante la ejecución de la Fase 3** (ver el plan `2026-09-25-fase-3-inventario-libro.md`):
+
+- **Fórmula del promedio.** La fórmula de 3.5 (solo filas con `CantidadValorada > 0`) sobrevalora el inventario
+  en cuanto hay salidas (compra 10 a 10, venta 10, compra 10 a 20 → promedio 15 y valor residual 50 con existencia
+  0) y cuenta dos veces las transferencias. Se usa el promedio móvil por día: para una salida con fecha `d`,
+  `Costo = V / Q` con `V = SUM(ImporteCosto)` y `Q = SUM(CantidadValorada)` sobre **todos** los movimientos de valor
+  del producto con `FechaRegistro < d`, más los de **entradas no transferencia** con `FechaRegistro = d`. Las
+  salidas del mismo día comparten el costo. Si `Q <= 0` se usa `Producto.CostoUnitario` y el producto queda con
+  `CostoAjustado = false`.
+- **Movimientos de valor de ajuste y redondeo** llevan `CantidadValorada = 0` (no alteran la cantidad valorada).
+- **Append-only real.** Triggers de PostgreSQL rechazan `DELETE`/`TRUNCATE` en las tres tablas del libro y `UPDATE`
+  en `MovimientosValor` y `AplicacionesMovimientoProducto`; en `MovimientosProducto` solo se permite cambiar
+  `CantidadRestante` (lo consumen las aplicaciones, como `Remaining Quantity` en BC).
+- **Stock legado.** `Producto.Stock` se elimina en esta fase (desviación de la Fase 2). La migración usa el almacén
+  `PRINCIPAL` (predeterminado, sembrado) y convierte cada `Stock <> 0` en un movimiento de apertura
+  (`TipoOrigen = Migracion`) con su movimiento de valor `Stock × CostoUnitario`. Un stock negativo se migra como
+  salida sin aplicaciones.
+- **Serialización por producto** con `pg_advisory_xact_lock` en lugar de `SELECT ... FOR UPDATE` sobre `Productos`
+  (no bloquea la edición del maestro).
+- **Existencia por almacén** de un producto: `GET api/productos/{id}/existencias`. Las vistas completas de
+  movimientos quedan para la Fase 7.
+- Las columnas de grupos contables (`GrupoInventarioId`, `GrupoNegocioId`, `GrupoProductoId`) se crean `uuid`
+  nulas SIN FK; la FK llega con sus tablas en la Fase 5.
+
 ---
 
 ## Fase 4 — Diarios de inventario
