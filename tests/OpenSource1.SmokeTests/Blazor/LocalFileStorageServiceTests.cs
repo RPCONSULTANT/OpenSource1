@@ -153,6 +153,70 @@ public sealed class LocalFileStorageServiceTests : IDisposable
         Assert.Contains(_logger.Avisos, a => a.Contains("rechazado"));
     }
 
+    // Señuelos con el NOMBRE GENERADO por el servicio (cliente-<32 hex>.png): el filtro de nombre no los tapa, así que estos
+    // tests aíslan la contención de ruta (carpeta de la entidad + hijo directo). Sin ella, todos fallan.
+    private const string NombreGenerado = "cliente-fedcba9876543210fedcba9876543210.png";
+
+    [Fact]
+    public async Task Borrado_SenueloConNombreGenerado_FueraDeUploads_AlcanzadoConPuntosYConRutaAbsoluta_NoSeBorra()
+    {
+        var fuera = Senuelo(Path.Combine(_fueraDeUploads, NombreGenerado));
+        var enRaiz = Senuelo(Path.Combine(_raiz, NombreGenerado));
+        var enContentRoot = Senuelo(Path.Combine(_contentRoot, NombreGenerado));
+        var enStorage = Senuelo(Path.Combine(_contentRoot, "storage", NombreGenerado));
+        var enUploads = Senuelo(Path.Combine(_contentRoot, "storage", "uploads", NombreGenerado));
+
+        foreach (var ruta in new[]
+        {
+            $"/uploads/clientes/../../../../fuera/{NombreGenerado}",
+            $"/uploads/clientes/..\\..\\..\\..\\fuera\\{NombreGenerado}",
+            $"/uploads/clientes/../../../../{NombreGenerado}",
+            $"/uploads/clientes/../../../{NombreGenerado}",
+            $"/uploads/clientes/../../{NombreGenerado}",
+            $"/uploads/clientes/../{NombreGenerado}",
+            "/uploads/clientes/" + fuera,
+            "/uploads/clientes/" + enContentRoot,
+            "/uploads/clientes//" + fuera,
+        })
+        {
+            await _servicio.DeleteIfExistsAsync(ruta, RutaImagen.CarpetaClientes);
+        }
+
+        foreach (var f in new[] { fuera, enRaiz, enContentRoot, enStorage, enUploads })
+        {
+            Assert.True(File.Exists(f), $"Se borró el señuelo con nombre generado {f}");
+        }
+    }
+
+    [Fact]
+    public async Task Borrado_SenueloConNombreGenerado_EnLaCarpetaDeOtraEntidad_NoSeBorra()
+    {
+        var enUsers = Senuelo(Uploads("users", NombreGenerado));
+        var enProductos = Senuelo(Uploads("productos", NombreGenerado));
+
+        await _servicio.DeleteIfExistsAsync($"/uploads/clientes/../users/{NombreGenerado}", RutaImagen.CarpetaClientes);
+        await _servicio.DeleteIfExistsAsync($"/uploads/clientes/../productos/{NombreGenerado}", RutaImagen.CarpetaClientes);
+        await _servicio.DeleteIfExistsAsync($"/uploads/users/{NombreGenerado}", RutaImagen.CarpetaClientes);
+        await _servicio.DeleteIfExistsAsync("/uploads/clientes/" + enUsers, RutaImagen.CarpetaClientes);
+
+        Assert.True(File.Exists(enUsers));
+        Assert.True(File.Exists(enProductos));
+    }
+
+    [Fact]
+    public async Task Borrado_SenueloConNombreGenerado_EnUnSubdirectorioDeLaPropiaCarpeta_NoSeBorra()
+    {
+        var enSub = Senuelo(Uploads("clientes", Path.Combine("sub", NombreGenerado)));
+        var enSubSub = Senuelo(Uploads("clientes", Path.Combine("sub", "otro", NombreGenerado)));
+
+        await _servicio.DeleteIfExistsAsync($"/uploads/clientes/sub/{NombreGenerado}", RutaImagen.CarpetaClientes);
+        await _servicio.DeleteIfExistsAsync($"/uploads/clientes/sub/otro/{NombreGenerado}", RutaImagen.CarpetaClientes);
+        await _servicio.DeleteIfExistsAsync($"/uploads/clientes/sub/../sub/{NombreGenerado}", RutaImagen.CarpetaClientes);
+
+        Assert.True(File.Exists(enSub));
+        Assert.True(File.Exists(enSubSub));
+    }
+
     [Fact]
     public async Task Borrado_RutaAbsolutaAlSenuelo_NoBorraYRegistraUnAviso()
     {
