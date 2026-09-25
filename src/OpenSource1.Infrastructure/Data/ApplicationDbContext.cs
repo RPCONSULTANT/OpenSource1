@@ -21,6 +21,9 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<MovimientoProducto> MovimientosProducto => Set<MovimientoProducto>();
     public DbSet<MovimientoValor> MovimientosValor => Set<MovimientoValor>();
     public DbSet<AplicacionMovimientoProducto> AplicacionesMovimientoProducto => Set<AplicacionMovimientoProducto>();
+    public DbSet<PlantillaDiario> PlantillasDiario => Set<PlantillaDiario>();
+    public DbSet<LoteDiario> LotesDiario => Set<LoteDiario>();
+    public DbSet<LineaDiario> LineasDiario => Set<LineaDiario>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -268,6 +271,21 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.Property(x => x.IsDeleted).HasDefaultValue(false);
             entity.Property(x => x.DeletedBy).HasMaxLength(100);
             entity.HasQueryFilter(x => !x.IsDeleted);
+
+            // Serie DIARIO-INV (Fase 4, Task 4.2): a diferencia de SOCIOS (Task 2.9, sembrada con SQL a mano en
+            // ExtendSocioNegocio porque el contador dependía de filas ya migradas), esta serie no depende de datos
+            // existentes: HasData con Id fijo, igual que UnidadesMedida/CategoriaProducto GENERAL.
+            entity.HasData(new
+            {
+                Id = SerieDiarioInventarioIds.SerieId,
+                Codigo = "DIARIO-INV",
+                Descripcion = "Diarios de inventario",
+                PermiteHuecos = false,
+                PorDefecto = false,
+                CreatedAtUtc = FechaSemilla,
+                CreatedBy = "system",
+                IsDeleted = false
+            });
         });
 
         modelBuilder.Entity<LineaSerie>(entity =>
@@ -291,6 +309,22 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                 .WithMany()
                 .HasForeignKey(x => x.SerieId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            // Línea vigente de DIARIO-INV desde 2020-01-01, contador en 000000 (siguiente: 000001).
+            entity.HasData(new
+            {
+                Id = SerieDiarioInventarioIds.LineaSerieId,
+                SerieId = SerieDiarioInventarioIds.SerieId,
+                NumeroInicial = "000001",
+                NumeroFinal = "999999",
+                UltimoNumeroUsado = "000000",
+                FechaInicial = new DateOnly(2020, 1, 1),
+                Incremento = 1,
+                Bloqueada = false,
+                CreatedAtUtc = FechaSemilla,
+                CreatedBy = "system",
+                IsDeleted = false
+            });
         });
 
         modelBuilder.Entity<Almacen>(entity =>
@@ -447,6 +481,106 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
             entity.HasIndex(x => x.MovimientoEntradaId).HasDatabaseName("IX_AplicacionesMovimientoProducto_MovimientoEntradaId");
             entity.HasIndex(x => x.MovimientoSalidaId).HasDatabaseName("IX_AplicacionesMovimientoProducto_MovimientoSalidaId");
+        });
+
+        modelBuilder.Entity<PlantillaDiario>(entity =>
+        {
+            entity.ToTable("PlantillasDiario");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Codigo).HasMaxLength(20).IsRequired();
+            entity.Property(x => x.Nombre).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.CreatedBy).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.UpdatedBy).HasMaxLength(100);
+            // Mismo patrón de índice único parcial que TerminoPago/Almacen, aunque en la práctica nunca se borra
+            // (sembrada y de solo lectura, sin CRUD: ver "Desviaciones acordadas" de la Fase 4).
+            entity.HasIndex(x => x.Codigo).IsUnique().HasFilter("\"IsDeleted\" = false");
+            entity.HasIndex(x => x.CreatedAtUtc).HasDatabaseName("IX_PlantillasDiario_CreatedAtUtc");
+            entity.HasOne<Serie>().WithMany().HasForeignKey(x => x.SerieId).OnDelete(DeleteBehavior.Restrict);
+            entity.Property<uint>("xmin").HasColumnName("xmin").IsRowVersion();
+            entity.Property(x => x.IsDeleted).HasDefaultValue(false);
+            entity.Property(x => x.DeletedBy).HasMaxLength(100);
+            entity.HasQueryFilter(x => !x.IsDeleted);
+
+            // Las dos únicas plantillas (Task 4.2): ambas con la serie DIARIO-INV. Ids fijos (PlantillaDiarioIds) para
+            // que la Task 4.3 (posteo) pueda referenciarlas sin volver a consultarlas por Código.
+            entity.HasData(
+                new
+                {
+                    Id = PlantillaDiarioIds.Articulo,
+                    Codigo = "ARTICULO",
+                    Nombre = "Diario de artículos",
+                    Tipo = TipoPlantillaDiario.Articulo,
+                    SerieId = SerieDiarioInventarioIds.SerieId,
+                    CreatedAtUtc = FechaSemilla,
+                    CreatedBy = "system",
+                    IsDeleted = false
+                },
+                new
+                {
+                    Id = PlantillaDiarioIds.Reclasificacion,
+                    Codigo = "RECLASIF",
+                    Nombre = "Diario de reclasificación",
+                    Tipo = TipoPlantillaDiario.Reclasificacion,
+                    SerieId = SerieDiarioInventarioIds.SerieId,
+                    CreatedAtUtc = FechaSemilla,
+                    CreatedBy = "system",
+                    IsDeleted = false
+                });
+        });
+
+        modelBuilder.Entity<LoteDiario>(entity =>
+        {
+            entity.ToTable("LotesDiario");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Codigo).HasMaxLength(20).IsRequired();
+            entity.Property(x => x.Nombre).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.CreatedBy).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.UpdatedBy).HasMaxLength(100);
+            // Único junto con PlantillaDiarioId (parcial: permite reutilizar el Código de un lote borrado lógicamente).
+            entity.HasIndex(x => new { x.PlantillaDiarioId, x.Codigo }).IsUnique().HasFilter("\"IsDeleted\" = false");
+            entity.HasIndex(x => x.CreatedAtUtc).HasDatabaseName("IX_LotesDiario_CreatedAtUtc");
+            // PlantillaDiarioId es inmutable tras el alta (ver CreateLoteDiarioCommand): nunca se borra la plantilla
+            // (sembrada, sin CRUD), así que Restrict es solo la red de seguridad final.
+            entity.HasOne<PlantillaDiario>().WithMany().HasForeignKey(x => x.PlantillaDiarioId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<Serie>().WithMany().HasForeignKey(x => x.SerieId).OnDelete(DeleteBehavior.Restrict);
+            entity.Property<uint>("xmin").HasColumnName("xmin").IsRowVersion();
+            entity.Property(x => x.IsDeleted).HasDefaultValue(false);
+            entity.Property(x => x.DeletedBy).HasMaxLength(100);
+            entity.HasQueryFilter(x => !x.IsDeleted);
+        });
+
+        modelBuilder.Entity<LineaDiario>(entity =>
+        {
+            entity.ToTable("LineasDiario", t => t.HasCheckConstraint("CK_LineasDiario_Cantidad_Positiva", "\"Cantidad\" > 0"));
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.NumeroDocumento).HasMaxLength(20);
+            entity.Property(x => x.CantidadPorUnidadMedida).HasPrecision(18, 6);
+            entity.Property(x => x.Cantidad).HasPrecision(18, 6);
+            entity.Property(x => x.CostoUnitario).HasPrecision(18, 4);
+            entity.Property(x => x.ImporteCosto).HasPrecision(18, 4);
+            entity.Property(x => x.Descripcion).HasMaxLength(200);
+            entity.Property(x => x.CreatedBy).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.UpdatedBy).HasMaxLength(100);
+
+            // Único junto con LoteDiarioId (parcial, mismo patrón que arriba): lo asigna el sistema (máximo del
+            // lote + 10000), pero dos altas concurrentes en el mismo lote podrían calcular el mismo máximo; el índice
+            // es la red de seguridad final (23505 -> 409 genérico).
+            entity.HasIndex(x => new { x.LoteDiarioId, x.NumeroLinea }).IsUnique().HasFilter("\"IsDeleted\" = false");
+            entity.HasIndex(x => x.CreatedAtUtc).HasDatabaseName("IX_LineasDiario_CreatedAtUtc");
+
+            // Sin navegación en ningún caso (mismo patrón que MovimientoProducto/AplicacionMovimientoProducto):
+            // LoteDiarioId es inmutable; ProductoId/AlmacenId/UnidadMedidaId son borrado lógico (Restrict); dos FK a
+            // Almacenes (origen y destino) se distinguen por la propiedad FK, sin colisionar.
+            entity.HasOne<LoteDiario>().WithMany().HasForeignKey(x => x.LoteDiarioId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<Producto>().WithMany().HasForeignKey(x => x.ProductoId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<Almacen>().WithMany().HasForeignKey(x => x.AlmacenId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<Almacen>().WithMany().HasForeignKey(x => x.AlmacenDestinoId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<UnidadMedida>().WithMany().HasForeignKey(x => x.UnidadMedidaId).OnDelete(DeleteBehavior.Restrict);
+
+            entity.Property<uint>("xmin").HasColumnName("xmin").IsRowVersion();
+            entity.Property(x => x.IsDeleted).HasDefaultValue(false);
+            entity.Property(x => x.DeletedBy).HasMaxLength(100);
+            entity.HasQueryFilter(x => !x.IsDeleted);
         });
     }
 

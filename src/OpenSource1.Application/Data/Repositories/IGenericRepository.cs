@@ -26,4 +26,17 @@ public interface IGenericRepository<TEntity>
     Task AddAsync(TEntity entity, CancellationToken cancellationToken = default);
     void Update(TEntity entity);
     void Remove(TEntity entity);
+
+    /// <summary>
+    /// Concurrencia optimista basada en <c>xmin</c> (Postgres, sin columna adicional; ver spec 1.5): fija el valor que
+    /// el cliente vio al leer la fila como valor "original" rastreado por el ORM, de modo que el UPDATE que genera
+    /// <see cref="Update"/> lleve <c>WHERE xmin = @original</c>. Si la fila cambió entre la lectura y esta llamada,
+    /// <c>SaveChangesAsync</c> lanza <c>DbUpdateConcurrencyException</c> (el manejador global la traduce a 409
+    /// <c>entidad.modificada_por_otro</c>). Usado por los PUT de LoteDiario/LineaDiario (Task 4.2); los demás
+    /// maestros no lo invocan todavía.
+    /// </summary>
+    void EstablecerVersionOriginal(TEntity entity, long xmin);
+
+    /// <summary>Valor vigente de <c>xmin</c> de la entidad (tras el alta/modificación), para exponerlo en la respuesta y habilitar el próximo PUT.</summary>
+    long ObtenerVersionActual(TEntity entity);
 }

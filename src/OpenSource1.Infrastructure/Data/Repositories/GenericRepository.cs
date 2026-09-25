@@ -72,6 +72,18 @@ public sealed class GenericRepository<TEntity>(ApplicationDbContext dbContext) :
         _dbSet.Update(entity);
     }
 
+    public void EstablecerVersionOriginal(TEntity entity, long xmin)
+    {
+        ArgumentNullException.ThrowIfNull(entity);
+        dbContext.Entry(entity).Property<uint>("xmin").OriginalValue = unchecked((uint)xmin);
+    }
+
+    public long ObtenerVersionActual(TEntity entity)
+    {
+        ArgumentNullException.ThrowIfNull(entity);
+        return dbContext.Entry(entity).Property<uint>("xmin").CurrentValue;
+    }
+
     public void Remove(TEntity entity)
     {
         ArgumentNullException.ThrowIfNull(entity);

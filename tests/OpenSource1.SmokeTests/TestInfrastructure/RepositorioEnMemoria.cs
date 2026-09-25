@@ -20,6 +20,9 @@ internal sealed class RepositorioEnMemoria<T> where T : BaseEntity
         Mock.Setup(r => r.FirstOrDefaultAsync(It.IsAny<Expression<Func<T, bool>>>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((Expression<Func<T, bool>> predicado, bool _, CancellationToken _) =>
                 Datos.Where(e => !e.IsDeleted).FirstOrDefault(predicado.Compile()));
+        Mock.Setup(r => r.ListAsync(It.IsAny<Expression<Func<T, bool>>?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Expression<Func<T, bool>>? predicado, CancellationToken _) =>
+                (IReadOnlyList<T>)[.. Datos.Where(e => !e.IsDeleted).Where(predicado?.Compile() ?? (_ => true))]);
         Mock.Setup(r => r.AddAsync(It.IsAny<T>(), It.IsAny<CancellationToken>()))
             .Callback<T, CancellationToken>((e, _) => Datos.Add(e))
             .Returns(Task.CompletedTask);
