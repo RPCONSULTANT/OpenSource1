@@ -179,6 +179,7 @@ public sealed class DapperProductoReadRepository(IDbSession session) : IProducto
                     LIMIT @TamanoPagina OFFSET @Offset
                 ) x
                 {ExistenciaLateralSql}
+                ORDER BY {ordenSql} {direccionSql}, "Id" ASC
                 """;
 
         await session.EnsureOpenAsync(cancellationToken);
