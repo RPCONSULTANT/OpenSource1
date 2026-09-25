@@ -9,7 +9,7 @@ namespace OpenSource1.Infrastructure.Data.Queries;
 public sealed class DapperSocioNegocioReadRepository(IDbSession session) : ISocioNegocioReadRepository
 {
     private static readonly ColumnasPermitidas ColumnasPermitidas = new(
-        "Codigo", "NombreComercial", "Email", "Telefono", "DireccionLinea1", "Sector", "PaisNombre", "CreatedAtUtc");
+        "Codigo", "Tipo", "NombreComercial", "NumeroDocumentoFiscal", "Email", "Telefono", "DireccionLinea1", "Sector", "PaisNombre", "CreatedAtUtc");
 
     public async Task<SocioNegocioResponse?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
@@ -30,12 +30,29 @@ public sealed class DapperSocioNegocioReadRepository(IDbSession session) : ISoci
         var filters = new List<string>();
         var parameters = new DynamicParameters();
 
+        FilterExpressionBuilder.AddTextFilter(filters, parameters, ColumnasPermitidas, "Codigo", search.Codigo);
+        FilterExpressionBuilder.AddTextFilter(filters, parameters, ColumnasPermitidas, "NumeroDocumentoFiscal", search.NumeroDocumentoFiscal);
         FilterExpressionBuilder.AddTextFilter(filters, parameters, ColumnasPermitidas, "NombreComercial", search.NombreComercial);
         FilterExpressionBuilder.AddTextFilter(filters, parameters, ColumnasPermitidas, "Email", search.Email);
         FilterExpressionBuilder.AddTextFilter(filters, parameters, ColumnasPermitidas, "Telefono", search.Telefono);
         FilterExpressionBuilder.AddTextFilter(filters, parameters, ColumnasPermitidas, "DireccionLinea1", search.DireccionLinea1);
         FilterExpressionBuilder.AddTextFilter(filters, parameters, ColumnasPermitidas, "Sector", search.Sector);
         FilterExpressionBuilder.AddTextFilter(filters, parameters, ColumnasPermitidas, "PaisNombre", search.PaisNombre);
+
+        if (search.Tipo is { } tipo)
+        {
+            // Igualdad exacta sobre el smallint (no ILIKE). Un valor fuera del enum es un filtro mal formado.
+            if (!Enum.IsDefined(tipo))
+            {
+                return Result<PagedResult<SocioNegocioResponse>>.Fallo(new Error(
+                    "filtro.valor_invalido",
+                    $"El valor '{(short)tipo}' no es válido para el filtro 'Tipo' (1=Cliente, 2=Proveedor, 3=Ambos).",
+                    "Tipo"));
+            }
+
+            filters.Add(ColumnasPermitidas.Citar("Tipo") + " = @Tipo");
+            parameters.Add("Tipo", (short)tipo);
+        }
 
         filters.Insert(0, "\"IsDeleted\" = false");
         var whereSql = Environment.NewLine + "WHERE " + string.Join(" AND ", filters);

@@ -19,6 +19,7 @@ public sealed class SociosNegocioController(ISender sender) : ControllerBase
     [HttpGet]
     [Authorize(Policy = ApplicationPolicies.CanConsult)]
     [ProducesResponseType<PagedResult<SocioNegocioResponse>>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> List(
         [FromQuery] string? nombreComercial,
         [FromQuery] string? email,
@@ -26,6 +27,9 @@ public sealed class SociosNegocioController(ISender sender) : ControllerBase
         [FromQuery] string? direccion,
         [FromQuery] string? sector,
         [FromQuery] string? pais,
+        [FromQuery] string? codigo,
+        [FromQuery] TipoSocioNegocio? tipo,
+        [FromQuery] string? numeroDocumentoFiscal,
         [FromQuery] int pagina = 1,
         [FromQuery] int tamanoPagina = PageRequest.TamanoPorDefecto,
         [FromQuery] string? ordenarPor = null,
@@ -34,7 +38,8 @@ public sealed class SociosNegocioController(ISender sender) : ControllerBase
     {
         var result = await sender.Send(
             new ListSociosNegocioQuery(
-                new SocioNegocioSearchCriteria(nombreComercial, email, telefono, direccion, sector, pais),
+                new SocioNegocioSearchCriteria(
+                    nombreComercial, email, telefono, direccion, sector, pais, codigo, tipo, numeroDocumentoFiscal),
                 new PageRequest(pagina, tamanoPagina, ordenarPor, descendente)),
             cancellationToken);
 

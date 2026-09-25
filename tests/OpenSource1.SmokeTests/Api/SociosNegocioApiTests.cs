@@ -300,6 +300,129 @@ public sealed class SociosNegocioApiTests : IClassFixture<PostgresTestFixture>
     }
 
     [Fact]
+    public async Task List_FiltraPorCodigo_PorTipoYPorNumeroDocumentoFiscal()
+    {
+        var client = CreateClient("Administrador");
+        var marca = $"Filtro{Guid.NewGuid():N}"[..14];
+        var documentoProveedor = $"PRV{Guid.NewGuid():N}"[..15].ToUpperInvariant();
+        var documentoCliente = $"CLI{Guid.NewGuid():N}"[..15].ToUpperInvariant();
+
+        var proveedor = await AltaConAsync(client, new
+        {
+            nombreComercial = $"{marca} Proveedor",
+            tipo = (int)TipoSocioNegocio.Proveedor,
+            tipoDocumentoFiscal = (int)TipoDocumentoFiscal.Rnc,
+            numeroDocumentoFiscal = documentoProveedor
+        });
+        var cliente = await AltaConAsync(client, new
+        {
+            nombreComercial = $"{marca} Cliente",
+            tipo = (int)TipoSocioNegocio.Cliente,
+            tipoDocumentoFiscal = (int)TipoDocumentoFiscal.Cedula,
+            numeroDocumentoFiscal = documentoCliente
+        });
+
+        // Codigo: coincidencia exacta con el código emitido por el sistema.
+        var porCodigo = await ListarAsync(client, $"codigo={proveedor.Codigo}");
+        Assert.Single(porCodigo.Items);
+        Assert.Equal(proveedor.Id, porCodigo.Items[0].Id);
+
+        // Documento fiscal: sin distinguir mayúsculas (se guarda en mayúsculas) y con comodín.
+        var porDocumento = await ListarAsync(client, $"numeroDocumentoFiscal={documentoProveedor.ToLowerInvariant()}");
+        Assert.Single(porDocumento.Items);
+        Assert.Equal(proveedor.Id, porDocumento.Items[0].Id);
+
+        var porDocumentoParcial = await ListarAsync(client, $"numeroDocumentoFiscal={documentoCliente[..8]}*");
+        Assert.Single(porDocumentoParcial.Items);
+        Assert.Equal(cliente.Id, porDocumentoParcial.Items[0].Id);
+
+        // Tipo: igualdad exacta (2 = Proveedor) combinada con el nombre.
+        var soloProveedores = await ListarAsync(client, $"nombreComercial={marca}*&tipo={(int)TipoSocioNegocio.Proveedor}");
+        Assert.Single(soloProveedores.Items);
+        Assert.Equal(proveedor.Id, soloProveedores.Items[0].Id);
+
+        var soloClientes = await ListarAsync(client, $"nombreComercial={marca}*&tipo={(int)TipoSocioNegocio.Cliente}");
+        Assert.Single(soloClientes.Items);
+        Assert.Equal(cliente.Id, soloClientes.Items[0].Id);
+
+        // Ambos no coincide con ninguno de los dos (igualdad, no "incluye").
+        var ambos = await ListarAsync(client, $"nombreComercial={marca}*&tipo={(int)TipoSocioNegocio.Ambos}");
+        Assert.Empty(ambos.Items);
+
+        // Un código que no existe no devuelve nada.
+        var inexistente = await ListarAsync(client, "codigo=NOEXISTE9");
+        Assert.Empty(inexistente.Items);
+    }
+
+    [Fact]
+    public async Task List_DocumentoFiscalConGuionBajoYPorcentaje_SeBuscaComoLiteral()
+    {
+        var client = CreateClient("Administrador");
+        var sufijo = Guid.NewGuid().ToString("N")[..6].ToUpperInvariant();
+        var conGuion = await AltaConAsync(client, new
+        {
+            nombreComercial = $"Literal Guion {sufijo}",
+            tipoDocumentoFiscal = (int)TipoDocumentoFiscal.Pasaporte,
+            numeroDocumentoFiscal = $"XA_B{sufijo}"
+        });
+        await AltaConAsync(client, new
+        {
+            nombreComercial = $"Literal Letra {sufijo}",
+            tipoDocumentoFiscal = (int)TipoDocumentoFiscal.Pasaporte,
+            numeroDocumentoFiscal = $"XAZB{sufijo}"
+        });
+        var conPorcentaje = await AltaConAsync(client, new
+        {
+            nombreComercial = $"Literal Porcentaje {sufijo}",
+            tipoDocumentoFiscal = (int)TipoDocumentoFiscal.Pasaporte,
+            numeroDocumentoFiscal = $"P%{sufijo}"
+        });
+
+        // "_" no es comodín de un carácter: XA_B<sufijo> no debe coincidir con XAZB<sufijo>.
+        var guion = await ListarAsync(client, $"numeroDocumentoFiscal={Uri.EscapeDataString($"XA_B{sufijo}")}");
+        Assert.Single(guion.Items);
+        Assert.Equal(conGuion.Id, guion.Items[0].Id);
+
+        // "%" tampoco: P%<sufijo> es el literal, no "cualquier cosa entre P y el sufijo".
+        var porcentaje = await ListarAsync(client, $"numeroDocumentoFiscal={Uri.EscapeDataString($"P%{sufijo}")}");
+        Assert.Single(porcentaje.Items);
+        Assert.Equal(conPorcentaje.Id, porcentaje.Items[0].Id);
+
+        // El "*" sí es el comodín propio de la sintaxis.
+        var comodin = await ListarAsync(client, $"numeroDocumentoFiscal={Uri.EscapeDataString($"XA*B{sufijo}")}");
+        Assert.Equal(2, comodin.Items.Count);
+    }
+
+    [Fact]
+    public async Task List_ConTipoDeSocioInvalido_Devuelve400()
+    {
+        var client = CreateClient("Administrador");
+
+        // Fuera del enum: se rechaza como 400 (no se trata como "sin resultados"). Lo corta el binder de
+        // enums; la consulta Dapper repite la comprobación como defensa si otro consumidor la invoca.
+        var fueraDeRango = await client.GetAsync("/api/socios-negocio?tipo=7");
+        Assert.Equal(HttpStatusCode.BadRequest, fueraDeRango.StatusCode);
+        Assert.Contains("'7'", await fueraDeRango.Content.ReadAsStringAsync());
+
+        // No numérico ni nombre del enum: lo rechaza el binder.
+        var noNumerico = await client.GetAsync("/api/socios-negocio?tipo=abc");
+        Assert.Equal(HttpStatusCode.BadRequest, noNumerico.StatusCode);
+
+        // Vacío = sin filtro.
+        var vacio = await client.GetAsync("/api/socios-negocio?tipo=");
+        Assert.Equal(HttpStatusCode.OK, vacio.StatusCode);
+    }
+
+    [Fact]
+    public async Task List_PuedeOrdenarPorTipoYPorNumeroDocumentoFiscal()
+    {
+        var client = CreateClient("Administrador");
+
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/socios-negocio?ordenarPor=Tipo&descendente=false")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/socios-negocio?ordenarPor=NumeroDocumentoFiscal")).StatusCode);
+    }
+
+    [Fact]
     public async Task List_RespetaElTamanoDePaginaYDevuelveElTotal()
     {
         var client = CreateClient("Administrador");
@@ -497,6 +620,20 @@ public sealed class SociosNegocioApiTests : IClassFixture<PostgresTestFixture>
         await conexion.OpenAsync();
         await using var comando = new NpgsqlCommand(sql, conexion);
         await comando.ExecuteNonQueryAsync();
+    }
+
+    private static async Task<SocioNegocioResponse> AltaConAsync(HttpClient client, object cuerpo)
+    {
+        var response = await client.PostAsJsonAsync("/api/socios-negocio", cuerpo);
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        return (await response.Content.ReadFromJsonAsync<SocioNegocioResponse>())!;
+    }
+
+    private static async Task<PagedResult<SocioNegocioResponse>> ListarAsync(HttpClient client, string query)
+    {
+        var response = await client.GetAsync($"/api/socios-negocio?{query}");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        return (await response.Content.ReadFromJsonAsync<PagedResult<SocioNegocioResponse>>())!;
     }
 
     private static async Task<string> AltaAsync(HttpClient client, string nombreComercial)
