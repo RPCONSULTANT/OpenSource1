@@ -172,11 +172,11 @@ app.MapPost("/account/profile/image", async (
 }).RequireAuthorization(ApplicationPolicies.CanConsult);
 
 app.MapPost("/reports/clientes/selected", async (
-    [FromForm] ClienteSelectionReportForm form,
+    [FromForm] ClienteSelectionReportForm? form,
     ISocioNegocioApiClient clienteApiClient,
     IReportDocumentService reportDocumentService) =>
 {
-    var selectedIds = form.SelectedIds.Where(id => id != Guid.Empty).Distinct().ToArray();
+    var selectedIds = (form?.SelectedIds ?? []).Where(id => id != Guid.Empty).Distinct().ToArray();
     if (selectedIds.Length == 0)
     {
         return Results.Redirect("/clientes?ok=report-select-required");
@@ -202,11 +202,11 @@ app.MapPost("/reports/clientes/selected", async (
 }).RequireAuthorization(ApplicationPolicies.CanConsult);
 
 app.MapPost("/reports/clientes/selected.xlsx", async (
-    [FromForm] ClienteSelectionReportForm form,
+    [FromForm] ClienteSelectionReportForm? form,
     ISocioNegocioApiClient clienteApiClient,
     IReportDocumentService reportDocumentService) =>
 {
-    var selectedIds = form.SelectedIds.Where(id => id != Guid.Empty).Distinct().ToArray();
+    var selectedIds = (form?.SelectedIds ?? []).Where(id => id != Guid.Empty).Distinct().ToArray();
     if (selectedIds.Length == 0)
     {
         return Results.Redirect("/clientes?ok=report-select-required");
@@ -232,11 +232,11 @@ app.MapPost("/reports/clientes/selected.xlsx", async (
 }).RequireAuthorization(ApplicationPolicies.CanConsult);
 
 app.MapPost("/reports/productos/selected", async (
-    [FromForm] ProductoSelectionReportForm form,
+    [FromForm] ProductoSelectionReportForm? form,
     IProductoApiClient productoApiClient,
     IReportDocumentService reportDocumentService) =>
 {
-    var selectedIds = form.SelectedIds.Where(id => id != Guid.Empty).Distinct().ToArray();
+    var selectedIds = (form?.SelectedIds ?? []).Where(id => id != Guid.Empty).Distinct().ToArray();
     if (selectedIds.Length == 0)
     {
         return Results.Redirect("/productos?ok=report-select-required");
@@ -257,7 +257,7 @@ app.MapPost("/reports/productos/selected", async (
         return Results.Redirect("/productos?ok=report-no-data");
     }
 
-    productos = form.StockState switch
+    productos = form?.StockState switch
     {
         "with-stock" => productos.Where(x => x.Stock > 0).ToList(),
         "without-stock" => productos.Where(x => x.Stock <= 0).ToList(),
@@ -274,11 +274,11 @@ app.MapPost("/reports/productos/selected", async (
 }).RequireAuthorization(ApplicationPolicies.CanConsult);
 
 app.MapPost("/reports/productos/selected.xlsx", async (
-    [FromForm] ProductoSelectionReportForm form,
+    [FromForm] ProductoSelectionReportForm? form,
     IProductoApiClient productoApiClient,
     IReportDocumentService reportDocumentService) =>
 {
-    var selectedIds = form.SelectedIds.Where(id => id != Guid.Empty).Distinct().ToArray();
+    var selectedIds = (form?.SelectedIds ?? []).Where(id => id != Guid.Empty).Distinct().ToArray();
     if (selectedIds.Length == 0)
     {
         return Results.Redirect("/productos?ok=report-select-required");
@@ -299,7 +299,7 @@ app.MapPost("/reports/productos/selected.xlsx", async (
         return Results.Redirect("/productos?ok=report-no-data");
     }
 
-    productos = form.StockState switch
+    productos = form?.StockState switch
     {
         "with-stock" => productos.Where(x => x.Stock > 0).ToList(),
         "without-stock" => productos.Where(x => x.Stock <= 0).ToList(),
@@ -316,12 +316,12 @@ app.MapPost("/reports/productos/selected.xlsx", async (
 }).RequireAuthorization(ApplicationPolicies.CanConsult);
 
 app.MapPost("/reports/clientes/history", async (
-    [FromForm] ClienteHistoricalReportForm form,
+    [FromForm] ClienteHistoricalReportForm? form,
     ISocioNegocioApiClient clienteApiClient,
     IReportDocumentService reportDocumentService) =>
 {
     var clientes = await clienteApiClient.ListAllAsync();
-    if (form.Status == "inactive")
+    if (form?.Status == "inactive")
     {
         clientes = [];
     }
@@ -335,12 +335,12 @@ app.MapPost("/reports/clientes/history", async (
 }).RequireAuthorization(ApplicationPolicies.CanConsult);
 
 app.MapPost("/reports/clientes/history.xlsx", async (
-    [FromForm] ClienteHistoricalReportForm form,
+    [FromForm] ClienteHistoricalReportForm? form,
     ISocioNegocioApiClient clienteApiClient,
     IReportDocumentService reportDocumentService) =>
 {
     var clientes = await clienteApiClient.ListAllAsync();
-    if (form.Status == "inactive")
+    if (form?.Status == "inactive")
     {
         clientes = [];
     }
@@ -354,12 +354,12 @@ app.MapPost("/reports/clientes/history.xlsx", async (
 }).RequireAuthorization(ApplicationPolicies.CanConsult);
 
 app.MapPost("/reports/productos/history", async (
-    [FromForm] ProductoHistoricalReportForm form,
+    [FromForm] ProductoHistoricalReportForm? form,
     IProductoApiClient productoApiClient,
     IReportDocumentService reportDocumentService) =>
 {
     var productos = await productoApiClient.ListAllAsync();
-    productos = form.StockState switch
+    productos = form?.StockState switch
     {
         "with-stock" => productos.Where(x => x.Stock > 0).ToList(),
         "without-stock" => productos.Where(x => x.Stock <= 0).ToList(),
@@ -375,12 +375,12 @@ app.MapPost("/reports/productos/history", async (
 }).RequireAuthorization(ApplicationPolicies.CanConsult);
 
 app.MapPost("/reports/productos/history.xlsx", async (
-    [FromForm] ProductoHistoricalReportForm form,
+    [FromForm] ProductoHistoricalReportForm? form,
     IProductoApiClient productoApiClient,
     IReportDocumentService reportDocumentService) =>
 {
     var productos = await productoApiClient.ListAllAsync();
-    productos = form.StockState switch
+    productos = form?.StockState switch
     {
         "with-stock" => productos.Where(x => x.Stock > 0).ToList(),
         "without-stock" => productos.Where(x => x.Stock <= 0).ToList(),
