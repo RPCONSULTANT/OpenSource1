@@ -206,6 +206,50 @@ public sealed class RegistroMovimientosInventarioTests(PostgresTestFixture fixtu
     }
 
     [Fact]
+    public async Task Salida_ConAperturaLegadaNegativaYRestanteAbiertoMayorQueLaExistencia_UsaElMinimoYFalla()
+    {
+        // Mata el mutante que reemplaza "disponible = Math.Min(existencia, restanteAbierto)" por
+        // "disponible = restanteAbierto": apertura legada -5 (salida sin aplicaciones, igual que la migración de
+        // Stock) + entrada 10 -> existencia = 5, pero restanteAbierto = 10 (toda la entrada sigue sin consumir).
+        // Con el mínimo correcto, una salida de 10 debe fallar (solo hay 5 disponibles); con el mutante (solo
+        // restanteAbierto = 10) pasaría, dejando la existencia derivada en -5.
+        var producto = await _prueba.SembrarProductoAsync();
+        var almacen = await _prueba.SembrarAlmacenAsync();
+        await _prueba.InsertarAperturaLegadaNegativaAsync(producto, almacen, -5m, D1);
+        await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Entrada(producto, almacen, 10m, 10m, D2));
+
+        Assert.Equal(5m, await _prueba.ConsultarAsync(c => c.ExistenciaAsync(producto, almacen, null)));
+
+        var resultado = await _prueba.RegistrarAsync(LibroInventarioPrueba.Salida(producto, almacen, 10m, D3));
+
+        Assert.True(resultado.EsFallo);
+        var error = Assert.Single(resultado.Errores);
+        Assert.Equal("inventario.existencia_insuficiente", error.Codigo);
+        Assert.Contains("disponible 5, solicitado 10", error.Mensaje);
+    }
+
+    [Fact]
+    public async Task Entrada_EnAlmacenBorradoLogicamente_FallaConAlmacenInvalidoYSinEscribir()
+    {
+        // Mata el mutante que quita el filtro "IsDeleted" = false de la consulta del almacén: a diferencia del caso
+        // "almacen_inexistente" (un Guid al azar, ya cubierto por ReferenciasInvalidasOBloqueadasTests), este almacén
+        // SÍ existe como fila pero está borrado lógicamente, así que solo el filtro lo excluye.
+        var producto = await _prueba.SembrarProductoAsync();
+        var almacen = await _prueba.SembrarAlmacenAsync();
+        await using (var conexion = _prueba.NuevaConexion())
+        {
+            await conexion.ExecuteAsync("""UPDATE "Almacenes" SET "IsDeleted" = true WHERE "Id" = @id""", new { id = almacen });
+        }
+
+        var resultado = await _prueba.RegistrarAsync(LibroInventarioPrueba.Entrada(producto, almacen, 1m, 1m, D1));
+
+        Assert.True(resultado.EsFallo);
+        var error = Assert.Single(resultado.Errores);
+        Assert.Equal(("inventario.almacen_invalido", "AlmacenId"), (error.Codigo, error.Campo));
+        Assert.Equal((0L, 0L, 0L), await _prueba.ContarFilasAsync(producto));
+    }
+
+    [Fact]
     public async Task ExistenciaPorAlmacen_SalidaEnUnAlmacen_YSalidaEnOtroSinStockFallaAunqueElTotalAlcance()
     {
         var producto = await _prueba.SembrarProductoAsync();

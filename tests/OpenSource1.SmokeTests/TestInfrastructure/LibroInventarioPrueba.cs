@@ -193,4 +193,28 @@ internal sealed class LibroInventarioPrueba(PostgresTestFixture fixture) : IAsyn
         await using var conexion = NuevaConexion();
         return await ContarFilasAsync(conexion, productoId);
     }
+
+    /// <summary>
+    /// Inserta una SALIDA de apertura directa (sin pasar por <see cref="IRegistroMovimientosInventario"/>, que la
+    /// rechazaría por existencia insuficiente), tal como lo hace la migración <c>ReemplazarStockPorLibro</c> para un
+    /// Stock legado negativo: nace SIN aplicaciones en <c>AplicacionesMovimientoProducto</c> y con
+    /// <c>CantidadRestante = NULL</c>. Debe ser el primer movimiento del producto para que el escenario sea realista
+    /// (existencia derivada negativa, restante abierto en cero).
+    /// </summary>
+    public async Task InsertarAperturaLegadaNegativaAsync(Guid productoId, Guid almacenId, decimal cantidadNegativa, DateOnly fecha)
+    {
+        await using var conexion = NuevaConexion();
+        await conexion.ExecuteAsync(
+            """
+            INSERT INTO "MovimientosProducto" (
+                "ProductoId", "AlmacenId", "TipoMovimiento", "TipoDocumento", "NumeroDocumento", "NumeroLineaDocumento",
+                "FechaRegistro", "FechaDocumento", "Cantidad", "CantidadRestante", "CantidadFacturada", "UnidadMedidaId",
+                "CantidadPorUnidadMedida", "TipoOrigen", "ClaveOrigen", "CreatedAtUtc", "CreatedBy")
+            VALUES (
+                @ProductoId, @AlmacenId, 4, 0, NULL, 0,
+                @Fecha, @Fecha, @Cantidad, NULL, 0, @UnidadId,
+                1, 99, 'MIGRACION-STOCK', now(), 'test')
+            """,
+            new { ProductoId = productoId, AlmacenId = almacenId, Cantidad = cantidadNegativa, Fecha = fecha, UnidadId = UnidadUnd });
+    }
 }

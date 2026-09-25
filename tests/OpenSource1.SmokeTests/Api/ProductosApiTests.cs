@@ -408,6 +408,25 @@ public sealed class ProductosApiTests : IClassFixture<PostgresTestFixture>
     }
 
     [Fact]
+    public async Task List_FiltraPorExistenciaConSemanticaMayorOIgual_ConCincoYDiez_DevuelveAmbos()
+    {
+        // Mata el mutante que cambia el comparador de "existencia" de >= a =: con existencia=5, un producto con
+        // existencia 10 (mayor, no igual) debe seguir apareciendo. El test existente (10/11 contra 10/0) no lo
+        // distingue porque en ambos casos el filtro con = habría coincidido igual.
+        var client = CreateClient("Administrador");
+        var sufijo = Guid.NewGuid().ToString("N")[..8];
+        var conCinco = (await (await client.PostAsJsonAsync("/api/productos", new { codigo = $"EX5-{sufijo}", nombre = $"Existencia cinco {sufijo}", precioVenta = 1m })).Content.ReadFromJsonAsync<ProductoResponse>())!;
+        var conDiez = (await (await client.PostAsJsonAsync("/api/productos", new { codigo = $"EX10-{sufijo}", nombre = $"Existencia diez {sufijo}", precioVenta = 1m })).Content.ReadFromJsonAsync<ProductoResponse>())!;
+        await RegistrarEntradaAsync(conCinco.Id, 5m);
+        await RegistrarEntradaAsync(conDiez.Id, 10m);
+
+        var porExistencia = (await client.GetFromJsonAsync<PagedResult<ProductoResponse>>($"/api/productos?codigo={sufijo}&existencia=5"))!;
+
+        Assert.Contains(porExistencia.Items, p => p.Id == conCinco.Id);
+        Assert.Contains(porExistencia.Items, p => p.Id == conDiez.Id);
+    }
+
+    [Fact]
     public async Task GetExistencias_DevuelveSoloAlmacenesConMovimientos_Y404SiElProductoNoExiste()
     {
         var client = CreateClient("Administrador");
