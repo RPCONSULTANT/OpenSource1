@@ -660,6 +660,25 @@ escribe **ninguna** fila (atomicidad real, con rollback verificado); test de aju
 negativo sin existencia suficiente → `Result` fallido; test de reclasificación con suma de
 costo 0; test de que el lote queda vacío tras postear.
 
+**Desviaciones acordadas durante la ejecución de la Fase 4** (ver el plan `2026-09-26-fase-4-diarios-inventario.md`):
+
+- **Plantillas sembradas y de solo lectura.** `ARTICULO` (Tipo=1) y `RECLASIF` (Tipo=2), ambas con la serie `DIARIO-INV`
+  (sin huecos). No hay CRUD de plantillas: dos tipos fijos no justifican un mantenimiento.
+- **`LineasDiario.CostoUnitario` está en la unidad BASE del producto** (evita redondeos al convertir un costo por caja y
+  respeta los 4 decimales del libro). La UI lo rotula "Costo unitario (unidad base)".
+- **`CantidadPorUnidadMedida` se congela al guardar la línea** y el registro vuelve a obtener el factor: si cambió, el
+  registro falla con `diario.factor_cambiado` y el número de línea (hay que volver a guardar la línea).
+- **`NumeroDocumento` de la línea es opcional**; si viene vacío, los movimientos llevan el `NumeroRegistro`.
+- **Orden de registro:** por `FechaRegistro`, luego entradas antes que salidas, luego `NumeroLinea`, para que una salida pueda
+  consumir una entrada del mismo día del mismo lote.
+- **Las líneas registradas se borran lógicamente** (las líneas son maestros con soft delete como el resto).
+- **`RegistrosDiario` es append-only** (mismo trigger que el libro).
+- **Borrar un almacén** toma un advisory lock exclusivo del almacén y `RegistrarAsync` toma el mismo lock en modo compartido,
+  para que no pueda registrarse un movimiento en un almacén que se está borrando. Cambiar la unidad base y borrar un producto
+  toman el lock del producto.
+- **Permisos:** consultar = CanConsult; crear/editar lotes y líneas = CanAdd/CanModify; borrar = CanDelete; **registrar un
+  lote = CanModify** (afecta al inventario; Administrador y Supervisor).
+
 ---
 
 ## Fase 5 — Contabilidad simplificada
