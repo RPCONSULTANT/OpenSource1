@@ -10,7 +10,7 @@ namespace OpenSource1.SmokeTests.Infrastructure;
 /// <summary>
 /// Verifica contra Postgres real la migración con transformación de datos
 /// <c>ExtendSocioNegocio</c> (Task 2.6): aplica las migraciones hasta la anterior, siembra filas
-/// (completa, con nulos, borrada lógicamente y con Nombre+Apellido de 100 caracteres cada uno),
+/// (completa, con nulos, borrada lógicamente, con Nombre+Apellido de 100 caracteres cada uno y heredada con nombre y correo vacíos),
 /// aplica la migración y comprueba los datos; luego prueba <c>Down()</c> y <c>Up()</c> de nuevo.
 /// REQUIERE DOCKER.
 /// </summary>
@@ -36,6 +36,10 @@ public sealed class ExtendSocioNegocioMigrationTests(PostgresTestFixture fixture
             ('33333333-3333-3333-3333-333333333333','Borrado','Cliente','borrado@test.local','2026-01-03 10:00:00+00','admin',true,'2026-02-01 10:00:00+00','admin');
             INSERT INTO "SociosNegocio" ("Id","Nombre","Apellido","Email","CreatedAtUtc","CreatedBy","IsDeleted") VALUES
             ('44444444-4444-4444-4444-444444444444',repeat('N',100),repeat('A',98) || ' B','largo@test.local','2026-01-04 10:00:00+00','admin',false);
+            -- Heredados sin nombre ni correo (defaults de una migración anterior): '' y solo espacios.
+            INSERT INTO "SociosNegocio" ("Id","Nombre","Apellido","Email","CreatedAtUtc","CreatedBy","IsDeleted") VALUES
+            ('55555555-5555-5555-5555-555555555555','','','','2026-01-05 10:00:00+00','admin',false),
+            ('66666666-6666-6666-6666-666666666666','  ','','   ','2026-01-06 10:00:00+00','admin',false);
             """);
 
         await migrador.MigrateAsync();
@@ -46,9 +50,9 @@ public sealed class ExtendSocioNegocioMigrationTests(PostgresTestFixture fixture
             FROM "SociosNegocio" ORDER BY "Codigo"
             """);
 
-        Assert.Equal(4, filas.Count);
+        Assert.Equal(6, filas.Count);
         // Códigos de 6 dígitos, sin duplicados, en orden de CreatedAtUtc e incluyendo la fila borrada.
-        Assert.Equal(["000001", "000002", "000003", "000004"], filas.Select(f => (string)f[0]!));
+        Assert.Equal(["000001", "000002", "000003", "000004", "000005", "000006"], filas.Select(f => (string)f[0]!));
         Assert.Equal("Ana Pérez", filas[0][1]);
         Assert.Equal("Juan López", filas[1][1]);
         Assert.Equal("Borrado Cliente", filas[2][1]);
@@ -67,6 +71,11 @@ public sealed class ExtendSocioNegocioMigrationTests(PostgresTestFixture fixture
         });
         // Los datos existentes sobreviven.
         Assert.Equal("ana@test.local", filas[0][5]);
+        // Sin nombre ni correo: NombreComercial obligatorio cae al Codigo generado y el Email vacío/solo espacios es NULL.
+        Assert.Equal("000005", filas[4][1]);
+        Assert.Equal("000006", filas[5][1]);
+        Assert.Null(filas[4][5]);
+        Assert.Null(filas[5][5]);
         Assert.Equal("809-555-0001", filas[0][6]);
         Assert.Null(filas[1][6]);
 
@@ -77,7 +86,7 @@ public sealed class ExtendSocioNegocioMigrationTests(PostgresTestFixture fixture
             FROM "LineasSerie" l JOIN "Series" s ON s."Id" = l."SerieId" WHERE s."Codigo" = 'SOCIOS'
             """);
         Assert.Single(serie);
-        Assert.Equal("000004", serie[0][0]);
+        Assert.Equal("000006", serie[0][0]);
         Assert.Equal("000001", serie[0][1]);
         Assert.Equal("999999", serie[0][2]);
         Assert.False((bool)serie[0][3]!);
@@ -96,6 +105,11 @@ public sealed class ExtendSocioNegocioMigrationTests(PostgresTestFixture fixture
         var abajo = await LeerAsync("""SELECT "Nombre", "Apellido" FROM "SociosNegocio" WHERE "Id" = '11111111-1111-1111-1111-111111111111'""");
         Assert.Equal("Ana", abajo[0][0]);
         Assert.Equal("Pérez", abajo[0][1]);
+        // Los heredados vacíos bajan con el Codigo como Nombre ('-' de Apellido) y el Email NULL vuelve a ''.
+        var abajoVacio = await LeerAsync("""SELECT "Nombre", "Apellido", "Email" FROM "SociosNegocio" WHERE "Id" = '55555555-5555-5555-5555-555555555555'""");
+        Assert.Equal("000005", abajoVacio[0][0]);
+        Assert.Equal("-", abajoVacio[0][1]);
+        Assert.Equal("", abajoVacio[0][2]);
         var indicesAbajo = (await LeerAsync("""SELECT indexname FROM pg_indexes WHERE tablename = 'SociosNegocio'"""))
             .Select(f => (string)f[0]!).ToList();
         Assert.Contains("IX_SociosNegocio_Nombre_trgm", indicesAbajo);
@@ -106,10 +120,13 @@ public sealed class ExtendSocioNegocioMigrationTests(PostgresTestFixture fixture
         // Up() de nuevo: mismo resultado.
         await migrador.MigrateAsync();
         var otraVez = await LeerAsync("""SELECT "Codigo", "NombreComercial" FROM "SociosNegocio" ORDER BY "Codigo" """);
-        Assert.Equal(["000001", "000002", "000003", "000004"], otraVez.Select(f => (string)f[0]!));
+        Assert.Equal(["000001", "000002", "000003", "000004", "000005", "000006"], otraVez.Select(f => (string)f[0]!));
         Assert.Equal("Ana Pérez", otraVez[0][1]);
+        // Tras Down/Up el heredado vacío queda no vacío: Down lo bajó como Nombre "000005" + Apellido "-" (recomposición
+        // aproximada ya documentada, igual que con cualquier nombre de una sola palabra) y Up lo recompone como "000005 -".
+        Assert.Equal("000005 -", otraVez[4][1]);
         var serie2 = await LeerAsync("""SELECT l."UltimoNumeroUsado" FROM "LineasSerie" l JOIN "Series" s ON s."Id" = l."SerieId" WHERE s."Codigo" = 'SOCIOS'""");
-        Assert.Equal("000004", serie2[0][0]);
+        Assert.Equal("000006", serie2[0][0]);
     }
 
     private async Task EjecutarAsync(string sql)

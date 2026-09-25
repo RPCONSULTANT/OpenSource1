@@ -135,7 +135,9 @@ namespace OpenSource1.Infrastructure.Data.Migrations.Application
                 oldType: "character varying(256)",
                 oldMaxLength: 256);
 
-            // 2. Transformación de datos.
+            // 2. Transformación de datos. NombreComercial es obligatorio: si Nombre y Apellido estaban vacíos (defaults de
+            // una migración anterior) el nombre compuesto queda '' y se usa el Codigo generado en el mismo UPDATE. Un Email
+            // vacío o de solo espacios pasa a NULL (Email ahora es opcional).
             migrationBuilder.Sql("""
                 DO $$
                 BEGIN
@@ -147,7 +149,8 @@ namespace OpenSource1.Infrastructure.Data.Migrations.Application
 
             migrationBuilder.Sql("""
                 UPDATE "SociosNegocio" AS s
-                SET "NombreComercial" = TRIM(LEFT(TRIM(s."Nombre" || ' ' || s."Apellido"), 200)),
+                SET "NombreComercial" = COALESCE(NULLIF(TRIM(LEFT(TRIM(s."Nombre" || ' ' || s."Apellido"), 200)), ''), n."Codigo"),
+                    "Email" = NULLIF(TRIM(s."Email"), ''),
                     "Tipo" = 1,
                     "TipoDocumentoFiscal" = 9,
                     "Codigo" = n."Codigo"
