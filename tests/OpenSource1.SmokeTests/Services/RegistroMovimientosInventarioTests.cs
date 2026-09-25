@@ -515,6 +515,34 @@ public sealed class RegistroMovimientosInventarioTests(PostgresTestFixture fixtu
     }
 
     [Fact]
+    public async Task Salida_ConCostoUnitarioNegativo_SeIgnoraYTieneExito()
+    {
+        // Contrato: CostoUnitario solo se valida en entradas; en una salida se ignora aunque venga fuera de rango.
+        var producto = await _prueba.SembrarProductoAsync();
+        var almacen = await _prueba.SembrarAlmacenAsync();
+        await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Entrada(producto, almacen, 10m, 10m, D1));
+
+        var salida = LibroInventarioPrueba.Salida(producto, almacen, 1m, D2) with { CostoUnitario = -1m };
+        await _prueba.RegistrarOkAsync(salida);
+    }
+
+    [Fact]
+    public async Task Entrada_ConImporteVentaNegativo_SeIgnoraYSeGuardaCero()
+    {
+        // Contrato: ImporteVenta solo se valida en salidas; en una entrada se ignora y se guarda 0.
+        var producto = await _prueba.SembrarProductoAsync();
+        var almacen = await _prueba.SembrarAlmacenAsync();
+
+        var entrada = LibroInventarioPrueba.Entrada(producto, almacen, 10m, 10m, D1) with { ImporteVenta = -1m };
+        var registrado = await _prueba.RegistrarOkAsync(entrada);
+
+        await using var conexion = _prueba.NuevaConexion();
+        var importeVenta = await conexion.QuerySingleAsync<decimal>(
+            """SELECT "ImporteVenta" FROM "MovimientosValor" WHERE "Id" = @id""", new { id = registrado.MovimientoValorId });
+        Assert.Equal(0m, importeVenta);
+    }
+
+    [Fact]
     public async Task LongitudesEnElLimite_SeAceptan()
     {
         var producto = await _prueba.SembrarProductoAsync();

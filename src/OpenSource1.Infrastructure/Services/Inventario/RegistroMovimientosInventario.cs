@@ -106,7 +106,8 @@ public sealed class RegistroMovimientosInventario(
                 "Una entrada requiere un costo unitario mayor o igual que cero.", "CostoUnitario"));
         }
 
-        if (solicitud.CostoUnitario is { } costoSolicitado && !EsImporteValido(costoSolicitado))
+        // Solo se valida en entradas: en una salida CostoUnitario se ignora (el contrato no lo usa allí).
+        if (solicitud.EsEntrada && solicitud.CostoUnitario is { } costoSolicitado && !EsImporteValido(costoSolicitado))
         {
             return Fallo(new Error(
                 "inventario.costo_invalido",
@@ -127,7 +128,8 @@ public sealed class RegistroMovimientosInventario(
                 $"El número de documento admite como máximo {LongitudNumeroDocumento} caracteres.", "NumeroDocumento"));
         }
 
-        if (!EsImporteValido(solicitud.ImporteVenta))
+        // Solo se valida en salidas: en una entrada ImporteVenta se ignora y se guarda 0 (ver el INSERT de abajo).
+        if (!solicitud.EsEntrada && !EsImporteValido(solicitud.ImporteVenta))
         {
             return Fallo(new Error(
                 "inventario.importe_venta_invalido",
