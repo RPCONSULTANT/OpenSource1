@@ -118,7 +118,9 @@ Directory.CreateDirectory(uploadsRoot);
 app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new PhysicalFileProvider(uploadsRoot),
-    RequestPath = "/uploads"
+    RequestPath = "/uploads",
+    // Las subidas son contenido de usuario: el navegador no debe "adivinar" otro tipo distinto del declarado.
+    OnPrepareResponse = context => context.Context.Response.Headers["X-Content-Type-Options"] = "nosniff"
 });
 
 app.UseRouting();
