@@ -303,6 +303,26 @@ public sealed class CategoriasProductoApiTests : IClassFixture<PostgresTestFixtu
         return (await response.Content.ReadFromJsonAsync<CategoriaProductoResponse>())!;
     }
 
+    [Fact]
+    public async Task Listado_Y_GetPorId_NoDevuelvenUnaCategoriaBorradaLogicamente()
+    {
+        // Protege el predicado "IsDeleted" = false de DapperCategoriaProductoReadRepository (lista y GET por Id).
+        var client = CreateClient("Administrador");
+        var marca = Guid.NewGuid().ToString("N")[..8];
+
+        var conservada = await Crear(client, $"L{marca}A");
+        var borrada = await Crear(client, $"L{marca}B");
+        Assert.Equal(2, (await client.GetFromJsonAsync<PagedResult<CategoriaProductoResponse>>($"{Ruta}?codigo={marca}"))!.Total);
+
+        Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"{Ruta}/{borrada.Id}")).StatusCode);
+
+        var paged = (await client.GetFromJsonAsync<PagedResult<CategoriaProductoResponse>>($"{Ruta}?codigo={marca}"))!;
+        Assert.Equal(1, paged.Total);
+        Assert.Equal(conservada.Id, Assert.Single(paged.Items).Id);
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync($"{Ruta}/{conservada.Id}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"{Ruta}/{borrada.Id}")).StatusCode);
+    }
+
     private HttpClient CreateClient(string role)
     {
         var client = _client;

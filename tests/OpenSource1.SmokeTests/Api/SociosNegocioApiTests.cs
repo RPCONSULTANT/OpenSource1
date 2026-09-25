@@ -680,6 +680,27 @@ public sealed class SociosNegocioApiTests : IClassFixture<PostgresTestFixture>
         Assert.Equal(lector.GetInt64(1), long.Parse(lector.GetString(0)));
     }
 
+    [Fact]
+    public async Task Listado_Y_GetPorId_NoDevuelvenUnSocioBorradoLogicamente()
+    {
+        // Protege el predicado "IsDeleted" = false de DapperSocioNegocioReadRepository (lista y GET por Id).
+        // El Codigo lo genera el sistema, por eso se filtra por una marca unica en NombreComercial.
+        var client = CreateClient("Administrador");
+        var marca = Guid.NewGuid().ToString("N")[..12];
+
+        var conservado = await AltaConAsync(client, new { nombreComercial = $"Socio {marca} conservado" });
+        var borrado = await AltaConAsync(client, new { nombreComercial = $"Socio {marca} borrado" });
+        Assert.Equal(2, (await ListarAsync(client, $"nombreComercial={marca}")).Total);
+
+        Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"/api/socios-negocio/{borrado.Id}")).StatusCode);
+
+        var paged = await ListarAsync(client, $"nombreComercial={marca}");
+        Assert.Equal(1, paged.Total);
+        Assert.Equal(conservado.Id, Assert.Single(paged.Items).Id);
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync($"/api/socios-negocio/{conservado.Id}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/api/socios-negocio/{borrado.Id}")).StatusCode);
+    }
+
     private HttpClient CreateClient(string role)
     {
         var client = _client;

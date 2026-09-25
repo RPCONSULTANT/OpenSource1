@@ -259,6 +259,40 @@ public sealed class UnidadesMedidaApiTests : IClassFixture<PostgresTestFixture>
         Assert.NotNull(paged);
     }
 
+    [Fact]
+    public async Task Listado_Y_GetPorId_NoDevuelvenUnaUnidadBorradaLogicamente()
+    {
+        // Protege el predicado "IsDeleted" = false de DapperUnidadMedidaReadRepository (lista y GET por Id).
+        var client = CreateClient("Administrador");
+        var marca = Guid.NewGuid().ToString("N")[..8];
+
+        var conservada = await CrearAsync(client, $"D{marca}A");
+        var borrada = await CrearAsync(client, $"D{marca}B");
+        Assert.Equal(2, (await ListarPorMarcaAsync(client, marca)).Total);
+
+        Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"/api/unidades-medida/{borrada}")).StatusCode);
+
+        var paged = await ListarPorMarcaAsync(client, marca);
+        Assert.Equal(1, paged.Total);
+        Assert.Equal(conservada, Assert.Single(paged.Items).Id);
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync($"/api/unidades-medida/{conservada}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/api/unidades-medida/{borrada}")).StatusCode);
+    }
+
+    private static async Task<Guid> CrearAsync(HttpClient client, string codigo)
+    {
+        var create = await client.PostAsJsonAsync("/api/unidades-medida", new { codigo, nombre = "Borrado logico", decimales = 0 });
+        Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+        return JsonDocument.Parse(await create.Content.ReadAsStringAsync()).RootElement.GetProperty("id").GetGuid();
+    }
+
+    private static async Task<PagedResult<UnidadMedidaResponse>> ListarPorMarcaAsync(HttpClient client, string marca)
+    {
+        var response = await client.GetAsync($"/api/unidades-medida?codigo={marca}");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        return (await response.Content.ReadFromJsonAsync<PagedResult<UnidadMedidaResponse>>())!;
+    }
+
     private HttpClient CreateClient(string role)
     {
         var client = _client;

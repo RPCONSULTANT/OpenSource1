@@ -504,6 +504,39 @@ public sealed class ProductosApiTests : IClassFixture<PostgresTestFixture>
         await contexto.Database.ExecuteSqlRawAsync(sql);
     }
 
+    [Fact]
+    public async Task Listado_Y_GetPorId_NoDevuelvenUnProductoBorradoLogicamente()
+    {
+        // Protege el predicado "IsDeleted" = false del SELECT base compartido de DapperProductoReadRepository
+        // (ProductosAplanados: lo usan el listado, el recuento y el GET por Id).
+        var client = CreateClient("Administrador");
+        var categoria = await CrearCategoriaAsync(client);
+        var unidad = await CrearUnidadAsync(client);
+        var marca = Guid.NewGuid().ToString("N")[..10];
+
+        var conservado = await CrearProductoAsync(client, $"{marca}A", categoria.Id, unidad.Id);
+        var borrado = await CrearProductoAsync(client, $"{marca}B", categoria.Id, unidad.Id);
+        Assert.Equal(2, (await client.GetFromJsonAsync<PagedResult<ProductoResponse>>($"/api/productos?codigo={marca}"))!.Total);
+
+        Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"/api/productos/{borrado}")).StatusCode);
+
+        var paged = (await client.GetFromJsonAsync<PagedResult<ProductoResponse>>($"/api/productos?codigo={marca}"))!;
+        Assert.Equal(1, paged.Total);
+        Assert.Equal(conservado, Assert.Single(paged.Items).Id);
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync($"/api/productos/{conservado}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/api/productos/{borrado}")).StatusCode);
+    }
+
+    private static async Task<Guid> CrearProductoAsync(HttpClient client, string codigo, Guid categoriaId, Guid unidadId)
+    {
+        var respuesta = await client.PostAsJsonAsync("/api/productos", new
+        {
+            codigo, nombre = "Producto borrado logico", precioVenta = 1m, stock = 0, categoriaId, unidadMedidaBaseId = unidadId,
+        });
+        Assert.Equal(HttpStatusCode.Created, respuesta.StatusCode);
+        return (await respuesta.Content.ReadFromJsonAsync<ProductoResponse>())!.Id;
+    }
+
     private HttpClient CreateClient(string role)
     {
         _client.DefaultRequestHeaders.Remove("X-Test-Anonymous");
