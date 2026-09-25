@@ -1,10 +1,12 @@
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using OpenSource1.Api.Infrastructure;
 using OpenSource1.Application.Security;
 using OpenSource1.Application.Features.AppSettings.Commands;
 using OpenSource1.Application.Features.AppSettings.Dtos;
 using OpenSource1.Application.Features.AppSettings.Queries;
+using OpenSource1.Core.Common;
 using System;
 
 namespace OpenSource1.Api.Controllers;
@@ -16,11 +18,16 @@ public sealed class AppSettingsController(ISender sender) : ControllerBase
 {
     [HttpGet]
     [Authorize(Policy = ApplicationPolicies.CanConsult)]
-    [ProducesResponseType<IReadOnlyList<AppSettingResponse>>(StatusCodes.Status200OK)]
-    public async Task<ActionResult<IReadOnlyList<AppSettingResponse>>> List(CancellationToken cancellationToken)
+    [ProducesResponseType<PagedResult<AppSettingResponse>>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> List(
+        [FromQuery] int pagina = 1,
+        [FromQuery] int tamanoPagina = PageRequest.TamanoPorDefecto,
+        [FromQuery] string? ordenarPor = null,
+        [FromQuery] bool descendente = true,
+        CancellationToken cancellationToken = default)
     {
-        var response = await sender.Send(new ListAppSettingsQuery(), cancellationToken);
-        return Ok(response);
+        var response = await sender.Send(new ListAppSettingsQuery(new PageRequest(pagina, tamanoPagina, ordenarPor, descendente)), cancellationToken);
+        return response.EsFallo ? response.ToActionResult() : Ok(response.Valor);
     }
 
     [HttpGet("{key}")]

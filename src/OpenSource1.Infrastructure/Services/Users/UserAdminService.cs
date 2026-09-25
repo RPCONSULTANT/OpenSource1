@@ -24,11 +24,13 @@ public sealed class UserAdminService(
             roles.ToArray());
     }
 
-    public async Task<(bool Success, IReadOnlyList<string> Errors)> CreateUserAsync(CreateUserRequest request, CancellationToken cancellationToken = default)
+    public async Task<(bool Success, string? UserId, IReadOnlyList<string> Errors)> CreateUserAsync(CreateUserRequest request, CancellationToken cancellationToken = default)
     {
         var user = new Usuario { UserName = request.Email.Trim(), Email = request.Email.Trim(), FullName = request.FullName.Trim(), IsActive = true };
         var result = await userManager.CreateAsync(user, request.Password);
-        return result.Succeeded ? (true, Array.Empty<string>()) : (false, result.Errors.Select(e => e.Description).ToArray());
+        return result.Succeeded
+            ? (true, user.Id, Array.Empty<string>())
+            : (false, null, result.Errors.Select(e => e.Description).ToArray());
     }
 
     public async Task<(bool Success, IReadOnlyList<string> Errors)> DeleteUserAsync(string userId, CancellationToken cancellationToken = default)

@@ -1,10 +1,19 @@
 using OpenSource1.Application.Features.Productos.Dtos;
+using OpenSource1.Core.Common;
 
 namespace OpenSource1.Blazor.Services;
 
 public interface IProductoApiClient
 {
-    Task<IReadOnlyList<ProductoResponse>> ListAsync(ProductoSearchFilter? filter = null, CancellationToken cancellationToken = default);
+    Task<PagedResult<ProductoResponse>> ListAsync(ProductoSearchFilter? filter = null, PageRequest? paginacion = null, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Recupera todos los productos que coincidan con el filtro, paginando internamente contra la
+    /// API con el tamaño de página máximo. Uso reservado a consumidores que necesitan el conjunto
+    /// completo (reportes crudos, paneles con agregados) y no a los listados paginados.
+    /// </summary>
+    Task<IReadOnlyList<ProductoResponse>> ListAllAsync(ProductoSearchFilter? filter = null, CancellationToken cancellationToken = default);
+
     Task<ProductoResponse?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
     Task<ProductoOperationResult> CreateAsync(ProductoInput input, CancellationToken cancellationToken = default);
     Task<ProductoOperationResult> UpdateAsync(Guid id, ProductoInput input, CancellationToken cancellationToken = default);

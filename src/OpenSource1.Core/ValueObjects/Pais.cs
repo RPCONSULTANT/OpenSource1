@@ -1,4 +1,5 @@
 using OpenSource1.Core.Abstractions;
+using OpenSource1.Core.Common;
 
 namespace OpenSource1.Core.ValueObjects;
 
@@ -33,14 +34,28 @@ public sealed class Pais : ValueObject
     public static bool EsCodigoValido(string? codigo) =>
         !string.IsNullOrWhiteSpace(codigo) && Nombres.ContainsKey(codigo.Trim().ToUpperInvariant());
 
-    public static Pais Of(string codigo)
+    /// <param name="codigo">Código ISO del país.</param>
+    /// <param name="nombreCampo">
+    /// Nombre del campo tal como lo conoce el llamante (p. ej. la propiedad del DTO,
+    /// <c>nameof(request.PaisCodigo)</c>). El value object no conoce la forma del DTO que lo
+    /// invoca, así que si no se indica se usa <c>nameof(codigo)</c> como respaldo.
+    /// </param>
+    public static Pais Of(string codigo, string? nombreCampo = null)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(codigo);
+        var campo = nombreCampo ?? nameof(codigo);
+
+        if (string.IsNullOrWhiteSpace(codigo))
+        {
+            throw new ErroresDeDominioException(new Error(
+                "pais.codigo_requerido", "El código de país es obligatorio.", campo));
+        }
+
         var normalizado = codigo.Trim().ToUpperInvariant();
 
         if (!Nombres.TryGetValue(normalizado, out var nombre))
         {
-            throw new ArgumentException($"Código de país no reconocido: '{codigo}'.", nameof(codigo));
+            throw new ErroresDeDominioException(new Error(
+                "pais.codigo_invalido", $"Código de país no reconocido: '{codigo}'.", campo));
         }
 
         return new Pais(normalizado, nombre);

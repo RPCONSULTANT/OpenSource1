@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using OpenSource1.Application.Features.AppSettings.Dtos;
+using OpenSource1.Core.Common;
 using System;
 
 namespace OpenSource1.Blazor.Services;
@@ -8,8 +9,31 @@ namespace OpenSource1.Blazor.Services;
 [Obsolete("Modulo de prueba obsoleto. No usar AppSettings para nuevos desarrollos.")]
 public sealed class AppSettingsApiClient(HttpClient httpClient, ILogger<AppSettingsApiClient> logger) : IAppSettingsApiClient
 {
-    public async Task<IReadOnlyList<AppSettingResponse>> ListAsync(CancellationToken cancellationToken = default) =>
-        await httpClient.GetFromJsonAsync<IReadOnlyList<AppSettingResponse>>("api/app-settings", cancellationToken) ?? [];
+    public async Task<PagedResult<AppSettingResponse>> ListAsync(PageRequest? paginacion = null, CancellationToken cancellationToken = default) =>
+        await httpClient.GetFromJsonAsync<PagedResult<AppSettingResponse>>(BuildListUrl(paginacion), cancellationToken)
+            ?? PagedResult<AppSettingResponse>.Vacio(paginacion ?? new PageRequest());
+
+    private static string BuildListUrl(PageRequest? paginacion)
+    {
+        if (paginacion is null)
+        {
+            return "api/app-settings";
+        }
+
+        var parameters = new List<string>
+        {
+            $"pagina={paginacion.Pagina}",
+            $"tamanoPagina={paginacion.TamanoPagina}",
+            $"descendente={(paginacion.Descendente ? "true" : "false")}"
+        };
+
+        if (!string.IsNullOrWhiteSpace(paginacion.OrdenarPor))
+        {
+            parameters.Add($"ordenarPor={Uri.EscapeDataString(paginacion.OrdenarPor)}");
+        }
+
+        return $"api/app-settings?{string.Join("&", parameters)}";
+    }
 
     public async Task<AppSettingOperationResult> CreateAsync(AppSettingInput input, CancellationToken cancellationToken = default)
     {

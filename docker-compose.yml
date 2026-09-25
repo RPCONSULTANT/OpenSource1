@@ -14,7 +14,7 @@ services:
       ConnectionStrings__IdentityConnection: "Host=postgres;Port=5432;Database=AxionERP_Identity;Username=Rainiery;Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in a local .env file}"
       Jwt__Issuer: OpenSource1.Local
       Jwt__Audience: OpenSource1.Local
-      Jwt__SigningKey: "${JWT_SIGNING_KEY:-LocalDevelopmentSigningKey_ChangeMe_1234567890}"
+      Jwt__SigningKey: "${JWT_SIGNING_KEY:?Set JWT_SIGNING_KEY in a local .env file}"
       Jwt__ExpirationMinutes: 120
       Cors__AllowedOrigins__0: http://localhost:8080
       Api__BaseAddress: http://api:8080/
@@ -43,7 +43,7 @@ services:
       ConnectionStrings__IdentityConnection: "Host=postgres;Port=5432;Database=AxionERP_Identity;Username=Rainiery;Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in a local .env file}"
       Jwt__Issuer: OpenSource1.Local
       Jwt__Audience: OpenSource1.Local
-      Jwt__SigningKey: "${JWT_SIGNING_KEY:-LocalDevelopmentSigningKey_ChangeMe_1234567890}"
+      Jwt__SigningKey: "${JWT_SIGNING_KEY:?Set JWT_SIGNING_KEY in a local .env file}"
       Jwt__ExpirationMinutes: 120
       Cors__AllowedOrigins__0: http://localhost:8080
       Cors__AllowedOrigins__1: http://localhost:8081

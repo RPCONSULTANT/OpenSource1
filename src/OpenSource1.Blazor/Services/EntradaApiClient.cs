@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using OpenSource1.Application.Features.Entradas.Dtos;
+using OpenSource1.Core.Common;
 using System;
 
 namespace OpenSource1.Blazor.Services;
@@ -8,9 +9,9 @@ namespace OpenSource1.Blazor.Services;
 [Obsolete("Modulo de prueba obsoleto. No usar Entradas para nuevos desarrollos.")]
 public sealed class EntradaApiClient(HttpClient httpClient, ILogger<EntradaApiClient> logger) : IEntradaApiClient
 {
-    public async Task<IReadOnlyList<EntradaResponse>> ListAsync(CancellationToken cancellationToken = default)
+    public async Task<PagedResult<EntradaResponse>> ListAsync(PageRequest? paginacion = null, CancellationToken cancellationToken = default)
     {
-        using var response = await httpClient.GetAsync("api/entradas", cancellationToken);
+        using var response = await httpClient.GetAsync(BuildListUrl(paginacion), cancellationToken);
 
         if (!response.IsSuccessStatusCode)
         {
@@ -22,7 +23,30 @@ public sealed class EntradaApiClient(HttpClient httpClient, ILogger<EntradaApiCl
                 statusCode: response.StatusCode);
         }
 
-        return await response.Content.ReadFromJsonAsync<IReadOnlyList<EntradaResponse>>(cancellationToken) ?? [];
+        return await response.Content.ReadFromJsonAsync<PagedResult<EntradaResponse>>(cancellationToken)
+            ?? PagedResult<EntradaResponse>.Vacio(paginacion ?? new PageRequest());
+    }
+
+    private static string BuildListUrl(PageRequest? paginacion)
+    {
+        if (paginacion is null)
+        {
+            return "api/entradas";
+        }
+
+        var parameters = new List<string>
+        {
+            $"pagina={paginacion.Pagina}",
+            $"tamanoPagina={paginacion.TamanoPagina}",
+            $"descendente={(paginacion.Descendente ? "true" : "false")}"
+        };
+
+        if (!string.IsNullOrWhiteSpace(paginacion.OrdenarPor))
+        {
+            parameters.Add($"ordenarPor={Uri.EscapeDataString(paginacion.OrdenarPor)}");
+        }
+
+        return $"api/entradas?{string.Join("&", parameters)}";
     }
 
     public async Task<EntradaOperationResult> CreateAsync(EntradaInput input, CancellationToken cancellationToken = default)

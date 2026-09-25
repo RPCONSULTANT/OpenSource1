@@ -4,9 +4,25 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
 using OpenSource1.Api;
 
 namespace OpenSource1.SmokeTests.TestInfrastructure;
+
+/// <summary>
+/// Agrupa todas las clases de test que usan <see cref="PostgresTestFixture"/> en una única
+/// colección xUnit con <c>DisableParallelization = true</c>, de modo que se ejecuten en
+/// serie en vez de competir por el mismo nombre de contenedor Docker y el mismo puerto fijos
+/// (<c>opensource1-tests-postgres</c>, 65432). Cada clase conserva su propia instancia del
+/// fixture vía <c>IClassFixture&lt;PostgresTestFixture&gt;</c> (un contenedor propio, creado y
+/// destruido por clase); esta colección solo serializa el orden de ejecución entre clases.
+/// Decorar cada clase que consuma el fixture con <c>[Collection(Name)]</c>.
+/// </summary>
+[CollectionDefinition(Name, DisableParallelization = true)]
+public sealed class PostgresCollection
+{
+    public const string Name = "Postgres";
+}
 
 public sealed class PostgresTestFixture : IAsyncLifetime
 {
@@ -20,6 +36,20 @@ public sealed class PostgresTestFixture : IAsyncLifetime
     public async Task InitializeAsync()
     {
         await RunAsync("docker", $"rm -f {ContainerName}", ignoreFailure: true);
+
+        // Cada clase de test respawnea un contenedor nuevo pero reutiliza exactamente la misma
+        // cadena de conexión (mismo host/puerto/db/usuario/password, por diseño: el puerto y el
+        // nombre de contenedor son constantes). Npgsql mantiene un pool de conexiones físicas a
+        // nivel de proceso, indexado por el texto exacto de la cadena de conexión — no por
+        // contenedor. Sin este ClearAllPools(), una conexión pooled abierta contra el contenedor
+        // anterior (ya destruido por el "docker rm -f" de arriba, o el de la clase previa) puede
+        // devolverse como si estuviera sana, y la primera operación sobre ella revienta con
+        // EndOfStreamException / "Exception while reading from stream" al intentar leer de un
+        // socket cuyo proceso servidor ya no existe. Limpiar los pools al iniciar cada fixture
+        // garantiza que la próxima conexión abierta sea física y nueva, contra el contenedor que
+        // se acaba de levantar.
+        NpgsqlConnection.ClearAllPools();
+
         await RunAsync("docker", $"run -d --name {ContainerName} -e POSTGRES_PASSWORD={_password} -p {HostPort}:5432 postgres:17-alpine");
         await WaitForPostgresAsync();
         await EnsureDatabaseAsync("AxionERP_App");
@@ -29,6 +59,10 @@ public sealed class PostgresTestFixture : IAsyncLifetime
     public async Task DisposeAsync()
     {
         await RunAsync("docker", $"rm -f {ContainerName}", ignoreFailure: true);
+
+        // Evita que conexiones pooled contra el contenedor recién destruido sobrevivan para la
+        // siguiente clase (ver comentario en InitializeAsync).
+        NpgsqlConnection.ClearAllPools();
     }
 
     public WebApplicationFactory<Program> CreateFactory()
@@ -50,9 +84,18 @@ public sealed class PostgresTestFixture : IAsyncLifetime
 
     private async Task WaitForPostgresAsync()
     {
+        // "-h 127.0.0.1" fuerza a pg_isready a comprobar el listener TCP, no el socket Unix.
+        // La imagen oficial de postgres arranca un "servidor temporal" interno (para correr
+        // scripts de inicialización) con listen_addresses='' — solo acepta el socket Unix,
+        // nunca TCP — y lo apaga antes de levantar el servidor real. Sin "-h" aquí, pg_isready
+        // puede reportar listo contra ese servidor temporal (ventana confirmada de ~100ms en la
+        // imagen postgres:17-alpine), y una consulta inmediatamente posterior falla con
+        // "the database system is shutting down". Comprobar el TCP evita esa ventana: el
+        // servidor temporal nunca escucha ahí, así que solo puede responder "accepting
+        // connections" el servidor real definitivo.
         for (var i = 0; i < 60; i++)
         {
-            var result = await RunAsync("docker", $"exec {ContainerName} pg_isready -U postgres", captureOutput: true, ignoreFailure: true);
+            var result = await RunAsync("docker", $"exec {ContainerName} pg_isready -U postgres -h 127.0.0.1", captureOutput: true, ignoreFailure: true);
             if (result.ExitCode == 0)
             {
                 return;
@@ -104,7 +147,8 @@ public sealed class PostgresTestFixture : IAsyncLifetime
                     ["Jwt:Issuer"] = "OpenSource1.Tests",
                     ["Jwt:Audience"] = "OpenSource1.Tests",
                     ["Jwt:SigningKey"] = "TestSigningKey_ChangeMe_1234567890",
-                    ["Jwt:ExpirationMinutes"] = "60"
+                    ["Jwt:ExpirationMinutes"] = "60",
+                    ["Cors:AllowedOrigins:0"] = "http://localhost:5110"
                 });
             });
 

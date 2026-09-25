@@ -17,6 +17,9 @@ x86/
 appsettings.Local.json
 secrets.json
 .env
+appsettings.json
+src/OpenSource1.Api/appsettings.json
+src/OpenSource1.Api/appsettings.Development.json
 
 # Local opencode tooling
 .opencode/

@@ -1,6 +1,7 @@
 using FluentValidation;
 using FluentValidation.AspNetCore;
 using Microsoft.AspNetCore.Mvc;
+using OpenSource1.Api.Infrastructure;
 using OpenSource1.Application.Security;
 using OpenSource1.Application.Services;
 using OpenSource1.Application.Services.Auth.Dtos;
@@ -46,25 +47,22 @@ builder.Services.AddCors(options =>
 {
     var corsOptions = builder.Configuration.GetSection(CorsOptions.SectionName).Get<CorsOptions>() ?? new CorsOptions();
 
-    options.AddPolicy(CorsOptions.PolicyName, policy =>
+    if (corsOptions.AllowedOrigins.Length == 0)
     {
-        if (corsOptions.AllowedOrigins.Length > 0)
-        {
-            policy.WithOrigins(corsOptions.AllowedOrigins)
-                .AllowAnyHeader()
-                .AllowAnyMethod();
-        }
-        else
-        {
-            policy.AllowAnyOrigin()
-                .AllowAnyHeader()
-                .AllowAnyMethod();
-        }
-    });
+        throw new InvalidOperationException(
+            "La sección 'Cors:AllowedOrigins' está vacía. Configure los orígenes permitidos; " +
+            "no se permite el fallback a AllowAnyOrigin.");
+    }
+
+    options.AddPolicy(CorsOptions.PolicyName, policy =>
+        policy.WithOrigins(corsOptions.AllowedOrigins)
+            .AllowAnyHeader()
+            .AllowAnyMethod());
 });
 
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddProblemDetails();
 
 // ── FluentValidation ────────────────────────────────────────────────────────
@@ -104,6 +102,7 @@ app.UseSerilogRequestLogging(options =>
     options.MessageTemplate = "HTTP {RequestMethod} {RequestPath} responded {StatusCode} in {Elapsed:0.0}ms";
 });
 app.UseHttpsRedirection();
+app.UseExceptionHandler();   // Requisito de AddProblemDetails: sin este middleware no produce nada ante excepciones. Debe ir antes de UseStatusCodePages.
 app.UseStatusCodePages(async statusCodeContext =>
 {
     var response = statusCodeContext.HttpContext.Response;

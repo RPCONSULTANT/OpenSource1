@@ -305,7 +305,7 @@ app.MapPost("/reports/clientes/history", async (
     IClienteApiClient clienteApiClient,
     IReportDocumentService reportDocumentService) =>
 {
-    var clientes = await clienteApiClient.ListAsync();
+    var clientes = await clienteApiClient.ListAllAsync();
     if (form.Status == "inactive")
     {
         clientes = [];
@@ -324,7 +324,7 @@ app.MapPost("/reports/clientes/history.xlsx", async (
     IClienteApiClient clienteApiClient,
     IReportDocumentService reportDocumentService) =>
 {
-    var clientes = await clienteApiClient.ListAsync();
+    var clientes = await clienteApiClient.ListAllAsync();
     if (form.Status == "inactive")
     {
         clientes = [];
@@ -343,7 +343,7 @@ app.MapPost("/reports/productos/history", async (
     IProductoApiClient productoApiClient,
     IReportDocumentService reportDocumentService) =>
 {
-    var productos = await productoApiClient.ListAsync();
+    var productos = await productoApiClient.ListAllAsync();
     productos = form.StockState switch
     {
         "with-stock" => productos.Where(x => x.Stock > 0).ToList(),
@@ -364,7 +364,7 @@ app.MapPost("/reports/productos/history.xlsx", async (
     IProductoApiClient productoApiClient,
     IReportDocumentService reportDocumentService) =>
 {
-    var productos = await productoApiClient.ListAsync();
+    var productos = await productoApiClient.ListAllAsync();
     productos = form.StockState switch
     {
         "with-stock" => productos.Where(x => x.Stock > 0).ToList(),
@@ -384,7 +384,7 @@ app.MapGet("/reports/clientes/raw.xlsx", async (
     IClienteApiClient clienteApiClient,
     IReportDocumentService reportDocumentService) =>
 {
-    var clientes = await clienteApiClient.ListAsync();
+    var clientes = await clienteApiClient.ListAllAsync();
     var file = reportDocumentService.GenerateClientesRawExcel(clientes);
     return Results.File(file.Content, file.ContentType, file.FileName);
 }).RequireAuthorization();
@@ -393,7 +393,7 @@ app.MapGet("/reports/productos/raw.xlsx", async (
     IProductoApiClient productoApiClient,
     IReportDocumentService reportDocumentService) =>
 {
-    var productos = await productoApiClient.ListAsync();
+    var productos = await productoApiClient.ListAllAsync();
     var file = reportDocumentService.GenerateProductosRawExcel(productos);
     return Results.File(file.Content, file.ContentType, file.FileName);
 }).RequireAuthorization();

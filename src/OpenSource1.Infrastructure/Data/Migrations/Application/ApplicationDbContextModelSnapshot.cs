@@ -37,9 +37,21 @@ namespace OpenSource1.Infrastructure.Data.Migrations.Application
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<DateTimeOffset?>("DeletedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
                     b.Property<string>("Description")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
 
                     b.Property<string>("Key")
                         .IsRequired()
@@ -58,10 +70,20 @@ namespace OpenSource1.Infrastructure.Data.Migrations.Application
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
 
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
                     b.HasKey("Id");
 
+                    b.HasIndex("CreatedAtUtc")
+                        .HasDatabaseName("IX_AppSettings_CreatedAtUtc");
+
                     b.HasIndex("Key")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = false");
 
                     b.ToTable("AppSettings", (string)null);
                 });
@@ -85,6 +107,13 @@ namespace OpenSource1.Infrastructure.Data.Migrations.Application
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<DateTimeOffset?>("DeletedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
                     b.Property<string>("Email")
                         .IsRequired()
                         .HasMaxLength(256)
@@ -93,6 +122,11 @@ namespace OpenSource1.Infrastructure.Data.Migrations.Application
                     b.Property<string>("ImagePath")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
 
                     b.Property<string>("Nombre")
                         .IsRequired()
@@ -109,6 +143,12 @@ namespace OpenSource1.Infrastructure.Data.Migrations.Application
                     b.Property<string>("UpdatedBy")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
+
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
 
                     b.ComplexProperty(typeof(Dictionary<string, object>), "Direccion", "OpenSource1.Core.Entities.Cliente.Direccion#DireccionCliente", b1 =>
                         {
@@ -150,6 +190,12 @@ namespace OpenSource1.Infrastructure.Data.Migrations.Application
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CreatedAtUtc")
+                        .HasDatabaseName("IX_Clientes_CreatedAtUtc");
+
+                    b.HasIndex("Email")
+                        .HasDatabaseName("IX_Clientes_Email");
+
                     b.ToTable("Clientes", (string)null);
                 });
 
@@ -167,6 +213,13 @@ namespace OpenSource1.Infrastructure.Data.Migrations.Application
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<DateTimeOffset?>("DeletedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
                     b.Property<string>("Descripcion")
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
@@ -175,6 +228,11 @@ namespace OpenSource1.Infrastructure.Data.Migrations.Application
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
 
                     b.Property<string>("Tipo")
                         .IsRequired()
@@ -193,7 +251,16 @@ namespace OpenSource1.Infrastructure.Data.Migrations.Application
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("CreatedAtUtc")
+                        .HasDatabaseName("IX_Entradas_CreatedAtUtc");
 
                     b.ToTable("Entradas", (string)null);
                 });
@@ -217,9 +284,21 @@ namespace OpenSource1.Infrastructure.Data.Migrations.Application
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<DateTimeOffset?>("DeletedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
                     b.Property<string>("ImagePath")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
 
                     b.Property<string>("Nombre")
                         .IsRequired()
@@ -239,6 +318,12 @@ namespace OpenSource1.Infrastructure.Data.Migrations.Application
                     b.Property<string>("UpdatedBy")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
+
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
 
                     b.ComplexProperty(typeof(Dictionary<string, object>), "Categoria", "OpenSource1.Core.Entities.Producto.Categoria#CategoriaProducto", b1 =>
                         {
@@ -277,7 +362,11 @@ namespace OpenSource1.Infrastructure.Data.Migrations.Application
                     b.HasKey("Id");
 
                     b.HasIndex("Codigo")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = false");
+
+                    b.HasIndex("CreatedAtUtc")
+                        .HasDatabaseName("IX_Productos_CreatedAtUtc");
 
                     b.ToTable("Productos", (string)null);
                 });

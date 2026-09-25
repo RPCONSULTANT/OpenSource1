@@ -17,8 +17,8 @@ public sealed class CreateProductoCommandHandler(IUnitOfWork unitOfWork) : IRequ
             Nombre = request.Nombre.Trim(),
             Precio = request.Precio,
             Stock = request.Stock,
-            Categoria = new CategoriaProducto(request.CategoriaCodigo, request.CategoriaNombre),
-            UnidadMedida = UnidadMedida.Of(request.UnidadMedidaCodigo),
+            Categoria = CategoriaProducto.Of(request.CategoriaCodigo, request.CategoriaNombre, nameof(request.CategoriaCodigo), nameof(request.CategoriaNombre)),
+            UnidadMedida = UnidadMedida.Of(request.UnidadMedidaCodigo, nameof(request.UnidadMedidaCodigo)),
             ImagePath = request.ImagePath
         };
         await unitOfWork.Repository<Producto>().AddAsync(entity, cancellationToken);

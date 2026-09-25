@@ -8,7 +8,7 @@ public class UsuarioAndApplicationRolesTests
     [Fact]
     public void Usuario_Constructor_NormalizesValues()
     {
-        var usuario = new Usuario("  rainiery  ", " USER@MAIL.COM ", "  Rainiery Penia  ");
+        var usuario = Usuario.Of("  rainiery  ", " USER@MAIL.COM ", "  Rainiery Penia  ");
 
         Assert.Equal("rainiery", usuario.UserName);
         Assert.Equal("user@mail.com", usuario.Email);
@@ -18,8 +18,8 @@ public class UsuarioAndApplicationRolesTests
     [Fact]
     public void Usuario_Equality_IsCaseInsensitiveForUserName()
     {
-        var first = new Usuario("rainiery", "user@mail.com", "Rainiery Penia");
-        var second = new Usuario("RAINIERY", "user@mail.com", "Rainiery Penia");
+        var first = Usuario.Of("rainiery", "user@mail.com", "Rainiery Penia");
+        var second = Usuario.Of("RAINIERY", "user@mail.com", "Rainiery Penia");
 
         Assert.Equal(first, second);
     }
