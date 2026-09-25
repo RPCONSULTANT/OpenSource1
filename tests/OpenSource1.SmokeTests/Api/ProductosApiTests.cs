@@ -143,6 +143,29 @@ public sealed class ProductosApiTests : IClassFixture<PostgresTestFixture>
     }
 
     [Fact]
+    public async Task Delete_ConMovimientosDeInventario_Devuelve409YSigueVisible_YSinMovimientosDevuelve204()
+    {
+        // Guarda añadida en la revisión final de la Fase 3 (mismo patrón que DeleteAlmacenCommandHandler): el
+        // libro de inventario (append-only, sin FK-cascade de borrado) impide que un producto con movimientos
+        // desaparezca, aunque el borrado sea lógico.
+        var client = CreateClient("Administrador");
+        var conMovimiento = (await (await client.PostAsJsonAsync("/api/productos", new { codigo = CodigoUnico("DELM"), nombre = "Con movimiento", precioVenta = 1m })).Content.ReadFromJsonAsync<ProductoResponse>())!;
+        var sinMovimiento = (await (await client.PostAsJsonAsync("/api/productos", new { codigo = CodigoUnico("DELS"), nombre = "Sin movimiento", precioVenta = 1m })).Content.ReadFromJsonAsync<ProductoResponse>())!;
+        await RegistrarEntradaAsync(conMovimiento.Id, 5m);
+
+        var borrarConMovimiento = await client.DeleteAsync($"/api/productos/{conMovimiento.Id}");
+        Assert.Equal(HttpStatusCode.Conflict, borrarConMovimiento.StatusCode);
+        var cuerpo = await borrarConMovimiento.Content.ReadAsStringAsync();
+        Assert.Contains("movimientos de inventario", cuerpo);
+
+        // Sigue visible: el 409 no tocó nada.
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync($"/api/productos/{conMovimiento.Id}")).StatusCode);
+
+        var borrarSinMovimiento = await client.DeleteAsync($"/api/productos/{sinMovimiento.Id}");
+        Assert.Equal(HttpStatusCode.NoContent, borrarSinMovimiento.StatusCode);
+    }
+
+    [Fact]
     public async Task Create_ConCodigoDuplicadoActivo_Devuelve409EnVezDe500()
     {
         // Hallazgo 1, parte 2: ProductosController.Create no hace un chequeo de existencia previo

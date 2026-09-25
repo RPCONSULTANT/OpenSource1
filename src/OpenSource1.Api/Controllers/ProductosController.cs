@@ -120,10 +120,11 @@ public sealed class ProductosController(ISender sender) : ControllerBase
     [Authorize(Policy = ApplicationPolicies.CanDelete)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
     {
-        var deleted = await sender.Send(new DeleteProductoCommand(id), cancellationToken);
-        return deleted ? NoContent() : NotFound();
+        var result = await sender.Send(new DeleteProductoCommand(id), cancellationToken);
+        return result.EsFallo ? result.ToActionResult() : NoContent();
     }
 }
 
