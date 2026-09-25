@@ -1,0 +1,86 @@
+@using OpenSource1.Application.Features.DiariosInventario.Plantillas.Dtos
+@using OpenSource1.Blazor.Components.Pages
+
+@*
+    LoteDiarioFields — campos reutilizables para crear / modificar un LoteDiario.
+
+    La plantilla es INMUTABLE tras el alta (ver CreateLoteDiarioCommand): en edición se muestra como
+    texto de solo lectura y el <input type="hidden"> con su valor lo pone la página contenedora (no
+    este componente), para no duplicar el nombre del campo del formulario.
+*@
+
+<div class="space-y-4">
+    @if (EsEdicion)
+    {
+        var plantillaActual = Plantillas.FirstOrDefault(p => p.Id == Model.PlantillaDiarioId);
+        <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Plantilla</label>
+            <p class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                @(plantillaActual is null ? "(plantilla no disponible)" : $"{plantillaActual.Codigo} — {plantillaActual.Nombre}")
+            </p>
+            <p class="mt-1 text-xs text-slate-400">La plantilla no se puede cambiar después del alta.</p>
+        </div>
+    }
+    else
+    {
+        <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{Prefix}_PlantillaDiarioId")">
+                Plantilla <span class="text-red-500">*</span>
+            </label>
+            <select id="@($"{Prefix}_PlantillaDiarioId")" name="@($"{Prefix}.PlantillaDiarioId")" class="@InputCss">
+                <option value="">-- Seleccione --</option>
+                @foreach (var plantilla in Plantillas)
+                {
+                    <option value="@plantilla.Id" selected="@(plantilla.Id == Model.PlantillaDiarioId)">@plantilla.Codigo — @plantilla.Nombre</option>
+                }
+            </select>
+            <ValidationMessage For="() => Model.PlantillaDiarioId" />
+        </div>
+    }
+
+    <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{Prefix}_Codigo")">
+            Código <span class="text-red-500">*</span>
+        </label>
+        <input id="@($"{Prefix}_Codigo")"
+               type="text"
+               name="@($"{Prefix}.Codigo")"
+               value="@Model.Codigo"
+               maxlength="20"
+               placeholder="ej. AJUSTE-2026-01"
+               class="@InputCss" />
+        <ValidationMessage For="() => Model.Codigo" />
+    </div>
+
+    <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{Prefix}_Nombre")">
+            Nombre <span class="text-red-500">*</span>
+        </label>
+        <input id="@($"{Prefix}_Nombre")"
+               type="text"
+               name="@($"{Prefix}.Nombre")"
+               value="@Model.Nombre"
+               maxlength="100"
+               placeholder="ej. Ajuste de existencias enero"
+               class="@InputCss" />
+        <ValidationMessage For="() => Model.Nombre" />
+    </div>
+
+    <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{Prefix}_Bloqueado")">Bloqueo</label>
+        <select id="@($"{Prefix}_Bloqueado")" name="@($"{Prefix}.Bloqueado")" class="@InputCss">
+            <option value="false" selected="@(!Model.Bloqueado)">No bloqueado</option>
+            <option value="true" selected="@Model.Bloqueado">Bloqueado (sin altas/ediciones/bajas de línea ni registro)</option>
+        </select>
+        <ValidationMessage For="() => Model.Bloqueado" />
+    </div>
+</div>
+
+@code {
+    private const string InputCss = "block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 placeholder-slate-400 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20";
+
+    [Parameter, EditorRequired] public DiariosInventario.LoteForm Model { get; set; } = default!;
+    [Parameter, EditorRequired] public string Prefix { get; set; } = default!;
+    [Parameter, EditorRequired] public IReadOnlyList<PlantillaDiarioResponse> Plantillas { get; set; } = [];
+    [Parameter] public bool EsEdicion { get; set; }
+}
