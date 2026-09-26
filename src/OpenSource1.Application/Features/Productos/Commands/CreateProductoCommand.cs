@@ -9,8 +9,8 @@ namespace OpenSource1.Application.Features.Productos.Commands;
 /// Alta de producto. <c>CategoriaId</c> y <c>UnidadMedidaBaseId</c> son opcionales: si no vienen se usan la categoría
 /// <c>GENERAL</c> y la unidad <c>UND</c> del catálogo. <c>CostoUnitario</c> nace en 0 y <c>CostoAjustado</c> en
 /// <c>true</c> (no hay movimientos que ajustar): los mantiene el sistema y no forman parte del comando.
-/// Los grupos contables (Task 5.3) son opcionales: <see langword="null"/> = el producto nace sin ese grupo (la API NO aplica
-/// grupos por defecto; la UI preselecciona los semilla). Si vienen, deben existir (400 <c>producto.grupo_invalido</c>).
+/// Los grupos contables (Task 5.3) son opcionales: <see langword="null"/> = el grupo semilla por defecto (BIENES / ITBIS18 /
+/// GENERAL; queda null si esa semilla fue borrada). Si vienen, deben existir (400 <c>producto.grupo_invalido</c>).
 /// </summary>
 public sealed record CreateProductoCommand(
     string Codigo,

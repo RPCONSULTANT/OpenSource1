@@ -205,6 +205,27 @@ public sealed class GruposContablesApiTests : IClassFixture<PostgresTestFixture>
     }
 
     [Fact]
+    public async Task AltaSinGrupos_DeProductoYDeSocio_TomaLasSemillasPorDefecto()
+    {
+        var client = CreateClient("Administrador");
+
+        var producto = await client.PostAsJsonAsync("/api/productos", new { codigo = $"P-{Guid.NewGuid():N}", nombre = "Sin grupos", precioVenta = 1m });
+        Assert.Equal(HttpStatusCode.Created, producto.StatusCode);
+        var creado = (await producto.Content.ReadFromJsonAsync<ProductoResponse>())!;
+        var leido = (await client.GetFromJsonAsync<ProductoResponse>($"/api/productos/{creado.Id}"))!;
+        Assert.Equal(("BIENES", "ITBIS18", "GENERAL"), (leido.GrupoProductoCodigo, leido.GrupoIvaProductoCodigo, leido.GrupoInventarioCodigo));
+        Assert.Equal(GrupoContableIds.ProductoBienes, leido.GrupoProductoId);
+        Assert.Equal("BIENES", creado.GrupoProductoCodigo);
+
+        var socio = await client.PostAsJsonAsync("/api/socios-negocio", new { nombreComercial = "Socio sin grupos" });
+        Assert.Equal(HttpStatusCode.Created, socio.StatusCode);
+        var socioCreado = (await socio.Content.ReadFromJsonAsync<SocioNegocioResponse>())!;
+        var socioLeido = (await client.GetFromJsonAsync<SocioNegocioResponse>($"/api/socios-negocio/{socioCreado.Id}"))!;
+        Assert.Equal(("NACIONAL", "ITBIS18", "GENERAL"), (socioLeido.GrupoNegocioCodigo, socioLeido.GrupoIvaNegocioCodigo, socioLeido.GrupoClienteContableCodigo));
+        Assert.Equal(GrupoContableIds.ClienteContableGeneral, socioLeido.GrupoClienteContableId);
+    }
+
+    [Fact]
     public async Task GrupoCliente_Crud_ValidaLasCuentas_YUnaCuentaUsadaNoSePuedeBorrar()
     {
         var client = CreateClient("Administrador");
@@ -317,6 +338,9 @@ public sealed class GruposContablesApiTests : IClassFixture<PostgresTestFixture>
 }
 
 /// <summary>
+/// DEPENDE de tener su propio contenedor Postgres (IClassFixture&lt;PostgresTestFixture&gt;: uno nuevo y recién migrado por
+/// clase): comprueba la semilla EXACTA (conteos y códigos) y borra la cuenta 1101 de la semilla, cosas que fallarían o
+/// afectarían a otras clases si compartiera base de datos con ellas.
 /// Semilla de grupos en un contenedor recién migrado (sin que otras pruebas la alteren), y la guarda de uso de cuentas sobre
 /// la semilla: la cuenta 1201 (CxC del grupo de cliente GENERAL) y la 4102 (su descuento) no se pueden borrar ni dejar de ser
 /// de Posteo.

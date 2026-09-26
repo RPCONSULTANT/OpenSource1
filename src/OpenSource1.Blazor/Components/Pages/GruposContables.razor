@@ -291,7 +291,7 @@
             }
         }
 
-        if (EditId.HasValue && UpdateInput.Id == Guid.Empty)
+        if (EditId.HasValue && canModify && UpdateInput.Id == Guid.Empty)
         {
             try
             {

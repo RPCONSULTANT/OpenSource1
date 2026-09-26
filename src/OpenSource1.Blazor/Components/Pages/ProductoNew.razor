@@ -33,12 +33,13 @@
         Input ??= new();
         // Opciones de los <select> de categoría y unidad; si no cargan el alta sigue siendo posible (categoría General, unidad Unidad).
         opciones = await ProductoOpciones.CargarAsync(CategoriaProductoApiClient, UnidadMedidaApiClient, Logger);
-        // Grupos contables (Task 5.3): si no cargan, el alta sigue siendo posible sin clasificación contable.
+        // Grupos contables (Task 5.3): si no cargan, el alta sigue siendo posible y la API asigna los grupos por defecto.
         grupos = await GruposProductoOpciones.CargarAsync(GrupoContableApiClient, Logger);
         if (formularioNuevo)
         {
-            // Preselecciona los grupos semilla por defecto (los mismos que la migración asignó a los productos existentes); la API
-            // no los aplica por su cuenta. En un POST se respeta lo que envió el usuario (incluido "— Sin asignar —").
+            // Preselecciona los grupos semilla por defecto: los mismos que la API asigna a un alta sin grupos (y que la migración
+            // asignó a los productos existentes). Si una semilla no está en la lista, el select muestra "— Por defecto —" (null).
+            // En un POST se respeta lo que envió el usuario.
             Input.GrupoProductoId = GruposOpciones.PorDefecto(grupos.Producto, GrupoContableIds.ProductoBienes);
             Input.GrupoIvaProductoId = GruposOpciones.PorDefecto(grupos.IvaProducto, GrupoContableIds.IvaProductoItbis18);
             Input.GrupoInventarioId = GruposOpciones.PorDefecto(grupos.Inventario, GrupoContableIds.InventarioGeneral);

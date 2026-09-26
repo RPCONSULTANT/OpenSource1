@@ -1,4 +1,3 @@
-using OpenSource1.Core.Entities.Contabilidad;
 using OpenSource1.Core.Enums;
 
 namespace OpenSource1.Application.Features.GruposContables;
@@ -30,15 +29,4 @@ public static class TiposGrupoContable
         Todos.FirstOrDefault(d => d.Tipo == tipo) ?? throw new ArgumentOutOfRangeException(nameof(tipo), tipo, "Tipo de grupo contable desconocido.");
 
     public static bool EsValido(TipoGrupoContable tipo) => Todos.Any(d => d.Tipo == tipo);
-
-    /// <summary>Tipo de entidad (tabla) de cada tipo de grupo.</summary>
-    public static Type TipoEntidad(TipoGrupoContable tipo) => tipo switch
-    {
-        TipoGrupoContable.Negocio => typeof(GrupoNegocio),
-        TipoGrupoContable.Producto => typeof(GrupoProducto),
-        TipoGrupoContable.IvaNegocio => typeof(GrupoIvaNegocio),
-        TipoGrupoContable.IvaProducto => typeof(GrupoIvaProducto),
-        TipoGrupoContable.Inventario => typeof(GrupoInventario),
-        _ => throw new ArgumentOutOfRangeException(nameof(tipo), tipo, "Tipo de grupo contable desconocido.")
-    };
 }

@@ -72,12 +72,12 @@
         Input ??= new();
         // Opciones del <select> de término de pago; si no cargan el alta sigue siendo posible (sin término).
         terminos = await TerminoPagoOpciones.CargarAsync(TerminoPagoApiClient, Logger);
-        // Grupos contables (Task 5.3): si no cargan, el alta sigue siendo posible sin clasificación contable.
+        // Grupos contables (Task 5.3): si no cargan, el alta sigue siendo posible y la API asigna los grupos por defecto.
         grupos = await GruposSocioOpciones.CargarAsync(GrupoContableApiClient, GrupoClienteContableApiClient, Logger);
         if (formularioNuevo)
         {
-            // Preselecciona los grupos semilla por defecto (NACIONAL / ITBIS18 / GENERAL, los que la migración asignó a los socios
-            // existentes); la API no los aplica por su cuenta. En un POST se respeta lo que envió el usuario.
+            // Preselecciona los grupos semilla por defecto (NACIONAL / ITBIS18 / GENERAL): los mismos que la API asigna a un alta
+            // sin grupos (y que la migración asignó a los socios existentes). En un POST se respeta lo que envió el usuario.
             Input.GrupoNegocioId = GruposOpciones.PorDefecto(grupos.Negocio, GrupoContableIds.NegocioNacional);
             Input.GrupoIvaNegocioId = GruposOpciones.PorDefecto(grupos.IvaNegocio, GrupoContableIds.IvaNegocioItbis18);
             Input.GrupoClienteContableId = GruposOpciones.PorDefecto(grupos.ClienteContable, GrupoContableIds.ClienteContableGeneral);

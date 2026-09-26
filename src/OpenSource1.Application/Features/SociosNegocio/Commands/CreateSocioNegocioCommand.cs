@@ -6,8 +6,8 @@ using OpenSource1.Core.Enums;
 namespace OpenSource1.Application.Features.SociosNegocio.Commands;
 
 /// <summary>
-/// Alta de socio de negocio. Los grupos contables (Task 5.3) son opcionales: <see langword="null"/> = el socio nace sin ese grupo
-/// (la API no aplica grupos por defecto; la UI preselecciona los semilla). Si vienen, deben existir (400
+/// Alta de socio de negocio. Los grupos contables (Task 5.3) son opcionales: <see langword="null"/> = el grupo semilla por defecto
+/// (NACIONAL / ITBIS18 / GENERAL; queda null si esa semilla fue borrada). Si vienen, deben existir (400
 /// <c>socio_negocio.grupo_invalido</c>).
 /// </summary>
 public sealed record CreateSocioNegocioCommand(

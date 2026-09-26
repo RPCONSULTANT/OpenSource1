@@ -126,11 +126,11 @@
         <legend class="px-1 text-xs font-bold uppercase tracking-wide text-slate-500">Clasificación contable</legend>
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <SelectorGrupoContable Etiqueta="Grupo de negocio" Id="@($"{Prefix}_GrupoNegocioId")" Name="@($"{Prefix}.GrupoNegocioId")"
-                                   Opciones="@Grupos.Negocio" Valor="@Model.GrupoNegocioId" RotuloVigente="@GrupoNegocioVigente" Deshabilitado="@Grupos.CargaFallida" />
+                                   Opciones="@Grupos.Negocio" Valor="@Model.GrupoNegocioId" RotuloVigente="@GrupoNegocioVigente" TextoVacio="@TextoVacioGrupo" Deshabilitado="@Grupos.CargaFallida" />
             <SelectorGrupoContable Etiqueta="Grupo de IVA" Id="@($"{Prefix}_GrupoIvaNegocioId")" Name="@($"{Prefix}.GrupoIvaNegocioId")"
-                                   Opciones="@Grupos.IvaNegocio" Valor="@Model.GrupoIvaNegocioId" RotuloVigente="@GrupoIvaNegocioVigente" Deshabilitado="@Grupos.CargaFallida" />
+                                   Opciones="@Grupos.IvaNegocio" Valor="@Model.GrupoIvaNegocioId" RotuloVigente="@GrupoIvaNegocioVigente" TextoVacio="@TextoVacioGrupo" Deshabilitado="@Grupos.CargaFallida" />
             <SelectorGrupoContable Etiqueta="Grupo contable de cliente" Id="@($"{Prefix}_GrupoClienteContableId")" Name="@($"{Prefix}.GrupoClienteContableId")"
-                                   Opciones="@Grupos.ClienteContable" Valor="@Model.GrupoClienteContableId" RotuloVigente="@GrupoClienteContableVigente" Deshabilitado="@Grupos.CargaFallida" />
+                                   Opciones="@Grupos.ClienteContable" Valor="@Model.GrupoClienteContableId" RotuloVigente="@GrupoClienteContableVigente" TextoVacio="@TextoVacioGrupo" Deshabilitado="@Grupos.CargaFallida" />
         </div>
         @if (EsEdicion)
         {
@@ -157,6 +157,9 @@
     [Parameter] public string? TerminoActualNombre { get; set; }
 
     /// <summary>Grupos contables elegibles (Task 5.3). Si no cargaron, los selectores se deshabilitan (se conserva el valor).</summary>
+    // Alta: vacío = la API asigna la semilla por defecto. Edición: solo aparece si el registro no tiene grupo (null = conservar).
+    private string TextoVacioGrupo => EsEdicion ? "— Sin asignar —" : "— Por defecto —";
+
     [Parameter] public GruposSocioOpciones Grupos { get; set; } = GruposSocioOpciones.SinCargar;
 
     /// <summary>Código de los grupos guardados (del propio socio), para rotular su opción si no viene en <see cref="Grupos"/>.</summary>

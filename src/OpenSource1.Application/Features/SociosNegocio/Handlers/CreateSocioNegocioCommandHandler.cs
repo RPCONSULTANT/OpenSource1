@@ -2,6 +2,7 @@ using MediatR;
 using OpenSource1.Application.Data;
 using OpenSource1.Application.Data.UnitOfWork;
 using OpenSource1.Application.Features.SociosNegocio.Commands;
+using OpenSource1.Application.Features.GruposContables;
 using OpenSource1.Application.Features.SociosNegocio.Dtos;
 using OpenSource1.Core.Common;
 using OpenSource1.Core.Entities;
@@ -64,6 +65,7 @@ public sealed class CreateSocioNegocioCommandHandler(IUnitOfWork unitOfWork, IGe
             NombreComercial = request.NombreComercial.Trim()
         };
         SocioNegocioReglas.Aplicar(entity, request);
+        SocioNegocioReglas.AplicarGrupos(entity, grupos);
 
         await unitOfWork.Repository<SocioNegocio>().AddAsync(entity, cancellationToken);
         await unitOfWork.CommitAsync(cancellationToken);
@@ -105,46 +107,55 @@ public sealed class CreateSocioNegocioCommandHandler(IUnitOfWork unitOfWork, IGe
     };
 }
 
-/// <summary>Grupos contables resueltos del socio (null = sin grupo, o grupo colgante que no cambió).</summary>
-public sealed record SocioNegocioGruposContables(GrupoNegocio? Negocio, GrupoIvaNegocio? IvaNegocio, GrupoClienteContable? ClienteContable);
+/// <summary>
+/// Grupos contables resueltos del socio: el Id a guardar y la fila (null si no hay grupo, o si es un grupo colgante que no
+/// cambió).
+/// </summary>
+public sealed record SocioNegocioGruposContables(
+    Guid? GrupoNegocioId, GrupoNegocio? Negocio,
+    Guid? GrupoIvaNegocioId, GrupoIvaNegocio? IvaNegocio,
+    Guid? GrupoClienteContableId, GrupoClienteContable? ClienteContable);
 
 /// <summary>Reglas compartidas por Create/Update que tocan la entidad o la base de datos.</summary>
 internal static class SocioNegocioReglas
 {
     /// <summary>
-    /// Resuelve los tres grupos contables (Task 5.3). Un grupo que se ASIGNA o CAMBIA (distinto del de <paramref name="actual"/>)
-    /// debe existir y no estar borrado: si no, 400 <c>socio_negocio.grupo_invalido</c> en su campo. Uno que no cambia no se
-    /// revalida (mismo criterio que el término de pago).
+    /// Resuelve los tres grupos contables (Task 5.3) con <see cref="ResolucionGrupoContable"/>. En el ALTA
+    /// (<paramref name="actual"/> null) un grupo no indicado toma la semilla por defecto (NACIONAL / ITBIS18 / GENERAL; null si
+    /// la semilla está borrada). Un grupo que se asigna o cambia debe existir: si no, 400 <c>socio_negocio.grupo_invalido</c>.
     /// </summary>
     public static async Task<Result<SocioNegocioGruposContables>> ResolverGruposAsync(
         IUnitOfWork unitOfWork, IDatosSocioNegocio datos, SocioNegocio? actual, CancellationToken cancellationToken)
     {
-        var negocio = await BuscarGrupoAsync<GrupoNegocio>(unitOfWork, datos.GrupoNegocioId, cancellationToken);
-        if (negocio is null && datos.GrupoNegocioId is not null && datos.GrupoNegocioId != actual?.GrupoNegocioId)
+        var alta = actual is null;
+
+        var negocio = await ResolucionGrupoContable.ResolverAsync<GrupoNegocio>(
+            unitOfWork, datos.GrupoNegocioId, actual?.GrupoNegocioId, alta ? GrupoContableIds.NegocioNacional : null,
+            ErrorGrupo("El grupo de negocio indicado no existe.", nameof(datos.GrupoNegocioId)), cancellationToken);
+        if (negocio.Error is { } errorNegocio)
         {
-            return Result<SocioNegocioGruposContables>.Fallo(ErrorGrupo("El grupo de negocio indicado no existe.", nameof(datos.GrupoNegocioId)));
+            return Result<SocioNegocioGruposContables>.Fallo(errorNegocio);
         }
 
-        var ivaNegocio = await BuscarGrupoAsync<GrupoIvaNegocio>(unitOfWork, datos.GrupoIvaNegocioId, cancellationToken);
-        if (ivaNegocio is null && datos.GrupoIvaNegocioId is not null && datos.GrupoIvaNegocioId != actual?.GrupoIvaNegocioId)
+        var ivaNegocio = await ResolucionGrupoContable.ResolverAsync<GrupoIvaNegocio>(
+            unitOfWork, datos.GrupoIvaNegocioId, actual?.GrupoIvaNegocioId, alta ? GrupoContableIds.IvaNegocioItbis18 : null,
+            ErrorGrupo("El grupo de IVA de negocio indicado no existe.", nameof(datos.GrupoIvaNegocioId)), cancellationToken);
+        if (ivaNegocio.Error is { } errorIva)
         {
-            return Result<SocioNegocioGruposContables>.Fallo(ErrorGrupo("El grupo de IVA de negocio indicado no existe.", nameof(datos.GrupoIvaNegocioId)));
+            return Result<SocioNegocioGruposContables>.Fallo(errorIva);
         }
 
-        var clienteContable = await BuscarGrupoAsync<GrupoClienteContable>(unitOfWork, datos.GrupoClienteContableId, cancellationToken);
-        if (clienteContable is null && datos.GrupoClienteContableId is not null && datos.GrupoClienteContableId != actual?.GrupoClienteContableId)
+        var clienteContable = await ResolucionGrupoContable.ResolverAsync<GrupoClienteContable>(
+            unitOfWork, datos.GrupoClienteContableId, actual?.GrupoClienteContableId, alta ? GrupoContableIds.ClienteContableGeneral : null,
+            ErrorGrupo("El grupo contable de cliente indicado no existe.", nameof(datos.GrupoClienteContableId)), cancellationToken);
+        if (clienteContable.Error is { } errorCliente)
         {
-            return Result<SocioNegocioGruposContables>.Fallo(ErrorGrupo("El grupo contable de cliente indicado no existe.", nameof(datos.GrupoClienteContableId)));
+            return Result<SocioNegocioGruposContables>.Fallo(errorCliente);
         }
 
-        return Result<SocioNegocioGruposContables>.Exito(new SocioNegocioGruposContables(negocio, ivaNegocio, clienteContable));
+        return Result<SocioNegocioGruposContables>.Exito(new SocioNegocioGruposContables(
+            negocio.Id, negocio.Grupo, ivaNegocio.Id, ivaNegocio.Grupo, clienteContable.Id, clienteContable.Grupo));
     }
-
-    private static Task<TGrupo?> BuscarGrupoAsync<TGrupo>(IUnitOfWork unitOfWork, Guid? id, CancellationToken cancellationToken)
-        where TGrupo : GrupoContable =>
-        id is { } grupoId
-            ? unitOfWork.Repository<TGrupo>().FirstOrDefaultAsync(x => x.Id == grupoId, cancellationToken: cancellationToken)
-            : Task.FromResult<TGrupo?>(null);
 
     // Sin sufijo ".no_encontrado" a propósito: es un dato inválido del cuerpo (400), no el recurso de la URL (404).
     private static Error ErrorGrupo(string mensaje, string campo) => new("socio_negocio.grupo_invalido", mensaje, campo);
@@ -211,6 +222,14 @@ internal static class SocioNegocioReglas
         }
 
         return null;
+    }
+
+    /// <summary>Guarda los Ids de grupo ya resueltos (en el alta, con las semillas por defecto aplicadas).</summary>
+    public static void AplicarGrupos(SocioNegocio entity, SocioNegocioGruposContables grupos)
+    {
+        entity.GrupoNegocioId = grupos.GrupoNegocioId;
+        entity.GrupoIvaNegocioId = grupos.GrupoIvaNegocioId;
+        entity.GrupoClienteContableId = grupos.GrupoClienteContableId;
     }
 
     /// <summary>Copia los datos editables (todo salvo <c>Codigo</c>) a la entidad.</summary>

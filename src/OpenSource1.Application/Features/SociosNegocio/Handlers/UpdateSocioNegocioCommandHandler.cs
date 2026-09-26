@@ -58,6 +58,7 @@ public sealed class UpdateSocioNegocioCommandHandler(IUnitOfWork unitOfWork)
         }
 
         SocioNegocioReglas.Aplicar(entity, datos);
+        SocioNegocioReglas.AplicarGrupos(entity, grupos);
 
         repo.Update(entity);
         await unitOfWork.SaveChangesAsync(cancellationToken);

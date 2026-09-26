@@ -7,6 +7,8 @@ using OpenSource1.Application.Features.SociosNegocio.Commands;
 using OpenSource1.Application.Features.SociosNegocio.Handlers;
 using OpenSource1.Core.Common;
 using OpenSource1.Core.Entities;
+using OpenSource1.Core.Entities.Contabilidad;
+using OpenSource1.SmokeTests.TestInfrastructure;
 using OpenSource1.Core.Enums;
 
 namespace OpenSource1.SmokeTests.Features.SociosNegocio.Handlers;
@@ -34,6 +36,10 @@ public class CreateSocioNegocioCommandHandlerTests
 
             UnitOfWork.Setup(u => u.Repository<SocioNegocio>()).Returns(Socios.Object);
             UnitOfWork.Setup(u => u.Repository<TerminoPago>()).Returns(Terminos.Object);
+            // Grupos contables (Task 5.3): el alta busca las semillas por defecto; sin filas, el socio queda sin grupos.
+            UnitOfWork.Setup(u => u.Repository<GrupoNegocio>()).Returns(new RepositorioEnMemoria<GrupoNegocio>().Repo);
+            UnitOfWork.Setup(u => u.Repository<GrupoIvaNegocio>()).Returns(new RepositorioEnMemoria<GrupoIvaNegocio>().Repo);
+            UnitOfWork.Setup(u => u.Repository<GrupoClienteContable>()).Returns(new RepositorioEnMemoria<GrupoClienteContable>().Repo);
             UnitOfWork.Setup(u => u.BeginTransactionAsync(It.IsAny<CancellationToken>())).ReturnsAsync(Transaccion.Object);
 
             Generador.Setup(g => g.SiguienteAsync("SOCIOS", It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()))

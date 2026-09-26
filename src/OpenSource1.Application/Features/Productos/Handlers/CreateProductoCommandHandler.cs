@@ -1,6 +1,7 @@
 using MediatR;
 using OpenSource1.Application.Data.UnitOfWork;
 using OpenSource1.Application.Features.Productos.Commands;
+using OpenSource1.Application.Features.GruposContables;
 using OpenSource1.Application.Features.Productos.Dtos;
 using OpenSource1.Core.Common;
 using OpenSource1.Core.Entities;
@@ -56,9 +57,10 @@ public sealed class CreateProductoCommandHandler(IUnitOfWork unitOfWork)
             CostoUnitario = 0m,
             CostoAjustado = true,
             ImagePath = request.ImagePath,
-            GrupoProductoId = request.GrupoProductoId,
-            GrupoIvaProductoId = request.GrupoIvaProductoId,
-            GrupoInventarioId = request.GrupoInventarioId
+            // Ids ya resueltos: los indicados o, si no vinieron, las semillas por defecto.
+            GrupoProductoId = grupos.GrupoProductoId,
+            GrupoIvaProductoId = grupos.GrupoIvaProductoId,
+            GrupoInventarioId = grupos.GrupoInventarioId
         };
         await unitOfWork.Repository<Producto>().AddAsync(entity, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
@@ -101,8 +103,14 @@ public sealed class CreateProductoCommandHandler(IUnitOfWork unitOfWork)
     };
 }
 
-/// <summary>Grupos contables resueltos del producto (null = sin grupo, o grupo colgante que no cambió).</summary>
-public sealed record ProductoGruposContables(GrupoProducto? Producto, GrupoIvaProducto? IvaProducto, GrupoInventario? Inventario);
+/// <summary>
+/// Grupos contables resueltos del producto: el Id a guardar y la fila (null si no hay grupo, o si es un grupo colgante que no
+/// cambió).
+/// </summary>
+public sealed record ProductoGruposContables(
+    Guid? GrupoProductoId, GrupoProducto? Producto,
+    Guid? GrupoIvaProductoId, GrupoIvaProducto? IvaProducto,
+    Guid? GrupoInventarioId, GrupoInventario? Inventario);
 
 /// <summary>Reglas compartidas por Create/Update que tocan la base de datos.</summary>
 internal static class ProductoReglas
@@ -110,41 +118,43 @@ internal static class ProductoReglas
     public sealed record Catalogo(CategoriaProducto Categoria, UnidadMedida Unidad);
 
     /// <summary>
-    /// Resuelve los tres grupos contables (Task 5.3). Un grupo que se ASIGNA o CAMBIA (distinto del de <paramref name="actual"/>)
-    /// debe existir y no estar borrado: si no, 400 <c>producto.grupo_invalido</c> en su campo (nunca <c>.no_encontrado</c>: es un
-    /// dato del cuerpo). Uno que no cambia no se revalida (un producto con un grupo ya colgante sigue siendo editable, igual que
-    /// categoría/unidad); se devuelve null para él si ya no existe.
+    /// Resuelve los tres grupos contables (Task 5.3) con <see cref="ResolucionGrupoContable"/>. En el ALTA
+    /// (<paramref name="actual"/> null) un grupo no indicado toma la semilla por defecto (BIENES / ITBIS18 / GENERAL; null si
+    /// la semilla está borrada). Un grupo que se asigna o cambia debe existir: si no, 400 <c>producto.grupo_invalido</c>.
     /// </summary>
     public static async Task<Result<ProductoGruposContables>> ResolverGruposAsync(
         IUnitOfWork unitOfWork, Guid? grupoProductoId, Guid? grupoIvaProductoId, Guid? grupoInventarioId, Producto? actual,
         CancellationToken cancellationToken)
     {
-        var producto = await BuscarGrupoAsync<GrupoProducto>(unitOfWork, grupoProductoId, cancellationToken);
-        if (producto is null && grupoProductoId is not null && grupoProductoId != actual?.GrupoProductoId)
+        var alta = actual is null;
+
+        var producto = await ResolucionGrupoContable.ResolverAsync<GrupoProducto>(
+            unitOfWork, grupoProductoId, actual?.GrupoProductoId, alta ? GrupoContableIds.ProductoBienes : null,
+            ErrorGrupo("El grupo de producto indicado no existe.", nameof(Producto.GrupoProductoId)), cancellationToken);
+        if (producto.Error is { } errorProducto)
         {
-            return Result<ProductoGruposContables>.Fallo(ErrorGrupo("El grupo de producto indicado no existe.", nameof(Producto.GrupoProductoId)));
+            return Result<ProductoGruposContables>.Fallo(errorProducto);
         }
 
-        var ivaProducto = await BuscarGrupoAsync<GrupoIvaProducto>(unitOfWork, grupoIvaProductoId, cancellationToken);
-        if (ivaProducto is null && grupoIvaProductoId is not null && grupoIvaProductoId != actual?.GrupoIvaProductoId)
+        var ivaProducto = await ResolucionGrupoContable.ResolverAsync<GrupoIvaProducto>(
+            unitOfWork, grupoIvaProductoId, actual?.GrupoIvaProductoId, alta ? GrupoContableIds.IvaProductoItbis18 : null,
+            ErrorGrupo("El grupo de IVA de producto indicado no existe.", nameof(Producto.GrupoIvaProductoId)), cancellationToken);
+        if (ivaProducto.Error is { } errorIva)
         {
-            return Result<ProductoGruposContables>.Fallo(ErrorGrupo("El grupo de IVA de producto indicado no existe.", nameof(Producto.GrupoIvaProductoId)));
+            return Result<ProductoGruposContables>.Fallo(errorIva);
         }
 
-        var inventario = await BuscarGrupoAsync<GrupoInventario>(unitOfWork, grupoInventarioId, cancellationToken);
-        if (inventario is null && grupoInventarioId is not null && grupoInventarioId != actual?.GrupoInventarioId)
+        var inventario = await ResolucionGrupoContable.ResolverAsync<GrupoInventario>(
+            unitOfWork, grupoInventarioId, actual?.GrupoInventarioId, alta ? GrupoContableIds.InventarioGeneral : null,
+            ErrorGrupo("El grupo de inventario indicado no existe.", nameof(Producto.GrupoInventarioId)), cancellationToken);
+        if (inventario.Error is { } errorInventario)
         {
-            return Result<ProductoGruposContables>.Fallo(ErrorGrupo("El grupo de inventario indicado no existe.", nameof(Producto.GrupoInventarioId)));
+            return Result<ProductoGruposContables>.Fallo(errorInventario);
         }
 
-        return Result<ProductoGruposContables>.Exito(new ProductoGruposContables(producto, ivaProducto, inventario));
+        return Result<ProductoGruposContables>.Exito(new ProductoGruposContables(
+            producto.Id, producto.Grupo, ivaProducto.Id, ivaProducto.Grupo, inventario.Id, inventario.Grupo));
     }
-
-    private static Task<TGrupo?> BuscarGrupoAsync<TGrupo>(IUnitOfWork unitOfWork, Guid? id, CancellationToken cancellationToken)
-        where TGrupo : GrupoContable =>
-        id is { } grupoId
-            ? unitOfWork.Repository<TGrupo>().FirstOrDefaultAsync(x => x.Id == grupoId, cancellationToken: cancellationToken)
-            : Task.FromResult<TGrupo?>(null);
 
     private static Error ErrorGrupo(string mensaje, string campo) => new("producto.grupo_invalido", mensaje, campo);
 

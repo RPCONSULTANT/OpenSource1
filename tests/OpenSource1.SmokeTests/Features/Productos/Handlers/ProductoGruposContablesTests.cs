@@ -4,6 +4,7 @@ using OpenSource1.Application.Features.Productos.Handlers;
 using OpenSource1.Application.Services.Inventario;
 using OpenSource1.Core.Entities;
 using OpenSource1.Core.Entities.Contabilidad;
+using OpenSource1.SmokeTests.TestInfrastructure;
 
 namespace OpenSource1.SmokeTests.Features.Productos.Handlers;
 
@@ -38,18 +39,59 @@ public sealed class ProductoGruposContablesTests
         Assert.Equal("GENERAL", result.Valor.GrupoInventarioCodigo);
     }
 
+    private static Grupos AgregarSemillas(ProductosFake fake) => new(
+        fake.GruposProducto.Agregar(new GrupoProducto { Codigo = "BIENES", Descripcion = "Bienes" }.ConId(GrupoContableIds.ProductoBienes)),
+        fake.GruposIvaProducto.Agregar(new GrupoIvaProducto { Codigo = "ITBIS18", Descripcion = "ITBIS" }.ConId(GrupoContableIds.IvaProductoItbis18)),
+        fake.GruposInventario.Agregar(new GrupoInventario { Codigo = "GENERAL", Descripcion = "General" }.ConId(GrupoContableIds.InventarioGeneral)));
+
     [Fact]
-    public async Task Create_SinGrupos_NaceSinGrupos()
+    public async Task Create_SinGrupos_TomaLasSemillasPorDefecto()
     {
         var fake = new ProductosFake();
+        AgregarGrupos(fake, "-OTRO");
+        AgregarSemillas(fake);
 
         var result = await new CreateProductoCommandHandler(fake.UnitOfWork.Object).Handle(new CreateProductoCommand("C1", "Producto", 1m), default);
 
-        Assert.True(result.EsExito);
+        Assert.True(result.EsExito, result.EsFallo ? result.Errores[0].Mensaje : null);
         var guardado = Assert.Single(fake.Productos.Datos);
-        Assert.Null(guardado.GrupoProductoId);
+        Assert.Equal(GrupoContableIds.ProductoBienes, guardado.GrupoProductoId);
+        Assert.Equal(GrupoContableIds.IvaProductoItbis18, guardado.GrupoIvaProductoId);
+        Assert.Equal(GrupoContableIds.InventarioGeneral, guardado.GrupoInventarioId);
+        Assert.Equal("BIENES", result.Valor.GrupoProductoCodigo);
+        Assert.Equal("ITBIS18", result.Valor.GrupoIvaProductoCodigo);
+        Assert.Equal("GENERAL", result.Valor.GrupoInventarioCodigo);
+    }
+
+    [Fact]
+    public async Task Create_SinGrupos_ConUnaSemillaBorrada_LaDejaNull_YNoFalla()
+    {
+        var fake = new ProductosFake();
+        var semillas = AgregarSemillas(fake);
+        semillas.IvaProducto.IsDeleted = true;
+
+        var result = await new CreateProductoCommandHandler(fake.UnitOfWork.Object).Handle(new CreateProductoCommand("C1", "Producto", 1m), default);
+
+        Assert.True(result.EsExito, result.EsFallo ? result.Errores[0].Mensaje : null);
+        var guardado = Assert.Single(fake.Productos.Datos);
+        Assert.Equal(GrupoContableIds.ProductoBienes, guardado.GrupoProductoId);
         Assert.Null(guardado.GrupoIvaProductoId);
-        Assert.Null(guardado.GrupoInventarioId);
+        Assert.Equal(GrupoContableIds.InventarioGeneral, guardado.GrupoInventarioId);
+    }
+
+    [Fact]
+    public async Task Update_SinGrupos_NoAplicaSemillas_ConservaElNull()
+    {
+        var fake = new ProductosFake();
+        AgregarSemillas(fake);
+        var entity = fake.Productos.Agregar(new Producto { Codigo = "OLD", Nombre = "Old", PrecioVenta = 1, CategoriaId = fake.General.Id, UnidadMedidaBaseId = fake.Unidad.Id });
+
+        var result = await Handler(fake).Handle(new UpdateProductoCommand(entity.Id, "OLD", "Renombrado", null, null, null, null, null, null), default);
+
+        Assert.True(result.EsExito, result.EsFallo ? result.Errores[0].Mensaje : null);
+        Assert.Null(entity.GrupoProductoId);
+        Assert.Null(entity.GrupoIvaProductoId);
+        Assert.Null(entity.GrupoInventarioId);
     }
 
     [Theory]

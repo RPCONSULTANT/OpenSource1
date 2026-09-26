@@ -87,11 +87,11 @@
         <legend class="px-1 text-xs font-bold uppercase tracking-wide text-slate-500">Clasificación contable</legend>
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <SelectorGrupoContable Etiqueta="Grupo de producto" Id="@($"{Prefix}_GrupoProductoId")" Name="@($"{Prefix}.GrupoProductoId")"
-                                   Opciones="@Grupos.Producto" Valor="@Model.GrupoProductoId" RotuloVigente="@GrupoProductoVigente" Deshabilitado="@Grupos.CargaFallida" />
+                                   Opciones="@Grupos.Producto" Valor="@Model.GrupoProductoId" RotuloVigente="@GrupoProductoVigente" TextoVacio="@TextoVacioGrupo" Deshabilitado="@Grupos.CargaFallida" />
             <SelectorGrupoContable Etiqueta="Grupo de IVA" Id="@($"{Prefix}_GrupoIvaProductoId")" Name="@($"{Prefix}.GrupoIvaProductoId")"
-                                   Opciones="@Grupos.IvaProducto" Valor="@Model.GrupoIvaProductoId" RotuloVigente="@GrupoIvaProductoVigente" Deshabilitado="@Grupos.CargaFallida" />
+                                   Opciones="@Grupos.IvaProducto" Valor="@Model.GrupoIvaProductoId" RotuloVigente="@GrupoIvaProductoVigente" TextoVacio="@TextoVacioGrupo" Deshabilitado="@Grupos.CargaFallida" />
             <SelectorGrupoContable Etiqueta="Grupo de inventario" Id="@($"{Prefix}_GrupoInventarioId")" Name="@($"{Prefix}.GrupoInventarioId")"
-                                   Opciones="@Grupos.Inventario" Valor="@Model.GrupoInventarioId" RotuloVigente="@GrupoInventarioVigente" Deshabilitado="@Grupos.CargaFallida" />
+                                   Opciones="@Grupos.Inventario" Valor="@Model.GrupoInventarioId" RotuloVigente="@GrupoInventarioVigente" TextoVacio="@TextoVacioGrupo" Deshabilitado="@Grupos.CargaFallida" />
         </div>
         @if (EsEdicion)
         {
@@ -124,6 +124,9 @@
     [Parameter] public string? UnidadActualNombre { get; set; }
 
     /// <summary>Grupos contables elegibles (Task 5.3). Si no cargaron, los selectores se deshabilitan (se conserva el valor).</summary>
+    // Alta: vacío = la API asigna la semilla por defecto. Edición: solo aparece si el registro no tiene grupo (null = conservar).
+    private string TextoVacioGrupo => EsEdicion ? "— Sin asignar —" : "— Por defecto —";
+
     [Parameter] public GruposProductoOpciones Grupos { get; set; } = GruposProductoOpciones.SinCargar;
 
     /// <summary>Código de los grupos guardados (del propio producto), para rotular su opción si no viene en <see cref="Grupos"/>.</summary>

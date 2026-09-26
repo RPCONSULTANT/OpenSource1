@@ -23,7 +23,7 @@ public sealed record GruposProductoOpciones(
         "No fue posible cargar los grupos contables: puede guardar el resto de la ficha, pero los grupos contables no se pueden cambiar hasta que carguen (se conservan los actuales).";
 
     public const string MensajeNoDisponiblesAlta =
-        "No fue posible cargar los grupos contables: puede guardar el producto sin clasificación contable y asignarla después.";
+        "No fue posible cargar los grupos contables: puede guardar el producto y se le asignarán los grupos por defecto (BIENES, ITBIS18, GENERAL); podrá cambiarlos después.";
 
     public static async Task<GruposProductoOpciones> CargarAsync(IGrupoContableApiClient client, ILogger logger, CancellationToken cancellationToken = default)
     {
@@ -56,7 +56,7 @@ public sealed record GruposSocioOpciones(
         "No fue posible cargar los grupos contables: puede guardar el resto de la ficha, pero los grupos contables no se pueden cambiar hasta que carguen (se conservan los actuales).";
 
     public const string MensajeNoDisponiblesAlta =
-        "No fue posible cargar los grupos contables: puede guardar el cliente sin clasificación contable y asignarla después.";
+        "No fue posible cargar los grupos contables: puede guardar el cliente y se le asignarán los grupos por defecto (NACIONAL, ITBIS18, GENERAL); podrá cambiarlos después.";
 
     public static async Task<GruposSocioOpciones> CargarAsync(
         IGrupoContableApiClient grupos, IGrupoClienteContableApiClient gruposCliente, ILogger logger, CancellationToken cancellationToken = default)

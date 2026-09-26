@@ -74,6 +74,59 @@ public sealed class SocioNegocioGruposContablesTests
         Assert.Equal("GENERAL", result.Valor.GrupoClienteContableCodigo);
     }
 
+    private static (GrupoNegocio Negocio, GrupoIvaNegocio Iva, GrupoClienteContable Cliente) AgregarSemillas(Fake fake) => (
+        fake.Negocio.Agregar(new GrupoNegocio { Codigo = "NACIONAL", Descripcion = "Nacional" }.ConId(GrupoContableIds.NegocioNacional)),
+        fake.IvaNegocio.Agregar(new GrupoIvaNegocio { Codigo = "ITBIS18", Descripcion = "ITBIS" }.ConId(GrupoContableIds.IvaNegocioItbis18)),
+        fake.ClienteContable.Agregar(new GrupoClienteContable { Codigo = "GENERAL", Descripcion = "General", CuentaCxCId = Guid.NewGuid() }
+            .ConId(GrupoContableIds.ClienteContableGeneral)));
+
+    [Fact]
+    public async Task Create_SinGrupos_TomaLasSemillasPorDefecto()
+    {
+        var fake = new Fake();
+        AgregarSemillas(fake);
+
+        var result = await fake.Crear().Handle(Alta(null, null, null), default);
+
+        Assert.True(result.EsExito, result.EsFallo ? result.Errores[0].Mensaje : null);
+        var guardado = Assert.Single(fake.Socios.Datos);
+        Assert.Equal(GrupoContableIds.NegocioNacional, guardado.GrupoNegocioId);
+        Assert.Equal(GrupoContableIds.IvaNegocioItbis18, guardado.GrupoIvaNegocioId);
+        Assert.Equal(GrupoContableIds.ClienteContableGeneral, guardado.GrupoClienteContableId);
+        Assert.Equal("NACIONAL", result.Valor.GrupoNegocioCodigo);
+        Assert.Equal("GENERAL", result.Valor.GrupoClienteContableCodigo);
+    }
+
+    [Fact]
+    public async Task Create_SinGrupos_ConUnaSemillaBorrada_LaDejaNull_YNoFalla()
+    {
+        var fake = new Fake();
+        var semillas = AgregarSemillas(fake);
+        semillas.Cliente.IsDeleted = true;
+
+        var result = await fake.Crear().Handle(Alta(null, null, null), default);
+
+        Assert.True(result.EsExito, result.EsFallo ? result.Errores[0].Mensaje : null);
+        var guardado = Assert.Single(fake.Socios.Datos);
+        Assert.Equal(GrupoContableIds.NegocioNacional, guardado.GrupoNegocioId);
+        Assert.Null(guardado.GrupoClienteContableId);
+    }
+
+    [Fact]
+    public async Task Update_SinGrupos_NoAplicaSemillas_ConservaElNull()
+    {
+        var fake = new Fake();
+        AgregarSemillas(fake);
+        var socio = fake.Socios.Agregar(new SocioNegocio { Codigo = "000010", NombreComercial = "Sin grupos" });
+
+        var result = await fake.Modificar().Handle(SocioNegocioTestData.Update(socio.Id, nombreComercial: "Renombrado"), default);
+
+        Assert.True(result.EsExito, result.EsFallo ? result.Errores[0].Mensaje : null);
+        Assert.Null(socio.GrupoNegocioId);
+        Assert.Null(socio.GrupoIvaNegocioId);
+        Assert.Null(socio.GrupoClienteContableId);
+    }
+
     [Theory]
     [InlineData("GrupoNegocioId")]
     [InlineData("GrupoIvaNegocioId")]

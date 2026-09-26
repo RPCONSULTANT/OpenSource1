@@ -33,7 +33,7 @@ public sealed class ProductoEditorForm : IValidatableObject
 
     public string? ImagePath { get; set; }
 
-    // Clasificación contable (Task 5.3). "" (opción "— Sin asignar —") llega como null; un <select> deshabilitado (API de grupos
+    // Clasificación contable (Task 5.3). "" (opción vacía: "— Por defecto —" en el alta = semilla, "— Sin asignar —" en la edición) llega como null; un <select> deshabilitado (API de grupos
     // caída) no se envía y también llega como null: en la modificación la API lo trata como "conservar".
     public Guid? GrupoProductoId { get; set; }
     public Guid? GrupoIvaProductoId { get; set; }
