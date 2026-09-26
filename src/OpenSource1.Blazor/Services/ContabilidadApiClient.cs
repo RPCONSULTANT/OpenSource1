@@ -14,6 +14,13 @@ public sealed class ContabilidadApiClient(HttpClient httpClient, ILogger<Contabi
         if (response.IsSuccessStatusCode)
         {
             var payload = await response.Content.ReadFromJsonAsync<ResultadoPosteoCostoInventario>(cancellationToken);
+            if (payload is null)
+            {
+                // Un 200 sin resumen no se da por éxito: la página mostraría "contabilizado" sin saber qué quedó pendiente.
+                logger.LogWarning("Postear costo de inventario returned {StatusCode} with a null body.", response.StatusCode);
+                return new PosteoCostoOperationResult(false, "La API no devolvió el resumen del batch de costo de inventario.");
+            }
+
             return new PosteoCostoOperationResult(true, "Costo de inventario contabilizado.", payload);
         }
 
