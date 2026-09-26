@@ -278,9 +278,43 @@ todos; los selects incluyen siempre el valor vigente.
 
 ## Task 4.5 — Cierre de la Fase 4
 
-- [ ] Cadena de migraciones desde BD vacía y desde una BD en el estado final de la Fase 3 con datos; Down a
+- [x] Cadena de migraciones desde BD vacía y desde una BD en el estado final de la Fase 3 con datos; Down a
   `AddIndicesLibroInventario` y vuelta a HEAD.
-- [ ] `ApplicationDbContextModelTests`, sonda vacía, `has-pending-model-changes`.
-- [ ] Añadir `RegistrosDiario` al test de código fuente de la Fase 3 (`LibroInventarioSinUpdateNiDeleteTests`).
-- [ ] `grep` TODO/NotImplemented; suite completa.
-- [ ] Añadir al final de este plan "Resultado y pendientes que hereda la Fase 5".
+- [x] `ApplicationDbContextModelTests`, sonda vacía, `has-pending-model-changes`.
+- [x] Añadir `RegistrosDiario` al test de código fuente de la Fase 3 (`LibroInventarioSinUpdateNiDeleteTests`).
+- [x] `grep` TODO/NotImplemented; suite completa.
+- [x] Añadir al final de este plan "Resultado y pendientes que hereda la Fase 5".
+
+---
+
+## Resultado y pendientes que hereda la Fase 5
+
+**Resultado.** La Fase 4 queda cerrada: plantillas (`ARTICULO`/`RECLASIF`, sembradas de solo lectura sobre la serie
+`DIARIO-INV`), lotes y líneas de diario con validación al capturar (Task 4.1/4.2), registro atómico de un lote completo
+en una sola transacción con numeración sin huecos y cierre de los bloqueos pendientes (`RegistroDiario`, Task 4.3), y las
+páginas Blazor Static SSR correspondientes (Task 4.4). La cadena de migraciones se verificó completa en ambos sentidos
+(BD vacía → HEAD; BD en el estado final de la Fase 3 con productos y movimientos de apertura `TipoOrigen = 99` → HEAD →
+Down a `AddIndicesLibroInventario` → HEAD de nuevo), sin pérdida de los movimientos previos y con la serie/plantillas
+recreándose igual en cada pasada. `RegistrosDiario` quedó protegida por el mismo mecanismo de solo-código-fuente que
+`MovimientosValor`/`AplicacionesMovimientoProducto` (Task 4.5).
+
+**Limitaciones conocidas que hereda la Fase 5:**
+- **Unidad de la línea siempre la base del producto.** La API y la UI de Blazor no ofrecen un selector de unidad de
+  medida distinta de `UnidadMedidaBaseId` al capturar una línea de diario: no existe todavía un endpoint de
+  equivalencias de unidad expuesto para este flujo (`IConversionUnidadMedidaService` sí soporta factores distintos de 1
+  puertas adentro, pero nadie en diarios se lo pide). Si la Fase 5 necesita capturar en una unidad de compra/venta
+  distinta de la base, hace falta ese endpoint y su selector.
+- **Select de almacenes sin paginar (hasta 200).** `DiarioInventarioLote.razor` carga el catálogo completo de almacenes
+  con `PageRequest.TamanoMaximo = 200` en vez de un buscador por texto como el de productos. Razonable mientras el
+  catálogo de almacenes sea pequeño; si creciera, necesita el mismo patrón de búsqueda GET que productos.
+- **`NumeroRegistro` único global entre series.** El índice único de `RegistrosDiario.NumeroRegistro` no está compuesto
+  con la serie: hoy solo existe `DIARIO-INV`, así que no hay colisión posible, pero si la Fase 5 (u otra) agrega una
+  segunda serie `DIARIO-*` que produzca el mismo número, el segundo registro recibiría 409 en vez de coexistir. Aceptado
+  en su momento (Ruling BE de la Task 4.3), documentado para no sorprender más adelante.
+- **~7 consultas por línea en la prevalidación del registro.** `PostearLoteDiarioCommandHandler` prevalida cada línea
+  del lote con varias consultas independientes (producto, almacén(es), factor de unidad, existencia, bloqueo...) en vez
+  de una consulta batch por lote. Aceptado con el lote acotado a 1000 líneas (Ruling BE); si la Fase 5 sube ese tope o
+  necesita lotes más grandes en volumen, conviene revisar el patrón de acceso a datos de esta prevalidación.
+- **Fecha de la serie en UTC.** `LineaSerie.FechaInicial`/el corte diario de la numeración usan la fecha en UTC, no la
+  fecha local del usuario; en husos horarios alejados de UTC, un registro cerca de medianoche podría numerarse con la
+  fecha "equivocada" desde la perspectiva del usuario. Documentado en la Task 4.3, sin corregir en esta fase.

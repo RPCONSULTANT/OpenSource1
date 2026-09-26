@@ -22,14 +22,17 @@ namespace OpenSource1.SmokeTests.Infrastructure;
 /// <para>
 /// Deliberadamente NO incluye <c>MovimientosProducto</c>: esa tabla sí tiene un UPDATE legítimo y documentado (el
 /// decremento de <c>CantidadRestante</c> por la aplicación FIFO de la Task 3.4), que el propio trigger permite como
-/// única excepción. <c>MovimientosValor</c> y <c>AplicacionesMovimientoProducto</c> no tienen ninguna excepción: son
-/// estrictamente append-only.
+/// única excepción. <c>MovimientosValor</c>, <c>AplicacionesMovimientoProducto</c> y <c>RegistrosDiario</c> (Task 4.5:
+/// agregada a esta red, mismo trigger <c>libro_inventario_append_only()</c> reutilizado por la migración
+/// <c>AddRegistrosDiario</c> de la Fase 4) no tienen ninguna excepción: son estrictamente append-only.
 /// </para>
 /// </summary>
 public sealed class LibroInventarioSinUpdateNiDeleteTests
 {
-    private static readonly string[] TablasProtegidas = ["MovimientosValor", "AplicacionesMovimientoProducto"];
-    private static readonly string[] EntidadesProtegidas = ["MovimientoValor", "AplicacionMovimientoProducto"];
+    private static readonly string[] TablasProtegidas =
+        ["MovimientosValor", "AplicacionesMovimientoProducto", "RegistrosDiario"];
+    private static readonly string[] EntidadesProtegidas =
+        ["MovimientoValor", "AplicacionMovimientoProducto", "RegistroDiario"];
 
     /// <summary>
     /// SQL prohibido: la palabra clave, uno o más espacios/saltos de línea (<c>\s+</c>, insensible a mayúsculas) y el
@@ -79,7 +82,7 @@ public sealed class LibroInventarioSinUpdateNiDeleteTests
 
         Assert.True(violaciones.Count == 0,
             "Se encontró código fuera de Migrations/ que actualiza o borra el libro de inventario " +
-            "(MovimientosValor/AplicacionesMovimientoProducto son append-only):\n" + string.Join('\n', violaciones));
+            "(MovimientosValor/AplicacionesMovimientoProducto/RegistrosDiario son append-only):\n" + string.Join('\n', violaciones));
     }
 
     // Mutaciones de control (revisión final de la Fase 3): sin estos tres casos sintéticos el detector podría
@@ -97,6 +100,9 @@ public sealed class LibroInventarioSinUpdateNiDeleteTests
         """,
         // Código: DbSet seguido de .Remove en la misma expresión.
         "context.MovimientosValor.Remove(x);",
+        // Task 4.5: mismos dos casos para RegistrosDiario (SQL en una línea y código).
+        """UPDATE "RegistrosDiario" SET "NumeroRegistro" = 'X' WHERE "Id" = 1;""",
+        "context.RegistrosDiario.Remove(x);",
     };
 
     [Theory]
@@ -110,12 +116,14 @@ public sealed class LibroInventarioSinUpdateNiDeleteTests
         // Mismo patrón que el código de producción real: declaración de los DbSets (Set<T>() sin mutador detrás,
         // separado por ";") y un INSERT (permitido: el libro es append-ONLY, no "sin escritura").
         const string contenido = """
-            /// <summary>Ver <c>MovimientosValor</c> y <c>AplicacionesMovimientoProducto</c>.</summary>
+            /// <summary>Ver <c>MovimientosValor</c>, <c>AplicacionesMovimientoProducto</c> y <c>RegistrosDiario</c>.</summary>
             public DbSet<MovimientoValor> MovimientosValor => Set<MovimientoValor>();
             public DbSet<AplicacionMovimientoProducto> AplicacionesMovimientoProducto => Set<AplicacionMovimientoProducto>();
+            public DbSet<RegistroDiario> RegistrosDiario => Set<RegistroDiario>();
 
             const string sql = "INSERT INTO \"MovimientosValor\" (\"ProductoId\") VALUES (@ProductoId)";
             const string sql2 = "UPDATE \"MovimientosProducto\" SET \"CantidadRestante\" = \"CantidadRestante\" - @Aplicada WHERE \"Id\" = @Id";
+            const string sql3 = "INSERT INTO \"RegistrosDiario\" (\"NumeroRegistro\") VALUES (@NumeroRegistro)";
             """;
 
         Assert.Empty(Violaciones(contenido));
