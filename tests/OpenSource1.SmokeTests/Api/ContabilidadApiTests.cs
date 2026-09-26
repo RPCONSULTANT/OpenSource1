@@ -257,6 +257,76 @@ public sealed class ContabilidadApiTests : IClassFixture<PostgresTestFixture>
 
     // ── Helpers ──
 
+    [Fact]
+    public async Task PostearCostoInventario_ExigeCanModify_YDevuelveElResumenConPendientes()
+    {
+        using var client = _factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        const string url = "/api/contabilidad/postear-costo-inventario";
+
+        var anon = new HttpRequestMessage(HttpMethod.Post, url);
+        anon.Headers.Add("X-Test-Anonymous", "true");
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.SendAsync(anon)).StatusCode);
+
+        // Ejecutor (consultar + agregar) no tiene CanModify: 403 sin ejecutar nada.
+        var ejecutor = new HttpRequestMessage(HttpMethod.Post, url);
+        ejecutor.Headers.Add("X-Test-User", "ejecutor");
+        ejecutor.Headers.Add("X-Test-Roles", "Ejecutor");
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.SendAsync(ejecutor)).StatusCode);
+
+        // Un producto clasificado (se contabiliza) y otro sin grupos (queda pendiente con grupo_faltante).
+        var clasificado = await ProductoConEntradaAsync(GrupoContableIds.InventarioGeneral);
+        var sinGrupos = await ProductoConEntradaAsync(null);
+
+        var respuesta = await Admin().PostAsync(url, content: null);
+        Assert.Equal(HttpStatusCode.OK, respuesta.StatusCode);
+        using var json = System.Text.Json.JsonDocument.Parse(await respuesta.Content.ReadAsStringAsync());
+        Assert.True(json.RootElement.GetProperty("asientos").GetInt32() >= 1);
+        Assert.True(json.RootElement.GetProperty("movimientosValorContabilizados").GetInt32() >= 1);
+        var pendiente = Assert.Single(
+            json.RootElement.GetProperty("pendientes").EnumerateArray(),
+            p => p.GetProperty("movimientoValorId").GetInt64() == sinGrupos.MovimientoValorId);
+        Assert.Equal("setup_contable.grupo_faltante", pendiente.GetProperty("codigo").GetString());
+        Assert.False(string.IsNullOrWhiteSpace(pendiente.GetProperty("mensaje").GetString()));
+        Assert.DoesNotContain(
+            json.RootElement.GetProperty("pendientes").EnumerateArray(),
+            p => p.GetProperty("movimientoValorId").GetInt64() == clasificado.MovimientoValorId);
+
+        // Idempotente: la segunda ejecución no crea asientos; filtrada por producto no ve el pendiente del otro.
+        var segunda = await Admin().PostAsync($"{url}?productoId={clasificado.ProductoId}", content: null);
+        var cuerpo = await segunda.Content.ReadFromJsonAsync<ResultadoPosteoCostoInventario>();
+        Assert.Equal(new ResultadoPosteoCostoInventario(0, 0, []), cuerpo! with { Pendientes = [] });
+        Assert.Empty(cuerpo.Pendientes);
+    }
+
+    private async Task<(Guid ProductoId, long MovimientoValorId)> ProductoConEntradaAsync(Guid? grupoInventario)
+    {
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var contexto = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var producto = new Producto
+        {
+            Codigo = $"PC{Guid.NewGuid():N}"[..20],
+            Nombre = "Producto del batch de costo",
+            PrecioVenta = 1m,
+            CategoriaId = Guid.Parse("c1000000-0000-0000-0000-000000000001"),
+            UnidadMedidaBaseId = LibroInventarioPrueba.UnidadUnd,
+            GrupoInventarioId = grupoInventario,
+            GrupoProductoId = grupoInventario is null ? null : GrupoContableIds.ProductoBienes,
+            CreatedBy = "test",
+        };
+        contexto.Productos.Add(producto);
+        await contexto.SaveChangesAsync();
+
+        var sesion = scope.ServiceProvider.GetRequiredService<IDbSession>();
+        await using (await sesion.BeginTransactionAsync())
+        {
+            var registrado = await scope.ServiceProvider.GetRequiredService<IRegistroMovimientosInventario>().RegistrarAsync(
+                LibroInventarioPrueba.Entrada(producto.Id, AlmacenIds.Principal, 2m, 5m, new DateOnly(2026, 6, 10)));
+            Assert.True(registrado.EsExito);
+            await sesion.CommitAsync();
+            return (producto.Id, registrado.Valor.MovimientoValorId);
+        }
+    }
+
     private async Task<AsientoRegistrado> RegistrarAsync(DateOnly fecha, params (Guid Cuenta, decimal Importe)[] lineas)
     {
         await using var scope = _factory.Services.CreateAsyncScope();

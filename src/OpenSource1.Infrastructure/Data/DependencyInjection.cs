@@ -89,6 +89,7 @@ public static class DependencyInjection
         services.AddScoped<IGrupoContableUsoService, GrupoContableUsoService>();
         services.AddScoped<IDerivadorCuentas, DerivadorCuentas>();
         services.AddScoped<IRegistroContable, RegistroContable>();
+        services.AddScoped<IPosteoCostoInventario, PosteoCostoInventario>();
         services.AddScoped<IContabilidadReadRepository, DapperContabilidadReadRepository>();
         services.AddScoped<ISetupContableReadRepository, DapperSetupContableReadRepository>();
         services.AddScoped<IPlantillaDiarioReadRepository, DapperPlantillaDiarioReadRepository>();

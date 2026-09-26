@@ -247,6 +247,73 @@ public sealed class LibroInventarioAppendOnlyTests(PostgresTestFixture fixture) 
         Assert.Equal("23514", Assert.IsType<PostgresException>(excepcion.InnerException).SqlState);
     }
 
+    /// <summary>
+    /// Task 5.6 (desviación de la Fase 5): la única columna actualizable de <c>MovimientosValor</c> es
+    /// <c>ImporteCostoPosteadoContabilidad</c> (la iguala a <c>ImporteCosto</c> el batch de costo), como <c>CantidadRestante</c> en
+    /// <c>MovimientosProducto</c>.
+    /// </summary>
+    [Fact]
+    public async Task ActualizarSoloImporteCostoPosteadoContabilidad_EnMovimientosValor_Funciona()
+    {
+        var valor = await InsertarValorAsync();
+        await using var contexto = NuevoContextoPropio();
+
+        await contexto.Database.ExecuteSqlAsync(
+            $"UPDATE \"MovimientosValor\" SET \"ImporteCostoPosteadoContabilidad\" = \"ImporteCosto\" WHERE \"Id\" = {valor.Id}");
+
+        var posteado = await contexto.Set<MovimientoValor>().Where(x => x.Id == valor.Id)
+            .Select(x => x.ImporteCostoPosteadoContabilidad).SingleAsync();
+        Assert.Equal(valor.ImporteCosto, posteado);
+    }
+
+    /// <summary>Cambiar la columna permitida JUNTO con cualquier otra sigue prohibido (el trigger compara el resto de la fila).</summary>
+    [Theory]
+    [InlineData("\"ImporteCosto\" = 0")]
+    [InlineData("\"CantidadValorada\" = 0")]
+    [InlineData("\"FechaRegistro\" = \"FechaRegistro\" + 1")]
+    [InlineData("\"ClaveOrigen\" = 'X'")]
+    public async Task ActualizarPosteadoJuntoConOtraColumna_EnMovimientosValor_LanzaPostgresExceptionP0001(string otraColumna)
+    {
+        var valor = await InsertarValorAsync();
+        await using var contexto = NuevoContextoPropio();
+
+        // La asignación extra es SQL (no un valor) y sale solo de los literales fijos de [InlineData]: ExecuteSqlRaw es seguro.
+#pragma warning disable EF1002
+        var excepcion = await Assert.ThrowsAsync<PostgresException>(() => contexto.Database.ExecuteSqlRawAsync(
+            $"UPDATE \"MovimientosValor\" SET \"ImporteCostoPosteadoContabilidad\" = 1, {otraColumna} WHERE \"Id\" = {valor.Id}"));
+#pragma warning restore EF1002
+
+        Assert.Equal("P0001", excepcion.SqlState);
+    }
+
+    /// <summary>La excepción es SOLO para MovimientosValor: el resto de tablas del libro que comparten la función siguen sin UPDATE.</summary>
+    [Fact]
+    public async Task ActualizarSinCambios_EnRegistrosContables_SigueLanzandoP0001()
+    {
+        await using var contexto = NuevoContextoPropio();
+        var excepcion = await Assert.ThrowsAsync<PostgresException>(() => contexto.Database.ExecuteSqlRawAsync(
+            "INSERT INTO \"RegistrosContables\" (\"NumeroRegistro\", \"DesdeMovimiento\", \"HastaMovimiento\", \"FechaCreacion\", \"CreadoPor\", \"TipoOrigen\", \"ClaveOrigen\") " +
+            "VALUES ('T-UPD', 1, 1, now(), 'test', 4, 'X'); UPDATE \"RegistrosContables\" SET \"ClaveOrigen\" = \"ClaveOrigen\" WHERE \"NumeroRegistro\" = 'T-UPD'"));
+
+        Assert.Equal("P0001", excepcion.SqlState);
+    }
+
+    private async Task<MovimientoValor> InsertarValorAsync()
+    {
+        var (contexto, productoId, almacenId) = await PrepararAsync();
+        await using var _ = contexto;
+        var entrada = NuevaEntrada(productoId, almacenId, cantidad: 10m, cantidadRestante: 10m);
+        contexto.Set<MovimientoProducto>().Add(entrada);
+        await contexto.SaveChangesAsync();
+        var valor = NuevoValor(entrada, productoId, almacenId);
+        contexto.Set<MovimientoValor>().Add(valor);
+        await contexto.SaveChangesAsync();
+        return valor;
+    }
+
+    private ApplicationDbContext NuevoContextoPropio() =>
+        new(new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(fixture.AppConnectionString).Options);
+
     private static MovimientoProducto NuevaEntrada(Guid productoId, Guid almacenId, decimal cantidad, decimal? cantidadRestante)
     {
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);

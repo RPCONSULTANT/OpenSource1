@@ -26,7 +26,9 @@ namespace OpenSource1.SmokeTests.Infrastructure;
 /// agregada a esta red, mismo trigger <c>libro_inventario_append_only()</c> reutilizado por la migración
 /// <c>AddRegistrosDiario</c> de la Fase 4) no tienen ninguna excepción: son estrictamente append-only. La Task 5.5 añade el
 /// libro contable, <c>MovimientosContables</c> y <c>RegistrosContables</c> (mismo trigger, migración <c>AddLibroContable</c>),
-/// también sin excepción.
+/// también sin excepción. La Task 5.6 abre UNA excepción en <c>MovimientosValor</c>, la misma que el trigger (migración
+/// <c>PermitirContabilizacionCosto</c>): el <c>UPDATE "MovimientosValor" SET "ImporteCostoPosteadoContabilidad" = ... WHERE ...</c>
+/// del batch de costo, con esa columna como única asignación (ver <see cref="ExcepcionPosteoCosto"/>).
 /// </para>
 /// </summary>
 public sealed class LibroInventarioSinUpdateNiDeleteTests
@@ -42,9 +44,20 @@ public sealed class LibroInventarioSinUpdateNiDeleteTests
     /// una comilla de cierre opcional): un <c>\b</c> tras la comilla fallaría si el carácter siguiente también es
     /// "no palabra" (un espacio), porque ninguno de los dos lados sería \w.
     /// </summary>
+    /// <remarks>
+    /// Task 5.6 (desviación de la Fase 5): la ÚNICA excepción es el <c>UPDATE "MovimientosValor" SET
+    /// "ImporteCostoPosteadoContabilidad" = &lt;expresión&gt; WHERE ...</c> del batch de costo, con esa columna como única
+    /// asignación: la expresión hasta el <c>WHERE</c> no puede contener una coma (ni un <c>;</c>), así que asignar además otra
+    /// columna (antes o después) sigue detectándose. El grupo atómico <c>(?&gt;"?)</c> impide que el motor "devuelva" la comilla de
+    /// cierre para que la búsqueda negativa empiece en ella y deje pasar la excepción por accidente.
+    /// </remarks>
+    private const string ExcepcionPosteoCosto =
+        """(?!\s+SET\s+"?ImporteCostoPosteadoContabilidad\b"?\s*=[^,;]*?\bWHERE\b)""";
+
     private static readonly Regex PatronSql = new(
-        string.Join("|", TablasProtegidas.Select(tabla =>
-            $"""(?:UPDATE|DELETE\s+FROM|TRUNCATE(?:\s+TABLE)?)\s+"?{Regex.Escape(tabla)}\b""")),
+        string.Join("|", TablasProtegidas.Select(tabla => tabla == "MovimientosValor"
+            ? $"""(?:DELETE\s+FROM|TRUNCATE(?:\s+TABLE)?)\s+"?MovimientosValor\b|UPDATE\s+"?MovimientosValor\b(?>"?){ExcepcionPosteoCosto}"""
+            : $"""(?:UPDATE|DELETE\s+FROM|TRUNCATE(?:\s+TABLE)?)\s+"?{Regex.Escape(tabla)}\b""")),
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     /// <summary>
@@ -116,6 +129,19 @@ public sealed class LibroInventarioSinUpdateNiDeleteTests
         """UPDATE RegistrosContables SET "NumeroRegistro" = 'X';""",
         "context.MovimientosContables.Where(x => x.Id == 1).ExecuteDeleteAsync();",
         "context.Set<RegistroContable>().Update(x);",
+        // Task 5.6: la excepción del batch de costo es SOLO la columna ImporteCostoPosteadoContabilidad; asignar otra columna
+        // además (antes o después), otra columna sola, sin comillas, partido en líneas o sin WHERE sigue siendo una violación.
+        """UPDATE "MovimientosValor" SET "ImporteCostoPosteadoContabilidad" = "ImporteCosto", "ImporteCosto" = 0 WHERE "Id" = 1;""",
+        """UPDATE "MovimientosValor" SET "ImporteCosto" = 0, "ImporteCostoPosteadoContabilidad" = 0 WHERE "Id" = 1;""",
+        """UPDATE "MovimientosValor" SET "GrupoInventarioId" = NULL WHERE "Id" = 1;""",
+        """
+        update movimientosvalor
+        set importecostoposteadocontabilidad = 0,
+            grupoinventarioid = null where id = 1;
+        """,
+        """UPDATE "MovimientosValor" SET "ImporteCostoPosteadoContabilidadX" = 0 WHERE "Id" = 1;""",
+        """UPDATE "MovimientosValor" SET "ImporteCostoPosteadoContabilidad" = 0;""",
+        "context.MovimientosValor.Where(x => x.Id == 1).ExecuteUpdateAsync(s => s.SetProperty(x => x.ImporteCostoPosteadoContabilidad, 0m));",
     };
 
     [Theory]
@@ -128,7 +154,7 @@ public sealed class LibroInventarioSinUpdateNiDeleteTests
     {
         // Mismo patrón que el código de producción real: declaración de los DbSets (Set<T>() sin mutador detrás,
         // separado por ";") y un INSERT (permitido: el libro es append-ONLY, no "sin escritura").
-        const string contenido = """
+        const string contenido = """"
             /// <summary>Ver <c>MovimientosValor</c>, <c>AplicacionesMovimientoProducto</c> y <c>RegistrosDiario</c>.</summary>
             public DbSet<MovimientoValor> MovimientosValor => Set<MovimientoValor>();
             public DbSet<AplicacionMovimientoProducto> AplicacionesMovimientoProducto => Set<AplicacionMovimientoProducto>();
@@ -141,7 +167,12 @@ public sealed class LibroInventarioSinUpdateNiDeleteTests
             const string sql3 = "INSERT INTO \"RegistrosDiario\" (\"NumeroRegistro\") VALUES (@NumeroRegistro)";
             const string sql4 = "INSERT INTO \"MovimientosContables\" (\"Id\") OVERRIDING SYSTEM VALUE VALUES (@Id)";
             const string sql5 = "SELECT COUNT(*), COALESCE(SUM(\"Importe\"), 0) FROM \"MovimientosContables\" WHERE \"RegistroContableId\" = @Id";
-            """;
+            const string sql6 = """
+                UPDATE "MovimientosValor" SET "ImporteCostoPosteadoContabilidad" = "ImporteCosto"
+                WHERE "Id" = ANY(@Ids) AND "ImporteCosto" <> "ImporteCostoPosteadoContabilidad"
+                """;
+            const string sql7 = "update MovimientosValor set ImporteCostoPosteadoContabilidad = 0 where Id = 1";
+            """";
 
         Assert.Empty(Violaciones(contenido));
     }

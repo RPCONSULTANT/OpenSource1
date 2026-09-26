@@ -3,16 +3,19 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using OpenSource1.Api.Infrastructure;
 using OpenSource1.Application.Features.Contabilidad;
+using OpenSource1.Application.Features.Contabilidad.Commands;
 using OpenSource1.Application.Features.Contabilidad.Dtos;
 using OpenSource1.Application.Features.Contabilidad.Queries;
 using OpenSource1.Application.Security;
+using OpenSource1.Application.Services.Contabilidad;
 using OpenSource1.Core.Common;
 
 namespace OpenSource1.Api.Controllers;
 
 /// <summary>
-/// Consultas del libro contable (Task 5.5). Solo lectura: el libro lo escribe únicamente <c>IRegistroContable</c> desde los
-/// procesos de posteo (batch de costo, facturación). Las vistas completas llegan en la Fase 7.
+/// Consultas del libro contable (Task 5.5) y batch de contabilización del costo de inventario (Task 5.6). El libro lo escribe
+/// únicamente <c>IRegistroContable</c> desde los procesos de posteo (batch de costo, facturación). Las vistas completas llegan
+/// en la Fase 7.
 /// </summary>
 [ApiController]
 [Route("api/contabilidad")]
@@ -57,6 +60,21 @@ public sealed class ContabilidadController(ISender sender) : ControllerBase
             new ListRegistrosContablesQuery(new PageRequest(pagina, tamanoPagina, ordenarPor, descendente)),
             cancellationToken);
 
+        return result.EsFallo ? result.ToActionResult() : Ok(result.Valor);
+    }
+
+    /// <summary>
+    /// Batch "Postear costo de inventario a contabilidad" (Task 5.6): contabiliza el delta de costo de todos los movimientos de
+    /// valor pendientes (o solo los de <paramref name="productoId"/>). Idempotente: una segunda ejecución no escribe nada. 200 con
+    /// <c>{ asientos, movimientosValorContabilizados, pendientes: [{ movimientoValorId, codigo, mensaje }] }</c>; los movimientos
+    /// sin setup no son un error de la petición, se informan en <c>pendientes</c>.
+    /// </summary>
+    [HttpPost("postear-costo-inventario")]
+    [Authorize(Policy = ApplicationPolicies.CanModify)]
+    [ProducesResponseType<ResultadoPosteoCostoInventario>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> PostearCostoInventario([FromQuery] Guid? productoId, CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(new PostearCostoInventarioCommand(productoId), cancellationToken);
         return result.EsFallo ? result.ToActionResult() : Ok(result.Valor);
     }
 }
