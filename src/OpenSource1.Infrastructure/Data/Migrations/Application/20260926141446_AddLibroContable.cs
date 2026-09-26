@@ -288,6 +288,13 @@ namespace OpenSource1.Infrastructure.Data.Migrations.Application
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            // DESTRUCTIVO: borra el libro contable (RegistrosContables y MovimientosContables) pero NO toca
+            // MovimientosValor."ImporteCostoPosteadoContabilidad", que sigue marcando como contabilizado lo que el batch de
+            // costo ya pasó al libro. Tras un Down+Up el batch NO recontabiliza esos importes (solo ve ImporteCosto <>
+            // ImporteCostoPosteadoContabilidad). Para reconstruir el libro hay que poner esa columna a 0 a mano y volver a
+            // ejecutar el batch. Hazlo con el trigger append-only de MovimientosValor desactivado: mientras
+            // PermitirContabilizacionCosto no esté aplicada, libro_inventario_append_only() rechaza ese UPDATE (con la
+            // cadena en HEAD sí lo admite, porque es la única columna actualizable).
             // El backfill de grupos de MovimientosValor no se deshace: los valores quedan (sin FK), igual que antes de Up.
             migrationBuilder.Sql("DROP TRIGGER IF EXISTS \"TR_RegistrosContables_NoTruncate\" ON \"RegistrosContables\";");
             migrationBuilder.Sql("DROP TRIGGER IF EXISTS \"TR_RegistrosContables_AppendOnly\" ON \"RegistrosContables\";");

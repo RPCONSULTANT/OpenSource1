@@ -294,8 +294,10 @@ La cadena de migraciones se verificó completa en ambos sentidos, con un contene
    `tgenabled = 'O'`; 9 filas de setups semilla (4 general + 4 IVA + 1 inventario); serie `CONTAB` sin huecos; los cinco
    triggers de los libros contables (`TR_RegistrosContables_*`, `TR_MovimientosContables_*`) activos, incluida
    `TR_MovimientosContables_Cuadre` como constraint trigger `DEFERRABLE INITIALLY DEFERRED`.
-3. **Down a `AddRegistrosDiario`** (Down completo de la Fase 5, 24 migraciones): las seis tablas/columnas de la Fase 5
-   desaparecen y los datos de la Fase 4 (almacén, producto, socio, los dos movimientos de valor) se conservan intactos.
+3. **Down a `AddRegistrosDiario`** (Down completo de la Fase 5: revierte sus 6 migraciones y quedan 24 aplicadas): las
+   12 tablas nuevas de la Fase 5 (`CuentasContables`, los seis `Grupos*`, los tres `Setups*`, `RegistrosContables` y
+   `MovimientosContables`) y las 6 columnas de grupo añadidas a `Productos` (3) y `SociosNegocio` (3) desaparecen, y los
+   datos de la Fase 4 (almacén, producto, socio, los dos movimientos de valor) se conservan intactos.
 4. **Up de nuevo a HEAD**: mismo resultado exacto que el paso 2 — 30 migraciones, mismos conteos de cuentas/grupos/setups,
    mismo backfill del producto y del socio sembrados, los mismos `MovimientosValor` con sus grupos rellenados otra vez, y
    los mismos triggers activos. Sin duplicados: los `HasData` y el backfill por SQL son idempotentes frente a un
@@ -324,6 +326,23 @@ fase (incluida esta verificación) usó `postgres:17-alpine`. Cualquier entorno 
 correr PostgreSQL 15 o superior.
 
 **Limitaciones conocidas que hereda la Fase 6:**
+
+- **El Down de `AddLibroContable` es destructivo y no rearma el batch.** Borra el libro contable (`RegistrosContables`,
+  `MovimientosContables`), pero `MovimientosValor.ImporteCostoPosteadoContabilidad` conserva lo ya contabilizado, así que
+  tras un Down+Up el batch de costo NO recontabiliza nada de lo anterior (solo ve `ImporteCosto <>
+  ImporteCostoPosteadoContabilidad`). Para reconstruir el libro hay que poner esa columna a 0 a mano, con el trigger
+  append-only de `MovimientosValor` desactivado durante el cambio (mientras `PermitirContabilizacionCosto` no esté aplicada,
+  `libro_inventario_append_only()` rechaza ese UPDATE; en HEAD lo admite), y volver a ejecutar el batch. Está comentado en
+  el propio `Down` de la migración.
+- **El borrado de socios de negocio no tiene guarda de uso.** `DeleteSocioNegocioCommandHandler` hace el borrado lógico
+  sin consultar referencias. Hoy no importa (el batch de costo no rellena `MovimientosContables.SocioNegocioId`), pero la
+  Fase 6 empezará a usar esa columna al facturar: debe añadir la guarda (409 `socio_negocio.conflicto` si hay movimientos
+  contables, documentos o borradores que lo referencian).
+- **`SetupsContableGeneral.CuentaAjusteInventarioId` no la usa nadie todavía.** El batch de costo toma la contrapartida de
+  compras/ajustes/apertura de `SetupsInventario.CuentaAjusteInventarioId` (vía `CuentaAjusteInventarioAsync(almacén,
+  grupo de inventario)`); la columna homónima del setup general solo existe y está protegida por la guarda de uso de
+  cuentas. Si la Fase 6 la necesita (p. ej. un ajuste por grupo de negocio × producto), debe añadir su método al
+  derivador; si no, puede quedarse como está.
 
 - **Sin posteo contable al facturar en esta fase.** `ConfiguracionInventario.PosteoAutomaticoCosto` no existe todavía; el
   único camino para contabilizar el costo de inventario es el batch manual `POST
@@ -372,9 +391,10 @@ correr PostgreSQL 15 o superior.
   (spec 6.5 paso 7 y 6.6), y `TipoOrigenMovimiento.FacturaVenta` como origen de esos movimientos (el enum ya reserva ese
   valor = 2; `CostoInventario` = 4 es del batch de esta fase, no se reutiliza para facturación).
 - **Derivar cuentas con `IDerivadorCuentas`**: `CuentaCxCAsync` (grupo de cliente contable, obligatorio), `CuentaVentasAsync`
-  y `CuentaDescuentoVentasAsync` (grupo de negocio × grupo de producto, comodín en cualquiera de los dos ejes) e
-  `IvaAsync` (grupo de IVA de negocio × grupo de IVA de producto, además del identificador y porcentaje de IVA
-  congelados). La regla de resolución (fila exacta → comodín → `setup_contable.inexistente`) y los códigos de error
+  y `CuentaDescuentoVentasAsync` (grupo de negocio × grupo de producto; el comodín solo se admite en el eje de NEGOCIO:
+  un grupo de producto nulo da `setup_contable.grupo_faltante`, nunca casa un comodín) e `IvaAsync` (grupo de IVA de
+  negocio × grupo de IVA de producto, con el comodín igualmente solo en el eje de negocio; además del identificador y
+  porcentaje de IVA congelados). La regla de resolución (fila exacta → comodín → `setup_contable.inexistente`) y los códigos de error
   (`setup_contable.grupo_faltante`, `.inexistente`, `.cuenta_invalida`) son los mismos que ya usa el batch de costo; no
   hace falta un derivador nuevo.
 - Los grupos que la Fase 6 necesita congelar en el borrador y en el documento posteado
