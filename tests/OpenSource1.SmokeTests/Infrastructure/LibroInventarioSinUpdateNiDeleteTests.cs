@@ -85,9 +85,10 @@ public sealed class LibroInventarioSinUpdateNiDeleteTests
             "(MovimientosValor/AplicacionesMovimientoProducto/RegistrosDiario son append-only):\n" + string.Join('\n', violaciones));
     }
 
-    // Mutaciones de control (revisión final de la Fase 3): sin estos tres casos sintéticos el detector podría
-    // parecer correcto y sin embargo dejar pasar justo lo que motivó el endurecimiento del test original (que
-    // trabajaba línea a línea). Contenido de archivo simulado, no C# que deba compilar.
+    // Mutaciones de control (revisión final de la Fase 3, ampliadas en la Task 4.5): sin estos cinco casos
+    // sintéticos el detector podría parecer correcto y sin embargo dejar pasar justo lo que motivó el
+    // endurecimiento del test original (que trabajaba línea a línea). Contenido de archivo simulado, no C# que
+    // deba compilar.
     public static TheoryData<string> MutacionesDeControl => new()
     {
         // SQL en una sola línea.

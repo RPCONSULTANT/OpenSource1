@@ -318,3 +318,24 @@ recreándose igual en cada pasada. `RegistrosDiario` quedó protegida por el mis
 - **Fecha de la serie en UTC.** `LineaSerie.FechaInicial`/el corte diario de la numeración usan la fecha en UTC, no la
   fecha local del usuario; en husos horarios alejados de UTC, un registro cerca de medianoche podría numerarse con la
   fecha "equivocada" desde la perspectiva del usuario. Documentado en la Task 4.3, sin corregir en esta fase.
+- **La relajación de 4 decimales del costo aplica a CUALQUIER entrada de tipo Transferencia**, no solo a la que genera
+  el diario: `RegistroMovimientosInventario.RegistrarAsync` la decide por `TipoMovimiento`, no por `TipoOrigen`. Hoy
+  solo el diario de inventario produce entradas Transferencia, así que el efecto observable es el mismo, pero un
+  futuro llamador directo de `RegistrarAsync` con una entrada Transferencia heredaría la misma relajación aunque no
+  sea una reclasificación.
+- **Una cadena de transferencias del mismo día (A→B y luego B→C) solo se registra si sus líneas están en el orden de
+  la dependencia** (A→B antes que B→C): el registro procesa las líneas por `FechaRegistro`, entradas antes que
+  salidas, y `NumeroLinea`, y `NumeroLinea` es inmutable una vez capturada la línea (no hay "mover línea" en la UI ni
+  en la API). Si el usuario captura B→C antes que A→B en el mismo lote y misma fecha, la segunda transferencia falla
+  por existencia insuficiente aunque la primera la habría cubierto.
+- **Cambiar la unidad base de un producto que ya tiene líneas de diario capturadas (sin registrar) no las actualiza.**
+  `CantidadPorUnidadMedida` quedó congelada con el factor de la unidad elegida al guardar la línea; si esa unidad deja
+  de ser la base, el registro fallará con `diario.factor_cambiado` (Task 4.2). La única salida desde la UI es "Cambiar
+  producto" en esas líneas (borrarlas y volver a capturarlas), no hay una forma de "releer" el factor sin recapturar.
+- **Serialización global de un mismo libro por la serie de numeración.** El `FOR UPDATE` de la línea de la serie en
+  `IGeneradorNumeroDocumento.SiguienteAsync` serializa TODOS los registros que usan esa serie (hoy, `DIARIO-INV`),
+  independientemente del producto: dos posteos que no comparten ningún producto igual se esperan entre sí durante ese
+  tramo. Es la razón por la que un test que quitara el prebloqueo de productos (`BloquearProductosAsync`) seguiría sin
+  fallar entre dos lotes de diario distintos: el prebloqueo de productos evita el interbloqueo A/B-B/A dentro de un
+  mismo posteo, pero la protección contra OTROS escritores del libro (otro registro, otro borrado de producto/almacén)
+  ya la da el orden global de locks (lote → líneas → productos → línea de serie → almacenes).

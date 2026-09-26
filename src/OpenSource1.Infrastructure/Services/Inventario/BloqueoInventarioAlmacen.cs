@@ -18,6 +18,19 @@ namespace OpenSource1.Infrastructure.Services.Inventario;
 /// Orden de adquisición para todo escritor: productos (en orden de Guid) y después almacenes; el borrado de almacén solo
 /// toma su almacén, así que no hay ciclo posible.
 /// </para>
+/// <para>
+/// Orden GLOBAL de locks de todo escritor del libro de inventario (Fase 4, posteo de un diario): lote -&gt; líneas
+/// (<c>FOR UPDATE</c> de <c>LotesDiario</c>/<c>LineasDiario</c>) -&gt; productos (orden de Guid,
+/// <see cref="BloqueoInventarioProducto"/>) -&gt; línea de serie (<c>FOR UPDATE</c> de
+/// <c>IGeneradorNumeroDocumento</c>) -&gt; almacenes (esta clase, en modo compartido). El <c>FOR UPDATE</c> de la
+/// línea de serie serializa, además, GLOBALMENTE todos los registros que usan esa misma serie (hoy, la única serie
+/// de diarios, <c>DIARIO-INV</c>): por eso un test que quitara el prebloqueo de productos
+/// (<c>IRegistroMovimientosInventario.BloquearProductosAsync</c>) del posteo no fallaría por interbloqueo entre dos
+/// lotes de diario concurrentes que no comparten ningún producto (ya los serializa el número de la serie); ese
+/// prebloqueo de productos sigue siendo necesario para el interbloqueo A/B-B/A DENTRO de un mismo posteo (líneas del
+/// mismo lote sobre distintos productos) y para no colarse con otros escritores del maestro del producto (borrarlo,
+/// cambiar su unidad base), que toman la misma clave.
+/// </para>
 /// </summary>
 internal static class BloqueoInventarioAlmacen
 {

@@ -676,6 +676,12 @@ costo 0; test de que el lote queda vacío tras postear.
 - **Borrar un almacén** toma un advisory lock exclusivo del almacén y `RegistrarAsync` toma el mismo lock en modo compartido,
   para que no pueda registrarse un movimiento en un almacén que se está borrando. Cambiar la unidad base y borrar un producto
   toman el lock del producto.
+- **`Producto.CostoAjustado = false` (paso 6 del flujo 4.2) NO se marca en "los productos afectados"** como dice ese
+  paso, sino según la regla de la Fase 3 (Ruling AS), decidida movimiento a movimiento dentro de
+  `RegistroMovimientosInventario.RegistrarAsync`: toda SALIDA lo marca, y toda ENTRADA de un producto que ya tenga
+  alguna salida (de cualquier fecha) también lo marca. Una entrada de un producto sin salidas previas no lo marca (su
+  costo no depende de ningún promedio calculado). En una reclasificación esto puede marcar solo uno de los dos
+  productos (o ninguno), no ambos por igual.
 - **Permisos:** consultar = CanConsult; crear/editar lotes y líneas = CanAdd/CanModify; borrar = CanDelete; **registrar un
   lote = CanModify** (afecta al inventario; Administrador y Supervisor).
 
