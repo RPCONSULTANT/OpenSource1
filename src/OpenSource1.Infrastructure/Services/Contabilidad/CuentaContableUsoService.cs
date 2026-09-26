@@ -8,7 +8,8 @@ namespace OpenSource1.Infrastructure.Services.Contabilidad;
 /// Guarda de uso de cuentas contables. Una cuenta está en uso si la referencia, en cualquiera de sus columnas de cuenta, una fila
 /// NO borrada lógicamente de: un grupo contable de cliente (CxC, descuento o interés; Task 5.3) o uno de los tres setups
 /// contables (Task 5.4), o si tiene algún movimiento en el libro contable (Task 5.5; el libro no tiene borrado lógico y usa el
-/// índice <c>IX_MovimientosContables_CuentaContableId_FechaRegistro</c>).
+/// índice <c>IX_MovimientosContables_CuentaContableId_FechaRegistro</c>), o una línea viva de borrador de factura de tipo
+/// CuentaContable (Task 6.2).
 /// </summary>
 public sealed class CuentaContableUsoService(IDbSession session) : ICuentaContableUsoService
 {
@@ -30,6 +31,8 @@ public sealed class CuentaContableUsoService(IDbSession session) : ICuentaContab
             SELECT 1 FROM "SetupsInventario"
             WHERE "IsDeleted" = false
               AND ("CuentaInventarioId" = @Id OR "CuentaAjusteInventarioId" = @Id OR "CuentaVariacionCostoId" = @Id)
+        ) OR EXISTS (
+            SELECT 1 FROM "LineasFacturaVentaBorrador" WHERE "IsDeleted" = false AND "CuentaContableId" = @Id
         )
         """;
 

@@ -18,11 +18,17 @@ public sealed class GrupoContableUsoService(IDbSession session) : IGrupoContable
         // Tablas y columnas salen de estos switch sobre el enum (literales de código), nunca de texto del usuario.
         (string Tabla, string Columna)[] maestros = tipo switch
         {
-            TipoGrupoContable.Negocio => [("SociosNegocio", "GrupoNegocioId"), ("SetupsContableGeneral", "GrupoNegocioId")],
-            TipoGrupoContable.IvaNegocio => [("SociosNegocio", "GrupoIvaNegocioId"), ("SetupsIva", "GrupoIvaNegocioId")],
-            TipoGrupoContable.Producto => [("Productos", "GrupoProductoId"), ("SetupsContableGeneral", "GrupoProductoId")],
-            TipoGrupoContable.IvaProducto => [("Productos", "GrupoIvaProductoId"), ("SetupsIva", "GrupoIvaProductoId")],
-            TipoGrupoContable.Inventario => [("Productos", "GrupoInventarioId"), ("SetupsInventario", "GrupoInventarioId")],
+            // Task 6.2: los borradores de factura (cabecera y líneas vivas) congelan grupos que el posteo usará.
+            TipoGrupoContable.Negocio =>
+                [("SociosNegocio", "GrupoNegocioId"), ("SetupsContableGeneral", "GrupoNegocioId"), ("FacturasVentaBorrador", "GrupoNegocioId")],
+            TipoGrupoContable.IvaNegocio =>
+                [("SociosNegocio", "GrupoIvaNegocioId"), ("SetupsIva", "GrupoIvaNegocioId"), ("FacturasVentaBorrador", "GrupoIvaNegocioId")],
+            TipoGrupoContable.Producto =>
+                [("Productos", "GrupoProductoId"), ("SetupsContableGeneral", "GrupoProductoId"), ("LineasFacturaVentaBorrador", "GrupoProductoId")],
+            TipoGrupoContable.IvaProducto =>
+                [("Productos", "GrupoIvaProductoId"), ("SetupsIva", "GrupoIvaProductoId"), ("LineasFacturaVentaBorrador", "GrupoIvaProductoId")],
+            TipoGrupoContable.Inventario =>
+                [("Productos", "GrupoInventarioId"), ("SetupsInventario", "GrupoInventarioId"), ("LineasFacturaVentaBorrador", "GrupoInventarioId")],
             _ => throw new ArgumentOutOfRangeException(nameof(tipo), tipo, "Tipo de grupo contable desconocido.")
         };
 
@@ -47,7 +53,10 @@ public sealed class GrupoContableUsoService(IDbSession session) : IGrupoContable
 
     public Task<bool> GrupoClienteContableEnUsoAsync(Guid grupoId, CancellationToken cancellationToken = default) =>
         ExisteAsync(
-            """SELECT EXISTS (SELECT 1 FROM "SociosNegocio" WHERE "GrupoClienteContableId" = @Id AND "IsDeleted" = false)""",
+            """
+            SELECT EXISTS (SELECT 1 FROM "SociosNegocio" WHERE "GrupoClienteContableId" = @Id AND "IsDeleted" = false)
+                OR EXISTS (SELECT 1 FROM "FacturasVentaBorrador" WHERE "GrupoClienteContableId" = @Id AND "IsDeleted" = false)
+            """,
             grupoId, cancellationToken);
 
     private async Task<bool> ExisteAsync(string sql, Guid id, CancellationToken cancellationToken)

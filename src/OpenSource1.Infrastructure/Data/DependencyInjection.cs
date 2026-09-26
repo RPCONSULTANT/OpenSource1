@@ -17,6 +17,7 @@ using OpenSource1.Application.Features.DiariosInventario.Lotes;
 using OpenSource1.Application.Features.DiariosInventario.Plantillas;
 using OpenSource1.Application.Features.DiariosInventario.Registros;
 using OpenSource1.Application.Features.Entradas;
+using OpenSource1.Application.Features.FacturasVenta.Borradores;
 using OpenSource1.Application.Features.GruposClienteContable;
 using OpenSource1.Application.Features.GruposContables;
 using OpenSource1.Application.Features.Productos;
@@ -98,6 +99,10 @@ public static class DependencyInjection
         services.AddScoped<ILoteDiarioBloqueoService, LoteDiarioBloqueoService>();
         services.AddScoped<IRegistroLoteDiarioDatos, RegistroLoteDiarioDatos>();
         services.AddScoped<IRegistroDiarioReadRepository, DapperRegistroDiarioReadRepository>();
+        services.AddScoped<IFacturaVentaBorradorReadRepository, DapperFacturaVentaBorradorReadRepository>();
+        services.AddScoped<ILineaFacturaVentaBorradorReadRepository, DapperLineaFacturaVentaBorradorReadRepository>();
+        services.AddScoped<IFacturaVentaBorradorBloqueoService, FacturaVentaBorradorBloqueoService>();
+        services.AddScoped<IFacturaVentaBorradorDatos, FacturaVentaBorradorDatos>();
         services.AddScoped<IConversionUnidadMedidaService, ConversionUnidadMedidaService>();
         services.AddScoped<IGeneradorNumeroDocumento, GeneradorNumeroDocumento>();
         services.AddScoped<IConsultaInventario, ConsultaInventario>();
