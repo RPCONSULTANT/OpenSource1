@@ -10,4 +10,12 @@ namespace OpenSource1.Application.Services.Contabilidad;
 public interface ICuentaContableUsoService
 {
     Task<bool> EstaEnUsoAsync(Guid cuentaContableId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Bloquea la fila de la cuenta (<c>FOR UPDATE</c>, borrada o no) hasta el commit/rollback. Requiere transacción activa.
+    /// Se toma ANTES de <see cref="EstaEnUsoAsync"/> al borrar la cuenta o sacarla de Posteo: <c>IRegistroContable</c> lee
+    /// las cuentas <c>FOR SHARE</c>, así que un registro en curso hace esperar al borrado (que después ve sus movimientos) o
+    /// espera al borrado (y después ve la cuenta borrada y lo rechaza). Nunca queda una cuenta borrada con movimientos.
+    /// </summary>
+    Task BloquearAsync(Guid cuentaContableId, CancellationToken cancellationToken = default);
 }

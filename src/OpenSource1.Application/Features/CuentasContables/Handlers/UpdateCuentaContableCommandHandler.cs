@@ -19,6 +19,11 @@ public sealed class UpdateCuentaContableCommandHandler(IUnitOfWork unitOfWork, I
 {
     public async Task<Result<CuentaContableResponse>> Handle(UpdateCuentaContableCommand request, CancellationToken cancellationToken)
     {
+        // Misma transacción y bloqueo FOR UPDATE que el borrado (ver DeleteCuentaContableCommandHandler): sacar la cuenta de
+        // Posteo no puede colarse entre la guarda de uso y un IRegistroContable concurrente.
+        await using var transaccion = await unitOfWork.BeginTransactionAsync(cancellationToken);
+        await usoService.BloquearAsync(request.Id, cancellationToken);
+
         var repository = unitOfWork.Repository<CuentaContable>();
 
         // Consulta con seguimiento (no Find): defensa en profundidad, igual que Almacen/SocioNegocio -
@@ -61,7 +66,7 @@ public sealed class UpdateCuentaContableCommandHandler(IUnitOfWork unitOfWork, I
         entity.Sangria = request.Sangria ?? entity.Sangria;
 
         repository.Update(entity);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        await unitOfWork.CommitAsync(cancellationToken);
 
         return Result<CuentaContableResponse>.Exito(
             CreateCuentaContableCommandHandler.ToResponse(entity, repository.ObtenerVersionActual(entity)));

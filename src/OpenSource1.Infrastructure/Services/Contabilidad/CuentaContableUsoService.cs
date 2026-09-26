@@ -39,4 +39,17 @@ public sealed class CuentaContableUsoService(IDbSession session) : ICuentaContab
         return await session.Connection.ExecuteScalarAsync<bool>(
             new CommandDefinition(Sql, new { Id = cuentaContableId }, session.CurrentTransaction, cancellationToken: cancellationToken));
     }
+
+    public async Task BloquearAsync(Guid cuentaContableId, CancellationToken cancellationToken = default)
+    {
+        if (!session.HayTransaccionActiva)
+        {
+            throw new InvalidOperationException("Bloquear una cuenta contable requiere una transacción activa.");
+        }
+
+        await session.EnsureOpenAsync(cancellationToken);
+        await session.Connection.ExecuteAsync(new CommandDefinition(
+            """SELECT 1 FROM "CuentasContables" WHERE "Id" = @Id FOR UPDATE""",
+            new { Id = cuentaContableId }, session.CurrentTransaction, cancellationToken: cancellationToken));
+    }
 }

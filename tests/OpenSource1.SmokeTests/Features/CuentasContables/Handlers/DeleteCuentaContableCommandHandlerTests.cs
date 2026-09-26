@@ -47,7 +47,7 @@ public class DeleteCuentaContableCommandHandlerTests
 
         Assert.True(result.EsExito);
         repo.Verify(r => r.Remove(entity), Times.Once);
-        unitOfWork.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+        unitOfWork.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -70,6 +70,6 @@ public class DeleteCuentaContableCommandHandlerTests
         Assert.True(result.EsFallo);
         Assert.Equal("cuenta_contable.conflicto", result.Errores[0].Codigo);
         repo.Verify(r => r.Remove(It.IsAny<CuentaContable>()), Times.Never);
-        unitOfWork.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+        unitOfWork.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 }

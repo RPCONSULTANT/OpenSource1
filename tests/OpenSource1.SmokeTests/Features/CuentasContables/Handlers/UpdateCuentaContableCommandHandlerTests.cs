@@ -84,7 +84,7 @@ public class UpdateCuentaContableCommandHandlerTests
             default);
 
         Assert.True(result.EsFallo);
-        unitOfWork.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+        unitOfWork.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -110,7 +110,7 @@ public class UpdateCuentaContableCommandHandlerTests
 
         Assert.True(result.EsFallo);
         Assert.Equal("cuenta_contable.conflicto", result.Errores[0].Codigo);
-        unitOfWork.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+        unitOfWork.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
         // El tipo original no cambió.
         Assert.Equal(TipoCuentaContable.Posteo, entity.TipoCuenta);
     }

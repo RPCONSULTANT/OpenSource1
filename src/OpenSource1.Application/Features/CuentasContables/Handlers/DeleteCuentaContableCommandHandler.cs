@@ -17,6 +17,11 @@ public sealed class DeleteCuentaContableCommandHandler(IUnitOfWork unitOfWork, I
 {
     public async Task<Result> Handle(DeleteCuentaContableCommand request, CancellationToken cancellationToken)
     {
+        // En una transacción y con la fila de la cuenta bloqueada (FOR UPDATE) ANTES de evaluar el uso: un
+        // IRegistroContable concurrente (que lee la cuenta FOR SHARE) no puede dejar movimientos de una cuenta borrada.
+        await using var transaccion = await unitOfWork.BeginTransactionAsync(cancellationToken);
+        await usoService.BloquearAsync(request.Id, cancellationToken);
+
         var repository = unitOfWork.Repository<CuentaContable>();
         var entity = await repository.GetByIdAsync([request.Id], cancellationToken);
 
@@ -35,7 +40,7 @@ public sealed class DeleteCuentaContableCommandHandler(IUnitOfWork unitOfWork, I
         }
 
         repository.Remove(entity);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        await unitOfWork.CommitAsync(cancellationToken);
 
         return Result.Exito();
     }

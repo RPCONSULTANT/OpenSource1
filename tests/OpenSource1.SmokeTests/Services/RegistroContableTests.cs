@@ -235,13 +235,14 @@ public sealed class RegistroContableTests(PostgresTestFixture fixture) : IClassF
         // La línea de serie guarda el último número sin ceros a la izquierda (GeneradorNumeroDocumento).
         Assert.Equal(long.Parse(segundo.NumeroRegistro), long.Parse((await EstadoAsync()).UltimoNumero));
 
-        // El rango de movimientos del siguiente registro empieza justo después del anterior (ids reservados, sin huecos
-        // entre registros consecutivos).
-        Assert.Equal(primero.HastaMovimiento + 1, segundo.DesdeMovimiento);
+        // Cada registro tiene su rango contiguo (Desde..Hasta = sus líneas) y el siguiente empieza DESPUÉS del anterior. No se
+        // exige que empiece justo a continuación: un rollback tras reservar los ids (nextval) deja huecos inocuos entre registros.
+        Assert.Equal(primero.DesdeMovimiento + 1, primero.HastaMovimiento);
+        Assert.True(segundo.DesdeMovimiento > primero.HastaMovimiento);
     }
 
     [Fact]
-    public async Task Numeracion_EnParalelo_SinDuplicadosNiHuecos_YRangosDeMovimientosDisjuntos()
+    public async Task Numeracion_EnParalelo_SinDuplicadosNiHuecosDeNumero_YRangosDeMovimientosDisjuntos()
     {
         var a = await CuentaAsync();
         var b = await CuentaAsync();
@@ -256,11 +257,86 @@ public sealed class RegistroContableTests(PostgresTestFixture fixture) : IClassF
         Assert.All(registrados, r => Assert.Equal(r.DesdeMovimiento + 3, r.HastaMovimiento));
         for (var i = 1; i < n; i++)
         {
-            // Serializados por la serie: el orden de número coincide con el de ids, y los rangos son contiguos y disjuntos.
-            Assert.Equal(registrados[i - 1].HastaMovimiento + 1, registrados[i].DesdeMovimiento);
+            // Serializados por la serie: el orden de número coincide con el de ids y los rangos son disjuntos (cada uno contiguo
+            // por dentro, comprobado arriba; entre registros podría haber huecos inocuos de un rollback tras nextval).
+            Assert.True(registrados[i].DesdeMovimiento > registrados[i - 1].HastaMovimiento);
         }
 
         Assert.Equal(0L, await RegistrosSinCuadrarAsync());
+    }
+
+    /// <summary>Patrón del batch de costo (Task 5.6): varios asientos dentro de UNA transacción del llamador.</summary>
+    [Fact]
+    public async Task DosRegistros_EnLaMismaTransaccion_CuadranConRangosPropiosYNumerosConsecutivos()
+    {
+        var a = await CuentaAsync();
+        var b = await CuentaAsync();
+
+        await using var scope = _prueba.Provider.CreateAsyncScope();
+        var sesion = scope.ServiceProvider.GetRequiredService<IDbSession>();
+        var registro = scope.ServiceProvider.GetRequiredService<IRegistroContable>();
+        AsientoRegistrado primero, segundo;
+        await using (await sesion.BeginTransactionAsync())
+        {
+            primero = Ok(await registro.RegistrarAsync(Asiento((a, 5m), (b, -2m), (b, -3m))));
+            segundo = Ok(await registro.RegistrarAsync(Asiento((b, 7m), (a, -7m))));
+            await sesion.CommitAsync();
+        }
+
+        Assert.Equal(long.Parse(primero.NumeroRegistro) + 1, long.Parse(segundo.NumeroRegistro));
+        Assert.Equal((primero.DesdeMovimiento + 2, segundo.DesdeMovimiento + 1), (primero.HastaMovimiento, segundo.HastaMovimiento));
+        Assert.True(segundo.DesdeMovimiento > primero.HastaMovimiento);
+
+        await using var conexion = _prueba.NuevaConexion();
+        var porRegistro = (await conexion.QueryAsync<(long Registro, long Min, long Max, long Filas, decimal Suma)>(
+            """
+            SELECT "RegistroContableId", MIN("Id"), MAX("Id"), COUNT(*), SUM("Importe") FROM "MovimientosContables"
+            WHERE "RegistroContableId" IN (@P, @S) GROUP BY "RegistroContableId" ORDER BY "RegistroContableId"
+            """, new { P = primero.RegistroContableId, S = segundo.RegistroContableId })).ToList();
+        Assert.Equal(
+            [
+                (primero.RegistroContableId, primero.DesdeMovimiento, primero.HastaMovimiento, 3L, 0m),
+                (segundo.RegistroContableId, segundo.DesdeMovimiento, segundo.HastaMovimiento, 2L, 0m),
+            ],
+            porRegistro);
+    }
+
+    /// <summary>
+    /// Última red (constraint trigger diferido, migración <c>VerificarCuadreLibroContable</c>): aunque alguien escriba el libro
+    /// por fuera del servicio o capture su excepción y confirme, un registro descuadrado hace fallar el COMMIT (23514) y no
+    /// queda nada.
+    /// </summary>
+    [Fact]
+    public async Task CommitDeUnRegistroDescuadrado_PorSqlDirecto_FallaYNoQuedaNada()
+    {
+        var a = await CuentaAsync();
+        var b = await CuentaAsync();
+        var numero = $"X{Guid.NewGuid():N}"[..20];
+
+        await using var conexion = _prueba.NuevaConexion();
+        await conexion.OpenAsync();
+        await using (var tx = await conexion.BeginTransactionAsync())
+        {
+            var registroId = await conexion.ExecuteScalarAsync<long>(
+                """
+                INSERT INTO "RegistrosContables" ("NumeroRegistro","DesdeMovimiento","HastaMovimiento","FechaCreacion","CreadoPor","TipoOrigen","ClaveOrigen")
+                VALUES (@Numero, 0, 0, now(), 'test', 1, 'X') RETURNING "Id"
+                """, new { Numero = numero }, tx);
+            await conexion.ExecuteAsync(
+                """
+                INSERT INTO "MovimientosContables" ("CuentaContableId","NumeroCuenta","FechaRegistro","FechaDocumento","TipoDocumento",
+                    "Descripcion","Importe","Debito","Credito","RegistroContableId","TipoOrigen","ClaveOrigen","CreatedAtUtc","CreatedBy")
+                VALUES (@A,'1','2026-01-01','2026-01-01',0,'x',10,10,0,@R,1,'X',now(),'test'),
+                       (@B,'2','2026-01-01','2026-01-01',0,'x',-9.9999,0,9.9999,@R,1,'X',now(),'test')
+                """, new { A = a, B = b, R = registroId }, tx);
+
+            var error = await Assert.ThrowsAsync<PostgresException>(() => tx.CommitAsync());
+            Assert.Equal("23514", error.SqlState);
+        }
+
+        Assert.Equal(0L, await conexion.ExecuteScalarAsync<long>(
+            """SELECT COUNT(*) FROM "RegistrosContables" WHERE "NumeroRegistro" = @Numero""", new { Numero = numero }));
+        Assert.Equal(0L, await MovimientosDeCuentaAsync(a));
     }
 
     // ── Append-only en la base ──

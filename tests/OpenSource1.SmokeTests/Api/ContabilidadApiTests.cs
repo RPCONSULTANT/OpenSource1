@@ -6,6 +6,12 @@ using OpenSource1.Api;
 using OpenSource1.Application.Data;
 using OpenSource1.Application.Features.Contabilidad.Dtos;
 using OpenSource1.Application.Features.CuentasContables.Dtos;
+using OpenSource1.Application.Features.GruposContables.Dtos;
+using OpenSource1.Application.Services.Inventario;
+using OpenSource1.Core.Entities;
+using OpenSource1.Core.Entities.Contabilidad;
+using OpenSource1.Infrastructure.Data;
+using Microsoft.EntityFrameworkCore;
 using OpenSource1.Application.Services.Contabilidad;
 using OpenSource1.Core.Common;
 using OpenSource1.Core.Enums;
@@ -140,6 +146,115 @@ public sealed class ContabilidadApiTests : IClassFixture<PostgresTestFixture>
         Assert.Equal(HttpStatusCode.OK, renombrar.StatusCode);
     }
 
+    /// <summary>
+    /// Carrera borrado de cuenta / registro contable (ronda 1): con un <c>RegistrarAsync</c> sin confirmar sobre la cuenta, el
+    /// DELETE espera en el <c>FOR UPDATE</c> de la cuenta (el registro la tiene <c>FOR SHARE</c>) y, tras el commit, ve los
+    /// movimientos → 409. Sin el bloqueo, la guarda no ve los movimientos aún no confirmados y el borrado lógico acabaría en 204.
+    /// </summary>
+    [Fact]
+    public async Task BorrarCuenta_MientrasUnRegistroContableEnCursoLaUsa_EsperaYDevuelve409()
+    {
+        var a = await CrearCuentaAsync();
+        var b = await CrearCuentaAsync();
+        var client = Admin();
+
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var sesion = scope.ServiceProvider.GetRequiredService<IDbSession>();
+        var registro = scope.ServiceProvider.GetRequiredService<IRegistroContable>();
+        await using (await sesion.BeginTransactionAsync())
+        {
+            var resultado = await registro.RegistrarAsync(new AsientoContable(
+                new DateOnly(2026, 6, 2), new DateOnly(2026, 6, 2), TipoDocumentoContable.Ninguno, null, "En curso",
+                TipoOrigenMovimiento.Diario, $"API-{Guid.NewGuid():N}"[..30],
+                [new LineaAsiento(a.Id, 2m, null), new LineaAsiento(b.Id, -2m, null)]));
+            Assert.True(resultado.EsExito);
+
+            var borrado = client.DeleteAsync($"/api/cuentas-contables/{a.Id}");
+            await Task.Delay(TimeSpan.FromSeconds(1.5));
+            Assert.False(borrado.IsCompleted, "El borrado no debía avanzar mientras el registro contable siga sin confirmar.");
+
+            await sesion.CommitAsync();
+            Assert.Equal(HttpStatusCode.Conflict, (await borrado).StatusCode);
+        }
+
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync($"/api/cuentas-contables/{a.Id}")).StatusCode);
+    }
+
+    [Fact]
+    public async Task BorrarGrupoCongeladoEnUnMovimientoDeValor_Devuelve409()
+    {
+        var client = Admin();
+        var grupo = await CrearGrupoAsync("inventario");
+
+        // Producto con ese grupo de inventario, un movimiento de valor que lo congela y luego el producto pasa a GENERAL: ya
+        // ningún maestro usa el grupo, solo el libro.
+        Guid productoId;
+        await using (var scope = _factory.Services.CreateAsyncScope())
+        {
+            var contexto = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var nuevo = new Producto
+            {
+                Codigo = $"LC{Guid.NewGuid():N}"[..20],
+                Nombre = "Producto del libro contable",
+                PrecioVenta = 1m,
+                CategoriaId = Guid.Parse("c1000000-0000-0000-0000-000000000001"),
+                UnidadMedidaBaseId = LibroInventarioPrueba.UnidadUnd,
+                GrupoInventarioId = grupo,
+                CreatedBy = "test",
+            };
+            contexto.Productos.Add(nuevo);
+            await contexto.SaveChangesAsync();
+            productoId = nuevo.Id;
+
+            var sesion = scope.ServiceProvider.GetRequiredService<IDbSession>();
+            await using (await sesion.BeginTransactionAsync())
+            {
+                var registrado = await scope.ServiceProvider.GetRequiredService<IRegistroMovimientosInventario>().RegistrarAsync(
+                    LibroInventarioPrueba.Entrada(productoId, AlmacenIds.Principal, 1m, 1m, new DateOnly(2026, 6, 3)));
+                Assert.True(registrado.EsExito);
+                await sesion.CommitAsync();
+            }
+        }
+
+        await using (var scope = _factory.Services.CreateAsyncScope())
+        {
+            var contexto = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var producto = await contexto.Productos.SingleAsync(x => x.Id == productoId);
+            producto.GrupoInventarioId = GrupoContableIds.InventarioGeneral;
+            await contexto.SaveChangesAsync();
+        }
+
+        Assert.Equal(HttpStatusCode.Conflict, (await client.DeleteAsync($"/api/grupos-contables/inventario/{grupo}")).StatusCode);
+    }
+
+    [Fact]
+    public async Task BorrarGrupoCongeladoEnUnMovimientoContable_Devuelve409()
+    {
+        var client = Admin();
+        var a = await CrearCuentaAsync();
+        var b = await CrearCuentaAsync();
+        var grupo = await CrearGrupoAsync("iva-negocio");
+        var libre = await CrearGrupoAsync("iva-negocio");
+
+        await using (var scope = _factory.Services.CreateAsyncScope())
+        {
+            var sesion = scope.ServiceProvider.GetRequiredService<IDbSession>();
+            await using (await sesion.BeginTransactionAsync())
+            {
+                var resultado = await scope.ServiceProvider.GetRequiredService<IRegistroContable>().RegistrarAsync(new AsientoContable(
+                    new DateOnly(2026, 6, 4), new DateOnly(2026, 6, 4), TipoDocumentoContable.Ninguno, null, "Con grupo",
+                    TipoOrigenMovimiento.Diario, $"API-{Guid.NewGuid():N}"[..30],
+                    [new LineaAsiento(a.Id, 1m, null, GrupoIvaNegocioId: grupo), new LineaAsiento(b.Id, -1m, null)]));
+                Assert.True(resultado.EsExito);
+                await sesion.CommitAsync();
+            }
+        }
+
+        Assert.Equal(HttpStatusCode.Conflict, (await client.DeleteAsync($"/api/grupos-contables/iva-negocio/{grupo}")).StatusCode);
+        // Control: un grupo del mismo tipo sin uso sí se borra.
+        Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"/api/grupos-contables/iva-negocio/{libre}")).StatusCode);
+    }
+
     // ── Helpers ──
 
     private async Task<AsientoRegistrado> RegistrarAsync(DateOnly fecha, params (Guid Cuenta, decimal Importe)[] lineas)
@@ -155,6 +270,14 @@ public sealed class ContabilidadApiTests : IClassFixture<PostgresTestFixture>
         Assert.True(resultado.EsExito, resultado.EsFallo ? string.Join("; ", resultado.Errores.Select(e => e.Mensaje)) : "");
         await sesion.CommitAsync();
         return resultado.Valor;
+    }
+
+    private async Task<Guid> CrearGrupoAsync(string ruta)
+    {
+        var respuesta = await Admin().PostAsJsonAsync(
+            $"/api/grupos-contables/{ruta}", new { codigo = $"G{Guid.NewGuid():N}"[..20].ToUpperInvariant(), descripcion = "Grupo del libro" });
+        Assert.Equal(HttpStatusCode.Created, respuesta.StatusCode);
+        return (await respuesta.Content.ReadFromJsonAsync<GrupoContableResponse>())!.Id;
     }
 
     private async Task<CuentaContableResponse> CrearCuentaAsync()

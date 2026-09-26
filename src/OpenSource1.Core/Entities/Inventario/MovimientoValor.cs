@@ -55,8 +55,10 @@ public sealed class MovimientoValor
 
     /// <summary>
     /// Grupos CONGELADOS al registrar (Task 5.5, D8), FK a <c>GruposInventario</c>/<c>GruposNegocio</c>/<c>GruposProducto</c>:
-    /// inventario y producto del producto, negocio del socio (null sin socio). Null si el producto no tenía grupo: el batch
-    /// de costo (Task 5.6) lo trata como grupo faltante. La migración <c>AddLibroContable</c> rellenó los ya existentes.
+    /// inventario y producto del producto, negocio del socio. Null si el producto no tenía grupo: el batch de costo (Task 5.6)
+    /// lo trata como grupo faltante. <see cref="GrupoNegocioId"/> es null sin socio y TAMBIÉN con un socio sin grupo (en
+    /// runtime se congela tal cual: comodín del setup general); en cambio, el backfill de la migración <c>AddLibroContable</c>
+    /// puso NACIONAL a los movimientos existentes de socios sin grupo (y null a los que no tenían socio).
     /// </summary>
     public Guid? GrupoInventarioId { get; set; }
     public Guid? GrupoNegocioId { get; set; }

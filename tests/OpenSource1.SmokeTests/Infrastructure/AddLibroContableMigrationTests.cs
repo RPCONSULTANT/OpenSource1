@@ -104,7 +104,8 @@ public sealed class AddLibroContableMigrationTests(PostgresTestFixture fixture) 
             // Serie CONTAB sembrada, sin números consumidos, y el libro contable vacío con su trigger.
             Assert.Equal("00000000", await conexion.ExecuteScalarAsync<string>(
                 """SELECT "UltimoNumeroUsado" FROM "LineasSerie" WHERE "Id" = @Id""", new { Id = SerieContabilidadIds.LineaSerieId }));
-            Assert.Equal(4L, await conexion.ExecuteScalarAsync<long>(
+            // 4 de append-only/truncate (AddLibroContable) + el constraint trigger de cuadre (VerificarCuadreLibroContable).
+            Assert.Equal(5L, await conexion.ExecuteScalarAsync<long>(
                 """SELECT COUNT(*) FROM pg_trigger WHERE tgname LIKE 'TR_MovimientosContables_%' OR tgname LIKE 'TR_RegistrosContables_%'"""));
         }
     }
