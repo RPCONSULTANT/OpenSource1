@@ -273,6 +273,14 @@ public sealed class ContabilidadApiTests : IClassFixture<PostgresTestFixture>
         ejecutor.Headers.Add("X-Test-Roles", "Ejecutor");
         Assert.Equal(HttpStatusCode.Forbidden, (await client.SendAsync(ejecutor)).StatusCode);
 
+        // Supervisor sí tiene CanModify: 200 con el resumen.
+        var supervisor = new HttpRequestMessage(HttpMethod.Post, url);
+        supervisor.Headers.Add("X-Test-User", "supervisor");
+        supervisor.Headers.Add("X-Test-Roles", "Supervisor");
+        var respuestaSupervisor = await client.SendAsync(supervisor);
+        Assert.Equal(HttpStatusCode.OK, respuestaSupervisor.StatusCode);
+        Assert.NotNull(await respuestaSupervisor.Content.ReadFromJsonAsync<ResultadoPosteoCostoInventario>());
+
         // Un producto clasificado (se contabiliza) y otro sin grupos (queda pendiente con grupo_faltante).
         var clasificado = await ProductoConEntradaAsync(GrupoContableIds.InventarioGeneral);
         var sinGrupos = await ProductoConEntradaAsync(null);
