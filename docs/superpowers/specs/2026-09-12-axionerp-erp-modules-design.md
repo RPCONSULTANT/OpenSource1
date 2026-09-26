@@ -1025,6 +1025,28 @@ sin setup contable no escribe **ninguna** fila; test de que el asiento cuadra a 
 que el saldo derivado del cliente coincide tras factura + pago parcial + aplicación; test
 de que la serie de posteado no deja huecos bajo dos posteos concurrentes.
 
+**Desviaciones acordadas durante la ejecución de la Fase 6** (ver el plan `2026-09-28-fase-6-facturacion.md`):
+
+- **Sin patas de costo al facturar.** `PosteoAutomaticoCosto` no se implementa (su valor por defecto es falso): el costo lo
+  contabiliza el batch de la Fase 5. El asiento de la factura tiene solo CxC, Ventas e IVA.
+- **Descuento de línea neto.** `ImporteLinea` ya va neto del descuento y Ventas se acredita neto; no hay pata de
+  descuento (la cuenta `CuentaDescuentoVentas` queda para una fase futura).
+- **Crédito de Ventas por (GrupoNegocio × GrupoProducto)** con `ROUND(SUM(ImporteLinea), 2)` por grupo; la diferencia de
+  redondeo entre la suma de esas bases y `ImporteSinIva` (bases agrupadas por IVA) se ajusta en la pata de Ventas de mayor
+  importe, para que el asiento cuadre sin cuenta de redondeo.
+- **Líneas de tipo CuentaContable** acreditan esa cuenta (Posteo, no bloqueada y `PosteoDirecto = true`) y llevan su propio
+  `GrupoIvaProductoId` (obligatorio) para el IVA; no mueven inventario. Las de tipo Comentario no tienen importes.
+- **Series:** borradores `FV-BORR` (con huecos) y facturas posteadas `FV` (sin huecos), sembradas. El generador actual
+  serializa también la serie con huecos (limitación aceptada: el alta de borrador es corta).
+- **Cobros:** el pago indica la cuenta de caja/banco (Posteo, no bloqueada, `PosteoDirecto = true`; por defecto `1101 Caja`)
+  y su asiento es débito caja / crédito CxC derivada del grupo de cliente contable VIGENTE del socio (congelada en el
+  movimiento). Serie `COBRO` sin huecos. Aplicar solo entre movimientos del mismo socio, de signo opuesto, por un importe ≤
+  el mínimo de los restantes.
+- **Cliente facturar-a:** el libro de clientes y la CxC usan `SocioNegocioFacturarAId`; el inventario lleva
+  `SocioNegocioId` (vender-a).
+- **Guarda de borrado de socios** (pendiente de la Fase 5): un socio con borradores, facturas, movimientos de cliente o
+  movimientos contables → 409 `socio_negocio.conflicto`.
+
 ---
 
 ## Fase 7 — Vistas de movimientos
