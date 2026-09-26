@@ -16,17 +16,25 @@ public sealed class DapperProductoReadRepository(IDbSession session) : IProducto
     // "column reference is ambiguous". Por eso el JOIN va envuelto en una subconsulta que aplana las columnas con alias ÚNICOS
     // (CategoriaCodigo, UnidadMedidaNombre...) y todo filtro, orden, recuento y paginación se aplica sobre ese resultado. LEFT JOIN: un
     // producto no desaparece del listado si su categoría o su unidad fue borrada lógicamente. Existencia NO está aquí: ver
-    // ProductosAplanados/ExistenciaLateralSql más abajo.
+    // ProductosAplanados/ExistenciaLateralSql más abajo. Grupos contables (Task 5.3): tres LEFT JOIN más, también con alias únicos
+    // (GrupoProductoCodigo...), sin tocar ColumnasPermitidas: no se filtra ni se ordena por ellos, solo se devuelven. Son JOIN por PK
+    // (uno a uno), así que no cambian el número de filas ni el orden estable (…, "Id").
     private const string ProductosAplanadosSinExistencia = """
         SELECT p."Id", p."Codigo", p."Nombre", p."PrecioVenta",
                p."CategoriaId", c."Codigo" AS "CategoriaCodigo", c."Nombre" AS "CategoriaNombre",
                p."UnidadMedidaBaseId", u."Codigo" AS "UnidadMedidaCodigo", u."Nombre" AS "UnidadMedidaNombre",
                COALESCE(u."Decimales", 0) AS "UnidadMedidaBaseDecimales",
                p."MetodoCosteo", p."CostoUnitario", p."CostoEstandar", p."CostoAjustado", p."Bloqueado", p."ImagePath",
+               p."GrupoProductoId", gp."Codigo" AS "GrupoProductoCodigo",
+               p."GrupoIvaProductoId", gip."Codigo" AS "GrupoIvaProductoCodigo",
+               p."GrupoInventarioId", gi."Codigo" AS "GrupoInventarioCodigo",
                p."CreatedAtUtc", p."UpdatedAtUtc", p."CreatedBy", p."UpdatedBy"
         FROM "Productos" p
         LEFT JOIN "CategoriasProducto" c ON c."Id" = p."CategoriaId"
         LEFT JOIN "UnidadesMedida" u ON u."Id" = p."UnidadMedidaBaseId"
+        LEFT JOIN "GruposProducto" gp ON gp."Id" = p."GrupoProductoId"
+        LEFT JOIN "GruposIvaProducto" gip ON gip."Id" = p."GrupoIvaProductoId"
+        LEFT JOIN "GruposInventario" gi ON gi."Id" = p."GrupoInventarioId"
         WHERE p."IsDeleted" = false
         """;
 

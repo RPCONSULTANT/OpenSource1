@@ -87,7 +87,8 @@ public sealed class ProductosController(ISender sender) : ControllerBase
         var result = await sender.Send(
             new CreateProductoCommand(
                 request.Codigo, request.Nombre, request.PrecioVenta, request.CategoriaId, request.UnidadMedidaBaseId,
-                request.MetodoCosteo, request.CostoEstandar, request.Bloqueado, request.ImagePath),
+                request.MetodoCosteo, request.CostoEstandar, request.Bloqueado, request.ImagePath,
+                request.GrupoProductoId, request.GrupoIvaProductoId, request.GrupoInventarioId),
             cancellationToken);
 
         return result.EsFallo
@@ -110,7 +111,8 @@ public sealed class ProductosController(ISender sender) : ControllerBase
         var result = await sender.Send(
             new UpdateProductoCommand(
                 id, request.Codigo, request.Nombre, request.PrecioVenta, request.CategoriaId, request.UnidadMedidaBaseId,
-                request.MetodoCosteo, request.CostoEstandar, request.Bloqueado, request.ImagePath),
+                request.MetodoCosteo, request.CostoEstandar, request.Bloqueado, request.ImagePath,
+                request.GrupoProductoId, request.GrupoIvaProductoId, request.GrupoInventarioId),
             cancellationToken);
 
         return result.EsFallo ? result.ToActionResult() : Ok(result.Valor);
@@ -139,7 +141,10 @@ public sealed record CreateProductoRequest(
     MetodoCosteo MetodoCosteo = MetodoCosteo.Promedio,
     decimal CostoEstandar = 0m,
     BloqueoProducto Bloqueado = BloqueoProducto.Ninguno,
-    string? ImagePath = null);
+    string? ImagePath = null,
+    Guid? GrupoProductoId = null,
+    Guid? GrupoIvaProductoId = null,
+    Guid? GrupoInventarioId = null);
 
 /// <summary>
 /// Cuerpo de modificación con semántica de modificación parcial: <c>precioVenta</c>, <c>categoriaId</c>,
@@ -147,6 +152,8 @@ public sealed record CreateProductoRequest(
 /// el valor guardado; informado = se aplica (se valida el resultado). Así, un PUT que solo renombra no desbloquea ni cambia el precio,
 /// la categoría, la unidad ni los costos del producto. <c>codigo</c>, <c>nombre</c> e <c>imagePath</c> son de reemplazo completo.
 /// <c>costoUnitario</c> y <c>costoAjustado</c> no se aceptan (los mantiene el sistema); <c>stock</c> tampoco (ya no existe).
+/// Grupos contables (Task 5.3) <c>grupoProductoId</c>, <c>grupoIvaProductoId</c>, <c>grupoInventarioId</c>: también ausente/<c>null</c> =
+/// conservar; un grupo que cambia debe existir (400 <c>producto.grupo_invalido</c>).
 /// </summary>
 public sealed record UpdateProductoRequest(
     string Codigo,
@@ -157,4 +164,7 @@ public sealed record UpdateProductoRequest(
     MetodoCosteo? MetodoCosteo = null,
     decimal? CostoEstandar = null,
     BloqueoProducto? Bloqueado = null,
-    string? ImagePath = null);
+    string? ImagePath = null,
+    Guid? GrupoProductoId = null,
+    Guid? GrupoIvaProductoId = null,
+    Guid? GrupoInventarioId = null);

@@ -83,6 +83,21 @@
         </select>
         <ValidationMessage For="() => Model.Bloqueado" />
     </div>
+    <fieldset class="rounded-xl border border-slate-200 p-4">
+        <legend class="px-1 text-xs font-bold uppercase tracking-wide text-slate-500">Clasificación contable</legend>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <SelectorGrupoContable Etiqueta="Grupo de producto" Id="@($"{Prefix}_GrupoProductoId")" Name="@($"{Prefix}.GrupoProductoId")"
+                                   Opciones="@Grupos.Producto" Valor="@Model.GrupoProductoId" RotuloVigente="@GrupoProductoVigente" Deshabilitado="@Grupos.CargaFallida" />
+            <SelectorGrupoContable Etiqueta="Grupo de IVA" Id="@($"{Prefix}_GrupoIvaProductoId")" Name="@($"{Prefix}.GrupoIvaProductoId")"
+                                   Opciones="@Grupos.IvaProducto" Valor="@Model.GrupoIvaProductoId" RotuloVigente="@GrupoIvaProductoVigente" Deshabilitado="@Grupos.CargaFallida" />
+            <SelectorGrupoContable Etiqueta="Grupo de inventario" Id="@($"{Prefix}_GrupoInventarioId")" Name="@($"{Prefix}.GrupoInventarioId")"
+                                   Opciones="@Grupos.Inventario" Valor="@Model.GrupoInventarioId" RotuloVigente="@GrupoInventarioVigente" Deshabilitado="@Grupos.CargaFallida" />
+        </div>
+        @if (EsEdicion)
+        {
+            <p class="mt-2 text-xs text-slate-400">Un grupo asignado se puede cambiar por otro, no quitar.</p>
+        }
+    </fieldset>
 </div>
 
 @code {
@@ -107,4 +122,12 @@
     /// <summary>Unidad base guardada del producto y su rótulo, para rotular su opción si no viene en <see cref="Unidades"/>.</summary>
     [Parameter] public Guid? UnidadActualId { get; set; }
     [Parameter] public string? UnidadActualNombre { get; set; }
+
+    /// <summary>Grupos contables elegibles (Task 5.3). Si no cargaron, los selectores se deshabilitan (se conserva el valor).</summary>
+    [Parameter] public GruposProductoOpciones Grupos { get; set; } = GruposProductoOpciones.SinCargar;
+
+    /// <summary>Código de los grupos guardados (del propio producto), para rotular su opción si no viene en <see cref="Grupos"/>.</summary>
+    [Parameter] public string? GrupoProductoVigente { get; set; }
+    [Parameter] public string? GrupoIvaProductoVigente { get; set; }
+    [Parameter] public string? GrupoInventarioVigente { get; set; }
 }

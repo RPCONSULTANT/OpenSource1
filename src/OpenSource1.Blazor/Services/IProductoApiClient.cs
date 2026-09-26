@@ -51,7 +51,8 @@ public sealed record ProductoSearchFilter(
 /// <c>CategoriaId</c>, <c>UnidadMedidaBaseId</c>, <c>MetodoCosteo</c>, <c>CostoEstandar</c> y <c>Bloqueado</c> (null = conservar); el
 /// formulario de edición muestra siempre el valor completo, así que los envía todos. <c>Nombre</c>, <c>Codigo</c> e <c>ImagePath</c> son de
 /// reemplazo completo. <c>CostoUnitario</c> y <c>CostoAjustado</c> no viajan: los mantiene el sistema. <c>Stock</c> ya no existe
-/// (Task 3.6): la existencia se deriva del libro de inventario.
+/// (Task 3.6): la existencia se deriva del libro de inventario. Grupos contables (Task 5.3): null = sin grupo en el alta y
+/// "conservar" en la modificación (la ficha los envía null cuando la API de grupos no cargó).
 /// </summary>
 public sealed record ProductoInput(
     string Codigo,
@@ -62,7 +63,10 @@ public sealed record ProductoInput(
     MetodoCosteo MetodoCosteo = MetodoCosteo.Promedio,
     decimal CostoEstandar = 0m,
     BloqueoProducto Bloqueado = BloqueoProducto.Ninguno,
-    string? ImagePath = null);
+    string? ImagePath = null,
+    Guid? GrupoProductoId = null,
+    Guid? GrupoIvaProductoId = null,
+    Guid? GrupoInventarioId = null);
 
 /// <summary>
 /// Resultado de una operación. <c>Message</c> es el mensaje resumido; <c>Errors</c> trae los mensajes reales que devolvió la API

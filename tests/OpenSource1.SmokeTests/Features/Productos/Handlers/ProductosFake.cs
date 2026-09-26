@@ -3,6 +3,7 @@ using Moq;
 using OpenSource1.Application.Data.Repositories;
 using OpenSource1.Application.Data.UnitOfWork;
 using OpenSource1.Core.Entities;
+using OpenSource1.Core.Entities.Contabilidad;
 using OpenSource1.Core.Entities.Inventario;
 using OpenSource1.SmokeTests.TestInfrastructure;
 
@@ -20,6 +21,9 @@ internal sealed class ProductosFake
         UnitOfWork.Setup(u => u.Repository<Producto>()).Returns(Productos.Repo);
         UnitOfWork.Setup(u => u.Repository<CategoriaProducto>()).Returns(Categorias.Repo);
         UnitOfWork.Setup(u => u.Repository<UnidadMedida>()).Returns(Unidades.Repo);
+        UnitOfWork.Setup(u => u.Repository<GrupoProducto>()).Returns(GruposProducto.Repo);
+        UnitOfWork.Setup(u => u.Repository<GrupoIvaProducto>()).Returns(GruposIvaProducto.Repo);
+        UnitOfWork.Setup(u => u.Repository<GrupoInventario>()).Returns(GruposInventario.Repo);
         UnitOfWork.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
 
         // MovimientoProducto no hereda de BaseEntity (Id es long, sin soft delete): no cabe en
@@ -36,6 +40,9 @@ internal sealed class ProductosFake
     public RepositorioEnMemoria<Producto> Productos { get; } = new();
     public RepositorioEnMemoria<CategoriaProducto> Categorias { get; } = new();
     public RepositorioEnMemoria<UnidadMedida> Unidades { get; } = new();
+    public RepositorioEnMemoria<GrupoProducto> GruposProducto { get; } = new();
+    public RepositorioEnMemoria<GrupoIvaProducto> GruposIvaProducto { get; } = new();
+    public RepositorioEnMemoria<GrupoInventario> GruposInventario { get; } = new();
     public Mock<IGenericRepository<MovimientoProducto>> MovimientosRepo { get; }
     public List<MovimientoProducto> Movimientos { get; } = [];
 

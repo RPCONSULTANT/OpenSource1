@@ -20,6 +20,9 @@ namespace OpenSource1.Application.Features.SociosNegocio.Commands;
 /// Los demás campos (<c>NombreComercial</c>, <c>Email</c>, <c>Telefono</c>, dirección, <c>Sector</c>,
 /// <c>PaisCodigo</c>, <c>ImagePath</c>) siguen siendo de reemplazo completo, como antes de la 2.6.
 /// <c>Codigo</c> es inmutable y no forma parte del comando.
+/// Los grupos contables de la Task 5.3 (<c>GrupoNegocioId</c>, <c>GrupoIvaNegocioId</c>, <c>GrupoClienteContableId</c>) son
+/// también "null = conservar"; un valor que CAMBIA debe existir (400 <c>socio_negocio.grupo_invalido</c>). A diferencia de
+/// <c>TerminoPagoId</c>, <see cref="Guid.Empty"/> NO limpia un grupo (se rechaza como grupo inexistente): solo se sustituye.
 /// </summary>
 public sealed record UpdateSocioNegocioCommand(
     Guid Id,
@@ -38,4 +41,7 @@ public sealed record UpdateSocioNegocioCommand(
     Guid? TerminoPagoId,
     decimal? LimiteCredito,
     BloqueoSocioNegocio? Bloqueado,
-    string? ImagePath = null) : IRequest<Result<SocioNegocioResponse>>;
+    string? ImagePath = null,
+    Guid? GrupoNegocioId = null,
+    Guid? GrupoIvaNegocioId = null,
+    Guid? GrupoClienteContableId = null) : IRequest<Result<SocioNegocioResponse>>;

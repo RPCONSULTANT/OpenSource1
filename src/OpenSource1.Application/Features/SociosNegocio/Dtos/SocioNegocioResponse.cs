@@ -28,6 +28,14 @@ public sealed class SocioNegocioResponse
     public decimal LimiteCredito { get; init; }
     public BloqueoSocioNegocio Bloqueado { get; init; }
     public string? ImagePath { get; init; }
+
+    // Clasificación contable (Task 5.3): Id y Código de cada grupo (Código null si no tiene grupo o el grupo ya no existe).
+    public Guid? GrupoNegocioId { get; init; }
+    public string? GrupoNegocioCodigo { get; init; }
+    public Guid? GrupoIvaNegocioId { get; init; }
+    public string? GrupoIvaNegocioCodigo { get; init; }
+    public Guid? GrupoClienteContableId { get; init; }
+    public string? GrupoClienteContableCodigo { get; init; }
     public DateTime CreatedAtUtc { get; init; }
     public DateTime? UpdatedAtUtc { get; init; }
     public string CreatedBy { get; init; } = string.Empty;

@@ -26,4 +26,16 @@ public sealed class SocioNegocio : BaseEntity
     public decimal LimiteCredito { get; set; }
     public BloqueoSocioNegocio Bloqueado { get; set; } = BloqueoSocioNegocio.Ninguno;
     public string? ImagePath { get; set; }
+
+    // Clasificación contable (Fase 5, Task 5.3), todas FK nulables. La migración AddGruposContables asignó
+    // NACIONAL / ITBIS18 / GENERAL a los socios existentes.
+
+    /// <summary>Grupo contable de negocio (<c>GruposNegocio</c>): eje del setup general con el grupo de producto.</summary>
+    public Guid? GrupoNegocioId { get; set; }
+
+    /// <summary>Grupo de IVA del socio (<c>GruposIvaNegocio</c>): eje del setup de IVA con el grupo de IVA del producto.</summary>
+    public Guid? GrupoIvaNegocioId { get; set; }
+
+    /// <summary>Grupo contable de cliente (<c>GruposClienteContable</c>): cuenta por cobrar del socio.</summary>
+    public Guid? GrupoClienteContableId { get; set; }
 }

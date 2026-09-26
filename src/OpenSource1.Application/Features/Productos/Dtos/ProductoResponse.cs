@@ -30,6 +30,14 @@ public sealed class ProductoResponse
     public bool CostoAjustado { get; init; } = true;
     public BloqueoProducto Bloqueado { get; init; } = BloqueoProducto.Ninguno;
     public string? ImagePath { get; init; }
+
+    // Clasificación contable (Task 5.3): Id y Código de cada grupo (Código null si no tiene grupo o el grupo ya no existe).
+    public Guid? GrupoProductoId { get; init; }
+    public string? GrupoProductoCodigo { get; init; }
+    public Guid? GrupoIvaProductoId { get; init; }
+    public string? GrupoIvaProductoCodigo { get; init; }
+    public Guid? GrupoInventarioId { get; init; }
+    public string? GrupoInventarioCodigo { get; init; }
     public DateTime CreatedAtUtc { get; init; }
     public DateTime? UpdatedAtUtc { get; init; }
     public string CreatedBy { get; init; } = string.Empty;

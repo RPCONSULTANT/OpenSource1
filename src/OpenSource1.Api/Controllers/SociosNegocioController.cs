@@ -73,7 +73,8 @@ public sealed class SociosNegocioController(ISender sender) : ControllerBase
                 request.NombreComercial, request.RazonSocial, request.Tipo, request.TipoDocumentoFiscal,
                 request.NumeroDocumentoFiscal, request.Email, request.Telefono, request.DireccionLinea1,
                 request.DireccionLinea2, request.Ciudad, request.Sector, request.PaisCodigo, request.TerminoPagoId,
-                request.LimiteCredito, request.Bloqueado, request.ImagePath),
+                request.LimiteCredito, request.Bloqueado, request.ImagePath,
+                request.GrupoNegocioId, request.GrupoIvaNegocioId, request.GrupoClienteContableId),
             cancellationToken);
 
         return result.EsFallo
@@ -98,7 +99,8 @@ public sealed class SociosNegocioController(ISender sender) : ControllerBase
                 id, request.NombreComercial, request.RazonSocial, request.Tipo, request.TipoDocumentoFiscal,
                 request.NumeroDocumentoFiscal, request.Email, request.Telefono, request.DireccionLinea1,
                 request.DireccionLinea2, request.Ciudad, request.Sector, request.PaisCodigo, request.TerminoPagoId,
-                request.LimiteCredito, request.Bloqueado, request.ImagePath),
+                request.LimiteCredito, request.Bloqueado, request.ImagePath,
+                request.GrupoNegocioId, request.GrupoIvaNegocioId, request.GrupoClienteContableId),
             cancellationToken);
 
         return result.EsFallo ? result.ToActionResult() : Ok(result.Valor);
@@ -134,7 +136,10 @@ public sealed record CreateSocioNegocioRequest(
     Guid? TerminoPagoId = null,
     decimal LimiteCredito = 0m,
     BloqueoSocioNegocio Bloqueado = BloqueoSocioNegocio.Ninguno,
-    string? ImagePath = null);
+    string? ImagePath = null,
+    Guid? GrupoNegocioId = null,
+    Guid? GrupoIvaNegocioId = null,
+    Guid? GrupoClienteContableId = null);
 
 /// <summary>
 /// Cuerpo de modificación. Los campos de la Task 2.6 son NULABLES con semántica de modificación
@@ -142,7 +147,9 @@ public sealed record CreateSocioNegocioRequest(
 /// limpiar un campo opcional se envía cadena vacía (<c>razonSocial</c>, <c>numeroDocumentoFiscal</c>,
 /// <c>ciudad</c>) o el Guid vacío <c>00000000-0000-0000-0000-000000000000</c> (<c>terminoPagoId</c>).
 /// Los demás campos son de reemplazo completo. Así, un PUT que solo renombra no desbloquea ni
-/// rebaja el límite de un socio.
+/// rebaja el límite de un socio. Grupos contables (Task 5.3) <c>grupoNegocioId</c>, <c>grupoIvaNegocioId</c>,
+/// <c>grupoClienteContableId</c>: ausente/<c>null</c> = conservar; no se pueden quitar (el Guid vacío se rechaza como grupo
+/// inexistente, 400 <c>socio_negocio.grupo_invalido</c>).
 /// </summary>
 public sealed record UpdateSocioNegocioRequest(
     string NombreComercial,
@@ -160,4 +167,7 @@ public sealed record UpdateSocioNegocioRequest(
     Guid? TerminoPagoId = null,
     decimal? LimiteCredito = null,
     BloqueoSocioNegocio? Bloqueado = null,
-    string? ImagePath = null);
+    string? ImagePath = null,
+    Guid? GrupoNegocioId = null,
+    Guid? GrupoIvaNegocioId = null,
+    Guid? GrupoClienteContableId = null);

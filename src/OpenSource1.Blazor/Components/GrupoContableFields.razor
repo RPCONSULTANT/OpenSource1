@@ -1,0 +1,25 @@
+@*
+    GrupoContableFields — Código y Descripción de un grupo contable (Task 5.3), comunes a /grupos-contables y
+    /grupos-cliente-contable. Prefix = nombre exacto del [SupplyParameterFromForm] del padre ("SaveInput"/"UpdateInput").
+*@
+<div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+    <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{Prefix}_Codigo")">Código <span class="text-red-500">*</span></label>
+        <input id="@($"{Prefix}_Codigo")" type="text" name="@($"{Prefix}.Codigo")" value="@Model.Codigo" maxlength="20"
+               placeholder="ej. NACIONAL" class="@InputCss" />
+        <ValidationMessage For="() => Model.Codigo" />
+    </div>
+    <div class="sm:col-span-2">
+        <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{Prefix}_Descripcion")">Descripción <span class="text-red-500">*</span></label>
+        <input id="@($"{Prefix}_Descripcion")" type="text" name="@($"{Prefix}.Descripcion")" value="@Model.Descripcion" maxlength="100"
+               placeholder="Descripción del grupo" class="@InputCss" />
+        <ValidationMessage For="() => Model.Descripcion" />
+    </div>
+</div>
+
+@code {
+    private const string InputCss = "block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 placeholder-slate-400 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20";
+
+    [Parameter, EditorRequired] public IGrupoContableCampos Model { get; set; } = default!;
+    [Parameter, EditorRequired] public string Prefix { get; set; } = default!;
+}

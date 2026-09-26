@@ -16,6 +16,8 @@ using OpenSource1.Application.Features.DiariosInventario.Lotes;
 using OpenSource1.Application.Features.DiariosInventario.Plantillas;
 using OpenSource1.Application.Features.DiariosInventario.Registros;
 using OpenSource1.Application.Features.Entradas;
+using OpenSource1.Application.Features.GruposClienteContable;
+using OpenSource1.Application.Features.GruposContables;
 using OpenSource1.Application.Features.Productos;
 using OpenSource1.Application.Features.TerminosPago;
 using OpenSource1.Application.Features.UnidadesMedida;
@@ -80,6 +82,9 @@ public static class DependencyInjection
         services.AddScoped<IAlmacenReadRepository, DapperAlmacenReadRepository>();
         services.AddScoped<ICuentaContableReadRepository, DapperCuentaContableReadRepository>();
         services.AddScoped<ICuentaContableUsoService, CuentaContableUsoService>();
+        services.AddScoped<IGrupoContableReadRepository, DapperGrupoContableReadRepository>();
+        services.AddScoped<IGrupoClienteContableReadRepository, DapperGrupoClienteContableReadRepository>();
+        services.AddScoped<IGrupoContableUsoService, GrupoContableUsoService>();
         services.AddScoped<IPlantillaDiarioReadRepository, DapperPlantillaDiarioReadRepository>();
         services.AddScoped<ILoteDiarioReadRepository, DapperLoteDiarioReadRepository>();
         services.AddScoped<ILineaDiarioReadRepository, DapperLineaDiarioReadRepository>();

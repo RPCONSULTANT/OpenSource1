@@ -91,7 +91,7 @@ public sealed class CuentasContablesApiTests : IClassFixture<PostgresTestFixture
         Assert.Equal(HttpStatusCode.Forbidden, (await CreateClient("Supervisor").DeleteAsync($"/api/cuentas-contables/{creada.Id}")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await CreateClient("Ejecutor").DeleteAsync($"/api/cuentas-contables/{creada.Id}")).StatusCode);
 
-        // Sin uso (la guarda de la Task 5.2 siempre responde sin uso): el borrado se permite -> 204.
+        // Sin uso (cuenta recién creada: ningún grupo de cliente ni setup la referencia): el borrado se permite -> 204.
         administrador = CreateClient("Administrador");
         Assert.Equal(HttpStatusCode.NoContent, (await administrador.DeleteAsync($"/api/cuentas-contables/{creada.Id}")).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await administrador.GetAsync($"/api/cuentas-contables/{creada.Id}")).StatusCode);
@@ -191,7 +191,7 @@ public sealed class CuentasContablesApiTests : IClassFixture<PostgresTestFixture
         Assert.Equal(HttpStatusCode.Created, create.StatusCode);
         var creada = await create.Content.ReadFromJsonAsync<CuentaContableResponse>();
 
-        // Hoy la guarda de uso (Task 5.2) siempre responde sin uso: el cambio de tipo se permite.
+        // Cuenta recién creada, sin uso (ningún grupo de cliente ni setup la referencia): el cambio de tipo se permite.
         var update = await client.PutAsJsonAsync(
             $"/api/cuentas-contables/{creada!.Id}",
             new { numero, nombre = "Provisional", tipoCuenta = TipoCuentaContable.Total, tipoResultado = TipoResultadoCuenta.Balance, posteoDirecto = (bool?)null, bloqueada = (bool?)null, sangria = (int?)null, xmin = creada.Xmin });

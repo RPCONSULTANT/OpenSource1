@@ -95,6 +95,16 @@ builder.Services.AddHttpClient<ICuentaContableApiClient, CuentaContableApiClient
     var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<ApiClientOptions>>().Value;
     client.BaseAddress = options.BaseAddress;
 }).AddHttpMessageHandler<BearerTokenHandler>();
+builder.Services.AddHttpClient<IGrupoContableApiClient, GrupoContableApiClient>((serviceProvider, client) =>
+{
+    var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<ApiClientOptions>>().Value;
+    client.BaseAddress = options.BaseAddress;
+}).AddHttpMessageHandler<BearerTokenHandler>();
+builder.Services.AddHttpClient<IGrupoClienteContableApiClient, GrupoClienteContableApiClient>((serviceProvider, client) =>
+{
+    var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<ApiClientOptions>>().Value;
+    client.BaseAddress = options.BaseAddress;
+}).AddHttpMessageHandler<BearerTokenHandler>();
 
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>

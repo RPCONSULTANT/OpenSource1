@@ -78,6 +78,17 @@ public sealed class UpdateProductoCommandHandler(
             }
         }
 
+        // Grupos contables (Task 5.3): null = conservar el guardado; solo se revalida el que cambia.
+        var grupoProductoId = request.GrupoProductoId ?? entity.GrupoProductoId;
+        var grupoIvaProductoId = request.GrupoIvaProductoId ?? entity.GrupoIvaProductoId;
+        var grupoInventarioId = request.GrupoInventarioId ?? entity.GrupoInventarioId;
+        var resolucionGrupos = await ProductoReglas.ResolverGruposAsync(
+            unitOfWork, grupoProductoId, grupoIvaProductoId, grupoInventarioId, entity, cancellationToken);
+        if (!resolucionGrupos.TryObtenerValor(out var grupos))
+        {
+            return Result<ProductoResponse>.Fallo(resolucionGrupos);
+        }
+
         var imagen = await ProductoReglas.AsegurarImagenNoAsignadaAsync(unitOfWork, datos.ImagePath, request.Id, cancellationToken);
         if (imagen is not null)
         {
@@ -93,12 +104,15 @@ public sealed class UpdateProductoCommandHandler(
         entity.CostoEstandar = datos.CostoEstandar;
         entity.Bloqueado = datos.Bloqueado;
         entity.ImagePath = datos.ImagePath;
+        entity.GrupoProductoId = grupoProductoId;
+        entity.GrupoIvaProductoId = grupoIvaProductoId;
+        entity.GrupoInventarioId = grupoInventarioId;
 
         repo.Update(entity);
         await unitOfWork.CommitAsync(cancellationToken);
 
         var existencia = await consultaInventario.ExistenciaAsync(entity.Id, almacenId: null, fecha: null, cancellationToken);
-        return Result<ProductoResponse>.Exito(CreateProductoCommandHandler.ToResponse(entity, categoria, unidad, existencia));
+        return Result<ProductoResponse>.Exito(CreateProductoCommandHandler.ToResponse(entity, categoria, unidad, existencia, grupos));
     }
 
     /// <summary>Comando + valores guardados = datos finales del producto tras la modificación.</summary>

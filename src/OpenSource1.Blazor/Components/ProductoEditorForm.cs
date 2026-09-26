@@ -33,6 +33,12 @@ public sealed class ProductoEditorForm : IValidatableObject
 
     public string? ImagePath { get; set; }
 
+    // Clasificación contable (Task 5.3). "" (opción "— Sin asignar —") llega como null; un <select> deshabilitado (API de grupos
+    // caída) no se envía y también llega como null: en la modificación la API lo trata como "conservar".
+    public Guid? GrupoProductoId { get; set; }
+    public Guid? GrupoIvaProductoId { get; set; }
+    public Guid? GrupoInventarioId { get; set; }
+
     /// <summary>Importe ya interpretado; 0 si el texto no es válido (la validación lo señala antes).</summary>
     public decimal PrecioVenta => EntradaDecimal.TryParse(PrecioVentaTexto, out var valor, out _, EtiquetaPrecioVenta) ? valor : 0m;
 

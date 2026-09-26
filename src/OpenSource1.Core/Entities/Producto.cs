@@ -39,4 +39,17 @@ public sealed class Producto : BaseEntity
 
     public BloqueoProducto Bloqueado { get; set; } = BloqueoProducto.Ninguno;
     public string? ImagePath { get; set; }
+
+    // Clasificación contable (Fase 5, Task 5.3): tres ejes ortogonales, todos FK nulables. La migración AddGruposContables
+    // asignó BIENES / ITBIS18 / GENERAL a los productos existentes; un grupo nulo al derivar cuentas da
+    // setup_contable.grupo_faltante (Task 5.4).
+
+    /// <summary>Grupo contable de producto (<c>GruposProducto</c>): cuenta de resultado (ventas, costo de ventas).</summary>
+    public Guid? GrupoProductoId { get; set; }
+
+    /// <summary>Grupo de IVA del producto (<c>GruposIvaProducto</c>): tasa y cuenta de impuesto.</summary>
+    public Guid? GrupoIvaProductoId { get; set; }
+
+    /// <summary>Grupo de inventario (<c>GruposInventario</c>): cuenta de activo de la existencia, cruzado con el almacén.</summary>
+    public Guid? GrupoInventarioId { get; set; }
 }

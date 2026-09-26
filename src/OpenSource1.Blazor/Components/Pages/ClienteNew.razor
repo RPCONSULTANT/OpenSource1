@@ -3,8 +3,11 @@
 @using Microsoft.AspNetCore.Authorization
 @using OpenSource1.Application.Storage
 @using OpenSource1.Blazor.Services
+@using OpenSource1.Core.Entities.Contabilidad
 @inject ISocioNegocioApiClient SocioNegocioApiClient
 @inject ITerminoPagoApiClient TerminoPagoApiClient
+@inject IGrupoContableApiClient GrupoContableApiClient
+@inject IGrupoClienteContableApiClient GrupoClienteContableApiClient
 @inject IHttpContextAccessor HttpContextAccessor
 @inject IFileStorageService FileStorageService
 @inject ILogger<ClienteNew> Logger
@@ -29,6 +32,10 @@
 {
     <div class="mb-6"><MessageBox Type="warning" Message="@TerminoPagoOpciones.MensajeNoDisponiblesAlta" /></div>
 }
+@if (grupos.CargaFallida)
+{
+    <div class="mb-6"><MessageBox Type="warning" Message="@GruposSocioOpciones.MensajeNoDisponiblesAlta" /></div>
+}
 
 <div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden max-w-4xl dark:border-slate-700 dark:bg-slate-800">
     <div class="px-6 py-4 border-b border-slate-100 bg-slate-50 dark:border-slate-700/60 dark:bg-slate-900/40"><h2 class="text-sm font-bold text-slate-800 uppercase tracking-wide dark:text-slate-200">Nueva ficha</h2></div>
@@ -40,7 +47,7 @@
                 <input type="file" name="ClientImage" accept=".jpg,.jpeg,.png,.webp" class="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300" />
                 <p class="mt-1 text-xs text-slate-400 dark:text-slate-500">Formatos permitidos: JPG, PNG, WEBP. Máximo 2 MB.</p>
             </div>
-            <ClienteFields Model="Input!" Prefix="Input" Terminos="@terminos.Items" />
+            <ClienteFields Model="Input!" Prefix="Input" Terminos="@terminos.Items" Grupos="@grupos" />
             <div class="mt-6 flex flex-wrap items-center gap-3">
                 <button type="submit" class="btn-press inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-700">Guardar cliente</button>
                 <a href="/clientes" class="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700/60">Cancelar</a>
@@ -57,12 +64,24 @@
     private string messageType = "danger";
     private IReadOnlyList<string> errores = [];
     private TerminoPagoOpciones terminos = TerminoPagoOpciones.SinCargar;
+    private GruposSocioOpciones grupos = GruposSocioOpciones.SinCargar;
 
     protected override async Task OnInitializedAsync()
     {
+        var formularioNuevo = Input is null;
         Input ??= new();
         // Opciones del <select> de término de pago; si no cargan el alta sigue siendo posible (sin término).
         terminos = await TerminoPagoOpciones.CargarAsync(TerminoPagoApiClient, Logger);
+        // Grupos contables (Task 5.3): si no cargan, el alta sigue siendo posible sin clasificación contable.
+        grupos = await GruposSocioOpciones.CargarAsync(GrupoContableApiClient, GrupoClienteContableApiClient, Logger);
+        if (formularioNuevo)
+        {
+            // Preselecciona los grupos semilla por defecto (NACIONAL / ITBIS18 / GENERAL, los que la migración asignó a los socios
+            // existentes); la API no los aplica por su cuenta. En un POST se respeta lo que envió el usuario.
+            Input.GrupoNegocioId = GruposOpciones.PorDefecto(grupos.Negocio, GrupoContableIds.NegocioNacional);
+            Input.GrupoIvaNegocioId = GruposOpciones.PorDefecto(grupos.IvaNegocio, GrupoContableIds.IvaNegocioItbis18);
+            Input.GrupoClienteContableId = GruposOpciones.PorDefecto(grupos.ClienteContable, GrupoContableIds.ClienteContableGeneral);
+        }
     }
 
     private async Task CreateAsync()
@@ -112,5 +131,8 @@
         form.Ciudad?.Trim(),
         form.TerminoPagoId is { } id && id != Guid.Empty ? id : null,
         form.LimiteCredito,
-        form.Bloqueado);
+        form.Bloqueado,
+        form.GrupoNegocioId,
+        form.GrupoIvaNegocioId,
+        form.GrupoClienteContableId);
 }

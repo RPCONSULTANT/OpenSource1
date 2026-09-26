@@ -27,6 +27,12 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<LineaDiario> LineasDiario => Set<LineaDiario>();
     public DbSet<RegistroDiario> RegistrosDiario => Set<RegistroDiario>();
     public DbSet<CuentaContable> CuentasContables => Set<CuentaContable>();
+    public DbSet<GrupoNegocio> GruposNegocio => Set<GrupoNegocio>();
+    public DbSet<GrupoProducto> GruposProducto => Set<GrupoProducto>();
+    public DbSet<GrupoIvaNegocio> GruposIvaNegocio => Set<GrupoIvaNegocio>();
+    public DbSet<GrupoIvaProducto> GruposIvaProducto => Set<GrupoIvaProducto>();
+    public DbSet<GrupoInventario> GruposInventario => Set<GrupoInventario>();
+    public DbSet<GrupoClienteContable> GruposClienteContable => Set<GrupoClienteContable>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -100,6 +106,11 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.HasIndex(x => x.CreatedAtUtc).HasDatabaseName("IX_SociosNegocio_CreatedAtUtc");
             entity.HasIndex(x => x.Email).HasDatabaseName("IX_SociosNegocio_Email");
             entity.HasOne<TerminoPago>().WithMany().HasForeignKey(x => x.TerminoPagoId).OnDelete(DeleteBehavior.Restrict);
+            // Clasificación contable (Task 5.3): FK nulables sin navegación; el borrado de grupos es lógico y su handler
+            // rechaza el borrado en uso (409), Restrict es la red de seguridad ante un borrado físico.
+            entity.HasOne<GrupoNegocio>().WithMany().HasForeignKey(x => x.GrupoNegocioId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<GrupoIvaNegocio>().WithMany().HasForeignKey(x => x.GrupoIvaNegocioId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<GrupoClienteContable>().WithMany().HasForeignKey(x => x.GrupoClienteContableId).OnDelete(DeleteBehavior.Restrict);
             entity.Property<uint>("xmin").HasColumnName("xmin").IsRowVersion();
             entity.Property(x => x.IsDeleted).HasDefaultValue(false);
             entity.Property(x => x.DeletedBy).HasMaxLength(100);
@@ -138,6 +149,10 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             // la FK es la red de seguridad ante un borrado físico.
             entity.HasOne<UnidadMedida>().WithMany().HasForeignKey(x => x.UnidadMedidaBaseId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne<CategoriaProducto>().WithMany().HasForeignKey(x => x.CategoriaId).OnDelete(DeleteBehavior.Restrict);
+            // Clasificación contable (Task 5.3): mismas reglas que las FK de SocioNegocio a sus grupos.
+            entity.HasOne<GrupoProducto>().WithMany().HasForeignKey(x => x.GrupoProductoId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<GrupoIvaProducto>().WithMany().HasForeignKey(x => x.GrupoIvaProductoId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<GrupoInventario>().WithMany().HasForeignKey(x => x.GrupoInventarioId).OnDelete(DeleteBehavior.Restrict);
             entity.Property(x => x.CreatedBy).HasMaxLength(100).IsRequired();
             entity.Property(x => x.UpdatedBy).HasMaxLength(100);
             // Mismo filtro parcial que AppSettings.Key: ver comentario de arriba.
@@ -640,7 +655,81 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                 SemillaCuenta(CuentaContableIds.CostoVentas, "5101", "Costo de ventas", TipoCuentaContable.Posteo, TipoResultadoCuenta.Resultado, false, 1),
                 SemillaCuenta(CuentaContableIds.AjusteInventario, "5201", "Ajustes de inventario", TipoCuentaContable.Posteo, TipoResultadoCuenta.Resultado, true, 1));
         });
+
+        // Grupos contables (Task 5.3): cinco tablas simples con la misma forma, una por tipo (spec 5.2), más
+        // GruposClienteContable, que además lleva cuentas. Semillas con Ids fijos (GrupoContableIds).
+        ConfigurarGrupo<GrupoNegocio>(modelBuilder, "GruposNegocio",
+            SemillaGrupo(GrupoContableIds.NegocioNacional, "NACIONAL", "Socios nacionales"),
+            SemillaGrupo(GrupoContableIds.NegocioExterior, "EXTERIOR", "Socios del exterior"));
+        ConfigurarGrupo<GrupoProducto>(modelBuilder, "GruposProducto",
+            SemillaGrupo(GrupoContableIds.ProductoBienes, "BIENES", "Bienes"),
+            SemillaGrupo(GrupoContableIds.ProductoServicios, "SERVICIOS", "Servicios"));
+        ConfigurarGrupo<GrupoIvaNegocio>(modelBuilder, "GruposIvaNegocio",
+            SemillaGrupo(GrupoContableIds.IvaNegocioItbis18, "ITBIS18", "Sujeto a ITBIS 18%"),
+            SemillaGrupo(GrupoContableIds.IvaNegocioExento, "EXENTO", "Exento de ITBIS"));
+        ConfigurarGrupo<GrupoIvaProducto>(modelBuilder, "GruposIvaProducto",
+            SemillaGrupo(GrupoContableIds.IvaProductoItbis18, "ITBIS18", "Gravado con ITBIS 18%"),
+            SemillaGrupo(GrupoContableIds.IvaProductoExento, "EXENTO", "Exento de ITBIS"));
+        ConfigurarGrupo<GrupoInventario>(modelBuilder, "GruposInventario",
+            SemillaGrupo(GrupoContableIds.InventarioGeneral, "GENERAL", "Inventario general"));
+
+        modelBuilder.Entity<GrupoClienteContable>(entity =>
+        {
+            ConfigurarColumnasGrupo(entity, "GruposClienteContable");
+            // Tres FK a CuentasContables sin navegación (se distinguen por la propiedad FK). Borrar una cuenta usada aquí
+            // la rechaza la guarda de uso de cuentas (409); Restrict es la red de seguridad ante un borrado físico.
+            entity.HasOne<CuentaContable>().WithMany().HasForeignKey(x => x.CuentaCxCId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<CuentaContable>().WithMany().HasForeignKey(x => x.CuentaDescuentoId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<CuentaContable>().WithMany().HasForeignKey(x => x.CuentaInteresId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasData(new
+            {
+                Id = GrupoContableIds.ClienteContableGeneral,
+                Codigo = "GENERAL",
+                Descripcion = "Clientes en general",
+                CuentaCxCId = CuentaContableIds.CxC,
+                CuentaDescuentoId = (Guid?)CuentaContableIds.DescuentoVentas,
+                CuentaInteresId = (Guid?)null,
+                CreatedAtUtc = FechaSemilla,
+                CreatedBy = "system",
+                IsDeleted = false
+            });
+        });
     }
+
+    private static void ConfigurarGrupo<TGrupo>(ModelBuilder modelBuilder, string tabla, params object[] semillas)
+        where TGrupo : GrupoContable =>
+        modelBuilder.Entity<TGrupo>(entity =>
+        {
+            ConfigurarColumnasGrupo(entity, tabla);
+            entity.HasData(semillas);
+        });
+
+    private static void ConfigurarColumnasGrupo<TGrupo>(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<TGrupo> entity, string tabla)
+        where TGrupo : GrupoContable
+    {
+        entity.ToTable(tabla);
+        entity.HasKey(x => x.Id);
+        entity.Property(x => x.Codigo).HasMaxLength(20).IsRequired();
+        entity.Property(x => x.Descripcion).HasMaxLength(100).IsRequired();
+        entity.Property(x => x.CreatedBy).HasMaxLength(100).IsRequired();
+        entity.Property(x => x.UpdatedBy).HasMaxLength(100);
+        // Mismo patrón de índice único parcial que el resto de maestros: permite reutilizar el Código de un grupo borrado.
+        entity.HasIndex(x => x.Codigo).IsUnique().HasFilter("\"IsDeleted\" = false");
+        entity.Property<uint>("xmin").HasColumnName("xmin").IsRowVersion();
+        entity.Property(x => x.IsDeleted).HasDefaultValue(false);
+        entity.Property(x => x.DeletedBy).HasMaxLength(100);
+        entity.HasQueryFilter(x => !x.IsDeleted);
+    }
+
+    private static object SemillaGrupo(Guid id, string codigo, string descripcion) => new
+    {
+        Id = id,
+        Codigo = codigo,
+        Descripcion = descripcion,
+        CreatedAtUtc = FechaSemilla,
+        CreatedBy = "system",
+        IsDeleted = false
+    };
 
     private static readonly DateTimeOffset FechaSemilla = new(2026, 9, 24, 0, 0, 0, TimeSpan.Zero);
 

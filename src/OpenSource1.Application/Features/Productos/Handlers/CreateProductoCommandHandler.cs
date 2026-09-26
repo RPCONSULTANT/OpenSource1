@@ -4,6 +4,7 @@ using OpenSource1.Application.Features.Productos.Commands;
 using OpenSource1.Application.Features.Productos.Dtos;
 using OpenSource1.Core.Common;
 using OpenSource1.Core.Entities;
+using OpenSource1.Core.Entities.Contabilidad;
 
 namespace OpenSource1.Application.Features.Productos.Handlers;
 
@@ -28,6 +29,13 @@ public sealed class CreateProductoCommandHandler(IUnitOfWork unitOfWork)
             return Result<ProductoResponse>.Fallo(referencias);
         }
 
+        var resolucionGrupos = await ProductoReglas.ResolverGruposAsync(
+            unitOfWork, request.GrupoProductoId, request.GrupoIvaProductoId, request.GrupoInventarioId, actual: null, cancellationToken);
+        if (!resolucionGrupos.TryObtenerValor(out var grupos))
+        {
+            return Result<ProductoResponse>.Fallo(resolucionGrupos);
+        }
+
         var imagen = await ProductoReglas.AsegurarImagenNoAsignadaAsync(unitOfWork, request.ImagePath, null, cancellationToken);
         if (imagen is not null)
         {
@@ -47,16 +55,20 @@ public sealed class CreateProductoCommandHandler(IUnitOfWork unitOfWork)
             // CostoUnitario = 0 y CostoAjustado = true: sin movimientos todavía, no hay nada que ajustar.
             CostoUnitario = 0m,
             CostoAjustado = true,
-            ImagePath = request.ImagePath
+            ImagePath = request.ImagePath,
+            GrupoProductoId = request.GrupoProductoId,
+            GrupoIvaProductoId = request.GrupoIvaProductoId,
+            GrupoInventarioId = request.GrupoInventarioId
         };
         await unitOfWork.Repository<Producto>().AddAsync(entity, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
         // Un producto recién creado no tiene movimientos: su existencia es 0 sin necesidad de consultar el libro.
-        return Result<ProductoResponse>.Exito(ToResponse(entity, catalogo.Categoria, catalogo.Unidad, existencia: 0m));
+        return Result<ProductoResponse>.Exito(ToResponse(entity, catalogo.Categoria, catalogo.Unidad, existencia: 0m, grupos));
     }
 
     /// <summary>Respuesta del alta/modificación: los nombres de categoría y unidad salen del catálogo (cadena vacía si la fila ya no existe).</summary>
-    public static ProductoResponse ToResponse(Producto x, CategoriaProducto? categoria, UnidadMedida? unidad, decimal existencia) => new()
+    public static ProductoResponse ToResponse(
+        Producto x, CategoriaProducto? categoria, UnidadMedida? unidad, decimal existencia, ProductoGruposContables? grupos = null) => new()
     {
         Id = x.Id,
         Codigo = x.Codigo,
@@ -76,6 +88,12 @@ public sealed class CreateProductoCommandHandler(IUnitOfWork unitOfWork)
         CostoAjustado = x.CostoAjustado,
         Bloqueado = x.Bloqueado,
         ImagePath = x.ImagePath,
+        GrupoProductoId = x.GrupoProductoId,
+        GrupoProductoCodigo = grupos?.Producto?.Codigo,
+        GrupoIvaProductoId = x.GrupoIvaProductoId,
+        GrupoIvaProductoCodigo = grupos?.IvaProducto?.Codigo,
+        GrupoInventarioId = x.GrupoInventarioId,
+        GrupoInventarioCodigo = grupos?.Inventario?.Codigo,
         CreatedAtUtc = x.CreatedAtUtc.UtcDateTime,
         UpdatedAtUtc = x.UpdatedAtUtc?.UtcDateTime,
         CreatedBy = x.CreatedBy,
@@ -83,10 +101,52 @@ public sealed class CreateProductoCommandHandler(IUnitOfWork unitOfWork)
     };
 }
 
+/// <summary>Grupos contables resueltos del producto (null = sin grupo, o grupo colgante que no cambió).</summary>
+public sealed record ProductoGruposContables(GrupoProducto? Producto, GrupoIvaProducto? IvaProducto, GrupoInventario? Inventario);
+
 /// <summary>Reglas compartidas por Create/Update que tocan la base de datos.</summary>
 internal static class ProductoReglas
 {
     public sealed record Catalogo(CategoriaProducto Categoria, UnidadMedida Unidad);
+
+    /// <summary>
+    /// Resuelve los tres grupos contables (Task 5.3). Un grupo que se ASIGNA o CAMBIA (distinto del de <paramref name="actual"/>)
+    /// debe existir y no estar borrado: si no, 400 <c>producto.grupo_invalido</c> en su campo (nunca <c>.no_encontrado</c>: es un
+    /// dato del cuerpo). Uno que no cambia no se revalida (un producto con un grupo ya colgante sigue siendo editable, igual que
+    /// categoría/unidad); se devuelve null para él si ya no existe.
+    /// </summary>
+    public static async Task<Result<ProductoGruposContables>> ResolverGruposAsync(
+        IUnitOfWork unitOfWork, Guid? grupoProductoId, Guid? grupoIvaProductoId, Guid? grupoInventarioId, Producto? actual,
+        CancellationToken cancellationToken)
+    {
+        var producto = await BuscarGrupoAsync<GrupoProducto>(unitOfWork, grupoProductoId, cancellationToken);
+        if (producto is null && grupoProductoId is not null && grupoProductoId != actual?.GrupoProductoId)
+        {
+            return Result<ProductoGruposContables>.Fallo(ErrorGrupo("El grupo de producto indicado no existe.", nameof(Producto.GrupoProductoId)));
+        }
+
+        var ivaProducto = await BuscarGrupoAsync<GrupoIvaProducto>(unitOfWork, grupoIvaProductoId, cancellationToken);
+        if (ivaProducto is null && grupoIvaProductoId is not null && grupoIvaProductoId != actual?.GrupoIvaProductoId)
+        {
+            return Result<ProductoGruposContables>.Fallo(ErrorGrupo("El grupo de IVA de producto indicado no existe.", nameof(Producto.GrupoIvaProductoId)));
+        }
+
+        var inventario = await BuscarGrupoAsync<GrupoInventario>(unitOfWork, grupoInventarioId, cancellationToken);
+        if (inventario is null && grupoInventarioId is not null && grupoInventarioId != actual?.GrupoInventarioId)
+        {
+            return Result<ProductoGruposContables>.Fallo(ErrorGrupo("El grupo de inventario indicado no existe.", nameof(Producto.GrupoInventarioId)));
+        }
+
+        return Result<ProductoGruposContables>.Exito(new ProductoGruposContables(producto, ivaProducto, inventario));
+    }
+
+    private static Task<TGrupo?> BuscarGrupoAsync<TGrupo>(IUnitOfWork unitOfWork, Guid? id, CancellationToken cancellationToken)
+        where TGrupo : GrupoContable =>
+        id is { } grupoId
+            ? unitOfWork.Repository<TGrupo>().FirstOrDefaultAsync(x => x.Id == grupoId, cancellationToken: cancellationToken)
+            : Task.FromResult<TGrupo?>(null);
+
+    private static Error ErrorGrupo(string mensaje, string campo) => new("producto.grupo_invalido", mensaje, campo);
 
     /// <summary>
     /// Resuelve la categoría y la unidad base del ALTA: la que viene en el comando o, si no viene, <c>GENERAL</c>/<c>UND</c>. Devuelve

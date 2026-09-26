@@ -51,12 +51,18 @@ public sealed class UpdateSocioNegocioCommandHandler(IUnitOfWork unitOfWork)
             return Result<SocioNegocioResponse>.Fallo(verificacion.Value);
         }
 
+        var resolucionGrupos = await SocioNegocioReglas.ResolverGruposAsync(unitOfWork, datos, entity, cancellationToken);
+        if (!resolucionGrupos.TryObtenerValor(out var grupos))
+        {
+            return Result<SocioNegocioResponse>.Fallo(resolucionGrupos);
+        }
+
         SocioNegocioReglas.Aplicar(entity, datos);
 
         repo.Update(entity);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
-        return Result<SocioNegocioResponse>.Exito(CreateSocioNegocioCommandHandler.ToResponse(entity));
+        return Result<SocioNegocioResponse>.Exito(CreateSocioNegocioCommandHandler.ToResponse(entity, grupos));
     }
 
     /// <summary>Comando + valores guardados = datos finales del socio tras la modificación.</summary>
@@ -76,7 +82,10 @@ public sealed class UpdateSocioNegocioCommandHandler(IUnitOfWork unitOfWork)
         Guid? TerminoPagoId,
         decimal LimiteCredito,
         BloqueoSocioNegocio Bloqueado,
-        string? ImagePath) : IDatosSocioNegocio
+        string? ImagePath,
+        Guid? GrupoNegocioId,
+        Guid? GrupoIvaNegocioId,
+        Guid? GrupoClienteContableId) : IDatosSocioNegocio
     {
         public static DatosResueltos De(UpdateSocioNegocioCommand c, SocioNegocio actual) => new(
             c.NombreComercial,
@@ -95,6 +104,10 @@ public sealed class UpdateSocioNegocioCommandHandler(IUnitOfWork unitOfWork)
             c.TerminoPagoId is null ? actual.TerminoPagoId : (c.TerminoPagoId == Guid.Empty ? null : c.TerminoPagoId),
             c.LimiteCredito ?? actual.LimiteCredito,
             c.Bloqueado ?? actual.Bloqueado,
-            c.ImagePath);
+            c.ImagePath,
+            // Grupos contables (Task 5.3): null = conservar; no hay "limpiar".
+            c.GrupoNegocioId ?? actual.GrupoNegocioId,
+            c.GrupoIvaNegocioId ?? actual.GrupoIvaNegocioId,
+            c.GrupoClienteContableId ?? actual.GrupoClienteContableId);
     }
 }

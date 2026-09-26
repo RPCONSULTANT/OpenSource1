@@ -39,7 +39,8 @@ public sealed record SocioNegocioSearchFilter(
 /// <see cref="Guid.Empty"/> en <c>TerminoPagoId</c> = limpiar el término (null = conservar). Por eso
 /// el formulario de edición envía <c>""</c> y <c>Guid.Empty</c> para vaciar y nunca null. <c>Email</c>,
 /// <c>Telefono</c>, dirección, <c>Sector</c>, <c>PaisCodigo</c> e <c>ImagePath</c> son de reemplazo
-/// completo: se envían siempre. El <c>Codigo</c> no viaja: lo asigna el sistema.
+/// completo: se envían siempre. El <c>Codigo</c> no viaja: lo asigna el sistema. Grupos contables (Task 5.3): null = sin grupo
+/// en el alta y "conservar" en la modificación (no hay "limpiar"; la ficha los envía null si la API de grupos no cargó).
 /// </summary>
 public sealed record SocioNegocioInput(
     string NombreComercial,
@@ -57,7 +58,10 @@ public sealed record SocioNegocioInput(
     string? Ciudad = null,
     Guid? TerminoPagoId = null,
     decimal LimiteCredito = 0m,
-    BloqueoSocioNegocio Bloqueado = BloqueoSocioNegocio.Ninguno);
+    BloqueoSocioNegocio Bloqueado = BloqueoSocioNegocio.Ninguno,
+    Guid? GrupoNegocioId = null,
+    Guid? GrupoIvaNegocioId = null,
+    Guid? GrupoClienteContableId = null);
 
 /// <summary>
 /// Resultado de una operación. <c>Message</c> es el mensaje resumido; <c>Errors</c> trae los mensajes

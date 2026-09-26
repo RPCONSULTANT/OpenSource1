@@ -8,6 +8,8 @@
 @using OpenSource1.Blazor.Services
 @inject ISocioNegocioApiClient SocioNegocioApiClient
 @inject ITerminoPagoApiClient TerminoPagoApiClient
+@inject IGrupoContableApiClient GrupoContableApiClient
+@inject IGrupoClienteContableApiClient GrupoClienteContableApiClient
 @inject IHttpContextAccessor HttpContextAccessor
 @inject IFileStorageService FileStorageService
 @inject IAuthorizationService AuthorizationService
@@ -38,6 +40,10 @@
 @if (EditMode && canModify && cliente is not null && edicionBloqueada)
 {
     <div class="mb-6"><MessageBox Type="danger" Message="@TerminoPagoOpciones.MensajeNoDisponibles" /></div>
+}
+@if (EditMode && canModify && cliente is not null && grupos.CargaFallida)
+{
+    <div class="mb-6"><MessageBox Type="warning" Message="@GruposSocioOpciones.MensajeNoDisponibles" /></div>
 }
 
 @if (loadError is not null)
@@ -90,7 +96,8 @@ else
                             <p class="mt-1 text-xs text-slate-400 dark:text-slate-500">Formatos permitidos: JPG, PNG, WEBP. Máximo 2 MB.</p>
                         </div>
                     </div>
-                    <ClienteFields Model="Input!" Prefix="Input" EsEdicion="true" Codigo="@cliente.Codigo" Terminos="@terminos.Items" TerminoActualId="@cliente.TerminoPagoId" TerminoActualNombre="@terminoActualNombre" />
+                    <ClienteFields Model="Input!" Prefix="Input" EsEdicion="true" Codigo="@cliente.Codigo" Terminos="@terminos.Items" TerminoActualId="@cliente.TerminoPagoId" TerminoActualNombre="@terminoActualNombre"
+                                   Grupos="@grupos" GrupoNegocioVigente="@cliente.GrupoNegocioCodigo" GrupoIvaNegocioVigente="@cliente.GrupoIvaNegocioCodigo" GrupoClienteContableVigente="@cliente.GrupoClienteContableCodigo" />
                     <div class="mt-6 flex flex-wrap items-center gap-3">
                         @if (!edicionBloqueada)
                         {
@@ -127,6 +134,7 @@ else
                         <div class="rounded-xl border border-slate-100 bg-slate-50 px-4 py-4 dark:border-slate-700/60 dark:bg-slate-900/40"><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Sector</p><p class="mt-1 text-sm text-slate-700 dark:text-slate-300">@(string.IsNullOrWhiteSpace(cliente.Sector) ? "No indicado" : cliente.Sector)</p></div>
                         <div class="rounded-xl border border-slate-100 bg-slate-50 px-4 py-4 dark:border-slate-700/60 dark:bg-slate-900/40"><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">País</p><p class="mt-1 text-sm text-slate-700 dark:text-slate-300">@(string.IsNullOrWhiteSpace(cliente.PaisNombre) ? "No indicado" : cliente.PaisNombre)</p></div>
                         <div class="rounded-xl border border-slate-100 bg-slate-50 px-4 py-4 dark:border-slate-700/60 dark:bg-slate-900/40"><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Ciudad</p><p class="mt-1 text-sm text-slate-700 dark:text-slate-300">@(string.IsNullOrWhiteSpace(cliente.Ciudad) ? "No indicada" : cliente.Ciudad)</p></div>
+                        <div class="rounded-xl border border-slate-100 bg-slate-50 px-4 py-4 md:col-span-2 dark:border-slate-700/60 dark:bg-slate-900/40" data-testid="cliente-grupos"><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Clasificación contable</p><p class="mt-1 text-sm text-slate-700 dark:text-slate-300">Negocio: <span class="font-semibold">@RotuloGrupo(cliente.GrupoNegocioId, cliente.GrupoNegocioCodigo)</span> · IVA: <span class="font-semibold">@RotuloGrupo(cliente.GrupoIvaNegocioId, cliente.GrupoIvaNegocioCodigo)</span> · Cliente: <span class="font-semibold">@RotuloGrupo(cliente.GrupoClienteContableId, cliente.GrupoClienteContableCodigo)</span></p></div>
                         <div class="rounded-xl border border-slate-100 bg-slate-50 px-4 py-4 md:col-span-2 dark:border-slate-700/60 dark:bg-slate-900/40"><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Dirección</p><p class="mt-1 text-sm text-slate-700 dark:text-slate-300">@(string.IsNullOrWhiteSpace(cliente.DireccionLinea1) ? "No indicada" : $"{cliente.DireccionLinea1}{(string.IsNullOrWhiteSpace(cliente.DireccionLinea2) ? "" : $", {cliente.DireccionLinea2}")}")</p></div>
                     </div>
                 </div>
@@ -170,6 +178,8 @@ else
     private string? terminoActualNombre;
     // La modificación se bloquea si las opciones de término no son fiables: guardar a ciegas podría borrar el término.
     private bool edicionBloqueada;
+    // Grupos contables (Task 5.3): si no cargan NO bloquean la edición; solo impiden cambiar los grupos (se envían null = conservar).
+    private GruposSocioOpciones grupos = GruposSocioOpciones.SinCargar;
     [CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
 
     protected override async Task OnInitializedAsync()
@@ -208,13 +218,23 @@ else
                 Tipo = cliente.Tipo, RazonSocial = cliente.RazonSocial, TipoDocumentoFiscal = cliente.TipoDocumentoFiscal,
                 NumeroDocumentoFiscal = cliente.NumeroDocumentoFiscal, Ciudad = cliente.Ciudad,
                 TerminoPagoId = cliente.TerminoPagoId, LimiteCreditoTexto = EntradaDecimal.Formatear(cliente.LimiteCredito),
-                Bloqueado = cliente.Bloqueado
+                Bloqueado = cliente.Bloqueado,
+                GrupoNegocioId = cliente.GrupoNegocioId, GrupoIvaNegocioId = cliente.GrupoIvaNegocioId,
+                GrupoClienteContableId = cliente.GrupoClienteContableId
             };
 
             if (EditMode && canModify)
             {
                 terminos = await TerminoPagoOpciones.CargarAsync(TerminoPagoApiClient, Logger);
                 edicionBloqueada = terminos.ModificacionBloqueada(cliente.TerminoPagoId);
+                grupos = await GruposSocioOpciones.CargarAsync(GrupoContableApiClient, GrupoClienteContableApiClient, Logger);
+                if (grupos.CargaFallida)
+                {
+                    // Los selectores deshabilitados no se envían: que muestren siempre el valor guardado (también al re-renderizar un POST).
+                    Input.GrupoNegocioId = cliente.GrupoNegocioId;
+                    Input.GrupoIvaNegocioId = cliente.GrupoIvaNegocioId;
+                    Input.GrupoClienteContableId = cliente.GrupoClienteContableId;
+                }
             }
 
             // Si la carga de la lista falló no se reintenta por el nombre (sumaría otro tiempo de espera): la opción vigente se rotula con su Guid.
@@ -258,7 +278,7 @@ else
             // Sin fichero subido conserva la vigente (o null si esa ruta no cumple la regla).
             imagenNueva = await FileStorageService.SaveClientImageAsync(httpContext, "ClientImage", imagenAnterior);
             Input!.ImagePath = imagenNueva;
-            var result = await SocioNegocioApiClient.UpdateAsync(Id, ToInput(Input));
+            var result = await SocioNegocioApiClient.UpdateAsync(Id, ToInput(Input, gruposModificables: !grupos.CargaFallida));
             if (result.Succeeded)
             {
                 // Solo ahora que la API confirmó el cambio se retira la imagen anterior.
@@ -312,7 +332,9 @@ else
     // "limpiar"; TerminoPagoId null como "conservar" y Guid.Empty como "limpiar". El formulario muestra siempre el
     // valor completo, así que se envía "" y Guid.Empty para que vaciar un campo lo vacíe de verdad.
     // Email, Teléfono, dirección, Sector, País e ImagePath son de reemplazo completo: se envían siempre.
-    private static SocioNegocioInput ToInput(ClienteEditorForm form) => new(
+    // Grupos contables (Task 5.3): null = conservar; si la API de grupos no cargó se envían siempre null (defensa en profundidad
+    // frente a un POST manipulado: los selectores ya estaban deshabilitados).
+    private static SocioNegocioInput ToInput(ClienteEditorForm form, bool gruposModificables) => new(
         form.NombreComercial.Trim(),
         form.Email?.Trim(),
         form.Telefono?.Trim(),
@@ -328,6 +350,11 @@ else
         form.Ciudad?.Trim() ?? string.Empty,
         form.TerminoPagoId ?? Guid.Empty,
         form.LimiteCredito,
-        form.Bloqueado);
+        form.Bloqueado,
+        gruposModificables ? form.GrupoNegocioId : null,
+        gruposModificables ? form.GrupoIvaNegocioId : null,
+        gruposModificables ? form.GrupoClienteContableId : null);
+
+    private static string RotuloGrupo(Guid? id, string? codigo) => id is null ? "Sin asignar" : codigo ?? $"No disponible ({id})";
     private sealed class DeleteConfirmForm { }
 }

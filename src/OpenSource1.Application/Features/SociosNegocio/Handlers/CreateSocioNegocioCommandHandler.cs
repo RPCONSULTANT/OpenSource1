@@ -5,6 +5,7 @@ using OpenSource1.Application.Features.SociosNegocio.Commands;
 using OpenSource1.Application.Features.SociosNegocio.Dtos;
 using OpenSource1.Core.Common;
 using OpenSource1.Core.Entities;
+using OpenSource1.Core.Entities.Contabilidad;
 using OpenSource1.Core.ValueObjects;
 
 namespace OpenSource1.Application.Features.SociosNegocio.Handlers;
@@ -51,6 +52,12 @@ public sealed class CreateSocioNegocioCommandHandler(IUnitOfWork unitOfWork, IGe
             return Result<SocioNegocioResponse>.Fallo(verificacion.Value);
         }
 
+        var resolucionGrupos = await SocioNegocioReglas.ResolverGruposAsync(unitOfWork, request, actual: null, cancellationToken);
+        if (!resolucionGrupos.TryObtenerValor(out var grupos))
+        {
+            return Result<SocioNegocioResponse>.Fallo(resolucionGrupos);
+        }
+
         var entity = new SocioNegocio
         {
             Codigo = codigo,
@@ -61,10 +68,10 @@ public sealed class CreateSocioNegocioCommandHandler(IUnitOfWork unitOfWork, IGe
         await unitOfWork.Repository<SocioNegocio>().AddAsync(entity, cancellationToken);
         await unitOfWork.CommitAsync(cancellationToken);
 
-        return Result<SocioNegocioResponse>.Exito(ToResponse(entity));
+        return Result<SocioNegocioResponse>.Exito(ToResponse(entity, grupos));
     }
 
-    public static SocioNegocioResponse ToResponse(SocioNegocio x) => new()
+    public static SocioNegocioResponse ToResponse(SocioNegocio x, SocioNegocioGruposContables? grupos = null) => new()
     {
         Id = x.Id,
         Codigo = x.Codigo,
@@ -85,6 +92,12 @@ public sealed class CreateSocioNegocioCommandHandler(IUnitOfWork unitOfWork, IGe
         LimiteCredito = x.LimiteCredito,
         Bloqueado = x.Bloqueado,
         ImagePath = x.ImagePath,
+        GrupoNegocioId = x.GrupoNegocioId,
+        GrupoNegocioCodigo = grupos?.Negocio?.Codigo,
+        GrupoIvaNegocioId = x.GrupoIvaNegocioId,
+        GrupoIvaNegocioCodigo = grupos?.IvaNegocio?.Codigo,
+        GrupoClienteContableId = x.GrupoClienteContableId,
+        GrupoClienteContableCodigo = grupos?.ClienteContable?.Codigo,
         CreatedAtUtc = x.CreatedAtUtc.UtcDateTime,
         UpdatedAtUtc = x.UpdatedAtUtc?.UtcDateTime,
         CreatedBy = x.CreatedBy,
@@ -92,9 +105,50 @@ public sealed class CreateSocioNegocioCommandHandler(IUnitOfWork unitOfWork, IGe
     };
 }
 
+/// <summary>Grupos contables resueltos del socio (null = sin grupo, o grupo colgante que no cambió).</summary>
+public sealed record SocioNegocioGruposContables(GrupoNegocio? Negocio, GrupoIvaNegocio? IvaNegocio, GrupoClienteContable? ClienteContable);
+
 /// <summary>Reglas compartidas por Create/Update que tocan la entidad o la base de datos.</summary>
 internal static class SocioNegocioReglas
 {
+    /// <summary>
+    /// Resuelve los tres grupos contables (Task 5.3). Un grupo que se ASIGNA o CAMBIA (distinto del de <paramref name="actual"/>)
+    /// debe existir y no estar borrado: si no, 400 <c>socio_negocio.grupo_invalido</c> en su campo. Uno que no cambia no se
+    /// revalida (mismo criterio que el término de pago).
+    /// </summary>
+    public static async Task<Result<SocioNegocioGruposContables>> ResolverGruposAsync(
+        IUnitOfWork unitOfWork, IDatosSocioNegocio datos, SocioNegocio? actual, CancellationToken cancellationToken)
+    {
+        var negocio = await BuscarGrupoAsync<GrupoNegocio>(unitOfWork, datos.GrupoNegocioId, cancellationToken);
+        if (negocio is null && datos.GrupoNegocioId is not null && datos.GrupoNegocioId != actual?.GrupoNegocioId)
+        {
+            return Result<SocioNegocioGruposContables>.Fallo(ErrorGrupo("El grupo de negocio indicado no existe.", nameof(datos.GrupoNegocioId)));
+        }
+
+        var ivaNegocio = await BuscarGrupoAsync<GrupoIvaNegocio>(unitOfWork, datos.GrupoIvaNegocioId, cancellationToken);
+        if (ivaNegocio is null && datos.GrupoIvaNegocioId is not null && datos.GrupoIvaNegocioId != actual?.GrupoIvaNegocioId)
+        {
+            return Result<SocioNegocioGruposContables>.Fallo(ErrorGrupo("El grupo de IVA de negocio indicado no existe.", nameof(datos.GrupoIvaNegocioId)));
+        }
+
+        var clienteContable = await BuscarGrupoAsync<GrupoClienteContable>(unitOfWork, datos.GrupoClienteContableId, cancellationToken);
+        if (clienteContable is null && datos.GrupoClienteContableId is not null && datos.GrupoClienteContableId != actual?.GrupoClienteContableId)
+        {
+            return Result<SocioNegocioGruposContables>.Fallo(ErrorGrupo("El grupo contable de cliente indicado no existe.", nameof(datos.GrupoClienteContableId)));
+        }
+
+        return Result<SocioNegocioGruposContables>.Exito(new SocioNegocioGruposContables(negocio, ivaNegocio, clienteContable));
+    }
+
+    private static Task<TGrupo?> BuscarGrupoAsync<TGrupo>(IUnitOfWork unitOfWork, Guid? id, CancellationToken cancellationToken)
+        where TGrupo : GrupoContable =>
+        id is { } grupoId
+            ? unitOfWork.Repository<TGrupo>().FirstOrDefaultAsync(x => x.Id == grupoId, cancellationToken: cancellationToken)
+            : Task.FromResult<TGrupo?>(null);
+
+    // Sin sufijo ".no_encontrado" a propósito: es un dato inválido del cuerpo (400), no el recurso de la URL (404).
+    private static Error ErrorGrupo(string mensaje, string campo) => new("socio_negocio.grupo_invalido", mensaje, campo);
+
     /// <summary>
     /// Comprueba lo que exige base de datos: <c>TerminoPagoId</c> (si viene) existe y no está
     /// borrado (solo si <paramref name="validarTermino"/>: en una modificación que no lo cambia no se
@@ -179,6 +233,9 @@ internal static class SocioNegocioReglas
         entity.LimiteCredito = datos.LimiteCredito;
         entity.Bloqueado = datos.Bloqueado;
         entity.ImagePath = datos.ImagePath;
+        entity.GrupoNegocioId = datos.GrupoNegocioId;
+        entity.GrupoIvaNegocioId = datos.GrupoIvaNegocioId;
+        entity.GrupoClienteContableId = datos.GrupoClienteContableId;
     }
 
     /// <summary>Sin espacios sobrantes y en mayúsculas: <c>abc123</c> y <c>ABC123</c> son el mismo documento.</summary>

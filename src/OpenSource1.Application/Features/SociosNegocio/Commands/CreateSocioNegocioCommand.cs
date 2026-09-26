@@ -5,6 +5,11 @@ using OpenSource1.Core.Enums;
 
 namespace OpenSource1.Application.Features.SociosNegocio.Commands;
 
+/// <summary>
+/// Alta de socio de negocio. Los grupos contables (Task 5.3) son opcionales: <see langword="null"/> = el socio nace sin ese grupo
+/// (la API no aplica grupos por defecto; la UI preselecciona los semilla). Si vienen, deben existir (400
+/// <c>socio_negocio.grupo_invalido</c>).
+/// </summary>
 public sealed record CreateSocioNegocioCommand(
     string NombreComercial,
     string? RazonSocial,
@@ -21,4 +26,7 @@ public sealed record CreateSocioNegocioCommand(
     Guid? TerminoPagoId,
     decimal LimiteCredito,
     BloqueoSocioNegocio Bloqueado,
-    string? ImagePath = null) : IRequest<Result<SocioNegocioResponse>>, IDatosSocioNegocio;
+    string? ImagePath = null,
+    Guid? GrupoNegocioId = null,
+    Guid? GrupoIvaNegocioId = null,
+    Guid? GrupoClienteContableId = null) : IRequest<Result<SocioNegocioResponse>>, IDatosSocioNegocio;

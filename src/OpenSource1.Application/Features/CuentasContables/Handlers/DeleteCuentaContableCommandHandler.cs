@@ -10,7 +10,7 @@ namespace OpenSource1.Application.Features.CuentasContables.Handlers;
 /// <summary>
 /// Borrado lógico de una cuenta contable. Rechaza el borrado con 409 <c>cuenta_contable.conflicto</c> si la cuenta
 /// está en uso (<see cref="ICuentaContableUsoService"/>: movimientos contables, setups o grupos de cliente —
-/// guarda preparada aquí, ampliada por las Tasks 5.3-5.5); hoy el servicio siempre responde sin uso.
+/// guarda preparada en la 5.2 y ampliada por las Tasks 5.3-5.5; desde la 5.3 cubre los grupos de cliente).
 /// </summary>
 public sealed class DeleteCuentaContableCommandHandler(IUnitOfWork unitOfWork, ICuentaContableUsoService usoService)
     : IRequestHandler<DeleteCuentaContableCommand, Result>

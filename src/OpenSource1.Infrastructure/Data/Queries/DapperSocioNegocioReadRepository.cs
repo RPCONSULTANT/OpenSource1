@@ -11,10 +11,19 @@ public sealed class DapperSocioNegocioReadRepository(IDbSession session) : ISoci
     private static readonly ColumnasPermitidas ColumnasPermitidas = new(
         "Codigo", "Tipo", "NombreComercial", "NumeroDocumentoFiscal", "Email", "Telefono", "DireccionLinea1", "Sector", "PaisNombre", "CreatedAtUtc");
 
+    // Grupos contables (Task 5.3): Id y Código de cada grupo. Subconsultas escalares correlacionadas (por PK) en vez de JOIN: este
+    // repositorio filtra y ordena con nombres de columna SIN alias de tabla ("Codigo", "Id", "CreatedAtUtc"...), que un JOIN a
+    // las tablas de grupos (que también los tienen) volvería ambiguos. Dentro de cada subconsulta todo va calificado.
+    private const string ColumnasGrupos = """
+        "GrupoNegocioId", (SELECT g."Codigo" FROM "GruposNegocio" g WHERE g."Id" = "SociosNegocio"."GrupoNegocioId") AS "GrupoNegocioCodigo",
+        "GrupoIvaNegocioId", (SELECT g."Codigo" FROM "GruposIvaNegocio" g WHERE g."Id" = "SociosNegocio"."GrupoIvaNegocioId") AS "GrupoIvaNegocioCodigo",
+        "GrupoClienteContableId", (SELECT g."Codigo" FROM "GruposClienteContable" g WHERE g."Id" = "SociosNegocio"."GrupoClienteContableId") AS "GrupoClienteContableCodigo"
+        """;
+
     public async Task<SocioNegocioResponse?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        const string sql = """
-            SELECT "Id", "Codigo", "Tipo", "NombreComercial", "RazonSocial", "TipoDocumentoFiscal", "NumeroDocumentoFiscal", "Email", "Telefono", "DireccionLinea1", "DireccionLinea2", "Ciudad", "Sector", "PaisCodigo", "PaisNombre", "TerminoPagoId", "LimiteCredito", "Bloqueado", "ImagePath", "CreatedAtUtc", "UpdatedAtUtc", "CreatedBy", "UpdatedBy"
+        const string sql = $"""
+            SELECT "Id", "Codigo", "Tipo", "NombreComercial", "RazonSocial", "TipoDocumentoFiscal", "NumeroDocumentoFiscal", "Email", "Telefono", "DireccionLinea1", "DireccionLinea2", "Ciudad", "Sector", "PaisCodigo", "PaisNombre", "TerminoPagoId", "LimiteCredito", "Bloqueado", "ImagePath", {ColumnasGrupos}, "CreatedAtUtc", "UpdatedAtUtc", "CreatedBy", "UpdatedBy"
             FROM "SociosNegocio"
             WHERE "Id" = @Id AND "IsDeleted" = false
             """;
@@ -70,7 +79,7 @@ public sealed class DapperSocioNegocioReadRepository(IDbSession session) : ISoci
             """;
 
         var pageSql = $"""
-            SELECT "Id", "Codigo", "Tipo", "NombreComercial", "RazonSocial", "TipoDocumentoFiscal", "NumeroDocumentoFiscal", "Email", "Telefono", "DireccionLinea1", "DireccionLinea2", "Ciudad", "Sector", "PaisCodigo", "PaisNombre", "TerminoPagoId", "LimiteCredito", "Bloqueado", "ImagePath", "CreatedAtUtc", "UpdatedAtUtc", "CreatedBy", "UpdatedBy"
+            SELECT "Id", "Codigo", "Tipo", "NombreComercial", "RazonSocial", "TipoDocumentoFiscal", "NumeroDocumentoFiscal", "Email", "Telefono", "DireccionLinea1", "DireccionLinea2", "Ciudad", "Sector", "PaisCodigo", "PaisNombre", "TerminoPagoId", "LimiteCredito", "Bloqueado", "ImagePath", {ColumnasGrupos}, "CreatedAtUtc", "UpdatedAtUtc", "CreatedBy", "UpdatedBy"
             FROM "SociosNegocio"
             {whereSql}
             ORDER BY {ordenSql} {direccionSql}, "Id" ASC

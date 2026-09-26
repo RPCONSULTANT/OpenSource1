@@ -512,6 +512,473 @@ namespace OpenSource1.Infrastructure.Data.Migrations.Application
                         });
                 });
 
+            modelBuilder.Entity("OpenSource1.Core.Entities.Contabilidad.GrupoClienteContable", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Codigo")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid>("CuentaCxCId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("CuentaDescuentoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("CuentaInteresId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("DeletedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Descripcion")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<DateTimeOffset?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Codigo")
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = false");
+
+                    b.HasIndex("CuentaCxCId");
+
+                    b.HasIndex("CuentaDescuentoId");
+
+                    b.HasIndex("CuentaInteresId");
+
+                    b.ToTable("GruposClienteContable", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("f2000000-0000-0000-0000-000000000010"),
+                            Codigo = "GENERAL",
+                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 9, 24, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedBy = "system",
+                            CuentaCxCId = new Guid("f1000000-0000-0000-0000-000000000003"),
+                            CuentaDescuentoId = new Guid("f1000000-0000-0000-0000-000000000009"),
+                            Descripcion = "Clientes en general",
+                            IsDeleted = false
+                        });
+                });
+
+            modelBuilder.Entity("OpenSource1.Core.Entities.Contabilidad.GrupoInventario", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Codigo")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTimeOffset?>("DeletedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Descripcion")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<DateTimeOffset?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Codigo")
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = false");
+
+                    b.ToTable("GruposInventario", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("f2000000-0000-0000-0000-000000000009"),
+                            Codigo = "GENERAL",
+                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 9, 24, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedBy = "system",
+                            Descripcion = "Inventario general",
+                            IsDeleted = false
+                        });
+                });
+
+            modelBuilder.Entity("OpenSource1.Core.Entities.Contabilidad.GrupoIvaNegocio", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Codigo")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTimeOffset?>("DeletedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Descripcion")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<DateTimeOffset?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Codigo")
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = false");
+
+                    b.ToTable("GruposIvaNegocio", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("f2000000-0000-0000-0000-000000000005"),
+                            Codigo = "ITBIS18",
+                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 9, 24, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedBy = "system",
+                            Descripcion = "Sujeto a ITBIS 18%",
+                            IsDeleted = false
+                        },
+                        new
+                        {
+                            Id = new Guid("f2000000-0000-0000-0000-000000000006"),
+                            Codigo = "EXENTO",
+                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 9, 24, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedBy = "system",
+                            Descripcion = "Exento de ITBIS",
+                            IsDeleted = false
+                        });
+                });
+
+            modelBuilder.Entity("OpenSource1.Core.Entities.Contabilidad.GrupoIvaProducto", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Codigo")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTimeOffset?>("DeletedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Descripcion")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<DateTimeOffset?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Codigo")
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = false");
+
+                    b.ToTable("GruposIvaProducto", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("f2000000-0000-0000-0000-000000000007"),
+                            Codigo = "ITBIS18",
+                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 9, 24, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedBy = "system",
+                            Descripcion = "Gravado con ITBIS 18%",
+                            IsDeleted = false
+                        },
+                        new
+                        {
+                            Id = new Guid("f2000000-0000-0000-0000-000000000008"),
+                            Codigo = "EXENTO",
+                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 9, 24, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedBy = "system",
+                            Descripcion = "Exento de ITBIS",
+                            IsDeleted = false
+                        });
+                });
+
+            modelBuilder.Entity("OpenSource1.Core.Entities.Contabilidad.GrupoNegocio", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Codigo")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTimeOffset?>("DeletedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Descripcion")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<DateTimeOffset?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Codigo")
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = false");
+
+                    b.ToTable("GruposNegocio", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("f2000000-0000-0000-0000-000000000001"),
+                            Codigo = "NACIONAL",
+                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 9, 24, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedBy = "system",
+                            Descripcion = "Socios nacionales",
+                            IsDeleted = false
+                        },
+                        new
+                        {
+                            Id = new Guid("f2000000-0000-0000-0000-000000000002"),
+                            Codigo = "EXTERIOR",
+                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 9, 24, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedBy = "system",
+                            Descripcion = "Socios del exterior",
+                            IsDeleted = false
+                        });
+                });
+
+            modelBuilder.Entity("OpenSource1.Core.Entities.Contabilidad.GrupoProducto", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Codigo")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTimeOffset?>("DeletedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Descripcion")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<DateTimeOffset?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Codigo")
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = false");
+
+                    b.ToTable("GruposProducto", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("f2000000-0000-0000-0000-000000000003"),
+                            Codigo = "BIENES",
+                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 9, 24, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedBy = "system",
+                            Descripcion = "Bienes",
+                            IsDeleted = false
+                        },
+                        new
+                        {
+                            Id = new Guid("f2000000-0000-0000-0000-000000000004"),
+                            Codigo = "SERVICIOS",
+                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 9, 24, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedBy = "system",
+                            Descripcion = "Servicios",
+                            IsDeleted = false
+                        });
+                });
+
             modelBuilder.Entity("OpenSource1.Core.Entities.Entrada", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1290,6 +1757,15 @@ namespace OpenSource1.Infrastructure.Data.Migrations.Application
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<Guid?>("GrupoInventarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("GrupoIvaProductoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("GrupoProductoId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("ImagePath")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
@@ -1337,6 +1813,12 @@ namespace OpenSource1.Infrastructure.Data.Migrations.Application
 
                     b.HasIndex("CreatedAtUtc")
                         .HasDatabaseName("IX_Productos_CreatedAtUtc");
+
+                    b.HasIndex("GrupoInventarioId");
+
+                    b.HasIndex("GrupoIvaProductoId");
+
+                    b.HasIndex("GrupoProductoId");
 
                     b.HasIndex("UnidadMedidaBaseId");
 
@@ -1462,6 +1944,15 @@ namespace OpenSource1.Infrastructure.Data.Migrations.Application
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
 
+                    b.Property<Guid?>("GrupoClienteContableId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("GrupoIvaNegocioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("GrupoNegocioId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("ImagePath")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
@@ -1565,6 +2056,12 @@ namespace OpenSource1.Infrastructure.Data.Migrations.Application
 
                     b.HasIndex("Email")
                         .HasDatabaseName("IX_SociosNegocio_Email");
+
+                    b.HasIndex("GrupoClienteContableId");
+
+                    b.HasIndex("GrupoIvaNegocioId");
+
+                    b.HasIndex("GrupoNegocioId");
 
                     b.HasIndex("NumeroDocumentoFiscal")
                         .IsUnique()
@@ -1883,6 +2380,25 @@ namespace OpenSource1.Infrastructure.Data.Migrations.Application
                         .OnDelete(DeleteBehavior.Restrict);
                 });
 
+            modelBuilder.Entity("OpenSource1.Core.Entities.Contabilidad.GrupoClienteContable", b =>
+                {
+                    b.HasOne("OpenSource1.Core.Entities.Contabilidad.CuentaContable", null)
+                        .WithMany()
+                        .HasForeignKey("CuentaCxCId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("OpenSource1.Core.Entities.Contabilidad.CuentaContable", null)
+                        .WithMany()
+                        .HasForeignKey("CuentaDescuentoId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("OpenSource1.Core.Entities.Contabilidad.CuentaContable", null)
+                        .WithMany()
+                        .HasForeignKey("CuentaInteresId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
             modelBuilder.Entity("OpenSource1.Core.Entities.Inventario.AplicacionMovimientoProducto", b =>
                 {
                     b.HasOne("OpenSource1.Core.Entities.Inventario.MovimientoProducto", null)
@@ -2026,6 +2542,21 @@ namespace OpenSource1.Infrastructure.Data.Migrations.Application
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("OpenSource1.Core.Entities.Contabilidad.GrupoInventario", null)
+                        .WithMany()
+                        .HasForeignKey("GrupoInventarioId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("OpenSource1.Core.Entities.Contabilidad.GrupoIvaProducto", null)
+                        .WithMany()
+                        .HasForeignKey("GrupoIvaProductoId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("OpenSource1.Core.Entities.Contabilidad.GrupoProducto", null)
+                        .WithMany()
+                        .HasForeignKey("GrupoProductoId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("OpenSource1.Core.Entities.UnidadMedida", null)
                         .WithMany()
                         .HasForeignKey("UnidadMedidaBaseId")
@@ -2035,6 +2566,21 @@ namespace OpenSource1.Infrastructure.Data.Migrations.Application
 
             modelBuilder.Entity("OpenSource1.Core.Entities.SocioNegocio", b =>
                 {
+                    b.HasOne("OpenSource1.Core.Entities.Contabilidad.GrupoClienteContable", null)
+                        .WithMany()
+                        .HasForeignKey("GrupoClienteContableId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("OpenSource1.Core.Entities.Contabilidad.GrupoIvaNegocio", null)
+                        .WithMany()
+                        .HasForeignKey("GrupoIvaNegocioId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("OpenSource1.Core.Entities.Contabilidad.GrupoNegocio", null)
+                        .WithMany()
+                        .HasForeignKey("GrupoNegocioId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("OpenSource1.Core.Entities.TerminoPago", null)
                         .WithMany()
                         .HasForeignKey("TerminoPagoId")

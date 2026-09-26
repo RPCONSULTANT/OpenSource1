@@ -24,4 +24,9 @@ public interface IDatosSocioNegocio
     decimal LimiteCredito { get; }
     BloqueoSocioNegocio Bloqueado { get; }
     string? ImagePath { get; }
+
+    /// <summary>Grupos contables (Task 5.3). En Update ya resueltos contra lo guardado (null = conservar).</summary>
+    Guid? GrupoNegocioId { get; }
+    Guid? GrupoIvaNegocioId { get; }
+    Guid? GrupoClienteContableId { get; }
 }

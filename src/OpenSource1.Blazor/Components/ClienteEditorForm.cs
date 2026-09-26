@@ -62,6 +62,12 @@ public sealed class ClienteEditorForm : IValidatableObject
 
     public BloqueoSocioNegocio Bloqueado { get; set; } = BloqueoSocioNegocio.Ninguno;
 
+    // Clasificación contable (Task 5.3). "" llega como null; un <select> deshabilitado (API de grupos caída) no se envía y
+    // también llega como null: en la modificación la API lo trata como "conservar".
+    public Guid? GrupoNegocioId { get; set; }
+    public Guid? GrupoIvaNegocioId { get; set; }
+    public Guid? GrupoClienteContableId { get; set; }
+
     /// <summary>Importe ya interpretado; 0 si el texto no es válido (la validación lo señala antes).</summary>
     public decimal LimiteCredito => EntradaDecimal.TryParse(LimiteCreditoTexto, out var valor, out _) ? valor : 0m;
 
