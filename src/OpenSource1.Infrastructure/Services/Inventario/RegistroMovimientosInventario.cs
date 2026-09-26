@@ -128,9 +128,12 @@ public sealed class RegistroMovimientosInventario(
         if (solicitud.EsEntrada && solicitud.CostoUnitario is { } costoSolicitado
             && !(esTransferencia ? EsCostoTransferenciaValido(costoSolicitado) : EsImporteValido(costoSolicitado)))
         {
-            return Fallo(new Error(
-                "inventario.costo_invalido",
-                "El costo unitario debe ser menor que 1e14 y tener como máximo 4 decimales.", "CostoUnitario"));
+            // La entrada de una Transferencia no exige 4 decimales (ver el comentario de arriba): el mensaje no puede
+            // prometer un límite que esta rama no comprueba.
+            var mensaje = esTransferencia
+                ? "El costo unitario debe ser mayor o igual que cero y menor que 1e14."
+                : "El costo unitario debe ser menor que 1e14 y tener como máximo 4 decimales.";
+            return Fallo(new Error("inventario.costo_invalido", mensaje, "CostoUnitario"));
         }
 
         if (string.IsNullOrWhiteSpace(solicitud.ClaveOrigen) || solicitud.ClaveOrigen.Length > LongitudClaveOrigen)
