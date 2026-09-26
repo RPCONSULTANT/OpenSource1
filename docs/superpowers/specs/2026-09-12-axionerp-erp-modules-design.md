@@ -840,6 +840,31 @@ que una combinación sin setup devuelve `Result` fallido y **no** escribe nada; 
 todo registro contable cuadra a 0; test de idempotencia del batch de costo (dos
 ejecuciones seguidas → la segunda no inserta filas).
 
+**Desviaciones acordadas durante la ejecución de la Fase 5** (ver el plan `2026-09-27-fase-5-contabilidad.md`):
+
+- **`ImporteCostoPosteadoContabilidad` es la segunda columna actualizable del libro de valor.** El trigger append-only de
+  `MovimientosValor` pasa a permitir un `UPDATE` que cambie ÚNICAMENTE esa columna (como `CantidadRestante` en
+  `MovimientosProducto` y "Cost Posted to G/L" en BC); todo lo demás sigue prohibido.
+- **El batch de costo contabiliza todos los tipos de movimiento, no solo ventas.** Para cada delta: débito/crédito
+  `CuentaInventario` (de `SetupsInventario[Almacén × GrupoInventario]`) por `+delta` y la contrapartida por `−delta` en
+  `CuentaCostoVentas` si el movimiento es Venta, o en `CuentaAjusteInventario` (de `SetupsInventario`) en ajustes, apertura
+  migrada y compras; las transferencias contabilizan inventario contra inventario entre almacenes (si la cuenta es la misma,
+  se netea y no se escribe). Un asiento por ejecución y grupo de movimientos; cada movimiento de valor se contabiliza entero
+  o no se contabiliza.
+- **Grupos en maestros:** `Producto` gana `GrupoProductoId`, `GrupoIvaProductoId`, `GrupoInventarioId`; `SocioNegocio`
+  gana `GrupoNegocioId`, `GrupoIvaNegocioId`, `GrupoClienteContableId`. Todas FK nulables; la migración asigna los grupos
+  semilla por defecto (`BIENES`, `ITBIS18`, `GENERAL`; `NACIONAL`, `ITBIS18`, `GENERAL`) a los registros existentes. Un
+  grupo nulo en el momento de derivar → `setup_contable.grupo_faltante`.
+- **Congelación de grupos en el libro de valor (D8):** `RegistrarAsync` copia `GrupoInventarioId`/`GrupoProductoId` del
+  producto y `GrupoNegocioId` del socio (si lo hay) al `MovimientoValor`. La migración rellena los movimientos ya existentes
+  con los grupos por defecto, desactivando el trigger SOLO dentro de esa migración.
+- **Un solo mantenimiento para los cinco grupos simples** (`GruposNegocio`, `GruposProducto`, `GruposIvaNegocio`,
+  `GruposIvaProducto`, `GruposInventario`): API `api/grupos-contables/{tipo}` y una página con selector de tipo.
+  `GruposClienteContable` tiene su propio mantenimiento (lleva cuentas).
+- **Numeración:** los registros contables usan la serie `CONTAB` (sin huecos, sembrada).
+- **Sin posteo contable al facturar** en esta fase: `ConfiguracionInventario.PosteoAutomaticoCosto` no se implementa (el
+  batch es el único camino, como el valor por defecto del spec).
+
 ---
 
 ## Fase 6 — Facturación de ventas y cuentas por cobrar
