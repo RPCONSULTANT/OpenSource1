@@ -2,6 +2,7 @@ using Moq;
 using OpenSource1.Application.Data.UnitOfWork;
 using OpenSource1.Application.Features.DiariosInventario.Lineas.Commands;
 using OpenSource1.Application.Features.DiariosInventario.Lineas.Handlers;
+using OpenSource1.Application.Features.DiariosInventario.Lotes;
 using OpenSource1.Application.Services.Inventario;
 using OpenSource1.Core.Common;
 using OpenSource1.Core.Entities;
@@ -24,7 +25,8 @@ public class UpdateLineaDiarioCommandHandlerTests
         var unitOfWork = new Mock<IUnitOfWork>();
         unitOfWork.Setup(u => u.Repository<LineaDiario>()).Returns(lineas.Repo);
 
-        var handler = new UpdateLineaDiarioCommandHandler(unitOfWork.Object, Mock.Of<IConversionUnidadMedidaService>());
+        var handler = new UpdateLineaDiarioCommandHandler(
+            unitOfWork.Object, Mock.Of<ILoteDiarioBloqueoService>(), Mock.Of<IConversionUnidadMedidaService>());
         var result = await handler.Handle(
             new UpdateLineaDiarioCommand(
                 Guid.NewGuid(), Hoy, Hoy, null, TipoMovimientoInventario.AjustePositivo, Guid.NewGuid(), Guid.NewGuid(), null,
@@ -70,9 +72,13 @@ public class UpdateLineaDiarioCommandHandlerTests
         unitOfWork.Setup(u => u.Repository<Producto>()).Returns(productos.Repo);
         unitOfWork.Setup(u => u.Repository<Almacen>()).Returns(almacenes.Repo);
         unitOfWork.Setup(u => u.Repository<UnidadMedida>()).Returns(unidades.Repo);
-        unitOfWork.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
+        unitOfWork.Setup(u => u.BeginTransactionAsync(It.IsAny<CancellationToken>())).ReturnsAsync(Mock.Of<IAsyncDisposable>());
+        unitOfWork.Setup(u => u.CommitAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
 
-        var handler = new UpdateLineaDiarioCommandHandler(unitOfWork.Object, conversion.Object);
+        var loteBloqueo = new Mock<ILoteDiarioBloqueoService>();
+        loteBloqueo.Setup(s => s.BloquearYObtenerEstadoAsync(lote.Id, It.IsAny<CancellationToken>())).ReturnsAsync(false);
+
+        var handler = new UpdateLineaDiarioCommandHandler(unitOfWork.Object, loteBloqueo.Object, conversion.Object);
         var result = await handler.Handle(
             new UpdateLineaDiarioCommand(
                 linea.Id, Hoy, Hoy, "DOC-2", TipoMovimientoInventario.AjustePositivo, producto.Id, almacen.Id, null, unidad.Id,
@@ -84,32 +90,31 @@ public class UpdateLineaDiarioCommandHandlerTests
         Assert.Equal(10000, result.Valor.NumeroLinea); // inmutable
         Assert.Equal(lote.Id, result.Valor.LoteDiarioId); // inmutable
         lineas.Mock.Verify(r => r.EstablecerVersionOriginal(linea, 99), Times.Once);
+        unitOfWork.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
     public async Task Handle_LoteBloqueado_DevuelveLoteBloqueado()
     {
         // A diferencia del POST (LoteDiarioId de la URL -> 404 si no existe), aquí LoteDiarioId sale de la línea ya
-        // guardada: siempre existe (FK Restrict), así que la única variante observable es el bloqueo.
-        var plantillas = new RepositorioEnMemoria<PlantillaDiario>();
-        var plantilla = plantillas.Agregar(new PlantillaDiario { Codigo = "P", Nombre = "P", Tipo = TipoPlantillaDiario.Articulo });
-
-        var lotes = new RepositorioEnMemoria<LoteDiario>();
-        var lote = lotes.Agregar(new LoteDiario { PlantillaDiarioId = plantilla.Id, Codigo = "L1", Nombre = "Lote 1", Bloqueado = true });
-
+        // guardada: siempre existe (FK Restrict), así que la única variante observable es el bloqueo. El bloqueo lo
+        // detecta ahora ILoteDiarioBloqueoService (FOR UPDATE) ANTES de llegar a LineaDiarioReglas.
+        var loteId = Guid.NewGuid();
         var lineas = new RepositorioEnMemoria<LineaDiario>();
         var linea = lineas.Agregar(new LineaDiario
         {
-            LoteDiarioId = lote.Id, NumeroLinea = 10000, ProductoId = Guid.NewGuid(), AlmacenId = Guid.NewGuid(), UnidadMedidaId = Guid.NewGuid(),
+            LoteDiarioId = loteId, NumeroLinea = 10000, ProductoId = Guid.NewGuid(), AlmacenId = Guid.NewGuid(), UnidadMedidaId = Guid.NewGuid(),
             Cantidad = 1, TipoMovimiento = TipoMovimientoInventario.AjustePositivo, CostoUnitario = 1m, FechaRegistro = Hoy, FechaDocumento = Hoy
         });
 
         var unitOfWork = new Mock<IUnitOfWork>();
         unitOfWork.Setup(u => u.Repository<LineaDiario>()).Returns(lineas.Repo);
-        unitOfWork.Setup(u => u.Repository<LoteDiario>()).Returns(lotes.Repo);
-        unitOfWork.Setup(u => u.Repository<PlantillaDiario>()).Returns(plantillas.Repo);
+        unitOfWork.Setup(u => u.BeginTransactionAsync(It.IsAny<CancellationToken>())).ReturnsAsync(Mock.Of<IAsyncDisposable>());
 
-        var handler = new UpdateLineaDiarioCommandHandler(unitOfWork.Object, Mock.Of<IConversionUnidadMedidaService>());
+        var loteBloqueo = new Mock<ILoteDiarioBloqueoService>();
+        loteBloqueo.Setup(s => s.BloquearYObtenerEstadoAsync(loteId, It.IsAny<CancellationToken>())).ReturnsAsync(true);
+
+        var handler = new UpdateLineaDiarioCommandHandler(unitOfWork.Object, loteBloqueo.Object, Mock.Of<IConversionUnidadMedidaService>());
         var result = await handler.Handle(
             new UpdateLineaDiarioCommand(
                 linea.Id, Hoy, Hoy, null, TipoMovimientoInventario.AjustePositivo, Guid.NewGuid(), Guid.NewGuid(), null,
@@ -119,5 +124,6 @@ public class UpdateLineaDiarioCommandHandlerTests
         Assert.True(result.EsFallo);
         Assert.Equal("diario.lote_bloqueado", result.Errores[0].Codigo);
         Assert.Equal("LoteDiarioId", result.Errores[0].Campo);
+        unitOfWork.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 }

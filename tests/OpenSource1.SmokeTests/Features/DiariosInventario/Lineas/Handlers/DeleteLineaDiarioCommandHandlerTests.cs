@@ -3,6 +3,7 @@ using OpenSource1.Application.Data.Repositories;
 using OpenSource1.Application.Data.UnitOfWork;
 using OpenSource1.Application.Features.DiariosInventario.Lineas.Commands;
 using OpenSource1.Application.Features.DiariosInventario.Lineas.Handlers;
+using OpenSource1.Application.Features.DiariosInventario.Lotes;
 using OpenSource1.Core.Entities.Inventario;
 
 namespace OpenSource1.SmokeTests.Features.DiariosInventario.Lineas.Handlers;
@@ -17,7 +18,7 @@ public class DeleteLineaDiarioCommandHandlerTests
         var unitOfWork = new Mock<IUnitOfWork>();
         unitOfWork.Setup(u => u.Repository<LineaDiario>()).Returns(repo.Object);
 
-        var handler = new DeleteLineaDiarioCommandHandler(unitOfWork.Object);
+        var handler = new DeleteLineaDiarioCommandHandler(unitOfWork.Object, Mock.Of<ILoteDiarioBloqueoService>());
         var result = await handler.Handle(new DeleteLineaDiarioCommand(Guid.NewGuid()), default);
 
         Assert.True(result.EsFallo);
@@ -25,59 +26,60 @@ public class DeleteLineaDiarioCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_LineaExistente_BorraYGuarda()
+    public async Task Handle_LineaExistente_BorraYConfirma()
     {
-        var lote = new LoteDiario { PlantillaDiarioId = Guid.NewGuid(), Codigo = "L1", Nombre = "Lote 1", Bloqueado = false };
+        var loteId = Guid.NewGuid();
         var entity = new LineaDiario
         {
-            LoteDiarioId = lote.Id, ProductoId = Guid.NewGuid(), AlmacenId = Guid.NewGuid(), UnidadMedidaId = Guid.NewGuid(), Cantidad = 1
+            LoteDiarioId = loteId, ProductoId = Guid.NewGuid(), AlmacenId = Guid.NewGuid(), UnidadMedidaId = Guid.NewGuid(), Cantidad = 1
         };
         var repo = new Mock<IGenericRepository<LineaDiario>>();
         repo.Setup(r => r.GetByIdAsync(It.IsAny<object[]>(), It.IsAny<CancellationToken>())).ReturnsAsync(entity);
 
-        var loteRepo = new Mock<IGenericRepository<LoteDiario>>();
-        loteRepo.Setup(r => r.FirstOrDefaultAsync(
-                It.IsAny<System.Linq.Expressions.Expression<Func<LoteDiario, bool>>>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(lote);
+        var unitOfWork = ArmarUnitOfWork(repo);
 
-        var unitOfWork = new Mock<IUnitOfWork>();
-        unitOfWork.Setup(u => u.Repository<LineaDiario>()).Returns(repo.Object);
-        unitOfWork.Setup(u => u.Repository<LoteDiario>()).Returns(loteRepo.Object);
-        unitOfWork.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
+        var loteBloqueo = new Mock<ILoteDiarioBloqueoService>();
+        loteBloqueo.Setup(s => s.BloquearYObtenerEstadoAsync(loteId, It.IsAny<CancellationToken>())).ReturnsAsync(false);
 
-        var handler = new DeleteLineaDiarioCommandHandler(unitOfWork.Object);
+        var handler = new DeleteLineaDiarioCommandHandler(unitOfWork.Object, loteBloqueo.Object);
         var result = await handler.Handle(new DeleteLineaDiarioCommand(entity.Id), default);
 
         Assert.True(result.EsExito);
         repo.Verify(r => r.Remove(entity), Times.Once);
+        unitOfWork.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
     public async Task Handle_LoteBloqueado_DevuelveLoteBloqueadoSinBorrar()
     {
-        var lote = new LoteDiario { PlantillaDiarioId = Guid.NewGuid(), Codigo = "L1", Nombre = "Lote 1", Bloqueado = true };
+        var loteId = Guid.NewGuid();
         var entity = new LineaDiario
         {
-            LoteDiarioId = lote.Id, ProductoId = Guid.NewGuid(), AlmacenId = Guid.NewGuid(), UnidadMedidaId = Guid.NewGuid(), Cantidad = 1
+            LoteDiarioId = loteId, ProductoId = Guid.NewGuid(), AlmacenId = Guid.NewGuid(), UnidadMedidaId = Guid.NewGuid(), Cantidad = 1
         };
         var repo = new Mock<IGenericRepository<LineaDiario>>();
         repo.Setup(r => r.GetByIdAsync(It.IsAny<object[]>(), It.IsAny<CancellationToken>())).ReturnsAsync(entity);
 
-        var loteRepo = new Mock<IGenericRepository<LoteDiario>>();
-        loteRepo.Setup(r => r.FirstOrDefaultAsync(
-                It.IsAny<System.Linq.Expressions.Expression<Func<LoteDiario, bool>>>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(lote);
+        var unitOfWork = ArmarUnitOfWork(repo);
 
-        var unitOfWork = new Mock<IUnitOfWork>();
-        unitOfWork.Setup(u => u.Repository<LineaDiario>()).Returns(repo.Object);
-        unitOfWork.Setup(u => u.Repository<LoteDiario>()).Returns(loteRepo.Object);
+        var loteBloqueo = new Mock<ILoteDiarioBloqueoService>();
+        loteBloqueo.Setup(s => s.BloquearYObtenerEstadoAsync(loteId, It.IsAny<CancellationToken>())).ReturnsAsync(true);
 
-        var handler = new DeleteLineaDiarioCommandHandler(unitOfWork.Object);
+        var handler = new DeleteLineaDiarioCommandHandler(unitOfWork.Object, loteBloqueo.Object);
         var result = await handler.Handle(new DeleteLineaDiarioCommand(entity.Id), default);
 
         Assert.True(result.EsFallo);
         Assert.Equal("diario.lote_bloqueado", result.Errores[0].Codigo);
         repo.Verify(r => r.Remove(It.IsAny<LineaDiario>()), Times.Never);
-        unitOfWork.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+        unitOfWork.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    private static Mock<IUnitOfWork> ArmarUnitOfWork(Mock<IGenericRepository<LineaDiario>> repo)
+    {
+        var unitOfWork = new Mock<IUnitOfWork>();
+        unitOfWork.Setup(u => u.Repository<LineaDiario>()).Returns(repo.Object);
+        unitOfWork.Setup(u => u.BeginTransactionAsync(It.IsAny<CancellationToken>())).ReturnsAsync(Mock.Of<IAsyncDisposable>());
+        unitOfWork.Setup(u => u.CommitAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        return unitOfWork;
     }
 }
