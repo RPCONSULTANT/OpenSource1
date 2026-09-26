@@ -264,7 +264,120 @@ fecha).
 
 ## Task 5.7 — Cierre de la Fase 5
 
-- [ ] Cadena de migraciones desde vacía y desde el estado final de la Fase 4 con datos (productos, socios, movimientos);
+- [x] Cadena de migraciones desde vacía y desde el estado final de la Fase 4 con datos (productos, socios, movimientos);
   Down al final de la Fase 4 y vuelta a HEAD.
-- [ ] `ApplicationDbContextModelTests`, sonda vacía, `has-pending-model-changes`; `grep` TODO; suite completa.
-- [ ] Sección "Resultado y pendientes que hereda la Fase 6" al final de este plan.
+- [x] `ApplicationDbContextModelTests`, sonda vacía, `has-pending-model-changes`; `grep` TODO; suite completa.
+- [x] Sección "Resultado y pendientes que hereda la Fase 6" al final de este plan.
+
+---
+
+## Resultado y pendientes que hereda la Fase 6
+
+**Resultado.** La Fase 5 queda cerrada: plan de cuentas con semilla (Task 5.2), cinco grupos contables simples más el grupo
+de cliente contable con clasificación en productos/socios y backfill a las semillas por defecto (Task 5.3), setups con
+comodín y `IDerivadorCuentas` (regla fila exacta → comodín → error, Task 5.4), libro contable append-only con
+`IRegistroContable` como único escritor y verificación de cuadre por trigger constraint diferido (Task 5.5), y el batch
+idempotente `PostearCostoInventarioContabilidad` que contabiliza el delta de costo de todos los movimientos de valor
+pendientes agrupando por producto/fecha (Task 5.6). Las cinco Review Focus de la fase tienen test dedicado y pasan.
+
+La cadena de migraciones se verificó completa en ambos sentidos, con un contenedor Postgres 17 temporal
+(`DOCKER_CONTEXT=default`, borrado al terminar):
+
+1. **BD vacía → HEAD** (30 migraciones, `InitialApplicationDb` … `PermitirContabilizacionCosto`): aplica limpio.
+2. **BD en el estado final de la Fase 4 con datos → HEAD**: migrado hasta `AddRegistrosDiario` (24 migraciones), sembrado
+   por SQL un almacén, un producto, un socio y dos movimientos de valor (apertura `TipoOrigen = 99` de 100 unidades a
+   costo 8.00 y un ajuste `TipoOrigen = 99` de −10, aplicado por FIFO contra la apertura), y luego `dotnet ef database
+   update` a HEAD (6 migraciones de la Fase 5). Verificado por SQL tras la migración: 12 cuentas del plan y 10 filas de
+   grupos semilla; el producto y el socio sembrados quedaron con `BIENES/ITBIS18/GENERAL` y `NACIONAL/ITBIS18/GENERAL`
+   (backfill); los dos `MovimientosValor` sembrados quedaron con `GrupoInventarioId`/`GrupoProductoId` rellenados
+   (`GrupoNegocioId` en null, correcto: no tienen socio) y el trigger `TR_MovimientosValor_AppendOnly` con
+   `tgenabled = 'O'`; 9 filas de setups semilla (4 general + 4 IVA + 1 inventario); serie `CONTAB` sin huecos; los cinco
+   triggers de los libros contables (`TR_RegistrosContables_*`, `TR_MovimientosContables_*`) activos, incluida
+   `TR_MovimientosContables_Cuadre` como constraint trigger `DEFERRABLE INITIALLY DEFERRED`.
+3. **Down a `AddRegistrosDiario`** (Down completo de la Fase 5, 24 migraciones): las seis tablas/columnas de la Fase 5
+   desaparecen y los datos de la Fase 4 (almacén, producto, socio, los dos movimientos de valor) se conservan intactos.
+4. **Up de nuevo a HEAD**: mismo resultado exacto que el paso 2 — 30 migraciones, mismos conteos de cuentas/grupos/setups,
+   mismo backfill del producto y del socio sembrados, los mismos `MovimientosValor` con sus grupos rellenados otra vez, y
+   los mismos triggers activos. Sin duplicados: los `HasData` y el backfill por SQL son idempotentes frente a un
+   Down+Up completo.
+
+Comandos usados (contenedor `postgres:17-alpine` propio, puerto 65442, borrado al final):
+
+```
+dotnet ef database update -p src/OpenSource1.Infrastructure -s src/OpenSource1.Api --context ApplicationDbContext \
+  --connection "Host=localhost;Port=65442;Database=AxionERP_App;Username=postgres;Password=..."
+dotnet ef database update 20260925220000_AddRegistrosDiario -p src/OpenSource1.Infrastructure -s src/OpenSource1.Api \
+  --context ApplicationDbContext --connection "..."
+```
+
+Resto de la verificación: `dotnet build test.slnx --no-incremental` (0 errores, 6 avisos CS0618 preexistentes, ninguno
+nuevo); `ApplicationDbContextModelTests` en verde; sonda `ProbeFase57` con `Up()`/`Down()` vacíos y el repositorio sin
+cambios (borrada); `dotnet ef migrations has-pending-model-changes` → "No changes have been made to the model since the
+last migration."; `grep -rn "\bTODO\b"` sobre `src/`/`tests/` sin marcadores reales (solo apariciones de la palabra
+española "todo/todos"). Suite completa (`DOCKER_CONTEXT=default dotnet test test.slnx`): **1052/1052** (sin cambios desde
+el cierre de la Task 5.6, porque esta task es de verificación y documentación, no añade tests), ~13 min.
+
+**Requisito de infraestructura: PostgreSQL 15+.** El derivador de cuentas (Task 5.4) depende de índices únicos con
+`NULLS NOT DISTINCT` (p. ej. `IX_SetupsInventario_AlmacenId_GrupoInventarioId`) para que dos filas de comodín (`NULL`) en
+el mismo eje no puedan duplicarse; esa sintaxis solo existe desde PostgreSQL 15. El contenedor de todas las pruebas de la
+fase (incluida esta verificación) usó `postgres:17-alpine`. Cualquier entorno de despliegue de la Fase 6 en adelante debe
+correr PostgreSQL 15 o superior.
+
+**Limitaciones conocidas que hereda la Fase 6:**
+
+- **Sin posteo contable al facturar en esta fase.** `ConfiguracionInventario.PosteoAutomaticoCosto` no existe todavía; el
+  único camino para contabilizar el costo de inventario es el batch manual `POST
+  api/contabilidad/postear-costo-inventario` (Task 5.6). La Fase 6 factura sin generar ningún asiento de costo por sí
+  misma — el spec (sección 6.5, paso 7) ya condiciona las patas de costo/inventario del asiento de venta a
+  `PosteoAutomaticoCosto`, que sigue sin implementarse.
+- **`ClaveOrigen` del batch de costo no es el número de registro contable, es la clave del grupo.** `IRegistroContable.
+  RegistrarAsync` asigna el número de la serie `CONTAB` DENTRO del registro y exige `ClaveOrigen` como parámetro de
+  entrada, así que el batch no puede conocer ese número de antemano. Usa `ClaveOrigen = COSTO-aaaammdd-<ProductoId:N>`
+  (producto × fecha), determinista y suficiente para trazabilidad; el número real vive en
+  `RegistrosContables.NumeroRegistro`. Si la Fase 6 necesita que `ClaveOrigen` sea literalmente el número del documento
+  que originó el asiento (p. ej. el número de la factura posteada), puede seguir ese mismo patrón sin tocar el contrato
+  de `IRegistroContable` — el motor de posteo de facturas SÍ conoce su número antes de registrar el asiento (lo reserva
+  en el paso 2 del spec, antes del paso 7).
+- **El batch aborta la ejecución completa (500) ante una excepción inesperada dentro de un grupo.**
+  `PosteoCostoInventario.PostearAsync` no envuelve el `foreach` de grupos en un `try/catch`: si un grupo lanza algo que
+  no es un `Result` fallido controlado (p. ej. un error de conexión a mitad de un `SELECT ... FOR UPDATE`), la excepción
+  sube sin capturar, el `ContabilidadController` no la traduce y el endpoint responde 500. Los grupos ya procesados y
+  comprometidos (`COMMIT`) antes del que falló quedan contabilizados correctamente porque cada grupo es su propia
+  transacción; los que faltan (incluido el que lanzó la excepción) simplemente no se procesaron. Es seguro volver a
+  ejecutar el batch completo: la idempotencia por `ImporteCosto <> ImporteCostoPosteadoContabilidad` hace que solo se
+  reintenten los grupos pendientes. La Fase 6 debería decidir si esto es aceptable para un batch que se dispare
+  automáticamente (p. ej. un job programado) o si conviene capturar por grupo y devolver el fallo como otro
+  `pendiente` — hoy solo los errores de derivación (`Result` fallido) se reportan así; cualquier otra excepción no.
+- **N+1 del derivador de cuentas dentro del batch.** `PosteoCostoInventario` llama a `IDerivadorCuentas` (dos consultas:
+  `CuentaInventarioAsync` + `CuentaCostoVentasAsync`/`CuentaAjusteInventarioAsync`) una vez POR MOVIMIENTO de valor
+  pendiente, dentro de un `foreach`, sin cachear por combinación de ejes ya resuelta dentro del mismo grupo/ejecución.
+  Aceptado mientras el volumen de movimientos pendientes por ejecución sea moderado (como en Task 3.6/4.3 con patrones
+  similares); si la Fase 6 factura a volumen y el batch empieza a tardar, conviene memoizar el resultado del derivador
+  por `(eje1, eje2)` dentro de la misma ejecución antes de escalar el batch.
+- **Guardas de uso "check-then-act" en grupos contables y almacenes (patrón aceptado, no nuevo de esta fase).**
+  `IGrupoContableUsoService.EstaEnUsoAsync` (Task 5.3) y la guarda de `DeleteAlmacenCommandHandler` contra
+  `SetupsInventario` (Task 5.4) son una consulta SIN bloqueo antes de borrar: un alta o un setup concurrente que asigne
+  ese grupo/almacén justo después de la consulta y antes del borrado lógico puede dejar una referencia "viva" a un
+  grupo/almacén ya borrado. La FK es `Restrict` pero el borrado es LÓGICO, así que no lo impide. Es el mismo patrón ya
+  aceptado en categorías/unidades de medida de productos (Fase 3) y en el borrado de lote/línea de diario (Fase 4,
+  corregido allí con un advisory lock porque afectaba directamente al libro; aquí no se corrigió porque el peor caso es
+  un `setup_contable.inexistente`/`grupo_faltante` explícito al derivar, nunca un asiento a medias). La Fase 6 hereda el
+  mismo patrón para sus propios maestros (términos de pago, grupos de cliente ya cubiertos) y debe decidir caso a caso si
+  alguno de sus flujos (p. ej. bloquear un socio para facturación) necesita el lock en vez de la consulta simple.
+
+**Lo que la Fase 6 debe reutilizar, no reinventar:**
+
+- **Registrar asientos con `IRegistroContable.RegistrarAsync`** (único escritor del libro contable), con
+  `TipoDocumentoContable.FacturaVenta` para el asiento de la factura y `TipoDocumentoContable.Cobro` para el del pago
+  (spec 6.5 paso 7 y 6.6), y `TipoOrigenMovimiento.FacturaVenta` como origen de esos movimientos (el enum ya reserva ese
+  valor = 2; `CostoInventario` = 4 es del batch de esta fase, no se reutiliza para facturación).
+- **Derivar cuentas con `IDerivadorCuentas`**: `CuentaCxCAsync` (grupo de cliente contable, obligatorio), `CuentaVentasAsync`
+  y `CuentaDescuentoVentasAsync` (grupo de negocio × grupo de producto, comodín en cualquiera de los dos ejes) e
+  `IvaAsync` (grupo de IVA de negocio × grupo de IVA de producto, además del identificador y porcentaje de IVA
+  congelados). La regla de resolución (fila exacta → comodín → `setup_contable.inexistente`) y los códigos de error
+  (`setup_contable.grupo_faltante`, `.inexistente`, `.cuenta_invalida`) son los mismos que ya usa el batch de costo; no
+  hace falta un derivador nuevo.
+- Los grupos que la Fase 6 necesita congelar en el borrador y en el documento posteado
+  (`GrupoNegocioId`/`GrupoIvaNegocioId`/`GrupoClienteContableId` del socio; `GrupoProductoId`/`GrupoIvaProductoId`/
+  `GrupoInventarioId` de cada línea de producto) ya existen en `Producto`/`SocioNegocio` desde esta fase (Task 5.3), con
+  backfill a las semillas por defecto para los maestros existentes.
