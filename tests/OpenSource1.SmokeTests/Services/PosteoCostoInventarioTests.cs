@@ -292,6 +292,53 @@ public sealed class PosteoCostoInventarioTests(PostgresTestFixture fixture)
     }
 
     [Fact]
+    public async Task RedondeoConUnaTransferenciaComoUltimaSalidaDelDia_CaeEnOtraSalida_YElBatchContabilizaTodo()
+    {
+        var producto = await ProductoClasificadoAsync();
+        var a = await _prueba.SembrarAlmacenAsync();
+        var b = await _prueba.SembrarAlmacenAsync();
+        // D1: 3 unidades por 10.0000 (costo 3.3333…); cada salida de 1 cuesta 3.3333.
+        await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Entrada(producto, a, 1m, 3.3333m, D1));
+        await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Entrada(producto, a, 1m, 3.3333m, D1));
+        await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Entrada(producto, a, 1m, 3.3334m, D1));
+        // D2: dos salidas de A, entrada de transferencia en B, salida de B y, la ÚLTIMA salida del día (por Id), la salida de
+        // la transferencia desde A. Al cierre de D2 la existencia es 0 y queda un residuo de 0.0001.
+        await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Salida(producto, a, 1m, D2));
+        await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Salida(producto, a, 1m, D2));
+        var entra = await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Entrada(
+            producto, b, 1m, null, D2, tipo: TipoMovimientoInventario.Transferencia));
+        var salidaB = await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Salida(producto, b, 1m, D2));
+        var sale = await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Salida(
+            producto, a, 1m, D2, tipo: TipoMovimientoInventario.Transferencia));
+        Assert.True(sale.MovimientoProductoId > salidaB.MovimientoProductoId);
+        Assert.Equal(0m, sale.ImporteCosto + entra.ImporteCosto);
+        Assert.Equal(0.0001m, await ValorInventarioAsync(producto));
+
+        await _prueba.AjustarOkAsync(producto);
+
+        // El redondeo no cae en la transferencia (dejaría sus partes sin sumar 0) sino en la última salida NO transferencia.
+        await using (var conexion = _prueba.NuevaConexion())
+        {
+            var redondeos = (await conexion.QueryAsync<(long MovimientoProductoId, decimal ImporteCosto)>(
+                """
+                SELECT "MovimientoProductoId", "ImporteCosto" FROM "MovimientosValor"
+                WHERE "ProductoId" = @producto AND "TipoValor" = @tipo
+                """,
+                new { producto, tipo = (short)TipoValor.Redondeo })).ToList();
+            Assert.Equal((salidaB.MovimientoProductoId, -0.0001m), Assert.Single(redondeos));
+        }
+
+        Assert.Equal(0m, await ValorInventarioAsync(producto));
+
+        var resultado = await PostearAsync(producto);
+
+        Assert.Empty(resultado.Pendientes);
+        Assert.Equal(0, await PendientesDelProductoAsync(producto));
+        Assert.Equal(0m, await SaldoAsync(CuentaContableIds.Inventario, producto));
+        await AssertTodosLosRegistrosCuadranAsync();
+    }
+
+    [Fact]
     public async Task ImporteYaPosteadoEnParte_ContabilizaSoloLaDiferencia()
     {
         var producto = await ProductoClasificadoAsync();

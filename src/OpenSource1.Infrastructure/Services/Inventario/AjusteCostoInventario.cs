@@ -47,7 +47,11 @@ namespace OpenSource1.Infrastructure.Services.Inventario;
 /// </para>
 /// <para>
 /// <b>Redondeo.</b> Si al cierre de un día la cantidad valorada acumulada es 0 y queda un valor residual menor que 0.01 en
-/// valor absoluto, se inserta un movimiento <see cref="TipoValor.Redondeo"/> por <c>−V</c> sobre la última salida del día.
+/// valor absoluto, se inserta un movimiento <see cref="TipoValor.Redondeo"/> por <c>−V</c> sobre la última salida del día
+/// que NO sea una transferencia (<c>TipoMovimiento &lt;&gt; Transferencia</c>): el batch de costo a contabilidad exige que las
+/// partes de las transferencias de un (producto, fecha) sumen 0, y un redondeo sobre una de ellas las dejaría pendientes para
+/// siempre (<c>contabilidad.transferencia_incompleta</c>). Si ese día solo hay salidas de transferencia, no se inserta
+/// redondeo en ese día: el residuo se arrastra y lo absorbe el siguiente día que cierre con cantidad 0 y una salida válida.
 /// Los movimientos de redondeo NO cuentan como costo de su salida al compararla con el esperado (si contaran, la segunda
 /// pasada los desharía con un ajuste).
 /// </para>
@@ -208,7 +212,8 @@ public sealed class AjusteCostoInventario(IDbSession session, IUsuarioActual usu
                          .Where(m => m.Cantidad < 0 || m.TipoMovimiento == TipoMovimientoInventario.Transferencia)
                          .OrderBy(m => m.Id))
             {
-                if (movimiento.Cantidad < 0)
+                // Destino del redondeo: nunca una transferencia (ver "Redondeo" en el XML doc).
+                if (movimiento.Cantidad < 0 && movimiento.TipoMovimiento != TipoMovimientoInventario.Transferencia)
                 {
                     ultimaSalida = movimiento;
                 }
