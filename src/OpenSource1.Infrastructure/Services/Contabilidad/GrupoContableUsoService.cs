@@ -6,29 +6,28 @@ using OpenSource1.Core.Enums;
 namespace OpenSource1.Infrastructure.Services.Contabilidad;
 
 /// <summary>
-/// Implementación de la Task 5.3: un grupo está en uso si lo referencia un producto o un socio de negocio NO borrado
-/// lógicamente (los índices de las FK <c>IX_Productos_Grupo*</c>/<c>IX_SociosNegocio_Grupo*</c> sirven a estas consultas). La
-/// Task 5.4 añade aquí las referencias desde los setups contables. Consulta Dapper contra la sesión del scope (ve la
-/// transacción del llamador si la hay).
+/// Guarda de uso de los grupos contables: un grupo está en uso si lo referencia un producto o un socio de negocio (Task 5.3) o una
+/// fila de setup contable (Task 5.4, en cualquiera de sus dos ejes), todos NO borrados lógicamente. Los índices de las FK sirven a
+/// estas consultas. Consulta Dapper contra la sesión del scope (ve la transacción del llamador si la hay).
 /// </summary>
 public sealed class GrupoContableUsoService(IDbSession session) : IGrupoContableUsoService
 {
     public Task<bool> EstaEnUsoAsync(TipoGrupoContable tipo, Guid grupoId, CancellationToken cancellationToken = default)
     {
-        // Tabla y columna salen de este switch sobre el enum (literales de código), nunca de texto del usuario.
-        var (tabla, columna) = tipo switch
+        // Tablas y columnas salen de este switch sobre el enum (literales de código), nunca de texto del usuario.
+        (string Tabla, string Columna)[] referencias = tipo switch
         {
-            TipoGrupoContable.Negocio => ("SociosNegocio", "GrupoNegocioId"),
-            TipoGrupoContable.IvaNegocio => ("SociosNegocio", "GrupoIvaNegocioId"),
-            TipoGrupoContable.Producto => ("Productos", "GrupoProductoId"),
-            TipoGrupoContable.IvaProducto => ("Productos", "GrupoIvaProductoId"),
-            TipoGrupoContable.Inventario => ("Productos", "GrupoInventarioId"),
+            TipoGrupoContable.Negocio => [("SociosNegocio", "GrupoNegocioId"), ("SetupsContableGeneral", "GrupoNegocioId")],
+            TipoGrupoContable.IvaNegocio => [("SociosNegocio", "GrupoIvaNegocioId"), ("SetupsIva", "GrupoIvaNegocioId")],
+            TipoGrupoContable.Producto => [("Productos", "GrupoProductoId"), ("SetupsContableGeneral", "GrupoProductoId")],
+            TipoGrupoContable.IvaProducto => [("Productos", "GrupoIvaProductoId"), ("SetupsIva", "GrupoIvaProductoId")],
+            TipoGrupoContable.Inventario => [("Productos", "GrupoInventarioId"), ("SetupsInventario", "GrupoInventarioId")],
             _ => throw new ArgumentOutOfRangeException(nameof(tipo), tipo, "Tipo de grupo contable desconocido.")
         };
 
-        return ExisteAsync(
-            $"""SELECT EXISTS (SELECT 1 FROM "{tabla}" WHERE "{columna}" = @Id AND "IsDeleted" = false)""",
-            grupoId, cancellationToken);
+        var sql = "SELECT " + string.Join(" OR ", referencias.Select(r =>
+            $"""EXISTS (SELECT 1 FROM "{r.Tabla}" WHERE "{r.Columna}" = @Id AND "IsDeleted" = false)"""));
+        return ExisteAsync(sql, grupoId, cancellationToken);
     }
 
     public Task<bool> GrupoClienteContableEnUsoAsync(Guid grupoId, CancellationToken cancellationToken = default) =>

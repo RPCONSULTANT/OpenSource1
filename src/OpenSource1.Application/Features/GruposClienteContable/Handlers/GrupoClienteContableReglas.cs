@@ -1,8 +1,8 @@
 using OpenSource1.Application.Data.UnitOfWork;
+using OpenSource1.Application.Features.CuentasContables;
 using OpenSource1.Application.Features.GruposClienteContable.Dtos;
 using OpenSource1.Core.Common;
 using OpenSource1.Core.Entities.Contabilidad;
-using OpenSource1.Core.Enums;
 
 namespace OpenSource1.Application.Features.GruposClienteContable.Handlers;
 
@@ -11,30 +11,10 @@ internal static class GrupoClienteContableReglas
 {
     public const string Prefijo = "grupo_cliente_contable";
 
-    /// <summary>
-    /// La cuenta referenciada existe (no borrada), es de <see cref="TipoCuentaContable.Posteo"/> y no está bloqueada; si no,
-    /// 400 <c>grupo_cliente_contable.cuenta_invalida</c> en el campo indicado (nunca <c>.no_encontrado</c>: es un dato del
-    /// cuerpo, no el recurso de la URL). Devuelve la cuenta para rotular la respuesta.
-    /// </summary>
-    public static async Task<Result<CuentaContable>> ValidarCuentaAsync(
-        IUnitOfWork unitOfWork, Guid cuentaId, string campo, string etiqueta, CancellationToken cancellationToken)
-    {
-        var cuenta = await unitOfWork.Repository<CuentaContable>()
-            .FirstOrDefaultAsync(x => x.Id == cuentaId, cancellationToken: cancellationToken);
-
-        if (cuenta is null || cuenta.TipoCuenta != TipoCuentaContable.Posteo || cuenta.Bloqueada)
-        {
-            var motivo = cuenta is null ? "no existe"
-                : cuenta.Bloqueada ? $"({cuenta.Numero}) está bloqueada"
-                : $"({cuenta.Numero}) no es de posteo";
-            return Result<CuentaContable>.Fallo(new Error(
-                $"{Prefijo}.cuenta_invalida",
-                $"La cuenta {etiqueta} {motivo}: debe ser una cuenta de posteo no bloqueada.",
-                campo));
-        }
-
-        return Result<CuentaContable>.Exito(cuenta);
-    }
+    /// <summary>Ver <see cref="CuentaPosteoValidacion"/>: 400 <c>grupo_cliente_contable.cuenta_invalida</c> en el campo indicado.</summary>
+    public static Task<Result<CuentaContable>> ValidarCuentaAsync(
+        IUnitOfWork unitOfWork, Guid cuentaId, string campo, string etiqueta, CancellationToken cancellationToken) =>
+        CuentaPosteoValidacion.ValidarAsync(unitOfWork, cuentaId, Prefijo, campo, etiqueta, cancellationToken);
 
     public static Task<CuentaContable?> BuscarCuentaAsync(IUnitOfWork unitOfWork, Guid? id, CancellationToken cancellationToken) =>
         id is { } cuentaId

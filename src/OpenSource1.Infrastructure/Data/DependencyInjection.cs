@@ -19,6 +19,7 @@ using OpenSource1.Application.Features.Entradas;
 using OpenSource1.Application.Features.GruposClienteContable;
 using OpenSource1.Application.Features.GruposContables;
 using OpenSource1.Application.Features.Productos;
+using OpenSource1.Application.Features.SetupsContables;
 using OpenSource1.Application.Features.TerminosPago;
 using OpenSource1.Application.Features.UnidadesMedida;
 using OpenSource1.Application.Features.Users;
@@ -85,6 +86,8 @@ public static class DependencyInjection
         services.AddScoped<IGrupoContableReadRepository, DapperGrupoContableReadRepository>();
         services.AddScoped<IGrupoClienteContableReadRepository, DapperGrupoClienteContableReadRepository>();
         services.AddScoped<IGrupoContableUsoService, GrupoContableUsoService>();
+        services.AddScoped<IDerivadorCuentas, DerivadorCuentas>();
+        services.AddScoped<ISetupContableReadRepository, DapperSetupContableReadRepository>();
         services.AddScoped<IPlantillaDiarioReadRepository, DapperPlantillaDiarioReadRepository>();
         services.AddScoped<ILoteDiarioReadRepository, DapperLoteDiarioReadRepository>();
         services.AddScoped<ILineaDiarioReadRepository, DapperLineaDiarioReadRepository>();

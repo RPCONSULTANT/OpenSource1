@@ -5,9 +5,9 @@ using OpenSource1.Application.Services.Contabilidad;
 namespace OpenSource1.Infrastructure.Services.Contabilidad;
 
 /// <summary>
-/// Guarda de uso de cuentas contables. Task 5.3: una cuenta está en uso si la referencia (como CxC, descuento o interés) un
-/// grupo contable de cliente NO borrado lógicamente. Las Tasks 5.4-5.5 añaden aquí los setups contables y los movimientos del
-/// libro contable (otra condición en el mismo <c>EXISTS</c> o una consulta más), sin tocar a los llamadores.
+/// Guarda de uso de cuentas contables. Una cuenta está en uso si la referencia, en cualquiera de sus columnas de cuenta, una fila
+/// NO borrada lógicamente de: un grupo contable de cliente (CxC, descuento o interés; Task 5.3) o uno de los tres setups
+/// contables (Task 5.4). La Task 5.5 añade los movimientos del libro contable, sin tocar a los llamadores.
 /// </summary>
 public sealed class CuentaContableUsoService(IDbSession session) : ICuentaContableUsoService
 {
@@ -16,6 +16,17 @@ public sealed class CuentaContableUsoService(IDbSession session) : ICuentaContab
             SELECT 1 FROM "GruposClienteContable"
             WHERE "IsDeleted" = false
               AND ("CuentaCxCId" = @Id OR "CuentaDescuentoId" = @Id OR "CuentaInteresId" = @Id)
+        ) OR EXISTS (
+            SELECT 1 FROM "SetupsContableGeneral"
+            WHERE "IsDeleted" = false
+              AND ("CuentaVentasId" = @Id OR "CuentaCostoVentasId" = @Id OR "CuentaDescuentoVentasId" = @Id OR "CuentaAjusteInventarioId" = @Id)
+        ) OR EXISTS (
+            SELECT 1 FROM "SetupsIva"
+            WHERE "IsDeleted" = false AND ("CuentaIvaVentasId" = @Id OR "CuentaIvaComprasId" = @Id)
+        ) OR EXISTS (
+            SELECT 1 FROM "SetupsInventario"
+            WHERE "IsDeleted" = false
+              AND ("CuentaInventarioId" = @Id OR "CuentaAjusteInventarioId" = @Id OR "CuentaVariacionCostoId" = @Id)
         )
         """;
 

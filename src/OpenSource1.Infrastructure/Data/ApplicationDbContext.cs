@@ -33,6 +33,9 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<GrupoIvaProducto> GruposIvaProducto => Set<GrupoIvaProducto>();
     public DbSet<GrupoInventario> GruposInventario => Set<GrupoInventario>();
     public DbSet<GrupoClienteContable> GruposClienteContable => Set<GrupoClienteContable>();
+    public DbSet<SetupContableGeneral> SetupsContableGeneral => Set<SetupContableGeneral>();
+    public DbSet<SetupIva> SetupsIva => Set<SetupIva>();
+    public DbSet<SetupInventario> SetupsInventario => Set<SetupInventario>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -694,7 +697,125 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                 IsDeleted = false
             });
         });
+
+        ConfigurarSetups(modelBuilder);
     }
+
+    /// <summary>
+    /// Setups contables (Task 5.4): las tres intersecciones de la spec 5.3. El eje principal (grupo de producto, de IVA de
+    /// producto, de inventario) es NOT NULL; el secundario es nullable y <c>NULL</c> = comodín. Unicidad de la combinación
+    /// entre filas vivas con un índice único parcial <c>NULLS NOT DISTINCT</c> (PostgreSQL 15+; tests con postgres:17): sin
+    /// él, dos filas comodín <c>(NULL, X)</c> no chocarían. Todas las FK son Restrict y sin navegación; borrar (lógicamente)
+    /// un grupo, cuenta o almacén usado por un setup vivo lo impiden las guardas de uso (409).
+    /// </summary>
+    private static void ConfigurarSetups(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<SetupContableGeneral>(entity =>
+        {
+            ConfigurarColumnasSetup(entity, "SetupsContableGeneral");
+            entity.HasIndex(x => new { x.GrupoNegocioId, x.GrupoProductoId })
+                .IsUnique().AreNullsDistinct(false).HasFilter("\"IsDeleted\" = false");
+            entity.HasIndex(x => x.GrupoProductoId);
+            entity.HasOne<GrupoNegocio>().WithMany().HasForeignKey(x => x.GrupoNegocioId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<GrupoProducto>().WithMany().HasForeignKey(x => x.GrupoProductoId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<CuentaContable>().WithMany().HasForeignKey(x => x.CuentaVentasId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<CuentaContable>().WithMany().HasForeignKey(x => x.CuentaCostoVentasId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<CuentaContable>().WithMany().HasForeignKey(x => x.CuentaDescuentoVentasId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<CuentaContable>().WithMany().HasForeignKey(x => x.CuentaAjusteInventarioId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasData(
+                SemillaSetupGeneral(SetupContableIds.GeneralNacionalBienes, GrupoContableIds.NegocioNacional, GrupoContableIds.ProductoBienes),
+                SemillaSetupGeneral(SetupContableIds.GeneralNacionalServicios, GrupoContableIds.NegocioNacional, GrupoContableIds.ProductoServicios),
+                SemillaSetupGeneral(SetupContableIds.GeneralCualquieraBienes, null, GrupoContableIds.ProductoBienes),
+                SemillaSetupGeneral(SetupContableIds.GeneralCualquieraServicios, null, GrupoContableIds.ProductoServicios));
+        });
+
+        modelBuilder.Entity<SetupIva>(entity =>
+        {
+            ConfigurarColumnasSetup(entity, "SetupsIva");
+            entity.Property(x => x.PorcentajeIva).HasPrecision(9, 5);
+            entity.Property(x => x.IdentificadorIva).HasMaxLength(20).IsRequired();
+            entity.HasIndex(x => new { x.GrupoIvaNegocioId, x.GrupoIvaProductoId })
+                .IsUnique().AreNullsDistinct(false).HasFilter("\"IsDeleted\" = false");
+            entity.HasIndex(x => x.GrupoIvaProductoId);
+            entity.HasOne<GrupoIvaNegocio>().WithMany().HasForeignKey(x => x.GrupoIvaNegocioId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<GrupoIvaProducto>().WithMany().HasForeignKey(x => x.GrupoIvaProductoId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<CuentaContable>().WithMany().HasForeignKey(x => x.CuentaIvaVentasId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<CuentaContable>().WithMany().HasForeignKey(x => x.CuentaIvaComprasId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasData(
+                SemillaSetupIva(SetupContableIds.IvaItbis18Itbis18, GrupoContableIds.IvaNegocioItbis18, GrupoContableIds.IvaProductoItbis18, 18m, "ITBIS18", TipoCalculoIva.Normal),
+                SemillaSetupIva(SetupContableIds.IvaItbis18Exento, GrupoContableIds.IvaNegocioItbis18, GrupoContableIds.IvaProductoExento, 0m, "EXENTO", TipoCalculoIva.Exento),
+                SemillaSetupIva(SetupContableIds.IvaExentoItbis18, GrupoContableIds.IvaNegocioExento, GrupoContableIds.IvaProductoItbis18, 0m, "EXENTO", TipoCalculoIva.Exento),
+                SemillaSetupIva(SetupContableIds.IvaExentoExento, GrupoContableIds.IvaNegocioExento, GrupoContableIds.IvaProductoExento, 0m, "EXENTO", TipoCalculoIva.Exento));
+        });
+
+        modelBuilder.Entity<SetupInventario>(entity =>
+        {
+            ConfigurarColumnasSetup(entity, "SetupsInventario");
+            entity.HasIndex(x => new { x.AlmacenId, x.GrupoInventarioId })
+                .IsUnique().AreNullsDistinct(false).HasFilter("\"IsDeleted\" = false");
+            entity.HasIndex(x => x.GrupoInventarioId);
+            entity.HasOne<Almacen>().WithMany().HasForeignKey(x => x.AlmacenId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<GrupoInventario>().WithMany().HasForeignKey(x => x.GrupoInventarioId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<CuentaContable>().WithMany().HasForeignKey(x => x.CuentaInventarioId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<CuentaContable>().WithMany().HasForeignKey(x => x.CuentaAjusteInventarioId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<CuentaContable>().WithMany().HasForeignKey(x => x.CuentaVariacionCostoId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasData(new
+            {
+                Id = SetupContableIds.InventarioCualquieraGeneral,
+                AlmacenId = (Guid?)null,
+                GrupoInventarioId = GrupoContableIds.InventarioGeneral,
+                CuentaInventarioId = CuentaContableIds.Inventario,
+                CuentaAjusteInventarioId = CuentaContableIds.AjusteInventario,
+                CuentaVariacionCostoId = CuentaContableIds.AjusteInventario,
+                CreatedAtUtc = FechaSemilla,
+                CreatedBy = "system",
+                IsDeleted = false
+            });
+        });
+    }
+
+    private static void ConfigurarColumnasSetup<TSetup>(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<TSetup> entity, string tabla)
+        where TSetup : BaseEntity
+    {
+        entity.ToTable(tabla);
+        entity.HasKey(x => x.Id);
+        entity.Property(x => x.CreatedBy).HasMaxLength(100).IsRequired();
+        entity.Property(x => x.UpdatedBy).HasMaxLength(100);
+        entity.Property<uint>("xmin").HasColumnName("xmin").IsRowVersion();
+        entity.Property(x => x.IsDeleted).HasDefaultValue(false);
+        entity.Property(x => x.DeletedBy).HasMaxLength(100);
+        entity.HasQueryFilter(x => !x.IsDeleted);
+    }
+
+    private static object SemillaSetupGeneral(Guid id, Guid? grupoNegocioId, Guid grupoProductoId) => new
+    {
+        Id = id,
+        GrupoNegocioId = grupoNegocioId,
+        GrupoProductoId = grupoProductoId,
+        CuentaVentasId = CuentaContableIds.Ventas,
+        CuentaCostoVentasId = CuentaContableIds.CostoVentas,
+        CuentaDescuentoVentasId = CuentaContableIds.DescuentoVentas,
+        CuentaAjusteInventarioId = CuentaContableIds.AjusteInventario,
+        CreatedAtUtc = FechaSemilla,
+        CreatedBy = "system",
+        IsDeleted = false
+    };
+
+    private static object SemillaSetupIva(
+        Guid id, Guid grupoIvaNegocioId, Guid grupoIvaProductoId, decimal porcentaje, string identificador, TipoCalculoIva tipo) => new
+    {
+        Id = id,
+        GrupoIvaNegocioId = (Guid?)grupoIvaNegocioId,
+        GrupoIvaProductoId = grupoIvaProductoId,
+        PorcentajeIva = porcentaje,
+        CuentaIvaVentasId = CuentaContableIds.IvaPorPagar,
+        CuentaIvaComprasId = (Guid?)null,
+        IdentificadorIva = identificador,
+        TipoCalculoIva = tipo,
+        CreatedAtUtc = FechaSemilla,
+        CreatedBy = "system",
+        IsDeleted = false
+    };
 
     private static void ConfigurarGrupo<TGrupo>(ModelBuilder modelBuilder, string tabla, params object[] semillas)
         where TGrupo : GrupoContable =>

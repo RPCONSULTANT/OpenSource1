@@ -4,6 +4,7 @@ using OpenSource1.Application.Features.Almacenes.Commands;
 using OpenSource1.Application.Services.Inventario;
 using OpenSource1.Core.Common;
 using OpenSource1.Core.Entities;
+using OpenSource1.Core.Entities.Contabilidad;
 using OpenSource1.Core.Entities.Inventario;
 
 namespace OpenSource1.Application.Features.Almacenes.Handlers;
@@ -48,6 +49,17 @@ public sealed class DeleteAlmacenCommandHandler(IUnitOfWork unitOfWork, IRegistr
             return Result.Fallo(new Error(
                 "almacen.conflicto",
                 "No se puede eliminar el almacén porque tiene movimientos de inventario registrados.",
+                "Id"));
+        }
+
+        // Un setup de inventario vivo (Task 5.4) que lo usa como eje: borrarlo dejaría esa fila apuntando a un almacén "borrado".
+        var usadoEnSetup = await unitOfWork.Repository<SetupInventario>()
+            .FirstOrDefaultAsync(x => x.AlmacenId == request.Id, cancellationToken: cancellationToken);
+        if (usadoEnSetup is not null)
+        {
+            return Result.Fallo(new Error(
+                "almacen.conflicto",
+                "No se puede eliminar el almacén porque lo usa un setup contable de inventario.",
                 "Id"));
         }
 
