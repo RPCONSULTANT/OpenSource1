@@ -112,7 +112,7 @@
         @if (PlantillaTipo == TipoPlantillaDiario.Articulo)
         {
             <div>
-                <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{Prefix}_CostoUnitarioTexto")">Costo unitario</label>
+                <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{Prefix}_CostoUnitarioTexto")">Costo unitario (unidad base)</label>
                 <input id="@($"{Prefix}_CostoUnitarioTexto")" type="text" inputmode="decimal" name="@($"{Prefix}.CostoUnitarioTexto")" value="@Model.CostoUnitarioTexto" placeholder="0.00" class="@InputCss" />
                 <p class="mt-1 text-xs text-slate-400">Obligatorio en ajuste positivo; se ignora en ajuste negativo.</p>
                 <ValidationMessage For="() => Model.CostoUnitarioTexto" />

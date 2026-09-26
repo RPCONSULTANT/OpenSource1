@@ -163,11 +163,15 @@ else
                     <EditForm Model="AddInput" FormName="add-linea" OnValidSubmit="CreateLineaAsync" Enhance="true">
                         <DataAnnotationsValidator />
                         <LineaDiarioFields Model="AddInput!" Prefix="AddInput" PlantillaTipo="@(plantilla?.Tipo ?? TipoPlantillaDiario.Articulo)" Almacenes="@almacenes" AlmacenesCargaFallida="@almacenesCargaFallida" />
-                        <div class="mt-5">
+                        <div class="mt-5 flex items-center gap-3">
                             @if (!almacenesCargaFallida)
                             {
                                 <button type="submit" class="btn-press flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 transition-colors shadow-sm">Agregar línea</button>
                             }
+                            <a href="@UrlBase" title="Limpiar campos" class="btn-press inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+                                Limpiar campos
+                            </a>
                         </div>
                     </EditForm>
                 }
@@ -324,8 +328,6 @@ else
 }
 
 @code {
-    private const string InputCss = "block w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-600/20";
-
     [Parameter] public Guid LoteId { get; set; }
 
     [SupplyParameterFromQuery(Name = "ok")] private string? Ok { get; set; }
