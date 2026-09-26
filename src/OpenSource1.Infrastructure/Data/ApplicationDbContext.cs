@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using OpenSource1.Core.Entities;
+using OpenSource1.Core.Entities.Contabilidad;
 using OpenSource1.Core.Entities.Inventario;
 using OpenSource1.Core.Enums;
 
@@ -25,6 +26,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<LoteDiario> LotesDiario => Set<LoteDiario>();
     public DbSet<LineaDiario> LineasDiario => Set<LineaDiario>();
     public DbSet<RegistroDiario> RegistrosDiario => Set<RegistroDiario>();
+    public DbSet<CuentaContable> CuentasContables => Set<CuentaContable>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -603,9 +605,61 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             // lógicamente después. El índice de la FK sirve también al listado GET registros?loteId=.
             entity.HasOne<LoteDiario>().WithMany().HasForeignKey(x => x.LoteDiarioId).OnDelete(DeleteBehavior.Restrict);
         });
+
+        modelBuilder.Entity<CuentaContable>(entity =>
+        {
+            entity.ToTable("CuentasContables");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Numero).HasMaxLength(20).IsRequired();
+            entity.Property(x => x.Nombre).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.CreatedBy).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.UpdatedBy).HasMaxLength(100);
+            // Mismo patrón de índice único parcial que Almacen/TerminoPago/UnidadMedida: permite
+            // reutilizar el Número de una cuenta borrada lógicamente.
+            entity.HasIndex(x => x.Numero).IsUnique().HasFilter("\"IsDeleted\" = false");
+            entity.HasIndex(x => x.CreatedAtUtc).HasDatabaseName("IX_CuentasContables_CreatedAtUtc");
+            entity.Property<uint>("xmin").HasColumnName("xmin").IsRowVersion();
+            entity.Property(x => x.IsDeleted).HasDefaultValue(false);
+            entity.Property(x => x.DeletedBy).HasMaxLength(100);
+            entity.HasQueryFilter(x => !x.IsDeleted);
+
+            // Plan de cuentas semilla (Task 5.2): las Tasks 5.3-5.6 (setups contables, grupos de cliente, libro
+            // contable) referencian estas cuentas por Id fijo (CuentaContableIds). Sangria = 0 para los
+            // encabezados (Activos/Pasivos/Ingresos/Costos), 1 para sus cuentas de Posteo hijas.
+            entity.HasData(
+                SemillaCuenta(CuentaContableIds.Activos, "1", "Activos", TipoCuentaContable.Encabezado, TipoResultadoCuenta.Balance, false, 0),
+                SemillaCuenta(CuentaContableIds.Caja, "1101", "Caja", TipoCuentaContable.Posteo, TipoResultadoCuenta.Balance, true, 1),
+                SemillaCuenta(CuentaContableIds.CxC, "1201", "Cuentas por cobrar clientes", TipoCuentaContable.Posteo, TipoResultadoCuenta.Balance, false, 1),
+                SemillaCuenta(CuentaContableIds.Inventario, "1301", "Inventario de mercancías", TipoCuentaContable.Posteo, TipoResultadoCuenta.Balance, false, 1),
+                SemillaCuenta(CuentaContableIds.Pasivos, "2", "Pasivos", TipoCuentaContable.Encabezado, TipoResultadoCuenta.Balance, false, 0),
+                SemillaCuenta(CuentaContableIds.IvaPorPagar, "2101", "ITBIS por pagar", TipoCuentaContable.Posteo, TipoResultadoCuenta.Balance, false, 1),
+                SemillaCuenta(CuentaContableIds.Ingresos, "4", "Ingresos", TipoCuentaContable.Encabezado, TipoResultadoCuenta.Resultado, false, 0),
+                SemillaCuenta(CuentaContableIds.Ventas, "4101", "Ventas", TipoCuentaContable.Posteo, TipoResultadoCuenta.Resultado, true, 1),
+                SemillaCuenta(CuentaContableIds.DescuentoVentas, "4102", "Descuentos sobre ventas", TipoCuentaContable.Posteo, TipoResultadoCuenta.Resultado, true, 1),
+                SemillaCuenta(CuentaContableIds.Costos, "5", "Costos", TipoCuentaContable.Encabezado, TipoResultadoCuenta.Resultado, false, 0),
+                SemillaCuenta(CuentaContableIds.CostoVentas, "5101", "Costo de ventas", TipoCuentaContable.Posteo, TipoResultadoCuenta.Resultado, false, 1),
+                SemillaCuenta(CuentaContableIds.AjusteInventario, "5201", "Ajustes de inventario", TipoCuentaContable.Posteo, TipoResultadoCuenta.Resultado, true, 1));
+        });
     }
 
     private static readonly DateTimeOffset FechaSemilla = new(2026, 9, 24, 0, 0, 0, TimeSpan.Zero);
+
+    private static object SemillaCuenta(
+        Guid id, string numero, string nombre, TipoCuentaContable tipoCuenta, TipoResultadoCuenta tipoResultado,
+        bool posteoDirecto, int sangria) => new
+    {
+        Id = id,
+        Numero = numero,
+        Nombre = nombre,
+        TipoCuenta = tipoCuenta,
+        TipoResultado = tipoResultado,
+        PosteoDirecto = posteoDirecto,
+        Bloqueada = false,
+        Sangria = sangria,
+        CreatedAtUtc = FechaSemilla,
+        CreatedBy = "system",
+        IsDeleted = false
+    };
 
     // HasData con tipo anónimo: Id tiene setter protegido en AggregateRoot, así que no se puede
     // asignar en un inicializador de objeto de la entidad.
