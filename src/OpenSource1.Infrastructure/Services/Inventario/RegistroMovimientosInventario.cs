@@ -87,7 +87,10 @@ public sealed class RegistroMovimientosInventario(
         }
 
         var producto = await session.Connection.QuerySingleOrDefaultAsync<ProductoFila>(new CommandDefinition(
-            """SELECT "Bloqueado", "CostoUnitario" FROM "Productos" WHERE "Id" = @Id AND "IsDeleted" = false""",
+            """
+            SELECT "Bloqueado", "CostoUnitario", "GrupoInventarioId", "GrupoProductoId"
+            FROM "Productos" WHERE "Id" = @Id AND "IsDeleted" = false
+            """,
             new { Id = solicitud.ProductoId }, tx, cancellationToken: ct));
         if (producto is null)
         {
@@ -156,6 +159,16 @@ public sealed class RegistroMovimientosInventario(
             return Fallo(new Error(
                 "inventario.importe_venta_invalido",
                 "El importe de venta debe ser mayor o igual que cero, menor que 1e14 y tener como máximo 4 decimales.", "ImporteVenta"));
+        }
+
+        // Grupos congelados (Task 5.5, D8): el grupo de negocio del socio del movimiento, si lo hay. Sin filtro de borrado
+        // lógico: se congela lo que el socio tenía (la FK de MovimientosProducto ya exige que exista la fila).
+        Guid? grupoNegocioId = null;
+        if (solicitud.SocioNegocioId is { } socioId)
+        {
+            grupoNegocioId = await session.Connection.QuerySingleOrDefaultAsync<Guid?>(new CommandDefinition(
+                """SELECT "GrupoNegocioId" FROM "SociosNegocio" WHERE "Id" = @Id""",
+                new { Id = socioId }, tx, cancellationToken: ct));
         }
 
         // 4. Cantidad en unidad base y factor congelado (el del servicio de conversión, nunca cantidadBase / cantidad).
@@ -266,11 +279,13 @@ public sealed class RegistroMovimientosInventario(
                 "MovimientoProductoId", "ProductoId", "AlmacenId", "TipoValor", "TipoMovimiento", "FechaRegistro",
                 "CantidadValorada", "CantidadFacturada", "ImporteCosto", "CostoPorUnidad", "ImporteVenta",
                 "ImporteCostoPosteadoContabilidad", "Ajuste", "TipoDocumento", "NumeroDocumento", "NumeroLineaDocumento",
+                "GrupoInventarioId", "GrupoNegocioId", "GrupoProductoId",
                 "TipoOrigen", "ClaveOrigen", "CreatedAtUtc", "CreatedBy", "UsuarioId")
             VALUES (
                 @MovimientoProductoId, @ProductoId, @AlmacenId, @TipoValor, @TipoMovimiento, @FechaRegistro,
                 @CantidadValorada, 0, @ImporteCosto, @CostoPorUnidad, @ImporteVenta,
                 0, false, @TipoDocumento, @NumeroDocumento, @NumeroLineaDocumento,
+                @GrupoInventarioId, @GrupoNegocioId, @GrupoProductoId,
                 @TipoOrigen, @ClaveOrigen, @CreatedAtUtc, @CreatedBy, @UsuarioId)
             RETURNING "Id"
             """,
@@ -289,6 +304,10 @@ public sealed class RegistroMovimientosInventario(
                 solicitud.TipoDocumento,
                 solicitud.NumeroDocumento,
                 solicitud.NumeroLineaDocumento,
+                // Congelados (D8): los del producto (null si no tiene: el batch de costo lo tratará como grupo faltante).
+                producto.GrupoInventarioId,
+                GrupoNegocioId = grupoNegocioId,
+                producto.GrupoProductoId,
                 solicitud.TipoOrigen,
                 solicitud.ClaveOrigen,
                 CreatedAtUtc = ahora,
@@ -416,5 +435,6 @@ public sealed class RegistroMovimientosInventario(
 
     private static Result<MovimientoRegistrado> Fallo(Error error) => Result<MovimientoRegistrado>.Fallo(error);
 
-    private sealed record ProductoFila(BloqueoProducto Bloqueado, decimal CostoUnitario);
+    private sealed record ProductoFila(
+        BloqueoProducto Bloqueado, decimal CostoUnitario, Guid? GrupoInventarioId, Guid? GrupoProductoId);
 }

@@ -36,6 +36,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<SetupContableGeneral> SetupsContableGeneral => Set<SetupContableGeneral>();
     public DbSet<SetupIva> SetupsIva => Set<SetupIva>();
     public DbSet<SetupInventario> SetupsInventario => Set<SetupInventario>();
+    public DbSet<MovimientoContable> MovimientosContables => Set<MovimientoContable>();
+    public DbSet<RegistroContable> RegistrosContables => Set<RegistroContable>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -307,6 +309,19 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                 CreatedBy = "system",
                 IsDeleted = false
             });
+
+            // Serie CONTAB (Fase 5, Task 5.5): registros contables, sin huecos. Mismo patrón que DIARIO-INV.
+            entity.HasData(new
+            {
+                Id = SerieContabilidadIds.SerieId,
+                Codigo = SerieContabilidadIds.Codigo,
+                Descripcion = "Registros contables",
+                PermiteHuecos = false,
+                PorDefecto = false,
+                CreatedAtUtc = FechaSemilla,
+                CreatedBy = "system",
+                IsDeleted = false
+            });
         });
 
         modelBuilder.Entity<LineaSerie>(entity =>
@@ -344,6 +359,23 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                 NumeroInicial = "000001",
                 NumeroFinal = "999999",
                 UltimoNumeroUsado = "000000",
+                FechaInicial = new DateOnly(2020, 1, 1),
+                Incremento = 1,
+                Bloqueada = false,
+                CreatedAtUtc = FechaSemilla,
+                CreatedBy = "system",
+                IsDeleted = false
+            });
+
+            // Línea vigente de CONTAB desde 2020-01-01 con 8 dígitos (un registro por asiento: crece más que los diarios).
+            // Misma regla que arriba: NUNCA editar "UltimoNumeroUsado" aquí; lo avanza GeneradorNumeroDocumento en runtime.
+            entity.HasData(new
+            {
+                Id = SerieContabilidadIds.LineaSerieId,
+                SerieId = SerieContabilidadIds.SerieId,
+                NumeroInicial = "00000001",
+                NumeroFinal = "99999999",
+                UltimoNumeroUsado = "00000000",
                 FechaInicial = new DateOnly(2020, 1, 1),
                 Incremento = 1,
                 Bloqueada = false,
@@ -476,6 +508,12 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.HasOne<Producto>().WithMany().HasForeignKey(x => x.ProductoId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne<Almacen>().WithMany().HasForeignKey(x => x.AlmacenId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne<MovimientoProducto>().WithMany().HasForeignKey(x => x.MovimientoProductoId).OnDelete(DeleteBehavior.Restrict);
+
+            // Grupos congelados (Task 5.5, D8): los copia RegistroMovimientosInventario del producto y del socio al registrar;
+            // la migración AddLibroContable rellenó los existentes. FK sin navegación, como el resto del libro.
+            entity.HasOne<GrupoInventario>().WithMany().HasForeignKey(x => x.GrupoInventarioId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<GrupoNegocio>().WithMany().HasForeignKey(x => x.GrupoNegocioId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<GrupoProducto>().WithMany().HasForeignKey(x => x.GrupoProductoId).OnDelete(DeleteBehavior.Restrict);
 
             // Cola de posteo a contabilidad: filas cuyo importe de costo aún no coincide con lo posteado.
             entity.HasIndex(x => new { x.ProductoId, x.AlmacenId, x.FechaRegistro })
@@ -622,6 +660,65 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             // Sin navegación (mismo motivo que en MovimientoProducto): el registro sigue visible aunque el lote se borre
             // lógicamente después. El índice de la FK sirve también al listado GET registros?loteId=.
             entity.HasOne<LoteDiario>().WithMany().HasForeignKey(x => x.LoteDiarioId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<RegistroContable>(entity =>
+        {
+            // Append-only (Task 5.5): mismo trigger que el libro (migración AddLibroContable), sin xmin ni soft delete.
+            entity.ToTable("RegistrosContables");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).UseIdentityAlwaysColumn();
+            entity.Property(x => x.NumeroRegistro).HasMaxLength(20).IsRequired();
+            entity.Property(x => x.CreadoPor).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.ClaveOrigen).HasMaxLength(50).IsRequired();
+            entity.HasIndex(x => x.NumeroRegistro).IsUnique();
+            // Idempotencia/localización por origen (p. ej. el batch de costo de la Task 5.6).
+            entity.HasIndex(x => new { x.TipoOrigen, x.ClaveOrigen })
+                .HasDatabaseName("IX_RegistrosContables_TipoOrigen_ClaveOrigen");
+        });
+
+        modelBuilder.Entity<MovimientoContable>(entity =>
+        {
+            // Libro contable append-only (spec 5.5, Task 5.5). Las comprobaciones replican en la base lo que valida
+            // IRegistroContable: ninguna línea a cero y el desglose Debito/Credito coherente con el Importe con signo.
+            entity.ToTable("MovimientosContables", t =>
+            {
+                t.HasCheckConstraint("CK_MovimientosContables_Importe_NoCero", "\"Importe\" <> 0");
+                t.HasCheckConstraint(
+                    "CK_MovimientosContables_DebitoCredito",
+                    "\"Debito\" >= 0 AND \"Credito\" >= 0 AND \"Debito\" - \"Credito\" = \"Importe\" AND (\"Debito\" = 0 OR \"Credito\" = 0)");
+            });
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).UseIdentityAlwaysColumn();
+            entity.Property(x => x.NumeroCuenta).HasMaxLength(20).IsRequired();
+            entity.Property(x => x.NumeroDocumento).HasMaxLength(20);
+            entity.Property(x => x.Descripcion).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.Importe).HasPrecision(18, 4);
+            entity.Property(x => x.Debito).HasPrecision(18, 4);
+            entity.Property(x => x.Credito).HasPrecision(18, 4);
+            entity.Property(x => x.ClaveOrigen).HasMaxLength(50).IsRequired();
+            entity.Property(x => x.CreatedBy).HasMaxLength(100).IsRequired();
+
+            // FK sin navegación (mismo motivo que MovimientoProducto): el movimiento sigue visible aunque el maestro al
+            // que apunta se borre lógicamente después.
+            entity.HasOne<CuentaContable>().WithMany().HasForeignKey(x => x.CuentaContableId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<RegistroContable>().WithMany().HasForeignKey(x => x.RegistroContableId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<SocioNegocio>().WithMany().HasForeignKey(x => x.SocioNegocioId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<Producto>().WithMany().HasForeignKey(x => x.ProductoId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<GrupoNegocio>().WithMany().HasForeignKey(x => x.GrupoNegocioId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<GrupoProducto>().WithMany().HasForeignKey(x => x.GrupoProductoId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<GrupoIvaNegocio>().WithMany().HasForeignKey(x => x.GrupoIvaNegocioId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<GrupoIvaProducto>().WithMany().HasForeignKey(x => x.GrupoIvaProductoId).OnDelete(DeleteBehavior.Restrict);
+
+            // Índices del spec 5.5. (CuentaContableId, FechaRegistro) sirve además a la FK de la cuenta, a la guarda de
+            // borrado de cuentas (CuentaContableUsoService) y a la consulta GET api/contabilidad/movimientos?cuentaId=.
+            entity.HasIndex(x => new { x.CuentaContableId, x.FechaRegistro })
+                .HasDatabaseName("IX_MovimientosContables_CuentaContableId_FechaRegistro");
+            entity.HasIndex(x => new { x.TipoDocumento, x.NumeroDocumento })
+                .HasDatabaseName("IX_MovimientosContables_TipoDocumento_NumeroDocumento");
+            entity.HasIndex(x => x.RegistroContableId).HasDatabaseName("IX_MovimientosContables_RegistroContableId");
+            entity.HasIndex(x => new { x.TipoOrigen, x.ClaveOrigen })
+                .HasDatabaseName("IX_MovimientosContables_TipoOrigen_ClaveOrigen");
         });
 
         modelBuilder.Entity<CuentaContable>(entity =>

@@ -53,7 +53,11 @@ public sealed class MovimientoValor
 
     public int NumeroLineaDocumento { get; set; }
 
-    /// <summary>Sin FK hasta la Fase 5 (grupos de inventario aún no existen como catálogo).</summary>
+    /// <summary>
+    /// Grupos CONGELADOS al registrar (Task 5.5, D8), FK a <c>GruposInventario</c>/<c>GruposNegocio</c>/<c>GruposProducto</c>:
+    /// inventario y producto del producto, negocio del socio (null sin socio). Null si el producto no tenía grupo: el batch
+    /// de costo (Task 5.6) lo trata como grupo faltante. La migración <c>AddLibroContable</c> rellenó los ya existentes.
+    /// </summary>
     public Guid? GrupoInventarioId { get; set; }
     public Guid? GrupoNegocioId { get; set; }
     public Guid? GrupoProductoId { get; set; }

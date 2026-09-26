@@ -24,15 +24,17 @@ namespace OpenSource1.SmokeTests.Infrastructure;
 /// decremento de <c>CantidadRestante</c> por la aplicación FIFO de la Task 3.4), que el propio trigger permite como
 /// única excepción. <c>MovimientosValor</c>, <c>AplicacionesMovimientoProducto</c> y <c>RegistrosDiario</c> (Task 4.5:
 /// agregada a esta red, mismo trigger <c>libro_inventario_append_only()</c> reutilizado por la migración
-/// <c>AddRegistrosDiario</c> de la Fase 4) no tienen ninguna excepción: son estrictamente append-only.
+/// <c>AddRegistrosDiario</c> de la Fase 4) no tienen ninguna excepción: son estrictamente append-only. La Task 5.5 añade el
+/// libro contable, <c>MovimientosContables</c> y <c>RegistrosContables</c> (mismo trigger, migración <c>AddLibroContable</c>),
+/// también sin excepción.
 /// </para>
 /// </summary>
 public sealed class LibroInventarioSinUpdateNiDeleteTests
 {
     private static readonly string[] TablasProtegidas =
-        ["MovimientosValor", "AplicacionesMovimientoProducto", "RegistrosDiario"];
+        ["MovimientosValor", "AplicacionesMovimientoProducto", "RegistrosDiario", "MovimientosContables", "RegistrosContables"];
     private static readonly string[] EntidadesProtegidas =
-        ["MovimientoValor", "AplicacionMovimientoProducto", "RegistroDiario"];
+        ["MovimientoValor", "AplicacionMovimientoProducto", "RegistroDiario", "MovimientoContable", "RegistroContable"];
 
     /// <summary>
     /// SQL prohibido: la palabra clave, uno o más espacios/saltos de línea (<c>\s+</c>, insensible a mayúsculas) y el
@@ -82,7 +84,7 @@ public sealed class LibroInventarioSinUpdateNiDeleteTests
 
         Assert.True(violaciones.Count == 0,
             "Se encontró código fuera de Migrations/ que actualiza o borra el libro de inventario " +
-            "(MovimientosValor/AplicacionesMovimientoProducto/RegistrosDiario son append-only):\n" + string.Join('\n', violaciones));
+            "(MovimientosValor/AplicacionesMovimientoProducto/RegistrosDiario/MovimientosContables/RegistrosContables son append-only):\n" + string.Join('\n', violaciones));
     }
 
     // Mutaciones de control (revisión final de la Fase 3, ampliadas en la Task 4.5): sin estos cinco casos
@@ -104,6 +106,16 @@ public sealed class LibroInventarioSinUpdateNiDeleteTests
         // Task 4.5: mismos dos casos para RegistrosDiario (SQL en una línea y código).
         """UPDATE "RegistrosDiario" SET "NumeroRegistro" = 'X' WHERE "Id" = 1;""",
         "context.RegistrosDiario.Remove(x);",
+        // Task 5.5: libro contable (SQL partido en líneas, DELETE, TRUNCATE y código por DbSet y por Set<T>()).
+        """
+        UPDATE
+            "MovimientosContables" SET "Importe" = 0 WHERE "Id" = 1;
+        """,
+        """DELETE FROM "MovimientosContables" WHERE "Id" = 1;""",
+        """TRUNCATE TABLE "RegistrosContables";""",
+        """UPDATE RegistrosContables SET "NumeroRegistro" = 'X';""",
+        "context.MovimientosContables.Where(x => x.Id == 1).ExecuteDeleteAsync();",
+        "context.Set<RegistroContable>().Update(x);",
     };
 
     [Theory]
@@ -121,10 +133,14 @@ public sealed class LibroInventarioSinUpdateNiDeleteTests
             public DbSet<MovimientoValor> MovimientosValor => Set<MovimientoValor>();
             public DbSet<AplicacionMovimientoProducto> AplicacionesMovimientoProducto => Set<AplicacionMovimientoProducto>();
             public DbSet<RegistroDiario> RegistrosDiario => Set<RegistroDiario>();
+            public DbSet<MovimientoContable> MovimientosContables => Set<MovimientoContable>();
+            public DbSet<RegistroContable> RegistrosContables => Set<RegistroContable>();
 
             const string sql = "INSERT INTO \"MovimientosValor\" (\"ProductoId\") VALUES (@ProductoId)";
             const string sql2 = "UPDATE \"MovimientosProducto\" SET \"CantidadRestante\" = \"CantidadRestante\" - @Aplicada WHERE \"Id\" = @Id";
             const string sql3 = "INSERT INTO \"RegistrosDiario\" (\"NumeroRegistro\") VALUES (@NumeroRegistro)";
+            const string sql4 = "INSERT INTO \"MovimientosContables\" (\"Id\") OVERRIDING SYSTEM VALUE VALUES (@Id)";
+            const string sql5 = "SELECT COUNT(*), COALESCE(SUM(\"Importe\"), 0) FROM \"MovimientosContables\" WHERE \"RegistroContableId\" = @Id";
             """;
 
         Assert.Empty(Violaciones(contenido));
