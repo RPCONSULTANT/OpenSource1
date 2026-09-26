@@ -10,6 +10,7 @@
 @inject ITerminoPagoApiClient TerminoPagoApiClient
 @inject IGrupoContableApiClient GrupoContableApiClient
 @inject IGrupoClienteContableApiClient GrupoClienteContableApiClient
+@inject ICobroApiClient CobroApiClient
 @inject IHttpContextAccessor HttpContextAccessor
 @inject IFileStorageService FileStorageService
 @inject IAuthorizationService AuthorizationService
@@ -134,6 +135,7 @@ else
                         <div class="rounded-xl border border-slate-100 bg-slate-50 px-4 py-4 dark:border-slate-700/60 dark:bg-slate-900/40"><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Sector</p><p class="mt-1 text-sm text-slate-700 dark:text-slate-300">@(string.IsNullOrWhiteSpace(cliente.Sector) ? "No indicado" : cliente.Sector)</p></div>
                         <div class="rounded-xl border border-slate-100 bg-slate-50 px-4 py-4 dark:border-slate-700/60 dark:bg-slate-900/40"><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">País</p><p class="mt-1 text-sm text-slate-700 dark:text-slate-300">@(string.IsNullOrWhiteSpace(cliente.PaisNombre) ? "No indicado" : cliente.PaisNombre)</p></div>
                         <div class="rounded-xl border border-slate-100 bg-slate-50 px-4 py-4 dark:border-slate-700/60 dark:bg-slate-900/40"><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Ciudad</p><p class="mt-1 text-sm text-slate-700 dark:text-slate-300">@(string.IsNullOrWhiteSpace(cliente.Ciudad) ? "No indicada" : cliente.Ciudad)</p></div>
+                        <div class="rounded-xl border border-slate-100 bg-slate-50 px-4 py-4 md:col-span-2 dark:border-slate-700/60 dark:bg-slate-900/40" data-testid="cliente-saldo"><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Saldo (libro de clientes)</p><p class="mt-1 text-sm text-slate-700 dark:text-slate-300">@if (saldo is null) { <span class="text-slate-400">No disponible</span> } else { <span class="text-lg font-extrabold @(saldo.Saldo > 0 ? "text-red-700" : "text-slate-900 dark:text-slate-100")">@VentasOpciones.Importe(saldo.Saldo)</span> <span class="text-xs text-slate-500">· @saldo.MovimientosAbiertos movimiento(s) abierto(s)</span> } <a class="ml-3 text-xs font-semibold text-brand-700 underline" href="@($"/cobros?socioId={cliente.Id}")">Ver movimientos y cobros</a></p></div>
                         <div class="rounded-xl border border-slate-100 bg-slate-50 px-4 py-4 md:col-span-2 dark:border-slate-700/60 dark:bg-slate-900/40" data-testid="cliente-grupos"><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Clasificación contable</p><p class="mt-1 text-sm text-slate-700 dark:text-slate-300">Negocio: <span class="font-semibold">@RotuloGrupo(cliente.GrupoNegocioId, cliente.GrupoNegocioCodigo)</span> · IVA: <span class="font-semibold">@RotuloGrupo(cliente.GrupoIvaNegocioId, cliente.GrupoIvaNegocioCodigo)</span> · Cliente: <span class="font-semibold">@RotuloGrupo(cliente.GrupoClienteContableId, cliente.GrupoClienteContableCodigo)</span></p></div>
                         <div class="rounded-xl border border-slate-100 bg-slate-50 px-4 py-4 md:col-span-2 dark:border-slate-700/60 dark:bg-slate-900/40"><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Dirección</p><p class="mt-1 text-sm text-slate-700 dark:text-slate-300">@(string.IsNullOrWhiteSpace(cliente.DireccionLinea1) ? "No indicada" : $"{cliente.DireccionLinea1}{(string.IsNullOrWhiteSpace(cliente.DireccionLinea2) ? "" : $", {cliente.DireccionLinea2}")}")</p></div>
                     </div>
@@ -166,6 +168,8 @@ else
     [SupplyParameterFromForm(FormName = "cliente-edit")] private ClienteEditorForm? Input { get; set; }
     [SupplyParameterFromForm(FormName = "cliente-delete")] private DeleteConfirmForm? DeleteInput { get; set; }
     private SocioNegocioResponse? cliente;
+    // Saldo derivado del libro de clientes (Task 6.6): informativo; si la API falla la ficha se muestra igual ("No disponible").
+    private OpenSource1.Application.Features.MovimientosCliente.Dtos.SaldoClienteResponse? saldo;
     private string? message;
     private string messageType = "info";
     private IReadOnlyList<string> errores = [];
@@ -192,6 +196,11 @@ else
             canDelete = (await AuthorizationService.AuthorizeAsync(user, ApplicationPolicies.CanDelete)).Succeeded;
         }
         await LoadAsync();
+        if (cliente is not null && !EditMode)
+        {
+            try { saldo = await CobroApiClient.GetSaldoAsync(cliente.Id); }
+            catch (Exception ex) { Logger.LogWarning(ex, "Could not load saldo of cliente {Id}.", cliente.Id); }
+        }
         if (Ok is not null)
         {
             (messageType, message) = Ok switch { "created" => ("success", "Cliente creado satisfactoriamente."), "updated" => ("success", "Cliente modificado satisfactoriamente."), _ => ("info", null) };

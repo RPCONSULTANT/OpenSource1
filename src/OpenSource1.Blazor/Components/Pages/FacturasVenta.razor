@@ -1,0 +1,347 @@
+@page "/facturas-venta"
+@page "/facturas-venta/{Numero}"
+@attribute [Authorize(Policy = ApplicationPolicies.CanConsult)]
+@using System.Globalization
+@using Microsoft.AspNetCore.Authorization
+@using OpenSource1.Application.Features.FacturasVenta.Posteadas
+@using OpenSource1.Application.Features.FacturasVenta.Posteadas.Dtos
+@using OpenSource1.Application.Security
+@using OpenSource1.Blazor.Services
+@using OpenSource1.Core.Common
+@using OpenSource1.Core.Enums
+@inject IFacturaVentaApiClient FacturaApiClient
+@inject ILogger<FacturasVenta> Logger
+
+<PageTitle>@(Numero is null ? "Facturas de venta" : $"Factura {Numero}") – AxionERP</PageTitle>
+
+<div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+    <div>
+        <p class="text-xs font-bold tracking-widest uppercase text-brand-600 mb-1">Ventas</p>
+        <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">@(Numero is null ? "Facturas de venta" : $"Factura {Numero}")</h1>
+        <p class="text-sm text-slate-500 mt-1">@(Numero is null ? "Facturas posteadas (documento legal, sin modificación)." : "Documento legal posteado: cabecera, líneas y líneas de IVA.")</p>
+    </div>
+    <div class="flex flex-wrap items-center gap-2">
+        @if (Numero is not null)
+        {
+            <a href="/facturas-venta" class="btn-press rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Volver al listado</a>
+        }
+        <a href="/facturas-venta/borradores" class="btn-press rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Borradores</a>
+    </div>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(message))
+{
+    <div class="mb-6">
+        @if (messageType == "success")
+        {
+            <ActionFeedback Type="success" Title="Factura posteada" Message="@message" />
+        }
+        else
+        {
+            <MessageBox Type="@messageType" Message="@message" />
+        }
+    </div>
+}
+
+@if (Numero is null)
+{
+    <!-- ── Filtros ── -->
+    <div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden mb-6">
+        <form method="get" action="/facturas-venta" data-enhance class="p-4 sm:p-6">
+            <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div class="grid flex-1 grid-cols-1 gap-3 sm:grid-cols-4 max-w-5xl">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 mb-1" for="filtroNumero">Número</label>
+                        <input id="filtroNumero" type="text" name="numero" value="@SearchNumero" placeholder="ej. FV-" class="@FiltroCss" />
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 mb-1" for="filtroNombre">Nombre de facturación</label>
+                        <input id="filtroNombre" type="text" name="nombre" value="@SearchNombre" class="@FiltroCss" />
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 mb-1" for="filtroDesde">Desde (fecha registro)</label>
+                        <input id="filtroDesde" type="date" name="desde" value="@SearchDesde" class="@FiltroCss" />
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 mb-1" for="filtroHasta">Hasta</label>
+                        <input id="filtroHasta" type="date" name="hasta" value="@SearchHasta" class="@FiltroCss" />
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button type="submit" class="btn-press rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700">Consultar</button>
+                    <a href="/facturas-venta" title="Limpiar campos" class="btn-press rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Limpiar campos</a>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden mb-8">
+        <div class="px-6 py-4 border-b border-slate-100">
+            <h2 class="text-sm font-semibold text-slate-700">Facturas posteadas</h2>
+            <p class="mt-1 text-xs text-slate-500">@total resultado(s) · página @Pagina de @Math.Max(totalPaginas, 1).</p>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-slate-100 text-sm" data-testid="tabla-facturas">
+                <thead class="bg-slate-50">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Número</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Facturar a</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Fecha reg.</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Vence</th>
+                        <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Sin IVA</th>
+                        <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase">IVA</th>
+                        <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Total</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Asiento</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-50 bg-white">
+                    @if (facturas.Count == 0)
+                    {
+                        <tr><td colspan="8" class="px-4 py-8 text-center text-slate-400 text-sm">No hay facturas con esos criterios.</td></tr>
+                    }
+                    @foreach (var f in facturas)
+                    {
+                        <tr @key="f.Numero" class="hover:bg-slate-50">
+                            <td class="px-4 py-3"><a href="@($"/facturas-venta/{Uri.EscapeDataString(f.Numero)}")" class="font-mono text-xs font-semibold text-brand-700 hover:underline">@f.Numero</a></td>
+                            <td class="px-4 py-3 text-slate-700">@f.SocioNegocioFacturarACodigo <span class="text-xs text-slate-400">@f.NombreFacturacion</span></td>
+                            <td class="px-4 py-3 text-xs text-slate-500">@EntradaFecha.Formatear(f.FechaRegistro)</td>
+                            <td class="px-4 py-3 text-xs text-slate-500">@EntradaFecha.Formatear(f.FechaVencimiento)</td>
+                            <td class="px-4 py-3 text-right text-slate-700">@VentasOpciones.Importe(f.ImporteSinIva)</td>
+                            <td class="px-4 py-3 text-right text-slate-700">@VentasOpciones.Importe(f.ImporteIva)</td>
+                            <td class="px-4 py-3 text-right font-semibold text-slate-900">@VentasOpciones.Importe(f.ImporteTotal)</td>
+                            <td class="px-4 py-3 font-mono text-xs text-slate-500">@f.NumeroRegistroContable</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        @if (totalPaginas > 1)
+        {
+            <div class="flex items-center justify-between gap-3 border-t border-slate-100 px-6 py-4">
+                <p class="text-xs text-slate-500">Página @Pagina de @totalPaginas</p>
+                <div class="flex items-center gap-2">
+                    @if (Pagina > 1)
+                    {
+                        <a href="@BuildListUrl(Pagina - 1)" class="btn-press rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">« Anterior</a>
+                    }
+                    @if (Pagina < totalPaginas)
+                    {
+                        <a href="@BuildListUrl(Pagina + 1)" class="btn-press rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">Siguiente »</a>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+}
+else if (detalle is null)
+{
+    @if (!detalleCargaFallida)
+    {
+        <div class="rounded-2xl border border-slate-200 bg-white px-8 py-12 text-center text-slate-400 shadow-sm"><p class="font-semibold text-slate-500">No se encontró la factura @Numero.</p></div>
+    }
+}
+else
+{
+    var c = detalle.Cabecera;
+    <div class="rounded-2xl border border-slate-200 bg-white shadow-sm mb-6 px-6 py-5" data-testid="cabecera-factura">
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 text-sm">
+            <div><p class="text-xs font-bold uppercase tracking-wide text-slate-400">Facturar a</p>
+                <p class="mt-1 text-slate-700"><a class="hover:underline" href="@($"/clientes/{c.SocioNegocioFacturarAId}")">@c.SocioNegocioFacturarACodigo — @c.NombreFacturacion</a></p>
+                <p class="text-xs text-slate-400">@c.RazonSocialFacturacion @c.NumeroDocumentoFiscal</p>
+                <p class="text-xs text-slate-400">@c.DireccionFacturacionLinea1 @c.CiudadFacturacion @c.PaisCodigoFacturacion</p></div>
+            <div><p class="text-xs font-bold uppercase tracking-wide text-slate-400">Vender a</p><p class="mt-1 text-slate-700">@c.SocioNegocioCodigo — @c.SocioNegocioNombre</p>
+                <p class="text-xs text-slate-400">Borrador de origen: @c.NumeroBorrador</p></div>
+            <div><p class="text-xs font-bold uppercase tracking-wide text-slate-400">Fechas</p><p class="mt-1 text-slate-700">Reg. @EntradaFecha.Formatear(c.FechaRegistro) · Doc. @EntradaFecha.Formatear(c.FechaDocumento)</p>
+                <p class="text-xs text-slate-500">Vence @EntradaFecha.Formatear(c.FechaVencimiento)@(c.TerminoPagoCodigo is null ? "" : $" ({c.TerminoPagoCodigo})")</p></div>
+            <div><p class="text-xs font-bold uppercase tracking-wide text-slate-400">Almacén / Asiento</p><p class="mt-1 text-slate-700">@c.AlmacenCodigo · @c.Moneda</p>
+                <p class="text-xs font-mono text-slate-500" data-testid="registro-contable">@c.NumeroRegistroContable</p></div>
+            @if (!string.IsNullOrWhiteSpace(c.Descripcion))
+            {
+                <div class="sm:col-span-2 lg:col-span-4"><p class="text-xs font-bold uppercase tracking-wide text-slate-400">Descripción</p><p class="mt-1 text-slate-700">@c.Descripcion</p></div>
+            }
+        </div>
+    </div>
+
+    <div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden mb-6">
+        <div class="px-6 py-4 border-b border-slate-100"><h2 class="text-sm font-semibold text-slate-700">Líneas</h2></div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-slate-100 text-sm" data-testid="lineas-factura">
+                <thead class="bg-slate-50">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">#</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Tipo</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Producto / Cuenta</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Descripción</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Almacén</th>
+                        <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Cantidad</th>
+                        <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Precio</th>
+                        <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Descuento</th>
+                        <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Importe</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">IVA</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-50 bg-white">
+                    @foreach (var l in detalle.Lineas.OrderBy(x => x.NumeroLinea))
+                    {
+                        <tr @key="l.Id">
+                            <td class="px-4 py-3 text-xs text-slate-400">@l.NumeroLinea</td>
+                            <td class="px-4 py-3 text-xs text-slate-700">@VentasOpciones.TipoLinea(l.Tipo)</td>
+                            <td class="px-4 py-3 text-xs text-slate-700">@(l.ProductoCodigo ?? l.CuentaContableNumero ?? "—")</td>
+                            <td class="px-4 py-3 text-slate-700">@l.Descripcion</td>
+                            <td class="px-4 py-3 text-xs text-slate-500">@(l.AlmacenCodigo ?? "—")</td>
+                            @if (l.Tipo == TipoLineaFactura.Comentario)
+                            {
+                                <td colspan="5"></td>
+                            }
+                            else
+                            {
+                                <td class="px-4 py-3 text-right text-slate-700">@l.Cantidad.ToString("0.######", CultureInfo.InvariantCulture) <span class="text-xs text-slate-400">@l.UnidadMedidaCodigo</span></td>
+                                <td class="px-4 py-3 text-right text-slate-700">@l.PrecioUnitario.ToString("0.00##", CultureInfo.InvariantCulture)</td>
+                                <td class="px-4 py-3 text-right text-slate-500">@(l.ImporteDescuentoLinea == 0 ? "—" : $"{VentasOpciones.Importe(l.ImporteDescuentoLinea)} ({l.PorcentajeDescuentoLinea.ToString("0.#####", CultureInfo.InvariantCulture)}%)")</td>
+                                <td class="px-4 py-3 text-right font-semibold text-slate-800">@VentasOpciones.Importe(l.ImporteLinea)</td>
+                                <td class="px-4 py-3 text-xs text-slate-500">@l.IdentificadorIva @l.PorcentajeIva.ToString("0.##", CultureInfo.InvariantCulture)%</td>
+                            }
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+            <div class="px-6 py-4 border-b border-slate-100"><h2 class="text-sm font-semibold text-slate-700">Líneas de IVA</h2></div>
+            <table class="min-w-full text-sm" data-testid="lineas-iva">
+                <thead class="bg-slate-50"><tr>
+                    <th class="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase">Identificador</th>
+                    <th class="px-4 py-2 text-right text-xs font-semibold text-slate-500 uppercase">%</th>
+                    <th class="px-4 py-2 text-right text-xs font-semibold text-slate-500 uppercase">Base</th>
+                    <th class="px-4 py-2 text-right text-xs font-semibold text-slate-500 uppercase">IVA</th>
+                    <th class="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase">Cuenta</th>
+                </tr></thead>
+                <tbody class="divide-y divide-slate-50">
+                    @foreach (var iva in detalle.LineasIva)
+                    {
+                        <tr @key="iva.Id">
+                            <td class="px-4 py-2 text-slate-700">@iva.IdentificadorIva</td>
+                            <td class="px-4 py-2 text-right text-slate-500">@iva.PorcentajeIva.ToString("0.#####", CultureInfo.InvariantCulture)</td>
+                            <td class="px-4 py-2 text-right">@VentasOpciones.Importe(iva.BaseImponible)</td>
+                            <td class="px-4 py-2 text-right">@VentasOpciones.Importe(iva.ImporteIva)</td>
+                            <td class="px-4 py-2 font-mono text-xs text-slate-500">@iva.CuentaIvaNumero</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-white shadow-sm px-6 py-5">
+            <dl class="text-sm space-y-2" data-testid="totales-factura">
+                <div class="flex justify-between"><dt class="text-slate-500">Importe sin IVA</dt><dd class="font-semibold text-slate-800">@VentasOpciones.Importe(c.ImporteSinIva)</dd></div>
+                <div class="flex justify-between"><dt class="text-slate-500">IVA</dt><dd class="font-semibold text-slate-800">@VentasOpciones.Importe(c.ImporteIva)</dd></div>
+                <div class="flex justify-between border-t border-slate-100 pt-2"><dt class="font-bold text-slate-700">Total</dt><dd class="text-lg font-extrabold text-slate-900">@VentasOpciones.Importe(c.ImporteTotal)</dd></div>
+            </dl>
+            <p class="mt-4 text-xs"><a class="text-brand-700 underline" href="@($"/cobros?socioId={c.SocioNegocioFacturarAId}")">Movimientos y cobros del cliente</a></p>
+        </div>
+    </div>
+}
+
+@code {
+    private const string FiltroCss = "block w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-600/20";
+
+    [Parameter] public string? Numero { get; set; }
+
+    [SupplyParameterFromQuery(Name = "numero")] private string? SearchNumero { get; set; }
+    [SupplyParameterFromQuery(Name = "nombre")] private string? SearchNombre { get; set; }
+    [SupplyParameterFromQuery(Name = "desde")] private string? SearchDesde { get; set; }
+    [SupplyParameterFromQuery(Name = "hasta")] private string? SearchHasta { get; set; }
+    [SupplyParameterFromQuery(Name = "pagina")] private int Pagina { get; set; } = 1;
+    [SupplyParameterFromQuery(Name = "ok")] private string? Ok { get; set; }
+    [SupplyParameterFromQuery(Name = "registro")] private string? Registro { get; set; }
+
+    private IReadOnlyList<FacturaVentaResponse> facturas = [];
+    private long total;
+    private int totalPaginas;
+    private FacturaVentaDetalleResponse? detalle;
+    private bool detalleCargaFallida;
+    private string? message;
+    private string messageType = "info";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        message = null;
+        if (Numero is null)
+        {
+            await CargarListadoAsync();
+            return;
+        }
+
+        try
+        {
+            detalle = await FacturaApiClient.GetFacturaAsync(Numero);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not load factura {Numero}.", Numero);
+            detalleCargaFallida = true;
+            Show("danger", "No fue posible cargar la factura.");
+            return;
+        }
+
+        if (Ok == "posteada" && detalle is not null)
+        {
+            Show("success", $"Factura {detalle.Cabecera.Numero} posteada por {VentasOpciones.Importe(detalle.Cabecera.ImporteTotal)}. Registro contable {Registro ?? detalle.Cabecera.NumeroRegistroContable}.");
+        }
+    }
+
+    private async Task CargarListadoAsync()
+    {
+        DateOnly? desde = null, hasta = null;
+        if (!string.IsNullOrWhiteSpace(SearchDesde))
+        {
+            if (EntradaFecha.TryParse(SearchDesde, out var d, out _)) desde = d;
+            else { Show("warning", "La fecha «desde» no es válida."); return; }
+        }
+
+        if (!string.IsNullOrWhiteSpace(SearchHasta))
+        {
+            if (EntradaFecha.TryParse(SearchHasta, out var h, out _)) hasta = h;
+            else { Show("warning", "La fecha «hasta» no es válida."); return; }
+        }
+
+        try
+        {
+            var filtro = new FacturaVentaSearchCriteria(EmptyAsNull(SearchNumero), EmptyAsNull(SearchNombre), null, desde, hasta);
+            if (Pagina < 1) Pagina = 1;
+            // Orden explícito: por número descendente (lo último posteado primero).
+            var pagina = await FacturaApiClient.ListFacturasAsync(filtro, new PageRequest(Pagina, PageRequest.TamanoPorDefecto, "Numero", Descendente: true));
+            if (pagina.TotalPaginas > 0 && Pagina > pagina.TotalPaginas)
+            {
+                Pagina = pagina.TotalPaginas;
+                pagina = await FacturaApiClient.ListFacturasAsync(filtro, new PageRequest(Pagina, PageRequest.TamanoPorDefecto, "Numero", Descendente: true));
+            }
+
+            facturas = pagina.Items;
+            total = pagina.Total;
+            totalPaginas = pagina.TotalPaginas;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not load facturas de venta.");
+            Show("danger", "No fue posible cargar las facturas de venta.");
+        }
+    }
+
+    private string BuildListUrl(int pagina)
+    {
+        var parameters = new List<string>();
+        if (!string.IsNullOrWhiteSpace(SearchNumero)) parameters.Add($"numero={Uri.EscapeDataString(SearchNumero)}");
+        if (!string.IsNullOrWhiteSpace(SearchNombre)) parameters.Add($"nombre={Uri.EscapeDataString(SearchNombre)}");
+        if (!string.IsNullOrWhiteSpace(SearchDesde)) parameters.Add($"desde={Uri.EscapeDataString(SearchDesde)}");
+        if (!string.IsNullOrWhiteSpace(SearchHasta)) parameters.Add($"hasta={Uri.EscapeDataString(SearchHasta)}");
+        if (pagina > 1) parameters.Add($"pagina={pagina}");
+        return parameters.Count == 0 ? "/facturas-venta" : $"/facturas-venta?{string.Join("&", parameters)}";
+    }
+
+    private void Show(string type, string text) { messageType = type; message = text; }
+
+    private static string? EmptyAsNull(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+}

@@ -1,0 +1,545 @@
+@page "/cobros"
+@attribute [Authorize(Policy = ApplicationPolicies.CanConsult)]
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Authorization
+@using OpenSource1.Application.Features.CuentasContables.Dtos
+@using OpenSource1.Application.Features.MovimientosCliente.Dtos
+@using OpenSource1.Application.Features.SociosNegocio.Dtos
+@using OpenSource1.Application.Security
+@using OpenSource1.Blazor.Services
+@using OpenSource1.Core.Common
+@using OpenSource1.Core.Enums
+@inject ICobroApiClient CobroApiClient
+@inject ISocioNegocioApiClient SocioApiClient
+@inject ICuentaContableApiClient CuentaApiClient
+@inject IAuthorizationService AuthorizationService
+@inject ILogger<Cobros> Logger
+@inject NavigationManager Nav
+
+<PageTitle>Cobros – AxionERP</PageTitle>
+
+<div class="mb-6">
+    <p class="text-xs font-bold tracking-widest uppercase text-brand-600 mb-1">Ventas</p>
+    <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">Cobros de clientes</h1>
+    <p class="text-sm text-slate-500 mt-1">Registrar pagos, consultar los movimientos abiertos de un cliente y aplicar pagos a sus facturas.</p>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(message))
+{
+    <div class="mb-6">
+        @if (messageType == "success")
+        {
+            <ActionFeedback Type="success" Message="@message" />
+        }
+        else
+        {
+            <MessageBox Type="@messageType" Message="@message" Errors="@errores" />
+        }
+    </div>
+}
+
+@if (socios.CargaFallida)
+{
+    <div class="mb-6"><MessageBox Type="danger" Message="No fue posible cargar los clientes. No se puede elegir un cliente ni registrar pagos hasta que carguen; recargue la página." /></div>
+}
+@if (canModify && cuentas.CargaFallida)
+{
+    <div class="mb-6"><MessageBox Type="danger" Message="No fue posible cargar las cuentas de caja/banco. No se puede registrar un pago hasta que carguen; recargue la página." /></div>
+}
+
+<!-- ── Elegir cliente (consultar) ── -->
+<div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden mb-6">
+    <form method="get" action="/cobros" data-enhance class="p-4 sm:p-6">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-end">
+            <div class="grid flex-1 grid-cols-1 gap-3 sm:grid-cols-2 max-w-4xl">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 mb-1" for="socioQuery">Buscar cliente por nombre</label>
+                    <input id="socioQuery" type="text" name="socioQuery" value="@SocioQuery" placeholder="ej. Comercial" class="@FiltroCss" />
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 mb-1" for="socioId">Cliente</label>
+                    <select id="socioId" name="socioId" class="@FiltroCss">
+                        <option value="" selected="@(SocioId is null)">— Seleccione —</option>
+                        @OpcionSocioVigente(SocioId)
+                        @foreach (var s in socios.Items)
+                        {
+                            <option value="@s.Id" selected="@(s.Id == SocioId)">@s.Codigo — @s.NombreComercial</option>
+                        }
+                    </select>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <button type="submit" class="btn-press rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700">Consultar</button>
+                <a href="/cobros" title="Limpiar campos" class="btn-press rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Limpiar campos</a>
+            </div>
+        </div>
+        <p class="mt-2 text-xs text-slate-400">Busque por nombre y pulse Consultar para acotar la lista (primeros @VentasOpciones.MaximoSocios); elija el cliente y pulse Consultar de nuevo.</p>
+    </form>
+</div>
+
+@if (SocioId is { } socioElegido)
+{
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+        <div class="rounded-2xl border border-slate-200 bg-white shadow-sm px-6 py-5" data-testid="saldo-cliente">
+            <p class="text-xs font-bold uppercase tracking-wide text-slate-400">Cliente</p>
+            <p class="mt-1 text-sm font-semibold text-slate-800">@(socioActual is null ? socioElegido.ToString() : $"{socioActual.Codigo} — {socioActual.NombreComercial}")</p>
+            <p class="mt-4 text-xs font-bold uppercase tracking-wide text-slate-400">Saldo</p>
+            @if (saldo is null)
+            {
+                <p class="mt-1 text-sm text-slate-400">No disponible.</p>
+            }
+            else
+            {
+                <p class="mt-1 text-2xl font-extrabold @(saldo.Saldo > 0 ? "text-red-700" : "text-slate-900")">@VentasOpciones.Importe(saldo.Saldo)</p>
+                <p class="text-xs text-slate-500">@saldo.MovimientosAbiertos movimiento(s) abierto(s) · positivo = el cliente nos debe</p>
+            }
+            <p class="mt-4 text-xs"><a class="text-brand-700 underline" href="@($"/clientes/{socioElegido}")">Ficha del cliente</a></p>
+        </div>
+
+        <div class="lg:col-span-2 rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+            <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between gap-2">
+                <h2 class="text-sm font-semibold text-slate-700">@(Todos ? "Todos los movimientos" : "Movimientos abiertos")</h2>
+                <a href="@BuildUrl(todos: !Todos)" class="text-xs font-semibold text-brand-700 underline">@(Todos ? "Ver solo abiertos" : "Ver todos los movimientos")</a>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-slate-100 text-sm" data-testid="movimientos-cliente">
+                    <thead class="bg-slate-50">
+                        <tr>
+                            <th class="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase">Id</th>
+                            <th class="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase">Fecha</th>
+                            <th class="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase">Tipo</th>
+                            <th class="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase">Documento</th>
+                            <th class="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase">Vence</th>
+                            <th class="px-4 py-2 text-right text-xs font-semibold text-slate-500 uppercase">Original</th>
+                            <th class="px-4 py-2 text-right text-xs font-semibold text-slate-500 uppercase">Restante</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-50 bg-white">
+                        @if (movimientos.Count == 0)
+                        {
+                            <tr><td colspan="7" class="px-4 py-6 text-center text-slate-400 text-sm">@(movimientosCargaFallida ? "No fue posible cargar los movimientos." : "Sin movimientos.")</td></tr>
+                        }
+                        @foreach (var m in movimientos)
+                        {
+                            <tr @key="m.Id">
+                                <td class="px-4 py-2 text-xs text-slate-400">@m.Id</td>
+                                <td class="px-4 py-2 text-xs text-slate-500">@EntradaFecha.Formatear(m.FechaRegistro)</td>
+                                <td class="px-4 py-2 text-xs text-slate-700">@VentasOpciones.TipoDocumento(m.TipoDocumento)</td>
+                                <td class="px-4 py-2 font-mono text-xs">
+                                    @if (m.TipoDocumento == TipoDocumentoCliente.Factura)
+                                    {
+                                        <a class="text-brand-700 hover:underline" href="@($"/facturas-venta/{Uri.EscapeDataString(m.NumeroDocumento)}")">@m.NumeroDocumento</a>
+                                    }
+                                    else
+                                    {
+                                        @m.NumeroDocumento
+                                    }
+                                </td>
+                                <td class="px-4 py-2 text-xs text-slate-500">@EntradaFecha.Formatear(m.FechaVencimiento)</td>
+                                <td class="px-4 py-2 text-right text-slate-700">@VentasOpciones.Importe(m.ImporteOriginal)</td>
+                                <td class="px-4 py-2 text-right font-semibold @(m.Abierta ? "text-slate-900" : "text-slate-400")">@VentasOpciones.Importe(m.ImporteRestante)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            @if (Todos && totalPaginas > 1)
+            {
+                <div class="flex items-center justify-between gap-3 border-t border-slate-100 px-6 py-3">
+                    <p class="text-xs text-slate-500">Página @Pagina de @totalPaginas</p>
+                    <div class="flex items-center gap-2">
+                        @if (Pagina > 1)
+                        {
+                            <a href="@BuildUrl(pagina: Pagina - 1)" class="rounded-lg border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-600">« Anterior</a>
+                        }
+                        @if (Pagina < totalPaginas)
+                        {
+                            <a href="@BuildUrl(pagina: Pagina + 1)" class="rounded-lg border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-600">Siguiente »</a>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@if (canModify)
+{
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div id="registrar-pago" class="rounded-2xl border border-green-200 bg-white shadow-sm overflow-hidden">
+            <div class="px-6 py-4 bg-green-50 border-b border-green-100"><h2 class="text-sm font-bold text-green-800">Registrar pago</h2></div>
+            <div class="px-6 py-5">
+                <EditForm Model="PagoInput" FormName="registrar-pago" OnValidSubmit="RegistrarPagoAsync" Enhance="true">
+                    <DataAnnotationsValidator />
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div class="sm:col-span-2">
+                            <label class="block text-sm font-medium text-slate-700 mb-1" for="PagoInput_SocioNegocioId">Cliente <span class="text-red-500">*</span></label>
+                            <select id="PagoInput_SocioNegocioId" name="PagoInput.SocioNegocioId" class="@InputCss">
+                                <option value="" selected="@(PagoInput!.SocioNegocioId is null)">— Seleccione —</option>
+                                @OpcionSocioVigente(PagoInput.SocioNegocioId)
+                                @foreach (var s in socios.Items)
+                                {
+                                    <option value="@s.Id" selected="@(s.Id == PagoInput.SocioNegocioId)">@s.Codigo — @s.NombreComercial</option>
+                                }
+                            </select>
+                            <ValidationMessage For="() => PagoInput.SocioNegocioId" />
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1" for="PagoInput_ImporteTexto">Importe <span class="text-red-500">*</span></label>
+                            <input id="PagoInput_ImporteTexto" type="text" inputmode="decimal" name="PagoInput.ImporteTexto" value="@PagoInput.ImporteTexto" placeholder="ej. 500.00" class="@InputCss" />
+                            <ValidationMessage For="() => PagoInput.ImporteTexto" />
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1" for="PagoInput_FechaRegistroTexto">Fecha <span class="text-red-500">*</span></label>
+                            <input id="PagoInput_FechaRegistroTexto" type="date" name="PagoInput.FechaRegistroTexto" value="@PagoInput.FechaRegistroTexto" class="@InputCss" />
+                            <ValidationMessage For="() => PagoInput.FechaRegistroTexto" />
+                        </div>
+                        <div class="sm:col-span-2">
+                            <label class="block text-sm font-medium text-slate-700 mb-1" for="PagoInput_CuentaCajaId">Cuenta de caja / banco <span class="text-red-500">*</span></label>
+                            <select id="PagoInput_CuentaCajaId" name="PagoInput.CuentaCajaId" class="@InputCss">
+                                <option value="" selected="@(PagoInput.CuentaCajaId is null)">— Seleccione —</option>
+                                @foreach (var c in cuentas.Items)
+                                {
+                                    <option value="@c.Id" selected="@(c.Id == PagoInput.CuentaCajaId)">@c.Numero — @c.Nombre</option>
+                                }
+                            </select>
+                            <ValidationMessage For="() => PagoInput.CuentaCajaId" />
+                            <p class="mt-1 text-xs text-slate-400">Cuentas de posteo, no bloqueadas y de posteo directo (por defecto @VentasOpciones.NumeroCuentaCajaPorDefecto Caja).</p>
+                        </div>
+                        <div class="sm:col-span-2">
+                            <label class="block text-sm font-medium text-slate-700 mb-1" for="PagoInput_Descripcion">Descripción</label>
+                            <input id="PagoInput_Descripcion" type="text" name="PagoInput.Descripcion" value="@PagoInput.Descripcion" maxlength="200" class="@InputCss" />
+                            <ValidationMessage For="() => PagoInput.Descripcion" />
+                        </div>
+                    </div>
+                    <div class="mt-5 flex items-center gap-3">
+                        @if (!socios.CargaFallida && !cuentas.CargaFallida)
+                        {
+                            <button type="submit" class="btn-press rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 shadow-sm">Registrar pago</button>
+                        }
+                        <a href="@BuildUrl()" class="btn-press rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Limpiar campos</a>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+
+        <div id="aplicar-pago" class="rounded-2xl border border-brand-200 bg-white shadow-sm overflow-hidden">
+            <div class="px-6 py-4 bg-brand-50 border-b border-brand-100"><h2 class="text-sm font-bold text-brand-800">Aplicar pago a factura</h2></div>
+            <div class="px-6 py-5">
+                @if (SocioId is null)
+                {
+                    <p class="text-sm text-slate-500">Elija un cliente arriba para ver sus facturas pendientes y pagos sin aplicar.</p>
+                }
+                else if (facturasAbiertas.Count == 0 || pagosAbiertos.Count == 0)
+                {
+                    <p class="text-sm text-slate-500">El cliente no tiene a la vez facturas pendientes y pagos sin aplicar.</p>
+                }
+                <EditForm Model="AplicacionInput" FormName="aplicar-pago" OnValidSubmit="AplicarPagoAsync" Enhance="true">
+                    <DataAnnotationsValidator />
+                    @if (SocioId is not null && facturasAbiertas.Count > 0 && pagosAbiertos.Count > 0)
+                    {
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div class="sm:col-span-2">
+                                <label class="block text-sm font-medium text-slate-700 mb-1" for="AplicacionInput_MovimientoFacturaId">Factura pendiente <span class="text-red-500">*</span></label>
+                                <select id="AplicacionInput_MovimientoFacturaId" name="AplicacionInput.MovimientoFacturaId" class="@InputCss">
+                                    <option value="" selected="@(AplicacionInput!.MovimientoFacturaId is null)">— Seleccione —</option>
+                                    @foreach (var f in facturasAbiertas)
+                                    {
+                                        <option value="@f.Id" selected="@(f.Id == AplicacionInput.MovimientoFacturaId)">@f.NumeroDocumento — pendiente @VentasOpciones.Importe(f.ImporteRestante)</option>
+                                    }
+                                </select>
+                                <ValidationMessage For="() => AplicacionInput.MovimientoFacturaId" />
+                            </div>
+                            <div class="sm:col-span-2">
+                                <label class="block text-sm font-medium text-slate-700 mb-1" for="AplicacionInput_MovimientoPagoId">Pago sin aplicar <span class="text-red-500">*</span></label>
+                                <select id="AplicacionInput_MovimientoPagoId" name="AplicacionInput.MovimientoPagoId" class="@InputCss">
+                                    <option value="" selected="@(AplicacionInput.MovimientoPagoId is null)">— Seleccione —</option>
+                                    @foreach (var p in pagosAbiertos)
+                                    {
+                                        <option value="@p.Id" selected="@(p.Id == AplicacionInput.MovimientoPagoId)">@p.NumeroDocumento — disponible @VentasOpciones.Importe(-p.ImporteRestante)</option>
+                                    }
+                                </select>
+                                <ValidationMessage For="() => AplicacionInput.MovimientoPagoId" />
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 mb-1" for="AplicacionInput_ImporteTexto">Importe a aplicar <span class="text-red-500">*</span></label>
+                                <input id="AplicacionInput_ImporteTexto" type="text" inputmode="decimal" name="AplicacionInput.ImporteTexto" value="@AplicacionInput.ImporteTexto" class="@InputCss" />
+                                <ValidationMessage For="() => AplicacionInput.ImporteTexto" />
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 mb-1" for="AplicacionInput_FechaRegistroTexto">Fecha</label>
+                                <input id="AplicacionInput_FechaRegistroTexto" type="date" name="AplicacionInput.FechaRegistroTexto" value="@AplicacionInput.FechaRegistroTexto" class="@InputCss" />
+                                <ValidationMessage For="() => AplicacionInput.FechaRegistroTexto" />
+                            </div>
+                        </div>
+                        <p class="mt-2 text-xs text-slate-400">El importe no puede superar lo pendiente de la factura ni lo disponible del pago.</p>
+                        <div class="mt-5 flex items-center gap-3">
+                            <button type="submit" class="btn-press rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 shadow-sm">Aplicar</button>
+                            <a href="@BuildUrl()" class="btn-press rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Limpiar campos</a>
+                        </div>
+                    }
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    @* Sin CanModify no se muestran los formularios, pero siguen en el árbol de render: un POST forzado llega al handler y
+       recibe el 403 real de la API (la autorización real la hace la API con [Authorize(Policy = CanModify)]). *@
+    <EditForm Model="PagoInput" FormName="registrar-pago" OnValidSubmit="RegistrarPagoAsync"></EditForm>
+    <EditForm Model="AplicacionInput" FormName="aplicar-pago" OnValidSubmit="AplicarPagoAsync"></EditForm>
+}
+
+@code {
+    private const string InputCss = "block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20";
+    private const string FiltroCss = "block w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-600/20";
+
+    [SupplyParameterFromQuery(Name = "socioId")] private Guid? SocioId { get; set; }
+    [SupplyParameterFromQuery(Name = "socioQuery")] private string? SocioQuery { get; set; }
+    [SupplyParameterFromQuery(Name = "todos")] private bool Todos { get; set; }
+    [SupplyParameterFromQuery(Name = "pagina")] private int Pagina { get; set; } = 1;
+    [SupplyParameterFromQuery(Name = "ok")] private string? Ok { get; set; }
+    [SupplyParameterFromQuery(Name = "numero")] private string? NumeroCobro { get; set; }
+
+    [SupplyParameterFromForm(FormName = "registrar-pago")] private PagoForm? PagoInput { get; set; }
+    [SupplyParameterFromForm(FormName = "aplicar-pago")] private AplicacionForm? AplicacionInput { get; set; }
+
+    private OpcionesCargadas<SocioNegocioResponse> socios = OpcionesCargadas<SocioNegocioResponse>.SinCargar;
+    private OpcionesCargadas<CuentaContableResponse> cuentas = OpcionesCargadas<CuentaContableResponse>.SinCargar;
+    private SocioNegocioResponse? socioActual;
+    private SaldoClienteResponse? saldo;
+    private IReadOnlyList<MovimientoClienteResponse> movimientos = [];
+    private IReadOnlyList<MovimientoClienteResponse> facturasAbiertas = [];
+    private IReadOnlyList<MovimientoClienteResponse> pagosAbiertos = [];
+    private bool movimientosCargaFallida;
+    private int totalPaginas;
+    private string? message;
+    private string messageType = "info";
+    private IReadOnlyList<string> errores = [];
+    private bool canModify;
+
+    [CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        PagoInput ??= new() { SocioNegocioId = SocioId, FechaRegistroTexto = EntradaFecha.Formatear(DateOnly.FromDateTime(DateTime.Today)) };
+        AplicacionInput ??= new();
+
+        if (AuthenticationStateTask is not null)
+        {
+            var user = (await AuthenticationStateTask).User;
+            canModify = (await AuthorizationService.AuthorizeAsync(user, ApplicationPolicies.CanModify)).Succeeded;
+        }
+
+        socios = await VentasOpciones.SociosAsync(SocioApiClient, SocioQuery, Logger);
+        if (canModify)
+        {
+            cuentas = await VentasOpciones.CuentasCapturaDirectaAsync(CuentaApiClient, Logger);
+            // Cuenta por defecto: 1101 Caja (la misma que usa la API si no se indica), solo si el formulario no llegó en un POST.
+            if (PagoInput.CuentaCajaId is null && string.IsNullOrEmpty(PagoInput.ImporteTexto))
+            {
+                PagoInput.CuentaCajaId = cuentas.Items.FirstOrDefault(c => c.Numero == VentasOpciones.NumeroCuentaCajaPorDefecto)?.Id;
+            }
+        }
+
+        if (SocioId is { } socioId)
+        {
+            await CargarClienteAsync(socioId);
+        }
+
+        if (Ok is not null)
+        {
+            (messageType, message) = Ok switch
+            {
+                "pago" => ("success", $"Pago {NumeroCobro} registrado. Puede aplicarlo a una factura pendiente."),
+                "aplicado" => ("success", "Pago aplicado satisfactoriamente."),
+                _ => ("info", null)
+            };
+        }
+    }
+
+    private async Task CargarClienteAsync(Guid socioId)
+    {
+        socioActual = socios.Items.FirstOrDefault(s => s.Id == socioId);
+        if (socioActual is null)
+        {
+            try { socioActual = await SocioApiClient.GetByIdAsync(socioId); }
+            catch (Exception ex) { Logger.LogWarning(ex, "Could not load socio {Id}.", socioId); }
+        }
+
+        try
+        {
+            saldo = await CobroApiClient.GetSaldoAsync(socioId);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not load saldo of socio {Id}.", socioId);
+        }
+
+        try
+        {
+            var abiertos = await CobroApiClient.ListMovimientosAbiertosAsync(socioId) ?? [];
+            facturasAbiertas = [.. abiertos.Where(m => m.ImporteRestante > 0)];
+            pagosAbiertos = [.. abiertos.Where(m => m.ImporteRestante < 0)];
+            movimientos = abiertos;
+
+            if (Todos)
+            {
+                if (Pagina < 1) Pagina = 1;
+                var pagina = await CobroApiClient.ListMovimientosAsync(socioId, null, new PageRequest(Pagina, PageRequest.TamanoPorDefecto, Descendente: false));
+                movimientos = pagina?.Items ?? [];
+                totalPaginas = pagina?.TotalPaginas ?? 0;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not load movimientos of socio {Id}.", socioId);
+            movimientosCargaFallida = true;
+        }
+    }
+
+    private RenderFragment OpcionSocioVigente(Guid? seleccion) => __builder =>
+    {
+        if (seleccion is { } id && socios.Items.All(s => s.Id != id))
+        {
+            <option value="@id" selected="selected">@(socioActual?.Id == id ? $"{socioActual.Codigo} — {socioActual.NombreComercial}" : $"Cliente seleccionado ({id})")</option>
+        }
+    };
+
+    private async Task RegistrarPagoAsync()
+    {
+        if (canModify && (socios.CargaFallida || cuentas.CargaFallida)) return;
+
+        var f = PagoInput!;
+        var input = new RegistrarPagoInput(f.SocioNegocioId ?? Guid.Empty, f.Importe, f.FechaRegistro ?? default, f.CuentaCajaId, EmptyAsNull(f.Descripcion));
+        try
+        {
+            var result = await CobroApiClient.RegistrarPagoAsync(input);
+            if (result.Succeeded)
+            {
+                Nav.NavigateTo($"/cobros?socioId={input.SocioNegocioId}&ok=pago&numero={Uri.EscapeDataString(result.Valor!.Numero)}");
+                return;
+            }
+
+            errores = result.Errors ?? [];
+            Show("warning", result.Message);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not registrar pago.");
+            Show("danger", "No fue posible registrar el pago.");
+        }
+    }
+
+    private async Task AplicarPagoAsync()
+    {
+        var f = AplicacionInput!;
+        var input = new AplicarPagoInput(f.MovimientoFacturaId ?? 0, f.MovimientoPagoId ?? 0, f.Importe, f.FechaRegistro);
+        try
+        {
+            var result = await CobroApiClient.AplicarPagoAsync(input);
+            if (result.Succeeded)
+            {
+                Nav.NavigateTo($"{BuildUrl()}{(BuildUrl().Contains('?') ? "&" : "?")}ok=aplicado");
+                return;
+            }
+
+            errores = result.Errors ?? [];
+            Show("warning", result.Message);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not aplicar pago.");
+            Show("danger", "No fue posible aplicar el pago.");
+        }
+    }
+
+    private string BuildUrl(bool? todos = null, int? pagina = null)
+    {
+        var parameters = new List<string>();
+        if (SocioId.HasValue) parameters.Add($"socioId={SocioId.Value}");
+        if (!string.IsNullOrWhiteSpace(SocioQuery)) parameters.Add($"socioQuery={Uri.EscapeDataString(SocioQuery)}");
+        if (todos ?? Todos) parameters.Add("todos=true");
+        if (pagina is > 1) parameters.Add($"pagina={pagina}");
+        return parameters.Count == 0 ? "/cobros" : $"/cobros?{string.Join("&", parameters)}";
+    }
+
+    private void Show(string type, string text) { messageType = type; message = text; }
+
+    private static string? EmptyAsNull(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    public sealed class PagoForm : IValidatableObject
+    {
+        [Required(ErrorMessage = "Seleccione el cliente.")]
+        public Guid? SocioNegocioId { get; set; }
+
+        [Required(ErrorMessage = "El importe es obligatorio.")]
+        public string? ImporteTexto { get; set; }
+
+        [Required(ErrorMessage = "La fecha es obligatoria.")]
+        public string? FechaRegistroTexto { get; set; }
+
+        [Required(ErrorMessage = "Seleccione la cuenta de caja o banco.")]
+        public Guid? CuentaCajaId { get; set; }
+
+        [MaxLength(200, ErrorMessage = "La descripción admite como máximo 200 caracteres.")]
+        public string? Descripcion { get; set; }
+
+        public decimal Importe => EntradaDecimal.TryParse(ImporteTexto, out var v, out _) ? v : 0m;
+
+        public DateOnly? FechaRegistro => EntradaFecha.TryParse(FechaRegistroTexto, out var v, out _) ? v : null;
+
+        public IEnumerable<ValidationResult> Validate(ValidationContext validationContext) =>
+            CobroValidacion.Importe(ImporteTexto, nameof(ImporteTexto)).Concat(CobroValidacion.Fecha(FechaRegistroTexto, nameof(FechaRegistroTexto)));
+    }
+
+    public sealed class AplicacionForm : IValidatableObject
+    {
+        [Required(ErrorMessage = "Seleccione la factura.")]
+        public long? MovimientoFacturaId { get; set; }
+
+        [Required(ErrorMessage = "Seleccione el pago.")]
+        public long? MovimientoPagoId { get; set; }
+
+        [Required(ErrorMessage = "El importe es obligatorio.")]
+        public string? ImporteTexto { get; set; }
+
+        public string? FechaRegistroTexto { get; set; }
+
+        public decimal Importe => EntradaDecimal.TryParse(ImporteTexto, out var v, out _) ? v : 0m;
+
+        public DateOnly? FechaRegistro => EntradaFecha.TryParse(FechaRegistroTexto, out var v, out _) ? v : null;
+
+        public IEnumerable<ValidationResult> Validate(ValidationContext validationContext) =>
+            CobroValidacion.Importe(ImporteTexto, nameof(ImporteTexto)).Concat(CobroValidacion.Fecha(FechaRegistroTexto, nameof(FechaRegistroTexto)));
+    }
+
+    private static class CobroValidacion
+    {
+        public static IEnumerable<ValidationResult> Importe(string? texto, string campo)
+        {
+            if (string.IsNullOrWhiteSpace(texto))
+            {
+                yield break;
+            }
+
+            if (!EntradaDecimal.TryParse(texto, out var valor, out var error, "El importe"))
+            {
+                yield return new ValidationResult(error, [campo]);
+            }
+            else if (valor <= 0)
+            {
+                yield return new ValidationResult("El importe debe ser mayor que cero.", [campo]);
+            }
+        }
+
+        public static IEnumerable<ValidationResult> Fecha(string? texto, string campo)
+        {
+            if (!string.IsNullOrWhiteSpace(texto) && !EntradaFecha.TryParse(texto, out _, out var error))
+            {
+                yield return new ValidationResult(error ?? "La fecha no es válida.", [campo]);
+            }
+        }
+    }
+}

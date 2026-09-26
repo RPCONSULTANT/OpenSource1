@@ -1,0 +1,604 @@
+@page "/facturas-venta/borradores"
+@attribute [Authorize(Policy = ApplicationPolicies.CanConsult)]
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Authorization
+@using OpenSource1.Application.Features.Almacenes.Dtos
+@using OpenSource1.Application.Features.FacturasVenta.Borradores.Dtos
+@using OpenSource1.Application.Features.SociosNegocio.Dtos
+@using OpenSource1.Application.Security
+@using OpenSource1.Blazor.Services
+@using OpenSource1.Core.Common
+@using OpenSource1.Core.Enums
+@inject IFacturaVentaApiClient FacturaApiClient
+@inject ISocioNegocioApiClient SocioApiClient
+@inject IAlmacenApiClient AlmacenApiClient
+@inject IAuthorizationService AuthorizationService
+@inject ILogger<FacturasVentaBorradores> Logger
+@inject NavigationManager Nav
+
+<PageTitle>Borradores de factura – AxionERP</PageTitle>
+
+<div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+    <div>
+        <p class="text-xs font-bold tracking-widest uppercase text-brand-600 mb-1">Ventas</p>
+        <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">Borradores de factura</h1>
+        <p class="text-sm text-slate-500 mt-1">Facturas de venta en preparación: cabecera, líneas, liberación y posteo.</p>
+    </div>
+    <a href="/facturas-venta" class="btn-press rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Facturas posteadas</a>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(message))
+{
+    <div class="mb-6">
+        @if (messageType == "success")
+        {
+            <ActionFeedback Type="success" Message="@message" />
+        }
+        else
+        {
+            <MessageBox Type="@messageType" Message="@message" Errors="@errores" />
+        }
+    </div>
+}
+
+@if ((canAdd || canModify) && (socios.CargaFallida || almacenes.CargaFallida))
+{
+    <div class="mb-6"><MessageBox Type="danger" Message="No fue posible cargar los clientes o los almacenes. Por seguridad no se puede agregar ni modificar un borrador hasta que carguen; recargue la página." /></div>
+}
+
+<!-- ── Filtros ── -->
+<div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden mb-6">
+    <form method="get" action="/facturas-venta/borradores" data-enhance class="p-4 sm:p-6">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div class="grid flex-1 grid-cols-1 gap-3 sm:grid-cols-3 max-w-4xl">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 mb-1" for="filtroNumero">Número</label>
+                    <input id="filtroNumero" type="text" name="numero" value="@SearchNumero" placeholder="ej. FV-BORR" class="@FiltroCss" />
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 mb-1" for="filtroNombre">Nombre de facturación</label>
+                    <input id="filtroNombre" type="text" name="nombre" value="@SearchNombre" placeholder="ej. Comercial" class="@FiltroCss" />
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 mb-1" for="filtroEstado">Estado</label>
+                    <select id="filtroEstado" name="estado" class="@FiltroCss">
+                        <option value="" selected="@(SearchEstado is null)">Todos</option>
+                        <option value="1" selected="@(SearchEstado == 1)">Abierta</option>
+                        <option value="2" selected="@(SearchEstado == 2)">Liberada</option>
+                    </select>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <button type="submit" class="btn-press inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700">Consultar</button>
+                <a href="/facturas-venta/borradores" title="Limpiar campos" class="btn-press inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Limpiar campos</a>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- ── Tabla ── -->
+<div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden mb-8">
+    <div class="px-6 py-4 border-b border-slate-100">
+        <h2 class="text-sm font-semibold text-slate-700">Borradores</h2>
+        <p class="mt-1 text-xs text-slate-500">@total resultado(s) · página @Pagina de @Math.Max(totalPaginas, 1).</p>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-slate-100 text-sm" data-testid="tabla-borradores">
+            <thead class="bg-slate-50">
+                <tr>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Número</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Vender a</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Facturar a</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Fecha reg.</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Almacén</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Estado</th>
+                    <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Líneas</th>
+                    <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Acciones</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-50 bg-white">
+                @if (borradores.Count == 0)
+                {
+                    <tr><td colspan="8" class="px-4 py-8 text-center text-slate-400 text-sm">No hay borradores con esos criterios.</td></tr>
+                }
+                else
+                {
+                    @foreach (var b in borradores)
+                    {
+                        <tr @key="b.Id" class="hover:bg-slate-50 transition-colors">
+                            <td class="px-4 py-3"><a href="@($"/facturas-venta/borradores/{b.Id}")" class="font-mono text-xs font-semibold text-brand-700 hover:underline">@b.Numero</a></td>
+                            <td class="px-4 py-3 text-slate-700">@b.SocioNegocioCodigo <span class="text-slate-400 text-xs">@b.SocioNegocioNombre</span></td>
+                            <td class="px-4 py-3 text-slate-700">@b.SocioNegocioFacturarACodigo <span class="text-slate-400 text-xs">@b.NombreFacturacion</span></td>
+                            <td class="px-4 py-3 text-slate-500 text-xs">@EntradaFecha.Formatear(b.FechaRegistro)</td>
+                            <td class="px-4 py-3 text-slate-500 text-xs">@b.AlmacenCodigo</td>
+                            <td class="px-4 py-3 text-xs"><span class="@EstadoCss(b.Estado)">@VentasOpciones.Estado(b.Estado)</span></td>
+                            <td class="px-4 py-3 text-right text-slate-700">@b.NumeroLineas</td>
+                            <td class="px-4 py-3 text-right">
+                                <div class="flex items-center justify-end gap-2">
+                                    <a href="@($"/facturas-venta/borradores/{b.Id}")" class="btn-press rounded-lg border border-brand-200 bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-700 hover:bg-brand-100" title="Abrir borrador">Abrir</a>
+                                    @if (canModify && b.Estado == EstadoFacturaBorrador.Abierta)
+                                    {
+                                        <a href="@BuildListUrl(editId: b.Id)" class="btn-press rounded-lg border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-100" title="Modificar cabecera">Modificar</a>
+                                    }
+                                    @if (canDelete && b.Estado == EstadoFacturaBorrador.Abierta)
+                                    {
+                                        <a href="@BuildListUrl(deleteId: b.Id)" class="btn-press rounded-lg border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-100" title="Eliminar borrador">Eliminar</a>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+    @if (totalPaginas > 1)
+    {
+        <div class="flex items-center justify-between gap-3 border-t border-slate-100 px-6 py-4">
+            <p class="text-xs text-slate-500">Página @Pagina de @totalPaginas</p>
+            <div class="flex items-center gap-2">
+                @if (Pagina > 1)
+                {
+                    <a href="@BuildListUrl(pagina: Pagina - 1)" class="btn-press rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">« Anterior</a>
+                }
+                @if (Pagina < totalPaginas)
+                {
+                    <a href="@BuildListUrl(pagina: Pagina + 1)" class="btn-press rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">Siguiente »</a>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@if (canAdd || (canModify && EditId.HasValue))
+{
+    <!-- ── Búsqueda de clientes para los selectores ── -->
+    <div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden mb-6">
+        <form method="get" action="/facturas-venta/borradores" data-enhance class="flex flex-wrap items-end gap-2 p-4 sm:px-6">
+            @if (EditId.HasValue)
+            {
+                <input type="hidden" name="editId" value="@EditId" />
+            }
+            <div class="flex-1 min-w-60 max-w-md">
+                <label class="block text-xs font-semibold text-slate-500 mb-1" for="socioQuery">Buscar cliente por nombre (para los selectores)</label>
+                <input id="socioQuery" type="text" name="socioQuery" value="@SocioQuery" placeholder="ej. Comercial" class="@FiltroCss" />
+            </div>
+            <button type="submit" class="btn-press rounded-lg bg-slate-700 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">Buscar</button>
+            <p class="w-full text-xs text-slate-400">Se muestran los primeros @VentasOpciones.MaximoSocios clientes por nombre@(string.IsNullOrWhiteSpace(SocioQuery) ? "" : $" que contienen «{SocioQuery}»").</p>
+        </form>
+    </div>
+}
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    @if (canAdd)
+    {
+        <div id="agregar" class="rounded-2xl border border-green-200 bg-white shadow-sm overflow-hidden">
+            <div class="px-6 py-4 bg-green-50 border-b border-green-100"><h2 class="text-sm font-bold text-green-800">Agregar borrador</h2></div>
+            <div class="px-6 py-5">
+                <EditForm Model="AddInput" FormName="add-borrador" OnValidSubmit="CreateAsync" Enhance="true">
+                    <DataAnnotationsValidator />
+                    @Campos(AddInput!, "AddInput", null)
+                    <div class="mt-5 flex items-center gap-3">
+                        @if (!OpcionesFallidas)
+                        {
+                            <button type="submit" class="btn-press rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 shadow-sm">Agregar</button>
+                        }
+                        <a href="@BuildListUrl()" class="btn-press rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Limpiar campos</a>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    }
+
+    @if (canModify && EditId.HasValue)
+    {
+        <div id="modificar" class="rounded-2xl border border-amber-200 bg-white shadow-sm overflow-hidden">
+            <div class="px-6 py-4 bg-amber-50 border-b border-amber-100"><h2 class="text-sm font-bold text-amber-800">Modificar cabecera @(borradorEnEdicion?.Numero)</h2></div>
+            <div class="px-6 py-5">
+                @if (borradorEnEdicion is null)
+                {
+                    <MessageBox Type="warning" Message="No se encontró el borrador seleccionado. Puede haber sido posteado o eliminado por otro usuario." />
+                }
+                else
+                {
+                    @if (borradorEnEdicion.Estado == EstadoFacturaBorrador.Liberada)
+                    {
+                        <div class="mb-4"><MessageBox Type="warning" Message="El borrador está liberado: reábralo para modificarlo." /></div>
+                    }
+                    <EditForm Model="UpdateInput" FormName="update-borrador" OnValidSubmit="UpdateAsync" Enhance="true">
+                        <DataAnnotationsValidator />
+                        <input type="hidden" name="UpdateInput.Xmin" value="@UpdateInput!.Xmin" />
+                        @Campos(UpdateInput, "UpdateInput", borradorEnEdicion)
+                        <div class="mt-5 flex items-center gap-3">
+                            @if (!OpcionesFallidas)
+                            {
+                                <button type="submit" class="btn-press rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-600 shadow-sm">Guardar cambios</button>
+                            }
+                            <a href="@BuildListUrl(editId: EditId)" class="btn-press rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Limpiar campos</a>
+                            <a href="@BuildListUrl()" class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">Cancelar</a>
+                        </div>
+                    </EditForm>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@if (DeleteId.HasValue && canDelete)
+{
+    <ConfirmDialog Title="Confirmar eliminación" Message="Se eliminará el borrador seleccionado con todas sus líneas. Esta acción no se puede deshacer." Variant="danger" CancelHref="@BuildListUrl()">
+        <p class="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-mono text-red-900">@(borradorAEliminar is null ? DeleteId.Value.ToString() : $"{borradorAEliminar.Numero} — {borradorAEliminar.NombreFacturacion} ({borradorAEliminar.NumeroLineas} línea(s))")</p>
+        <EditForm Model="DeleteInput" FormName="delete-borrador" OnValidSubmit="DeleteAsync" class="mt-4">
+            <input type="hidden" name="DeleteInput.Id" value="@DeleteId" />
+            <button type="submit" class="btn-press rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-700">Sí, eliminar</button>
+            <a href="@BuildListUrl()" class="btn-press ml-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Cancelar</a>
+        </EditForm>
+    </ConfirmDialog>
+}
+
+@code {
+    private const string InputCss = "block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20";
+    private const string FiltroCss = "block w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-600/20";
+
+    [SupplyParameterFromForm(FormName = "add-borrador")] private BorradorForm? AddInput { get; set; }
+    [SupplyParameterFromForm(FormName = "update-borrador")] private BorradorForm? UpdateInput { get; set; }
+    [SupplyParameterFromForm(FormName = "delete-borrador")] private DeleteForm? DeleteInput { get; set; }
+
+    [SupplyParameterFromQuery(Name = "numero")] private string? SearchNumero { get; set; }
+    [SupplyParameterFromQuery(Name = "nombre")] private string? SearchNombre { get; set; }
+    // [SupplyParameterFromQuery] no admite enums: el estado viaja como entero (1 = Abierta, 2 = Liberada).
+    [SupplyParameterFromQuery(Name = "estado")] private int? SearchEstado { get; set; }
+    [SupplyParameterFromQuery(Name = "pagina")] private int Pagina { get; set; } = 1;
+    [SupplyParameterFromQuery(Name = "editId")] private Guid? EditId { get; set; }
+    [SupplyParameterFromQuery(Name = "deleteId")] private Guid? DeleteId { get; set; }
+    [SupplyParameterFromQuery(Name = "socioQuery")] private string? SocioQuery { get; set; }
+    [SupplyParameterFromQuery(Name = "ok")] private string? Ok { get; set; }
+
+    private IReadOnlyList<FacturaVentaBorradorResponse> borradores = [];
+    private long total;
+    private int totalPaginas;
+    private FacturaVentaBorradorResponse? borradorEnEdicion;
+    private FacturaVentaBorradorResponse? borradorAEliminar;
+    private OpcionesCargadas<SocioNegocioResponse> socios = OpcionesCargadas<SocioNegocioResponse>.SinCargar;
+    private OpcionesCargadas<AlmacenResponse> almacenes = OpcionesCargadas<AlmacenResponse>.SinCargar;
+    private string? message;
+    private string messageType = "info";
+    private IReadOnlyList<string> errores = [];
+    private bool canAdd;
+    private bool canModify;
+    private bool canDelete;
+
+    private bool OpcionesFallidas => socios.CargaFallida || almacenes.CargaFallida;
+
+    [CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        AddInput ??= new() { FechaRegistroTexto = EntradaFecha.Formatear(DateOnly.FromDateTime(DateTime.Today)) };
+        UpdateInput ??= new();
+        DeleteInput ??= new();
+
+        if (AuthenticationStateTask is not null)
+        {
+            var user = (await AuthenticationStateTask).User;
+            canAdd = (await AuthorizationService.AuthorizeAsync(user, ApplicationPolicies.CanAdd)).Succeeded;
+            canModify = (await AuthorizationService.AuthorizeAsync(user, ApplicationPolicies.CanModify)).Succeeded;
+            canDelete = (await AuthorizationService.AuthorizeAsync(user, ApplicationPolicies.CanDelete)).Succeeded;
+        }
+
+        await LoadAsync();
+
+        if (canAdd || (canModify && EditId.HasValue))
+        {
+            socios = await VentasOpciones.SociosAsync(SocioApiClient, SocioQuery, Logger);
+            almacenes = await VentasOpciones.AlmacenesAsync(AlmacenApiClient, Logger);
+        }
+
+        if (Ok is not null)
+        {
+            (messageType, message) = Ok switch
+            {
+                "eliminado" => ("success", "Borrador eliminado satisfactoriamente."),
+                _ => ("info", null)
+            };
+        }
+
+        if (DeleteId.HasValue && canDelete)
+        {
+            try { borradorAEliminar = await FacturaApiClient.GetBorradorAsync(DeleteId.Value); }
+            catch (Exception ex) { Logger.LogWarning(ex, "Could not load borrador {Id} to delete.", DeleteId); }
+        }
+
+        if (EditId.HasValue && canModify)
+        {
+            try
+            {
+                borradorEnEdicion = await FacturaApiClient.GetBorradorAsync(EditId.Value);
+                // Solo se rellena con lo guardado cuando NO llegó un formulario de modificación (Xmin = 0).
+                if (borradorEnEdicion is not null && UpdateInput.Xmin == 0)
+                {
+                    UpdateInput.SocioNegocioId = borradorEnEdicion.SocioNegocioId;
+                    UpdateInput.SocioNegocioFacturarAId = borradorEnEdicion.SocioNegocioFacturarAId;
+                    UpdateInput.FechaRegistroTexto = EntradaFecha.Formatear(borradorEnEdicion.FechaRegistro);
+                    UpdateInput.FechaDocumentoTexto = EntradaFecha.Formatear(borradorEnEdicion.FechaDocumento);
+                    UpdateInput.FechaVencimientoTexto = EntradaFecha.Formatear(borradorEnEdicion.FechaVencimiento);
+                    UpdateInput.AlmacenId = borradorEnEdicion.AlmacenId;
+                    UpdateInput.Descripcion = borradorEnEdicion.Descripcion;
+                    UpdateInput.Xmin = borradorEnEdicion.Xmin;
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Could not load borrador {Id} to edit.", EditId);
+                Show("danger", "No fue posible cargar el borrador a modificar.");
+            }
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            var estado = SearchEstado is 1 or 2 ? SearchEstado : null;
+            var filtro = new FacturaVentaBorradorFiltro(EmptyAsNull(SearchNumero), EmptyAsNull(SearchNombre), null, estado);
+            if (Pagina < 1) Pagina = 1;
+            // Orden explícito (PageRequest.Descendente es true por defecto): lo último creado primero.
+            var pagina = await FacturaApiClient.ListBorradoresAsync(filtro, new PageRequest(Pagina, PageRequest.TamanoPorDefecto, "CreatedAtUtc", Descendente: true));
+            if (pagina.TotalPaginas > 0 && Pagina > pagina.TotalPaginas)
+            {
+                Pagina = pagina.TotalPaginas;
+                pagina = await FacturaApiClient.ListBorradoresAsync(filtro, new PageRequest(Pagina, PageRequest.TamanoPorDefecto, "CreatedAtUtc", Descendente: true));
+            }
+
+            borradores = pagina.Items;
+            total = pagina.Total;
+            totalPaginas = pagina.TotalPaginas;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not load borradores de factura.");
+            Show("danger", "No fue posible cargar los borradores de factura.");
+        }
+    }
+
+    private RenderFragment Campos(BorradorForm model, string prefix, FacturaVentaBorradorResponse? vigente) => __builder =>
+    {
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{prefix}_SocioNegocioId")">Vender a <span class="text-red-500">*</span></label>
+                <select id="@($"{prefix}_SocioNegocioId")" name="@($"{prefix}.SocioNegocioId")" class="@InputCss">
+                    <option value="" selected="@(model.SocioNegocioId is null)">— Seleccione —</option>
+                    @OpcionSocioVigente(model.SocioNegocioId, vigente?.SocioNegocioId, vigente?.SocioNegocioCodigo, vigente?.SocioNegocioNombre)
+                    @foreach (var s in socios.Items)
+                    {
+                        <option value="@s.Id" selected="@(s.Id == model.SocioNegocioId)">@s.Codigo — @s.NombreComercial</option>
+                    }
+                </select>
+                <ValidationMessage For="() => model.SocioNegocioId" />
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{prefix}_SocioNegocioFacturarAId")">Facturar a</label>
+                <select id="@($"{prefix}_SocioNegocioFacturarAId")" name="@($"{prefix}.SocioNegocioFacturarAId")" class="@InputCss">
+                    <option value="" selected="@(model.SocioNegocioFacturarAId is null)">— Igual que vender a —</option>
+                    @OpcionSocioVigente(model.SocioNegocioFacturarAId, vigente?.SocioNegocioFacturarAId, vigente?.SocioNegocioFacturarACodigo, vigente?.NombreFacturacion)
+                    @foreach (var s in socios.Items)
+                    {
+                        <option value="@s.Id" selected="@(s.Id == model.SocioNegocioFacturarAId)">@s.Codigo — @s.NombreComercial</option>
+                    }
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{prefix}_FechaRegistroTexto")">Fecha de registro@(vigente is null ? "" : " *")</label>
+                <input id="@($"{prefix}_FechaRegistroTexto")" type="date" name="@($"{prefix}.FechaRegistroTexto")" value="@model.FechaRegistroTexto" class="@InputCss" />
+                <ValidationMessage For="() => model.FechaRegistroTexto" />
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{prefix}_FechaDocumentoTexto")">Fecha de documento@(vigente is null ? "" : " *")</label>
+                <input id="@($"{prefix}_FechaDocumentoTexto")" type="date" name="@($"{prefix}.FechaDocumentoTexto")" value="@model.FechaDocumentoTexto" class="@InputCss" />
+                <ValidationMessage For="() => model.FechaDocumentoTexto" />
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{prefix}_FechaVencimientoTexto")">Fecha de vencimiento</label>
+                <input id="@($"{prefix}_FechaVencimientoTexto")" type="date" name="@($"{prefix}.FechaVencimientoTexto")" value="@model.FechaVencimientoTexto" class="@InputCss" />
+                <ValidationMessage For="() => model.FechaVencimientoTexto" />
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{prefix}_AlmacenId")">Almacén</label>
+                <select id="@($"{prefix}_AlmacenId")" name="@($"{prefix}.AlmacenId")" class="@InputCss">
+                    @if (vigente is null)
+                    {
+                        <option value="" selected="@(model.AlmacenId is null)">— Predeterminado —</option>
+                    }
+                    @if (model.AlmacenId is { } almacenId && almacenes.Items.All(a => a.Id != almacenId))
+                    {
+                        <option value="@almacenId" selected="selected">@(vigente?.AlmacenId == almacenId && vigente.AlmacenCodigo is not null ? $"{vigente.AlmacenCodigo} (no disponible)" : $"Almacén no disponible ({almacenId})")</option>
+                    }
+                    @foreach (var a in almacenes.Items)
+                    {
+                        <option value="@a.Id" selected="@(a.Id == model.AlmacenId)">@a.Codigo — @a.Nombre</option>
+                    }
+                </select>
+            </div>
+            <div class="sm:col-span-2">
+                <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{prefix}_Descripcion")">Descripción</label>
+                <input id="@($"{prefix}_Descripcion")" type="text" name="@($"{prefix}.Descripcion")" value="@model.Descripcion" maxlength="200" class="@InputCss" />
+                <ValidationMessage For="() => model.Descripcion" />
+            </div>
+        </div>
+        <p class="mt-2 text-xs text-slate-400">
+            @(vigente is null
+                ? "Fechas vacías: registro = hoy, documento = registro, vencimiento = documento + días del término de pago del cliente."
+                : "Si cambia la fecha de documento y deja el vencimiento como estaba, la API lo recalcula con el término de pago.")
+        </p>
+    };
+
+    // El socio seleccionado se ofrece SIEMPRE aunque no esté entre los resultados de la búsqueda: sin esto el <select> no
+    // reflejaría el socio guardado y guardar lo cambiaría en silencio.
+    private RenderFragment OpcionSocioVigente(Guid? seleccion, Guid? vigenteId, string? codigo, string? nombre) => __builder =>
+    {
+        if (seleccion is { } id && socios.Items.All(s => s.Id != id))
+        {
+            <option value="@id" selected="selected">@(vigenteId == id && !string.IsNullOrWhiteSpace(codigo) ? $"{codigo} — {nombre}" : $"Cliente seleccionado ({id})")</option>
+        }
+    };
+
+    private async Task CreateAsync()
+    {
+        if (OpcionesFallidas) return;
+        var f = AddInput!;
+        var input = new BorradorCabeceraInput(
+            f.SocioNegocioId!.Value, f.SocioNegocioFacturarAId, f.FechaRegistro, f.FechaDocumento, f.FechaVencimiento, f.AlmacenId,
+            EmptyAsNull(f.Descripcion));
+        try
+        {
+            var result = await FacturaApiClient.CreateBorradorAsync(input);
+            if (result.Succeeded)
+            {
+                Nav.NavigateTo($"/facturas-venta/borradores/{result.Valor!.Id}?ok=creado");
+                return;
+            }
+
+            errores = result.Errors ?? [];
+            Show("warning", result.Message);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not create borrador de factura.");
+            Show("danger", "No fue posible crear el borrador.");
+        }
+    }
+
+    private async Task UpdateAsync()
+    {
+        if (OpcionesFallidas) return;
+        if (!EditId.HasValue || borradorEnEdicion is null)
+        {
+            Show("warning", "Seleccione primero un borrador a modificar desde la tabla.");
+            return;
+        }
+
+        var f = UpdateInput!;
+        if (f.FechaRegistro is null || f.FechaDocumento is null)
+        {
+            Show("warning", "Las fechas de registro y de documento son obligatorias al modificar.");
+            return;
+        }
+
+        // El vencimiento solo viaja si el usuario lo cambió: si no, "null = conservar" deja que la API lo recalcule cuando
+        // cambia la fecha de documento (reenviar el valor viejo podría quedar antes de la nueva fecha de documento).
+        var vencimiento = f.FechaVencimiento == borradorEnEdicion.FechaVencimiento ? null : f.FechaVencimiento;
+        var input = new BorradorCabeceraInput(
+            f.SocioNegocioId!.Value, f.SocioNegocioFacturarAId, f.FechaRegistro, f.FechaDocumento, vencimiento, f.AlmacenId,
+            f.Descripcion?.Trim() ?? string.Empty);
+        try
+        {
+            var result = await FacturaApiClient.UpdateBorradorAsync(EditId.Value, input, f.Xmin);
+            if (result.Succeeded)
+            {
+                Nav.NavigateTo($"/facturas-venta/borradores/{EditId.Value}?ok=modificado");
+                return;
+            }
+
+            errores = result.Errors ?? [];
+            Show("warning", result.Message);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not update borrador {Id}.", EditId);
+            Show("danger", "No fue posible modificar el borrador.");
+        }
+    }
+
+    private async Task DeleteAsync()
+    {
+        try
+        {
+            var result = await FacturaApiClient.DeleteBorradorAsync(DeleteInput!.Id);
+            if (result.Succeeded)
+            {
+                Nav.NavigateTo("/facturas-venta/borradores?ok=eliminado");
+                return;
+            }
+
+            errores = result.Errors ?? [];
+            Show("warning", result.Message);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not delete borrador.");
+            Show("danger", "No fue posible eliminar el borrador.");
+        }
+    }
+
+    private string BuildListUrl(int? pagina = null, Guid? editId = null, Guid? deleteId = null)
+    {
+        var parameters = new List<string>();
+        if (!string.IsNullOrWhiteSpace(SearchNumero)) parameters.Add($"numero={Uri.EscapeDataString(SearchNumero)}");
+        if (!string.IsNullOrWhiteSpace(SearchNombre)) parameters.Add($"nombre={Uri.EscapeDataString(SearchNombre)}");
+        if (SearchEstado is 1 or 2) parameters.Add($"estado={SearchEstado}");
+        var paginaEfectiva = pagina ?? Pagina;
+        if (paginaEfectiva > 1) parameters.Add($"pagina={paginaEfectiva}");
+        if (editId.HasValue) parameters.Add($"editId={editId.Value}");
+        if (deleteId.HasValue) parameters.Add($"deleteId={deleteId.Value}");
+        return parameters.Count == 0 ? "/facturas-venta/borradores" : $"/facturas-venta/borradores?{string.Join("&", parameters)}";
+    }
+
+    private static string EstadoCss(EstadoFacturaBorrador estado) => estado == EstadoFacturaBorrador.Liberada
+        ? "inline-flex rounded-full bg-amber-50 px-2 py-0.5 font-semibold text-amber-700"
+        : "inline-flex rounded-full bg-green-50 px-2 py-0.5 font-semibold text-green-700";
+
+    private void Show(string type, string text) { messageType = type; message = text; }
+
+    private static string? EmptyAsNull(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    public sealed class BorradorForm : IValidatableObject
+    {
+        [Required(ErrorMessage = "Seleccione el cliente vender-a.")]
+        public Guid? SocioNegocioId { get; set; }
+
+        public Guid? SocioNegocioFacturarAId { get; set; }
+
+        public string? FechaRegistroTexto { get; set; }
+
+        public string? FechaDocumentoTexto { get; set; }
+
+        public string? FechaVencimientoTexto { get; set; }
+
+        public Guid? AlmacenId { get; set; }
+
+        [MaxLength(200, ErrorMessage = "La descripción admite como máximo 200 caracteres.")]
+        public string? Descripcion { get; set; }
+
+        public long Xmin { get; set; }
+
+        public DateOnly? FechaRegistro => Fecha(FechaRegistroTexto);
+
+        public DateOnly? FechaDocumento => Fecha(FechaDocumentoTexto);
+
+        public DateOnly? FechaVencimiento => Fecha(FechaVencimientoTexto);
+
+        public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+        {
+            foreach (var (texto, campo, etiqueta) in new[]
+                     {
+                         (FechaRegistroTexto, nameof(FechaRegistroTexto), "La fecha de registro"),
+                         (FechaDocumentoTexto, nameof(FechaDocumentoTexto), "La fecha de documento"),
+                         (FechaVencimientoTexto, nameof(FechaVencimientoTexto), "La fecha de vencimiento"),
+                     })
+            {
+                if (!string.IsNullOrWhiteSpace(texto) && !EntradaFecha.TryParse(texto, out _, out var error, etiqueta))
+                {
+                    yield return new ValidationResult(error ?? $"{etiqueta} no es válida.", [campo]);
+                }
+            }
+        }
+
+        private static DateOnly? Fecha(string? texto) =>
+            !string.IsNullOrWhiteSpace(texto) && EntradaFecha.TryParse(texto, out var valor, out _) ? valor : null;
+    }
+
+    public sealed class DeleteForm
+    {
+        public Guid Id { get; set; }
+    }
+}
