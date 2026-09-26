@@ -28,6 +28,16 @@ namespace OpenSource1.Application.Features.DiariosInventario.Registros.Handlers;
 /// <item>Movimientos en el orden de las desviaciones (fecha, entradas antes que salidas, número de línea).</item>
 /// <item>Invariante de reclasificación (salida + entrada = 0), <c>RegistroDiario</c> y borrado lógico de las líneas.</item>
 /// </list>
+/// <para>
+/// Orden GLOBAL de locks (ver también el XML doc de <c>BloqueoInventarioProducto</c>/<c>BloqueoInventarioAlmacen</c>):
+/// lote -&gt; líneas -&gt; productos (ordenados) -&gt; línea de serie -&gt; almacenes (compartidos, uno por
+/// <see cref="MovimientoInventarioSolicitud"/> dentro del paso 5). El <c>FOR UPDATE</c> de la línea de serie
+/// (<see cref="IGeneradorNumeroDocumento.SiguienteAsync"/>) serializa, además, GLOBALMENTE todos los registros que
+/// usan esa misma serie: por eso quitar el bloqueo de productos del paso 2 no haría fallar por interbloqueo dos
+/// posteos concurrentes que no comparten producto (ya los serializa la serie); ese bloqueo de productos sigue siendo
+/// necesario para el interbloqueo A/B-B/A DENTRO de un mismo posteo y para no colarse con otros escritores del
+/// producto (borrarlo, cambiar su unidad base).
+/// </para>
 /// </summary>
 public sealed class PostearLoteDiarioCommandHandler(
     IUnitOfWork unitOfWork,
@@ -44,6 +54,16 @@ public sealed class PostearLoteDiarioCommandHandler(
 
     public async Task<Result<ResultadoRegistroLote>> Handle(PostearLoteDiarioCommand request, CancellationToken cancellationToken)
     {
+        // Este handler garantiza SU PROPIA atomicidad (ver el XML doc de PostearLoteDiarioCommand): invocarlo dentro
+        // de una transacción ya abierta haría que BeginTransactionAsync se uniera a un ámbito anidado que no hace
+        // nada al salir, así que un "return Fallo" de abajo no deshace nada y el CommitAsync de más abajo confirmaría
+        // la transacción EXTERNA. Mejor fallar alto y claro que dejarlo pasar en silencio.
+        if (unitOfWork.HayTransaccionActiva)
+        {
+            throw new InvalidOperationException(
+                "PostearLoteDiario debe ejecutarse fuera de otra transacción: garantiza su propia atomicidad.");
+        }
+
         // Sin CommitAsync, salir del "await using" deshace la transacción (y libera todos los bloqueos): cada "return" de
         // fallo de abajo deja la base exactamente como estaba.
         await using var transaccion = await unitOfWork.BeginTransactionAsync(cancellationToken);

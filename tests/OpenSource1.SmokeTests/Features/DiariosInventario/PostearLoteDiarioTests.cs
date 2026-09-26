@@ -255,6 +255,30 @@ public sealed class PostearLoteDiarioTests(PostgresTestFixture fixture) : IClass
     }
 
     [Fact]
+    public async Task InvocadoDentroDeOtraTransaccionYaAbierta_Lanza()
+    {
+        // Ronda de corrección final de la Fase 4 (punto 2): con una transacción externa ya abierta en la misma
+        // conexión, BeginTransactionAsync del handler se uniría a un ámbito anidado que no hace nada al confirmar ni
+        // al deshacer (DbSession.AmbitoAnidado): el handler debe rechazarlo ANTES de tocar nada.
+        var p = await _prueba.SembrarProductoAsync();
+        var alm = await _prueba.SembrarAlmacenAsync();
+        var lote = await CrearLoteAsync(PlantillaDiarioIds.Articulo);
+        await AgregarLineaAsync(lote, TipoMovimientoInventario.AjustePositivo, p, alm, 1m, 1m, D1);
+
+        await using var scope = _prueba.Provider.CreateAsyncScope();
+        var sesion = scope.ServiceProvider.GetRequiredService<IDbSession>();
+        await using var tx = await sesion.BeginTransactionAsync();
+        var handler = ActivatorUtilities.CreateInstance<PostearLoteDiarioCommandHandler>(scope.ServiceProvider);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => handler.Handle(new PostearLoteDiarioCommand(lote), default));
+
+        await sesion.RollbackAsync();
+        Assert.Equal((0L, 0L, 0L), await _prueba.ContarFilasAsync(p));
+        Assert.Equal(1, await LineasVivasAsync(lote));
+    }
+
+    [Fact]
     public async Task ReviewFocus3_RegistrarDosVecesSeguidas_LaSegundaEsLoteVacioYNoDuplica()
     {
         var p = await _prueba.SembrarProductoAsync();
