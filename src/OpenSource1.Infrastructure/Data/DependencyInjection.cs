@@ -9,6 +9,7 @@ using OpenSource1.Application.Data.UnitOfWork;
 using OpenSource1.Application.Features.SociosNegocio;
 using OpenSource1.Application.Features.Almacenes;
 using OpenSource1.Application.Features.AppSettings;
+using OpenSource1.Application.Features.Cobros;
 using OpenSource1.Application.Features.CategoriasProducto;
 using OpenSource1.Application.Features.Contabilidad;
 using OpenSource1.Application.Features.FacturasVenta.Posteadas;
@@ -110,6 +111,7 @@ public static class DependencyInjection
         services.AddScoped<IFacturaVentaBorradorDatos, FacturaVentaBorradorDatos>();
         services.AddScoped<IPosteoFacturaVentaDatos, PosteoFacturaVentaDatos>();
         services.AddScoped<IRegistroMovimientosCliente, RegistroMovimientosCliente>();
+        services.AddScoped<ICobroDatos, CobroDatos>();
         services.AddScoped<ISocioNegocioUsoService, SocioNegocioUsoService>();
         services.AddScoped<IFacturaVentaReadRepository, DapperFacturaVentaReadRepository>();
         services.AddScoped<IMovimientoClienteReadRepository, DapperMovimientoClienteReadRepository>();

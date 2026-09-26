@@ -47,3 +47,19 @@ public sealed class GetSaldoClienteQueryHandler(IMovimientoClienteReadRepository
         return Result<SaldoClienteResponse>.Exito(await readRepository.GetSaldoAsync(request.SocioNegocioId, cancellationToken));
     }
 }
+
+public sealed class ListMovimientosAbiertosClienteQueryHandler(IMovimientoClienteReadRepository readRepository)
+    : IRequestHandler<ListMovimientosAbiertosClienteQuery, Result<IReadOnlyList<MovimientoClienteResponse>>>
+{
+    public async Task<Result<IReadOnlyList<MovimientoClienteResponse>>> Handle(
+        ListMovimientosAbiertosClienteQuery request, CancellationToken cancellationToken)
+    {
+        if (!await readRepository.ExisteSocioAsync(request.SocioNegocioId, cancellationToken))
+        {
+            return Result<IReadOnlyList<MovimientoClienteResponse>>.Fallo(MovimientoClienteErrores.SocioNoEncontrado());
+        }
+
+        return Result<IReadOnlyList<MovimientoClienteResponse>>.Exito(
+            await readRepository.ListAbiertosAsync(request.SocioNegocioId, cancellationToken));
+    }
+}

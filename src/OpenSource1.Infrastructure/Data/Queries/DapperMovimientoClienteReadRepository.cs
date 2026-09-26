@@ -16,6 +16,21 @@ public sealed class DapperMovimientoClienteReadRepository(IDbSession session) : 
     private static readonly ColumnasPermitidas ColumnasPermitidas =
         new("Id", "FechaRegistro", "FechaVencimiento", "NumeroDocumento", "ImporteOriginal", "ImporteRestante");
 
+    /// <summary>Movimientos del socio con su restante derivado; el filtro de abiertos y el orden se aplican sobre esta consulta.</summary>
+    private const string BaseSql = """
+            SELECT m."Id", m."SocioNegocioId", m."FechaRegistro", m."FechaDocumento", m."FechaVencimiento", m."TipoDocumento",
+                   m."NumeroDocumento", m."Descripcion", m."ImporteOriginal", r."Restante" AS "ImporteRestante",
+                   r."Restante" <> 0 AS "Abierta", m."GrupoClienteContableId", m."CuentaCxCId", c."Numero" AS "NumeroCuentaCxC",
+                   m."TipoOrigen", m."ClaveOrigen", m."CreatedAtUtc", m."CreatedBy"
+            FROM "MovimientosCliente" m
+            CROSS JOIN LATERAL (
+                SELECT COALESCE(SUM(d."Importe"), 0) AS "Restante"
+                FROM "MovimientosClienteDetalle" d WHERE d."MovimientoClienteId" = m."Id"
+            ) r
+            LEFT JOIN "CuentasContables" c ON c."Id" = m."CuentaCxCId"
+            WHERE m."SocioNegocioId" = @SocioNegocioId
+        """;
+
     public async Task<bool> ExisteSocioAsync(Guid socioNegocioId, CancellationToken cancellationToken = default)
     {
         await session.EnsureOpenAsync(cancellationToken);
@@ -61,27 +76,14 @@ public sealed class DapperMovimientoClienteReadRepository(IDbSession session) : 
         parameters.Add("TamanoPagina", pagina.TamanoPagina);
         parameters.Add("Offset", pagina.Offset);
 
-        const string baseSql = """
-            SELECT m."Id", m."SocioNegocioId", m."FechaRegistro", m."FechaDocumento", m."FechaVencimiento", m."TipoDocumento",
-                   m."NumeroDocumento", m."Descripcion", m."ImporteOriginal", r."Restante" AS "ImporteRestante",
-                   r."Restante" <> 0 AS "Abierta", m."GrupoClienteContableId", m."CuentaCxCId", c."Numero" AS "NumeroCuentaCxC",
-                   m."TipoOrigen", m."ClaveOrigen", m."CreatedAtUtc", m."CreatedBy"
-            FROM "MovimientosCliente" m
-            CROSS JOIN LATERAL (
-                SELECT COALESCE(SUM(d."Importe"), 0) AS "Restante"
-                FROM "MovimientosClienteDetalle" d WHERE d."MovimientoClienteId" = m."Id"
-            ) r
-            LEFT JOIN "CuentasContables" c ON c."Id" = m."CuentaCxCId"
-            WHERE m."SocioNegocioId" = @SocioNegocioId
-            """;
 
         var countSql = $"""
-            SELECT COUNT(*) FROM ({baseSql}) b
+            SELECT COUNT(*) FROM ({BaseSql}) b
             {whereSql}
             """;
 
         var pageSql = $"""
-            SELECT * FROM ({baseSql}) b
+            SELECT * FROM ({BaseSql}) b
             {whereSql}
             ORDER BY {ColumnasPermitidas.Citar(ordenColumna)} {direccionSql}, "Id" {direccionSql}
             LIMIT @TamanoPagina OFFSET @Offset
@@ -94,6 +96,20 @@ public sealed class DapperMovimientoClienteReadRepository(IDbSession session) : 
             new CommandDefinition(pageSql, parameters, session.CurrentTransaction, cancellationToken: cancellationToken));
 
         return new PagedResult<MovimientoClienteResponse>(items.AsList(), pagina.Pagina, pagina.TamanoPagina, total);
+    }
+
+    public async Task<IReadOnlyList<MovimientoClienteResponse>> ListAbiertosAsync(Guid socioNegocioId, CancellationToken cancellationToken = default)
+    {
+        const string sql = $"""
+            SELECT * FROM ({BaseSql}) b
+            WHERE "Abierta"
+            ORDER BY "FechaRegistro", "Id"
+            """;
+
+        await session.EnsureOpenAsync(cancellationToken);
+        var items = await session.Connection.QueryAsync<MovimientoClienteResponse>(new CommandDefinition(
+            sql, new { SocioNegocioId = socioNegocioId }, session.CurrentTransaction, cancellationToken: cancellationToken));
+        return items.AsList();
     }
 
     public async Task<SaldoClienteResponse> GetSaldoAsync(Guid socioNegocioId, CancellationToken cancellationToken = default)

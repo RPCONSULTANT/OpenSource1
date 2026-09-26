@@ -357,6 +357,19 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                     CreatedBy = "system",
                     IsDeleted = false
                 });
+
+            // Serie COBRO (Task 6.5): pagos de clientes, sin huecos (se deshace con la transacción del pago). Mismo patrón.
+            entity.HasData(new
+            {
+                Id = SerieCobroIds.SerieId,
+                Codigo = SerieCobroIds.Codigo,
+                Descripcion = "Cobros de clientes",
+                PermiteHuecos = false,
+                PorDefecto = false,
+                CreatedAtUtc = FechaSemilla,
+                CreatedBy = "system",
+                IsDeleted = false
+            });
         });
 
         modelBuilder.Entity<LineaSerie>(entity =>
@@ -450,6 +463,22 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                     CreatedBy = "system",
                     IsDeleted = false
                 });
+
+            // Línea vigente de COBRO (Task 6.5), 8 dígitos. Misma regla: NUNCA editar "UltimoNumeroUsado" aquí.
+            entity.HasData(new
+            {
+                Id = SerieCobroIds.LineaSerieId,
+                SerieId = SerieCobroIds.SerieId,
+                NumeroInicial = "00000001",
+                NumeroFinal = "99999999",
+                UltimoNumeroUsado = "00000000",
+                FechaInicial = new DateOnly(2020, 1, 1),
+                Incremento = 1,
+                Bloqueada = false,
+                CreatedAtUtc = FechaSemilla,
+                CreatedBy = "system",
+                IsDeleted = false
+            });
         });
 
         modelBuilder.Entity<Almacen>(entity =>

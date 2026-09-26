@@ -15,6 +15,9 @@ public interface IMovimientoClienteReadRepository
     Task<PagedResult<MovimientoClienteResponse>> ListAsync(
         MovimientoClienteSearchCriteria search, PageRequest paginacion, CancellationToken cancellationToken = default);
 
+    /// <summary>Movimientos del socio con restante ≠ 0, en orden cronológico (<c>FechaRegistro</c>, <c>Id</c>), sin paginar.</summary>
+    Task<IReadOnlyList<MovimientoClienteResponse>> ListAbiertosAsync(Guid socioNegocioId, CancellationToken cancellationToken = default);
+
     /// <summary><c>Σ detalle.Importe</c> de todos los movimientos del socio y cuántos siguen abiertos.</summary>
     Task<SaldoClienteResponse> GetSaldoAsync(Guid socioNegocioId, CancellationToken cancellationToken = default);
 }
