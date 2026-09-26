@@ -339,3 +339,6 @@ recreándose igual en cada pasada. `RegistrosDiario` quedó protegida por el mis
   fallar entre dos lotes de diario distintos: el prebloqueo de productos evita el interbloqueo A/B-B/A dentro de un
   mismo posteo, pero la protección contra OTROS escritores del libro (otro registro, otro borrado de producto/almacén)
   ya la da el orden global de locks (lote → líneas → productos → línea de serie → almacenes).
+- Borrar una línea mientras otro registra el lote devuelve 409 (conflicto de `xmin`) en lugar de un 404 limpio: el borrado lee
+  la línea antes de tomar el lock del lote y no la relee. Sin corrupción (rollback).
+- Borrar un lote con `Bloqueado = true` no se rechaza (sí se rechazan altas, ediciones y borrados de sus líneas).
