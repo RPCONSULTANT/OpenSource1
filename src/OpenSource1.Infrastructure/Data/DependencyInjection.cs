@@ -11,6 +11,8 @@ using OpenSource1.Application.Features.Almacenes;
 using OpenSource1.Application.Features.AppSettings;
 using OpenSource1.Application.Features.CategoriasProducto;
 using OpenSource1.Application.Features.Contabilidad;
+using OpenSource1.Application.Features.FacturasVenta.Posteadas;
+using OpenSource1.Application.Features.MovimientosCliente;
 using OpenSource1.Application.Features.CuentasContables;
 using OpenSource1.Application.Features.DiariosInventario.Lineas;
 using OpenSource1.Application.Features.DiariosInventario.Lotes;
@@ -103,6 +105,8 @@ public static class DependencyInjection
         services.AddScoped<ILineaFacturaVentaBorradorReadRepository, DapperLineaFacturaVentaBorradorReadRepository>();
         services.AddScoped<IFacturaVentaBorradorBloqueoService, FacturaVentaBorradorBloqueoService>();
         services.AddScoped<IFacturaVentaBorradorDatos, FacturaVentaBorradorDatos>();
+        services.AddScoped<IFacturaVentaReadRepository, DapperFacturaVentaReadRepository>();
+        services.AddScoped<IMovimientoClienteReadRepository, DapperMovimientoClienteReadRepository>();
         services.AddScoped<IConversionUnidadMedidaService, ConversionUnidadMedidaService>();
         services.AddScoped<IGeneradorNumeroDocumento, GeneradorNumeroDocumento>();
         services.AddScoped<IConsultaInventario, ConsultaInventario>();

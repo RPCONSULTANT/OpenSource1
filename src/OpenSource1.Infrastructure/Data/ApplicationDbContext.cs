@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using OpenSource1.Core.Entities;
+using OpenSource1.Core.Entities.Clientes;
 using OpenSource1.Core.Entities.Contabilidad;
 using OpenSource1.Core.Entities.Inventario;
 using OpenSource1.Core.Entities.Ventas;
@@ -41,6 +42,11 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<RegistroContable> RegistrosContables => Set<RegistroContable>();
     public DbSet<FacturaVentaBorrador> FacturasVentaBorrador => Set<FacturaVentaBorrador>();
     public DbSet<LineaFacturaVentaBorrador> LineasFacturaVentaBorrador => Set<LineaFacturaVentaBorrador>();
+    public DbSet<FacturaVenta> FacturasVenta => Set<FacturaVenta>();
+    public DbSet<LineaFacturaVenta> LineasFacturaVenta => Set<LineaFacturaVenta>();
+    public DbSet<LineaIvaFacturaVenta> LineasIvaFacturaVenta => Set<LineaIvaFacturaVenta>();
+    public DbSet<MovimientoCliente> MovimientosCliente => Set<MovimientoCliente>();
+    public DbSet<MovimientoClienteDetalle> MovimientosClienteDetalle => Set<MovimientoClienteDetalle>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -792,6 +798,9 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.HasQueryFilter(x => !x.IsDeleted);
         });
 
+        ConfigurarFacturasVentaPosteadas(modelBuilder);
+        ConfigurarLibroClientes(modelBuilder);
+
         modelBuilder.Entity<RegistroDiario>(entity =>
         {
             // Append-only (Task 4.3): mismo trigger que el libro (migración AddRegistrosDiario), sin xmin ni soft delete.
@@ -941,6 +950,179 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         });
 
         ConfigurarSetups(modelBuilder);
+    }
+
+    /// <summary>
+    /// Documento de venta posteado (spec 6.2, Task 6.3): <c>FacturasVenta</c> (PK <c>Numero</c>), <c>LineasFacturaVenta</c> y
+    /// <c>LineasIvaFacturaVenta</c>. Inmutables: append-only con el trigger <c>libro_inventario_append_only()</c> (migración
+    /// <c>AddFacturasVentaYLibroClientes</c>), sin <c>xmin</c>, sin soft delete ni filtro de consulta. Todas las FK son Restrict y
+    /// sin navegación (mismo patrón que el libro contable): el documento sigue visible aunque un maestro se borre lógicamente.
+    /// </summary>
+    private static void ConfigurarFacturasVentaPosteadas(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<FacturaVenta>(entity =>
+        {
+            // El total del documento legal es exactamente la suma de sus partes.
+            entity.ToTable("FacturasVenta", t => t.HasCheckConstraint(
+                "CK_FacturasVenta_Total", "\"ImporteTotal\" = \"ImporteSinIva\" + \"ImporteIva\""));
+            entity.HasKey(x => x.Numero);
+            entity.Property(x => x.Numero).HasMaxLength(20);
+            entity.Property(x => x.NumeroBorrador).HasMaxLength(20).IsRequired();
+            entity.Property(x => x.NombreFacturacion).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.RazonSocialFacturacion).HasMaxLength(200);
+            entity.Property(x => x.NumeroDocumentoFiscal).HasMaxLength(20);
+            entity.Property(x => x.DireccionFacturacionLinea1).HasMaxLength(300);
+            entity.Property(x => x.DireccionFacturacionLinea2).HasMaxLength(300);
+            entity.Property(x => x.CiudadFacturacion).HasMaxLength(100);
+            entity.Property(x => x.PaisCodigoFacturacion).HasMaxLength(2);
+            entity.Property(x => x.Moneda).HasMaxLength(3).IsRequired();
+            entity.Property(x => x.Descripcion).HasMaxLength(200);
+            entity.Property(x => x.ImporteSinIva).HasPrecision(18, 4);
+            entity.Property(x => x.ImporteIva).HasPrecision(18, 4);
+            entity.Property(x => x.ImporteTotal).HasPrecision(18, 4);
+            entity.Property(x => x.CreatedBy).HasMaxLength(100).IsRequired();
+
+            // Un borrador se postea una sola vez: la red de seguridad final contra un doble posteo concurrente (Task 6.4).
+            entity.HasIndex(x => x.NumeroBorrador).IsUnique().HasDatabaseName("IX_FacturasVenta_NumeroBorrador");
+            // Listados por cliente (vender-a o facturar-a) y por fecha.
+            entity.HasIndex(x => new { x.SocioNegocioId, x.FechaRegistro }).HasDatabaseName("IX_FacturasVenta_SocioNegocioId_FechaRegistro");
+            entity.HasIndex(x => new { x.SocioNegocioFacturarAId, x.FechaRegistro })
+                .HasDatabaseName("IX_FacturasVenta_SocioNegocioFacturarAId_FechaRegistro");
+            entity.HasIndex(x => x.FechaRegistro).HasDatabaseName("IX_FacturasVenta_FechaRegistro");
+
+            entity.HasOne<SocioNegocio>().WithMany().HasForeignKey(x => x.SocioNegocioId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<SocioNegocio>().WithMany().HasForeignKey(x => x.SocioNegocioFacturarAId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<TerminoPago>().WithMany().HasForeignKey(x => x.TerminoPagoId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<GrupoNegocio>().WithMany().HasForeignKey(x => x.GrupoNegocioId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<GrupoIvaNegocio>().WithMany().HasForeignKey(x => x.GrupoIvaNegocioId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<GrupoClienteContable>().WithMany().HasForeignKey(x => x.GrupoClienteContableId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<Almacen>().WithMany().HasForeignKey(x => x.AlmacenId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<RegistroContable>().WithMany().HasForeignKey(x => x.RegistroContableId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<LineaFacturaVenta>(entity =>
+        {
+            // Mismas comprobaciones de tipo y referencia que la línea borrador.
+            entity.ToTable("LineasFacturaVenta", t =>
+            {
+                t.HasCheckConstraint("CK_LineasFacturaVenta_Tipo", "\"Tipo\" IN (1, 2, 3)");
+                t.HasCheckConstraint(
+                    "CK_LineasFacturaVenta_Referencia",
+                    "(\"Tipo\" = 1 AND \"ProductoId\" IS NOT NULL AND \"CuentaContableId\" IS NULL) OR " +
+                    "(\"Tipo\" = 2 AND \"CuentaContableId\" IS NOT NULL AND \"ProductoId\" IS NULL AND \"MovimientoProductoId\" IS NULL) OR " +
+                    "(\"Tipo\" = 3 AND \"ProductoId\" IS NULL AND \"CuentaContableId\" IS NULL AND \"MovimientoProductoId\" IS NULL)");
+                t.HasCheckConstraint(
+                    "CK_LineasFacturaVenta_Cantidad", "(\"Tipo\" = 3 AND \"Cantidad\" = 0) OR (\"Tipo\" <> 3 AND \"Cantidad\" > 0)");
+            });
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).UseIdentityAlwaysColumn();
+            entity.Property(x => x.FacturaVentaNumero).HasMaxLength(20).IsRequired();
+            entity.Property(x => x.Descripcion).HasMaxLength(200);
+            entity.Property(x => x.CantidadPorUnidadMedida).HasPrecision(18, 6);
+            entity.Property(x => x.Cantidad).HasPrecision(18, 6);
+            entity.Property(x => x.PrecioUnitario).HasPrecision(18, 4);
+            entity.Property(x => x.PorcentajeDescuentoLinea).HasPrecision(9, 5);
+            entity.Property(x => x.ImporteDescuentoLinea).HasPrecision(18, 4);
+            entity.Property(x => x.ImporteLinea).HasPrecision(18, 4);
+            entity.Property(x => x.IdentificadorIva).HasMaxLength(20);
+            entity.Property(x => x.PorcentajeIva).HasPrecision(9, 5);
+
+            // Sirve también a la FK de la cabecera (columna líder).
+            entity.HasIndex(x => new { x.FacturaVentaNumero, x.NumeroLinea }).IsUnique()
+                .HasDatabaseName("IX_LineasFacturaVenta_FacturaVentaNumero_NumeroLinea");
+            entity.HasIndex(x => x.MovimientoProductoId).HasDatabaseName("IX_LineasFacturaVenta_MovimientoProductoId");
+
+            entity.HasOne<FacturaVenta>().WithMany().HasForeignKey(x => x.FacturaVentaNumero).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<Producto>().WithMany().HasForeignKey(x => x.ProductoId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<CuentaContable>().WithMany().HasForeignKey(x => x.CuentaContableId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<Almacen>().WithMany().HasForeignKey(x => x.AlmacenId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<UnidadMedida>().WithMany().HasForeignKey(x => x.UnidadMedidaId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<GrupoProducto>().WithMany().HasForeignKey(x => x.GrupoProductoId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<GrupoIvaProducto>().WithMany().HasForeignKey(x => x.GrupoIvaProductoId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<GrupoInventario>().WithMany().HasForeignKey(x => x.GrupoInventarioId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<MovimientoProducto>().WithMany().HasForeignKey(x => x.MovimientoProductoId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<LineaIvaFacturaVenta>(entity =>
+        {
+            entity.ToTable("LineasIvaFacturaVenta");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).UseIdentityAlwaysColumn();
+            entity.Property(x => x.FacturaVentaNumero).HasMaxLength(20).IsRequired();
+            entity.Property(x => x.IdentificadorIva).HasMaxLength(20).IsRequired();
+            entity.Property(x => x.PorcentajeIva).HasPrecision(9, 5);
+            entity.Property(x => x.BaseImponible).HasPrecision(18, 4);
+            entity.Property(x => x.ImporteIva).HasPrecision(18, 4);
+
+            // Un grupo por identificador (la calculadora agrupa por él); sirve también a la FK de la cabecera.
+            entity.HasIndex(x => new { x.FacturaVentaNumero, x.IdentificadorIva }).IsUnique()
+                .HasDatabaseName("IX_LineasIvaFacturaVenta_FacturaVentaNumero_IdentificadorIva");
+            entity.HasIndex(x => x.CuentaIvaId).HasDatabaseName("IX_LineasIvaFacturaVenta_CuentaIvaId");
+
+            entity.HasOne<FacturaVenta>().WithMany().HasForeignKey(x => x.FacturaVentaNumero).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<CuentaContable>().WithMany().HasForeignKey(x => x.CuentaIvaId).OnDelete(DeleteBehavior.Restrict);
+        });
+    }
+
+    /// <summary>
+    /// Libro de clientes (spec 6.4, Task 6.3): <c>MovimientosCliente</c> y <c>MovimientosClienteDetalle</c>, append-only con el
+    /// trigger <c>libro_inventario_append_only()</c>. Sin <c>ImporteRestante</c> ni <c>Abierta</c>: se derivan del detalle (D1, D7).
+    /// </summary>
+    private static void ConfigurarLibroClientes(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<MovimientoCliente>(entity =>
+        {
+            entity.ToTable("MovimientosCliente", t => t.HasCheckConstraint(
+                "CK_MovimientosCliente_TipoDocumento", "\"TipoDocumento\" IN (1, 2, 3, 4)"));
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).UseIdentityAlwaysColumn();
+            entity.Property(x => x.NumeroDocumento).HasMaxLength(20).IsRequired();
+            entity.Property(x => x.Descripcion).HasMaxLength(200);
+            entity.Property(x => x.ImporteOriginal).HasPrecision(18, 4);
+            entity.Property(x => x.ClaveOrigen).HasMaxLength(50).IsRequired();
+            entity.Property(x => x.CreatedBy).HasMaxLength(100).IsRequired();
+
+            // Índices del brief de la Task 6.3. (SocioNegocioId, FechaRegistro) sirve también a la FK del socio, al saldo y a
+            // GET api/clientes/{id}/movimientos.
+            entity.HasIndex(x => new { x.SocioNegocioId, x.FechaRegistro })
+                .HasDatabaseName("IX_MovimientosCliente_SocioNegocioId_FechaRegistro");
+            entity.HasIndex(x => new { x.TipoDocumento, x.NumeroDocumento })
+                .HasDatabaseName("IX_MovimientosCliente_TipoDocumento_NumeroDocumento");
+            entity.HasIndex(x => new { x.TipoOrigen, x.ClaveOrigen })
+                .HasDatabaseName("IX_MovimientosCliente_TipoOrigen_ClaveOrigen");
+            entity.HasIndex(x => x.GrupoClienteContableId).HasDatabaseName("IX_MovimientosCliente_GrupoClienteContableId");
+            entity.HasIndex(x => x.CuentaCxCId).HasDatabaseName("IX_MovimientosCliente_CuentaCxCId");
+
+            entity.HasOne<SocioNegocio>().WithMany().HasForeignKey(x => x.SocioNegocioId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<GrupoClienteContable>().WithMany().HasForeignKey(x => x.GrupoClienteContableId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<CuentaContable>().WithMany().HasForeignKey(x => x.CuentaCxCId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<MovimientoClienteDetalle>(entity =>
+        {
+            entity.ToTable("MovimientosClienteDetalle", t =>
+            {
+                t.HasCheckConstraint("CK_MovimientosClienteDetalle_TipoMovimiento", "\"TipoMovimiento\" IN (1, 2, 3, 4, 5)");
+                // Una Aplicación siempre apunta a su contraparte, y la contraparte es siempre OTRO movimiento.
+                t.HasCheckConstraint(
+                    "CK_MovimientosClienteDetalle_Aplicado",
+                    "(\"TipoMovimiento\" <> 3 OR \"MovimientoClienteAplicadoId\" IS NOT NULL) AND " +
+                    "(\"MovimientoClienteAplicadoId\" IS NULL OR \"MovimientoClienteAplicadoId\" <> \"MovimientoClienteId\")");
+            });
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).UseIdentityAlwaysColumn();
+            entity.Property(x => x.Importe).HasPrecision(18, 4);
+            entity.Property(x => x.ClaveOrigen).HasMaxLength(50).IsRequired();
+            entity.Property(x => x.CreatedBy).HasMaxLength(100).IsRequired();
+
+            entity.HasIndex(x => x.MovimientoClienteId).HasDatabaseName("IX_MovimientosClienteDetalle_MovimientoClienteId");
+            entity.HasIndex(x => x.MovimientoClienteAplicadoId).HasDatabaseName("IX_MovimientosClienteDetalle_MovimientoClienteAplicadoId");
+            entity.HasIndex(x => new { x.TipoOrigen, x.ClaveOrigen })
+                .HasDatabaseName("IX_MovimientosClienteDetalle_TipoOrigen_ClaveOrigen");
+
+            entity.HasOne<MovimientoCliente>().WithMany().HasForeignKey(x => x.MovimientoClienteId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<MovimientoCliente>().WithMany().HasForeignKey(x => x.MovimientoClienteAplicadoId).OnDelete(DeleteBehavior.Restrict);
+        });
     }
 
     /// <summary>

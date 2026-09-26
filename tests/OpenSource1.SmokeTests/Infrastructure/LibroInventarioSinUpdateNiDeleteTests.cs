@@ -28,15 +28,25 @@ namespace OpenSource1.SmokeTests.Infrastructure;
 /// libro contable, <c>MovimientosContables</c> y <c>RegistrosContables</c> (mismo trigger, migración <c>AddLibroContable</c>),
 /// también sin excepción. La Task 5.6 abre UNA excepción en <c>MovimientosValor</c>, la misma que el trigger (migración
 /// <c>PermitirContabilizacionCosto</c>): el <c>UPDATE "MovimientosValor" SET "ImporteCostoPosteadoContabilidad" = ... WHERE ...</c>
-/// del batch de costo, con esa columna como única asignación (ver <see cref="ExcepcionPosteoCosto"/>).
+/// del batch de costo, con esa columna como única asignación (ver <see cref="ExcepcionPosteoCosto"/>). La Task 6.3 añade el
+/// documento de venta posteado (<c>FacturasVenta</c>, <c>LineasFacturaVenta</c>, <c>LineasIvaFacturaVenta</c>) y el libro de
+/// clientes (<c>MovimientosCliente</c>, <c>MovimientosClienteDetalle</c>), mismo trigger (migración
+/// <c>AddFacturasVentaYLibroClientes</c>), sin excepción. Los borradores (<c>FacturasVentaBorrador</c>,
+/// <c>LineasFacturaVentaBorrador</c>) NO están protegidos: el <c>\b</c> tras el nombre los distingue.
 /// </para>
 /// </summary>
 public sealed class LibroInventarioSinUpdateNiDeleteTests
 {
     private static readonly string[] TablasProtegidas =
-        ["MovimientosValor", "AplicacionesMovimientoProducto", "RegistrosDiario", "MovimientosContables", "RegistrosContables"];
+    [
+        "MovimientosValor", "AplicacionesMovimientoProducto", "RegistrosDiario", "MovimientosContables", "RegistrosContables",
+        "FacturasVenta", "LineasFacturaVenta", "LineasIvaFacturaVenta", "MovimientosCliente", "MovimientosClienteDetalle",
+    ];
     private static readonly string[] EntidadesProtegidas =
-        ["MovimientoValor", "AplicacionMovimientoProducto", "RegistroDiario", "MovimientoContable", "RegistroContable"];
+    [
+        "MovimientoValor", "AplicacionMovimientoProducto", "RegistroDiario", "MovimientoContable", "RegistroContable",
+        "FacturaVenta", "LineaFacturaVenta", "LineaIvaFacturaVenta", "MovimientoCliente", "MovimientoClienteDetalle",
+    ];
 
     /// <summary>
     /// SQL prohibido: la palabra clave, uno o más espacios/saltos de línea (<c>\s+</c>, insensible a mayúsculas) y el
@@ -50,14 +60,16 @@ public sealed class LibroInventarioSinUpdateNiDeleteTests
     /// asignación: la expresión hasta el <c>WHERE</c> no puede contener una coma (ni un <c>;</c>), así que asignar además otra
     /// columna (antes o después) sigue detectándose. El grupo atómico <c>(?&gt;"?)</c> impide que el motor "devuelva" la comilla de
     /// cierre para que la búsqueda negativa empiece en ella y deje pasar la excepción por accidente.
+    /// Task 6.3: la comilla opcional admite también la forma escapada de un literal C# normal (<c>\"</c>): antes
+    /// <c>"UPDATE \"MovimientosClienteDetalle\" ..."</c> no se detectaba (solo los literales raw o sin comillas).
     /// </remarks>
     private const string ExcepcionPosteoCosto =
-        """(?!\s+SET\s+"?ImporteCostoPosteadoContabilidad\b"?\s*=[^,;]*?\bWHERE\b)""";
+        """(?!\s+SET\s+(?:\\?")?ImporteCostoPosteadoContabilidad\b(?:\\?")?\s*=[^,;]*?\bWHERE\b)""";
 
     private static readonly Regex PatronSql = new(
         string.Join("|", TablasProtegidas.Select(tabla => tabla == "MovimientosValor"
-            ? $"""(?:DELETE\s+FROM|TRUNCATE(?:\s+TABLE)?)\s+"?MovimientosValor\b|UPDATE\s+"?MovimientosValor\b(?>"?){ExcepcionPosteoCosto}"""
-            : $"""(?:UPDATE|DELETE\s+FROM|TRUNCATE(?:\s+TABLE)?)\s+"?{Regex.Escape(tabla)}\b""")),
+            ? $"""(?:DELETE\s+FROM|TRUNCATE(?:\s+TABLE)?)\s+(?:\\?")?MovimientosValor\b|UPDATE\s+(?:\\?")?MovimientosValor\b(?>(?:\\?")?){ExcepcionPosteoCosto}"""
+            : $"""(?:UPDATE|DELETE\s+FROM|TRUNCATE(?:\s+TABLE)?)\s+(?:\\?")?{Regex.Escape(tabla)}\b""")),
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     /// <summary>
@@ -65,9 +77,12 @@ public sealed class LibroInventarioSinUpdateNiDeleteTests
     /// <c>context.MovimientosValor</c> como un uso interno sin calificar), seguido -en una ventana acotada que NO
     /// cruza un <c>;</c>, para quedarse dentro de la misma expresión/statement- de un método mutador. La ventana
     /// permite una cadena LINQ intermedia (p. ej. <c>.Where(...)</c> antes de <c>ExecuteDeleteAsync()</c>).
+    /// Task 6.3: el <c>&gt;</c> de <c>Set&lt;...&gt;</c> va FUERA de la alternancia de entidades; antes quedaba dentro de la
+    /// última alternativa y solo se detectaba <c>Set&lt;&gt;</c> de la última entidad de la lista (lo destapó la mutación de
+    /// control <c>Set&lt;LineaIvaFacturaVenta&gt;().Update</c>).
     /// </summary>
     private static readonly Regex PatronCodigo = new(
-        """(?:Set<(?:""" + string.Join("|", EntidadesProtegidas.Select(Regex.Escape)) + """>)\s*\(\s*\)|\.?(?:""" +
+        """(?:Set<(?:""" + string.Join("|", EntidadesProtegidas.Select(Regex.Escape)) + """)>\s*\(\s*\)|\.?(?:""" +
         string.Join("|", TablasProtegidas.Select(Regex.Escape)) +
         """)\b)(?:(?!;)[\s\S]){0,300}?\.\s*(?:Remove|RemoveRange|Update|UpdateRange|ExecuteDelete\w*|ExecuteUpdate\w*)\s*\(""",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
@@ -97,7 +112,7 @@ public sealed class LibroInventarioSinUpdateNiDeleteTests
 
         Assert.True(violaciones.Count == 0,
             "Se encontró código fuera de Migrations/ que actualiza o borra el libro de inventario " +
-            "(MovimientosValor/AplicacionesMovimientoProducto/RegistrosDiario/MovimientosContables/RegistrosContables son append-only):\n" + string.Join('\n', violaciones));
+            $"({string.Join('/', TablasProtegidas)} son append-only):\n" + string.Join('\n', violaciones));
     }
 
     // Mutaciones de control (revisión final de la Fase 3, ampliadas en la Task 4.5): sin estos cinco casos
@@ -142,6 +157,32 @@ public sealed class LibroInventarioSinUpdateNiDeleteTests
         """UPDATE "MovimientosValor" SET "ImporteCostoPosteadoContabilidadX" = 0 WHERE "Id" = 1;""",
         """UPDATE "MovimientosValor" SET "ImporteCostoPosteadoContabilidad" = 0;""",
         "context.MovimientosValor.Where(x => x.Id == 1).ExecuteUpdateAsync(s => s.SetProperty(x => x.ImporteCostoPosteadoContabilidad, 0m));",
+        // Task 6.3: documento posteado y libro de clientes (SQL en una línea, partido, sin comillas, DELETE, TRUNCATE y código).
+        """UPDATE "FacturasVenta" SET "ImporteTotal" = 0 WHERE "Numero" = '00000001';""",
+        """
+        delete from
+            facturasventa where "Numero" = '00000001';
+        """,
+        """UPDATE "LineasFacturaVenta" SET "ImporteLinea" = 0 WHERE "Id" = 1;""",
+        """DELETE FROM "LineasIvaFacturaVenta" WHERE "Id" = 1;""",
+        """UPDATE MovimientosCliente SET "ImporteOriginal" = 0;""",
+        """TRUNCATE "MovimientosClienteDetalle";""",
+        """
+        UPDATE
+            "MovimientosClienteDetalle" SET "Importe" = 0 WHERE "Id" = 1;
+        """,
+        "context.FacturasVenta.Remove(x);",
+        "context.LineasFacturaVenta.Where(x => x.Id == 1).ExecuteDeleteAsync();",
+        "context.Set<LineaIvaFacturaVenta>().Update(x);",
+        "context.MovimientosCliente.Where(x => x.Id == 1).ExecuteUpdateAsync(s => s.SetProperty(x => x.ImporteOriginal, 0m));",
+        "context.Set<MovimientoClienteDetalle>().RemoveRange(xs);",
+        // Task 6.3: Set<T>() de entidades que NO son la última de la lista (el patrón anterior solo cubría la última).
+        "context.Set<MovimientoValor>().Remove(x);",
+        "context.Set<FacturaVenta>().UpdateRange(xs);",
+        // Task 6.3: SQL en un literal C# normal, con las comillas escapadas.
+        "const string sql = \"UPDATE \\\"MovimientosClienteDetalle\\\" SET \\\"Importe\\\" = 0\";",
+        "const string sql = \"DELETE FROM \\\"MovimientosValor\\\" WHERE \\\"Id\\\" = 1\";",
+        "const string sql = \"UPDATE \\\"MovimientosValor\\\" SET \\\"ImporteCosto\\\" = 0 WHERE \\\"Id\\\" = 1\";",
     };
 
     [Theory]
@@ -161,6 +202,16 @@ public sealed class LibroInventarioSinUpdateNiDeleteTests
             public DbSet<RegistroDiario> RegistrosDiario => Set<RegistroDiario>();
             public DbSet<MovimientoContable> MovimientosContables => Set<MovimientoContable>();
             public DbSet<RegistroContable> RegistrosContables => Set<RegistroContable>();
+            public DbSet<FacturaVenta> FacturasVenta => Set<FacturaVenta>();
+            public DbSet<MovimientoClienteDetalle> MovimientosClienteDetalle => Set<MovimientoClienteDetalle>();
+
+            // Los borradores de factura sí se modifican y borran (soft delete): no son tablas protegidas.
+            const string sqlB = "UPDATE \"FacturasVentaBorrador\" SET \"Estado\" = 2 WHERE \"Id\" = @Id";
+            const string sqlB2 = "DELETE FROM \"LineasFacturaVentaBorrador\" WHERE \"Id\" = @Id";
+            context.Set<FacturaVentaBorrador>().Update(x);
+            context.LineasFacturaVentaBorrador.Remove(x);
+            const string sqlF = "INSERT INTO \"FacturasVenta\" (\"Numero\") VALUES (@Numero)";
+            const string sqlF2 = "SELECT COALESCE(SUM(d.\"Importe\"), 0) FROM \"MovimientosClienteDetalle\" d";
 
             const string sql = "INSERT INTO \"MovimientosValor\" (\"ProductoId\") VALUES (@ProductoId)";
             const string sql2 = "UPDATE \"MovimientosProducto\" SET \"CantidadRestante\" = \"CantidadRestante\" - @Aplicada WHERE \"Id\" = @Id";
@@ -172,6 +223,7 @@ public sealed class LibroInventarioSinUpdateNiDeleteTests
                 WHERE "Id" = ANY(@Ids) AND "ImporteCosto" <> "ImporteCostoPosteadoContabilidad"
                 """;
             const string sql7 = "update MovimientosValor set ImporteCostoPosteadoContabilidad = 0 where Id = 1";
+            const string sql8 = "UPDATE \"MovimientosValor\" SET \"ImporteCostoPosteadoContabilidad\" = 0 WHERE \"Id\" = @Id";
             """";
 
         Assert.Empty(Violaciones(contenido));

@@ -79,10 +79,11 @@ public sealed class GetTotalesFacturaVentaBorradorQueryHandler(
                     .Select(l => new LineaCalculoIva(l.NumeroLinea, l.IdentificadorIva ?? string.Empty, l.PorcentajeIva, l.ImporteLinea))
             ]));
         }
-        catch (InvalidOperationException ex)
+        catch (Exception ex) when (ex is InvalidOperationException or ArgumentException)
         {
             // Posible en un borrador si el porcentaje de un setup de IVA cambió entre el alta de dos líneas: el IVA congelado de
             // las líneas ya no es coherente. 400 legible en vez de 500; se corrige volviendo a guardar las líneas afectadas.
+            // ArgumentException: una línea no comentario sin identificador de IVA (no debería ocurrir: se congela al guardarla).
             return Result<TotalesFactura>.Fallo(new Error("factura.iva_inconsistente", ex.Message, "Lineas"));
         }
     }

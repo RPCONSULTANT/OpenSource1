@@ -10,8 +10,8 @@ public sealed record GrupoIvaCalculado(string IdentificadorIva, decimal Porcenta
 public sealed record TotalesFactura(IReadOnlyList<GrupoIvaCalculado> Grupos, decimal ImporteSinIva, decimal ImporteIva, decimal ImporteTotal);
 
 /// <summary>
-/// Cálculo del IVA agrupado (spec 6.3), puro y sin BD. La Task 6.2 lo usa para la vista previa de totales de un borrador; la
-/// Task 6.3 lo completa y prueba exhaustivamente, y la 6.4 lo usa al postear.
+/// Cálculo del IVA agrupado (spec 6.3), puro y sin BD. La Task 6.2 lo usa para la vista previa de totales de un borrador y la
+/// Task 6.4 al postear (las <c>LineasIvaFacturaVenta</c> son sus grupos). Pruebas exhaustivas: <c>CalculadoraIvaFacturaTests</c>.
 /// </summary>
 public static class CalculadoraIvaFactura
 {
@@ -19,11 +19,23 @@ public static class CalculadoraIvaFactura
     /// Agrupa por <see cref="LineaCalculoIva.IdentificadorIva"/> (comparación ordinal); por grupo,
     /// <c>base = ROUND(Σ ImporteLinea, 2)</c> e <c>IVA = ROUND(base × % / 100, 2)</c>, ambos <see cref="MidpointRounding.AwayFromZero"/>.
     /// Los grupos salen ordenados por identificador (ordinal). Un mismo identificador con porcentajes distintos lanza
-    /// <see cref="InvalidOperationException"/> (no debería ocurrir: el identificador es la clave del setup de IVA).
+    /// <see cref="InvalidOperationException"/> (no debería ocurrir: el identificador es la clave del setup de IVA). Una línea
+    /// nula lanza <see cref="ArgumentNullException"/> y un identificador vacío, <see cref="ArgumentException"/> (con el número de
+    /// línea): las líneas de tipo Comentario no deben entrar al cálculo.
     /// </summary>
     public static TotalesFactura Calcular(IReadOnlyList<LineaCalculoIva> lineas)
     {
         ArgumentNullException.ThrowIfNull(lineas);
+        foreach (var linea in lineas)
+        {
+            ArgumentNullException.ThrowIfNull(linea, nameof(lineas));
+            if (string.IsNullOrWhiteSpace(linea.IdentificadorIva))
+            {
+                throw new ArgumentException(
+                    $"La línea {linea.NumeroLinea} no tiene identificador de IVA: las líneas de comentario no entran al cálculo.",
+                    nameof(lineas));
+            }
+        }
 
         var grupos = new List<GrupoIvaCalculado>();
         foreach (var grupo in lineas.GroupBy(l => l.IdentificadorIva, StringComparer.Ordinal).OrderBy(g => g.Key, StringComparer.Ordinal))
