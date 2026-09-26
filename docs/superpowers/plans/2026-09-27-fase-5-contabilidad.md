@@ -401,3 +401,7 @@ correr PostgreSQL 15 o superior.
   (`GrupoNegocioId`/`GrupoIvaNegocioId`/`GrupoClienteContableId` del socio; `GrupoProductoId`/`GrupoIvaProductoId`/
   `GrupoInventarioId` de cada línea de producto) ya existen en `Producto`/`SocioNegocio` desde esta fase (Task 5.3), con
   backfill a las semillas por defecto para los maestros existentes.
+- Residuales de la revisión final: el XML doc del redondeo de `AjusteCostoInventario` no menciona que un residuo arrastrado
+  (día solo con transferencias) puede entrar en el promedio del siguiente día con entradas; el test del redondeo con
+  transferencia no ejecuta una segunda pasada (la idempotencia está verificada por lectura); un 200 con cuerpo vacío en
+  `ContabilidadApiClient` lanza `JsonException` que la página muestra con el mensaje genérico.
