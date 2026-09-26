@@ -8,6 +8,7 @@ using OpenSource1.Application.Features.FacturasVenta.Borradores.Dtos;
 using OpenSource1.Application.Features.FacturasVenta.Borradores.Queries;
 using OpenSource1.Application.Features.FacturasVenta.Calculo;
 using OpenSource1.Application.Features.FacturasVenta.Posteadas;
+using OpenSource1.Application.Features.FacturasVenta.Posteo;
 using OpenSource1.Application.Features.FacturasVenta.Posteadas.Dtos;
 using OpenSource1.Application.Features.FacturasVenta.Posteadas.Queries;
 using OpenSource1.Application.Security;
@@ -20,7 +21,7 @@ namespace OpenSource1.Api.Controllers;
 /// Facturación de ventas (Fase 6). Task 6.2: borradores (cabecera y líneas) y vista previa de totales. Task 6.3: consultas de
 /// facturas posteadas (<c>GET /</c> y <c>GET /{numero}</c>; los segmentos literales <c>borradores</c> y <c>lineas-borrador</c>
 /// tienen precedencia sobre <c>{numero}</c>). Permisos: consultar = CanConsult; alta de borrador y de línea = CanAdd; modificar,
-/// liberar y reabrir = CanModify; borrar = CanDelete.
+/// liberar, reabrir y postear (Task 6.4) = CanModify; borrar = CanDelete.
 /// </summary>
 [ApiController]
 [Route("api/facturas-venta")]
@@ -168,6 +169,21 @@ public sealed class FacturasVentaController(ISender sender) : ControllerBase
     public async Task<IActionResult> ReabrirBorrador(Guid id, CancellationToken cancellationToken)
     {
         var result = await sender.Send(new ReabrirFacturaVentaBorradorCommand(id), cancellationToken);
+        return result.EsFallo ? result.ToActionResult() : Ok(result.Valor);
+    }
+
+    /// <summary>
+    /// Posteo del borrador (Task 6.4): documento legal, salidas de inventario, libro de clientes y asiento en una transacción.
+    /// Admite un borrador Abierta o Liberada. 200 con el número de la factura, su total y el número del registro contable.
+    /// </summary>
+    [HttpPost("borradores/{id:guid}/postear")]
+    [Authorize(Policy = ApplicationPolicies.CanModify)]
+    [ProducesResponseType<ResultadoPosteoFactura>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> PostearBorrador(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(new PostearFacturaVentaCommand(id), cancellationToken);
         return result.EsFallo ? result.ToActionResult() : Ok(result.Valor);
     }
 

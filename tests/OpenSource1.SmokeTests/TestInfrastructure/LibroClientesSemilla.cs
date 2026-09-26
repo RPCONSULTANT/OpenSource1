@@ -8,8 +8,8 @@ using OpenSource1.Infrastructure.Data;
 namespace OpenSource1.SmokeTests.TestInfrastructure;
 
 /// <summary>
-/// Siembra por SQL directo facturas posteadas y el libro de clientes (Task 6.3): hasta la Task 6.4 no hay motor de posteo que
-/// los escriba. Solo <c>INSERT</c> (las tablas son append-only). Usa las semillas de grupos, cuentas y almacén.
+/// Siembra por SQL directo facturas posteadas y el libro de clientes (Task 6.3, para las consultas: el motor de posteo de la Task
+/// 6.4 tiene sus propios tests). Solo <c>INSERT</c> (las tablas son append-only). Usa las semillas de grupos, cuentas y almacén.
 /// </summary>
 internal static class LibroClientesSemilla
 {
@@ -106,6 +106,23 @@ internal static class LibroClientesSemilla
         foreach (var linea in lineas)
         {
             var comentario = linea.Tipo == TipoLineaFactura.Comentario;
+
+            // CHECK de la Task 6.4: una línea de Producto posteada lleva su salida de inventario. La semilla la inserta directa
+            // (sin valor ni aplicaciones), como la apertura legada de LibroInventarioPrueba.
+            long? movimientoProductoId = linea.Tipo == TipoLineaFactura.Producto
+                ? await conexion.ExecuteScalarAsync<long>(
+                    """
+                    INSERT INTO "MovimientosProducto" (
+                        "ProductoId", "AlmacenId", "TipoMovimiento", "TipoDocumento", "NumeroDocumento", "NumeroLineaDocumento",
+                        "FechaRegistro", "FechaDocumento", "Cantidad", "CantidadRestante", "CantidadFacturada", "UnidadMedidaId",
+                        "CantidadPorUnidadMedida", "TipoOrigen", "ClaveOrigen", "CreatedAtUtc", "CreatedBy")
+                    SELECT @ProductoId, @AlmacenId, 2, 2, @Numero, @NumeroLinea, @Fecha, @Fecha, -1, NULL, 0, p."UnidadMedidaBaseId",
+                        1, 2, @Numero, now(), 'test'
+                    FROM "Productos" p WHERE p."Id" = @ProductoId
+                    RETURNING "Id"
+                    """,
+                    new { linea.ProductoId, AlmacenId = AlmacenIds.Principal, Numero = numero, linea.NumeroLinea, Fecha = fechaRegistro })
+                : null;
             await conexion.ExecuteAsync(
                 """
                 INSERT INTO "LineasFacturaVenta" ("FacturaVentaNumero","NumeroLinea","Tipo","ProductoId","CuentaContableId","Descripcion",
@@ -113,7 +130,7 @@ internal static class LibroClientesSemilla
                     "ImporteDescuentoLinea","ImporteLinea","GrupoProductoId","GrupoIvaProductoId","GrupoInventarioId","IdentificadorIva",
                     "PorcentajeIva","MovimientoProductoId")
                 VALUES (@Numero, @NumeroLinea, @Tipo, @ProductoId, @CuentaId, @Descripcion, @AlmacenId, NULL, @Factor, @Cantidad, @Precio,
-                    0, 0, @Importe, NULL, @GrupoIvaProducto, NULL, @Identificador, @Porcentaje, NULL)
+                    0, 0, @Importe, NULL, @GrupoIvaProducto, NULL, @Identificador, @Porcentaje, @MovimientoProductoId)
                 """,
                 new
                 {
@@ -131,6 +148,7 @@ internal static class LibroClientesSemilla
                     GrupoIvaProducto = comentario ? (Guid?)null : GrupoContableIds.IvaProductoItbis18,
                     Identificador = comentario ? null : linea.IdentificadorIva,
                     Porcentaje = comentario ? 0m : linea.PorcentajeIva,
+                    MovimientoProductoId = movimientoProductoId,
                 });
         }
 

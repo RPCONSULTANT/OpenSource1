@@ -263,5 +263,8 @@ public class CalculadoraIvaFacturaTests
             [new LineaCalculoIva(20000, identificador!, 18m, 1m)]));
 
         Assert.Contains("20000", error.Message);
+        // El mensaje llega al usuario (vista previa de totales): sin el sufijo " (Parameter 'lineas')" de ArgumentException.
+        Assert.Null(error.ParamName);
+        Assert.DoesNotContain("Parameter", error.Message);
     }
 }

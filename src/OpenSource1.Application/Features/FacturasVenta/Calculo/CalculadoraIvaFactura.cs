@@ -21,7 +21,8 @@ public static class CalculadoraIvaFactura
     /// Los grupos salen ordenados por identificador (ordinal). Un mismo identificador con porcentajes distintos lanza
     /// <see cref="InvalidOperationException"/> (no debería ocurrir: el identificador es la clave del setup de IVA). Una línea
     /// nula lanza <see cref="ArgumentNullException"/> y un identificador vacío, <see cref="ArgumentException"/> (con el número de
-    /// línea): las líneas de tipo Comentario no deben entrar al cálculo.
+    /// línea y sin <c>ParamName</c>, porque su mensaje llega al usuario en la vista previa de totales): las líneas de tipo
+    /// Comentario no deben entrar al cálculo.
     /// </summary>
     public static TotalesFactura Calcular(IReadOnlyList<LineaCalculoIva> lineas)
     {
@@ -32,8 +33,7 @@ public static class CalculadoraIvaFactura
             if (string.IsNullOrWhiteSpace(linea.IdentificadorIva))
             {
                 throw new ArgumentException(
-                    $"La línea {linea.NumeroLinea} no tiene identificador de IVA: las líneas de comentario no entran al cálculo.",
-                    nameof(lineas));
+                    $"La línea {linea.NumeroLinea} no tiene identificador de IVA: las líneas de comentario no entran al cálculo.");
             }
         }
 

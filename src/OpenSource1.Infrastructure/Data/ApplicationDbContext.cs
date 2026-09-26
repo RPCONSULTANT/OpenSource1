@@ -962,9 +962,16 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     {
         modelBuilder.Entity<FacturaVenta>(entity =>
         {
-            // El total del documento legal es exactamente la suma de sus partes.
-            entity.ToTable("FacturasVenta", t => t.HasCheckConstraint(
-                "CK_FacturasVenta_Total", "\"ImporteTotal\" = \"ImporteSinIva\" + \"ImporteIva\""));
+            entity.ToTable("FacturasVenta", t =>
+            {
+                // El total del documento legal es exactamente la suma de sus partes.
+                t.HasCheckConstraint("CK_FacturasVenta_Total", "\"ImporteTotal\" = \"ImporteSinIva\" + \"ImporteIva\"");
+                // Red de seguridad (Task 6.4): los totales del documento legal van redondeados a 2 (spec 6.2).
+                t.HasCheckConstraint(
+                    "CK_FacturasVenta_Redondeo",
+                    "\"ImporteSinIva\" = ROUND(\"ImporteSinIva\", 2) AND \"ImporteIva\" = ROUND(\"ImporteIva\", 2) AND " +
+                    "\"ImporteTotal\" = ROUND(\"ImporteTotal\", 2)");
+            });
             entity.HasKey(x => x.Numero);
             entity.Property(x => x.Numero).HasMaxLength(20);
             entity.Property(x => x.NumeroBorrador).HasMaxLength(20).IsRequired();
@@ -989,6 +996,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.HasIndex(x => new { x.SocioNegocioFacturarAId, x.FechaRegistro })
                 .HasDatabaseName("IX_FacturasVenta_SocioNegocioFacturarAId_FechaRegistro");
             entity.HasIndex(x => x.FechaRegistro).HasDatabaseName("IX_FacturasVenta_FechaRegistro");
+            // Red de seguridad (Task 6.4): un asiento pertenece a una sola factura (NULL admite varias: total 0 no se postea).
+            entity.HasIndex(x => x.RegistroContableId).IsUnique().HasDatabaseName("IX_FacturasVenta_RegistroContableId");
 
             entity.HasOne<SocioNegocio>().WithMany().HasForeignKey(x => x.SocioNegocioId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne<SocioNegocio>().WithMany().HasForeignKey(x => x.SocioNegocioFacturarAId).OnDelete(DeleteBehavior.Restrict);
@@ -1013,6 +1022,9 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                     "(\"Tipo\" = 3 AND \"ProductoId\" IS NULL AND \"CuentaContableId\" IS NULL AND \"MovimientoProductoId\" IS NULL)");
                 t.HasCheckConstraint(
                     "CK_LineasFacturaVenta_Cantidad", "(\"Tipo\" = 3 AND \"Cantidad\" = 0) OR (\"Tipo\" <> 3 AND \"Cantidad\" > 0)");
+                // Red de seguridad (Task 6.4): toda línea de Producto posteada tiene su salida de inventario.
+                t.HasCheckConstraint(
+                    "CK_LineasFacturaVenta_MovimientoProducto", "\"Tipo\" <> 1 OR \"MovimientoProductoId\" IS NOT NULL");
             });
             entity.HasKey(x => x.Id);
             entity.Property(x => x.Id).UseIdentityAlwaysColumn();
@@ -1086,7 +1098,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             // GET api/clientes/{id}/movimientos.
             entity.HasIndex(x => new { x.SocioNegocioId, x.FechaRegistro })
                 .HasDatabaseName("IX_MovimientosCliente_SocioNegocioId_FechaRegistro");
-            entity.HasIndex(x => new { x.TipoDocumento, x.NumeroDocumento })
+            // Único desde la Task 6.4 (red de seguridad): un documento genera un solo movimiento de cliente.
+            entity.HasIndex(x => new { x.TipoDocumento, x.NumeroDocumento }).IsUnique()
                 .HasDatabaseName("IX_MovimientosCliente_TipoDocumento_NumeroDocumento");
             entity.HasIndex(x => new { x.TipoOrigen, x.ClaveOrigen })
                 .HasDatabaseName("IX_MovimientosCliente_TipoOrigen_ClaveOrigen");
