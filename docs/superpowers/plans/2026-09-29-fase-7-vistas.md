@@ -138,7 +138,9 @@ reexpresados sobre `ObtenerConversionAsync`), `PageRequest.Offset` acotado a `[0
 anteriores a la Fase 7 respondían 500 con `pagina=2147483647`; ahora 200 con página vacía), y las reglas refinadas del
 estado de cuenta y del balance registradas en el spec. Tanda final de correcciones: retirada `PaginacionValidacion` (las
 vistas de la Fase 7 respondían 400 con `Campo = "Pagina"`; ahora 200 con página vacía como el resto, y sus páginas Blazor
-saltan a la última).
+saltan a la última); test permanente de coherencia entre vistas (`CoherenciaVistasApiTests`: estado de cuenta = Σ tramos =
+Σ restantes de movimientos de cliente = CxC del balance, valor de existencias = 1301, existencia = `IConsultaInventario`, en
+varias fechas de corte, tras entrada retroactiva, ajuste de costo y batch).
 
 Verificación final: `dotnet build test.slnx --no-incremental` con 0 errores y solo los 6 avisos CS0618 preexistentes;
 `ApplicationDbContextModelTests` en verde; `dotnet ef migrations has-pending-model-changes` → "No changes have been made to
