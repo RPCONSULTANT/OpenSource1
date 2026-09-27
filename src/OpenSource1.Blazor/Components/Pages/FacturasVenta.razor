@@ -31,10 +31,6 @@
         @if (Numero is not null)
         {
             <a href="/facturas-venta" class="btn-press rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Volver al listado</a>
-            @if (detalle is not null && canAdd && TienePendiente)
-            {
-                <a href="@($"/facturas-venta/{Uri.EscapeDataString(Numero)}?crearNota=true")" class="btn-press rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700" data-testid="crear-nota">Crear nota de crédito</a>
-            }
         }
         <a href="/facturas-venta/borradores" class="btn-press rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Borradores</a>
     </div>
@@ -282,7 +278,7 @@ else
             </div>
             @if (canAdd && TienePendiente)
             {
-                <a href="@($"/facturas-venta/{Uri.EscapeDataString(Numero!)}?crearNota=true")" class="btn-press rounded-lg border border-brand-200 bg-brand-50 px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-100">Crear nota de crédito</a>
+                <a href="@($"/facturas-venta/{Uri.EscapeDataString(Numero!)}?crearNota=true")" class="btn-press rounded-lg border border-brand-200 bg-brand-50 px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-100" data-testid="crear-nota">Crear nota de crédito</a>
             }
             else if (!notasCargaFallida && !TienePendiente)
             {

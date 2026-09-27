@@ -427,6 +427,43 @@ public sealed class PostearFacturaVentaTests(PostgresTestFixture fixture) : ICla
         }
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SinFilaGeneralDeFechasRegistro_FallaCerrado_LanzaSinEscribir_AunqueElUsuarioTengaExcepcion(bool borradoFisico)
+    {
+        var fechas = new FechasRegistroPrueba(_prueba);
+        var conExcepcion = Guid.NewGuid();
+        var socio = await SocioAsync();
+        var ingresos = await CuentaAsync(posteoDirecto: true);
+        var borrador = await BorradorAsync(socio);
+        await LineaCuentaAsync(borrador.Id, ingresos, GrupoContableIds.IvaProductoItbis18, 1m, 100m);
+
+        try
+        {
+            // Excepción de usuario que permitiría la fecha: aun así la falta de la fila general falla cerrado (Ruling FJ).
+            await fechas.UsuarioAsync(conExcepcion, new DateOnly(2026, 9, 1), new DateOnly(2026, 9, 30));
+            await fechas.QuitarGeneralAsync(borradoFisico);
+            var antes = await FotoAsync();
+
+            foreach (var usuario in new Guid?[] { null, Guid.NewGuid(), conExcepcion })
+            {
+                var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => PostearComoAsync(borrador.Id, usuario));
+                Assert.Equal("Falta la fila sembrada de la configuración general de fechas de registro.", ex.Message);
+            }
+
+            Assert.Equal(antes, await FotoAsync());
+            Assert.Equal((false, 1L, 0L), await EstadoBorradorAsync(borrador.Id));
+        }
+        finally
+        {
+            await fechas.LimpiarAsync();
+        }
+
+        // Restaurada la fila, el mismo borrador se postea.
+        PostearOk(await PostearComoAsync(borrador.Id, conExcepcion));
+    }
+
     [Fact]
     public async Task SinLineasConImporte_400_SinEscribirNiConsumirNumero()
     {

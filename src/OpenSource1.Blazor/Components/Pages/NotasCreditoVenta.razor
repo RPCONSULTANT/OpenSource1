@@ -8,6 +8,7 @@
 @using OpenSource1.Application.Security
 @using OpenSource1.Blazor.Services
 @using OpenSource1.Core.Common
+@using OpenSource1.Core.Enums
 @inject INotaCreditoVentaApiClient NotaApiClient
 @inject ILogger<NotasCreditoVenta> Logger
 
@@ -200,7 +201,7 @@ else
                             <td class="px-4 py-3 text-xs @(l.DevolverInventario ? "font-semibold text-emerald-700" : "text-slate-400")">
                                 @if (l.DevolverInventario && l.ProductoId is { } productoId)
                                 {
-                                    <a class="underline" href="@($"/inventario/movimientos-producto?productoId={productoId}&tipoOrigen=6")">Sí</a>
+                                    <a class="underline" href="@($"/inventario/movimientos-producto?productoId={productoId}&tipoOrigen={(int)TipoOrigenMovimiento.NotaCreditoVenta}")">Sí</a>
                                 }
                                 else
                                 {

@@ -17,7 +17,7 @@ namespace OpenSource1.Infrastructure.Services.Inventario;
 /// </summary>
 /// <remarks>
 /// La usan <see cref="RegistroMovimientosInventario"/> tras cada movimiento y <see cref="AjusteCostoInventario"/> al cerrar
-/// cada producto (misma definición: ambos caminos dan el mismo valor). La migración <c>RecalcularCostoUnitario</c> aplica la
+/// cada producto (misma definición; difieren solo con <c>Q &lt;= 0</c>, ver <c>respaldoSinCantidad</c>). La migración <c>RecalcularCostoUnitario</c> aplica la
 /// misma fórmula en SQL a los datos existentes. Debe llamarse dentro de la transacción del llamador y bajo el advisory lock
 /// del producto (<see cref="BloqueoInventarioProducto"/>). UPDATE de UNA columna y solo si el valor cambia: aun así cambia el
 /// <c>xmin</c> de la fila, así que una edición concurrente del maestro del producto que partió del <c>xmin</c> anterior recibe

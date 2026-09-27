@@ -41,8 +41,34 @@ internal sealed class FechasRegistroPrueba(LibroInventarioPrueba prueba)
             new { Id = Guid.NewGuid(), U = usuarioId, Nombre = $"usuario-{usuarioId:N}"[..20], Desde = desde, Hasta = hasta });
     }
 
+    /// <summary>
+    /// Quita la fila general sembrada: borrado lógico (<paramref name="fisico"/> false, la oculta el filtro global) o
+    /// físico. <see cref="LimpiarAsync"/> la restaura.
+    /// </summary>
+    public async Task QuitarGeneralAsync(bool fisico)
+    {
+        await using var conexion = prueba.NuevaConexion();
+        var filas = await conexion.ExecuteAsync(
+            fisico
+                ? """DELETE FROM "ConfiguracionesRegistro" WHERE "Id" = @Id"""
+                : """UPDATE "ConfiguracionesRegistro" SET "IsDeleted" = true WHERE "Id" = @Id""",
+            new { Id = ConfiguracionRegistroIds.General });
+        Assert.Equal(1, filas);
+    }
+
     public async Task LimpiarAsync()
     {
+        await using (var restaurar = prueba.NuevaConexion())
+        {
+            await restaurar.ExecuteAsync(
+                """
+                INSERT INTO "ConfiguracionesRegistro" ("Id", "CreatedAtUtc", "CreatedBy", "IsDeleted")
+                VALUES (@Id, now(), 'test', false)
+                ON CONFLICT ("Id") DO UPDATE SET "IsDeleted" = false
+                """,
+                new { Id = ConfiguracionRegistroIds.General });
+        }
+
         await GeneralAsync(null, null);
         await using var conexion = prueba.NuevaConexion();
         await conexion.ExecuteAsync("""DELETE FROM "ConfiguracionesRegistroUsuario" """);

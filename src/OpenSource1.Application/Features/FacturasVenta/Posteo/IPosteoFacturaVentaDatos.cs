@@ -47,7 +47,8 @@ public interface IPosteoFacturaVentaDatos
 
     /// <summary>
     /// Inserta la cabecera posteada, sus líneas y sus líneas de IVA (solo <c>INSERT</c>: las tres tablas son append-only).
-    /// La cabecera ya lleva <c>RegistroContableId</c> (el asiento se registra antes) y cada línea de Producto, su
+    /// La cabecera ya lleva <c>RegistroContableId</c> (el asiento se registra antes; null en una factura de total 0, sin
+    /// asiento) y cada línea de Producto, su
     /// <c>MovimientoProductoId</c>.
     /// </summary>
     Task InsertarFacturaAsync(

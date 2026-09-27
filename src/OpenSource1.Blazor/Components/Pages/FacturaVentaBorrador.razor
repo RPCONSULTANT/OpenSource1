@@ -701,7 +701,7 @@ else
                     <input id="@($"{prefix}_PrecioUnitarioTexto")" type="text" inputmode="decimal" name="@($"{prefix}.PrecioUnitarioTexto")" value="@model.PrecioUnitarioTexto"
                            aria-describedby="@($"{prefix}_PrecioAyuda")" class="@InputCss" />
                     <ValidationMessage For="() => model.PrecioUnitarioTexto" />
-                    <p id="@($"{prefix}_PrecioAyuda")" class="mt-1 text-xs text-slate-400" data-testid="ayuda-precio">Mayor que cero; para regalar, use 100 % de descuento.</p>
+                    <p id="@($"{prefix}_PrecioAyuda")" class="mt-1 text-xs text-slate-400" data-testid="ayuda-precio">Mayor que cero; @LineaFacturaForm.AyudaRegalo.</p>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{prefix}_PorcentajeDescuentoTexto")">Descuento %</label>

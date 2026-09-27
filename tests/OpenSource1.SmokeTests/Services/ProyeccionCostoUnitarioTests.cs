@@ -11,7 +11,8 @@ namespace OpenSource1.SmokeTests.Services;
 /// Proyección <c>Producto.CostoUnitario</c> (Task 8.3) contra Postgres real: tras cada movimiento registrado por
 /// <c>IRegistroMovimientosInventario</c> vale el promedio vigente a la última fecha con movimientos del producto
 /// (<c>V / Q</c> sobre TODOS sus movimientos de valor, redondeado a 4) si <c>Q &gt; 0</c>, y conserva su valor si
-/// <c>Q &lt;= 0</c>; <c>AjustarCostoMovimientos</c> la deja con la misma definición. REQUIERE DOCKER.
+/// <c>Q &lt;= 0</c>; <c>AjustarCostoMovimientos</c> la deja con la misma definición, salvo con <c>Q &lt;= 0</c>, donde usa
+/// como respaldo su último promedio ajustado con <c>Q &gt; 0</c> (<c>respaldoSinCantidad</c>). REQUIERE DOCKER.
 /// </summary>
 [Collection(PostgresCollection.Name)]
 public sealed class ProyeccionCostoUnitarioTests(PostgresTestFixture fixture)
@@ -124,8 +125,8 @@ public sealed class ProyeccionCostoUnitarioTests(PostgresTestFixture fixture)
     public async Task TrasRegistrarYDespuesAjustar_SinNadaQueAjustar_ElCostoUnitarioCoincide()
     {
         // Entradas que suman 10 en 3 unidades y una salida: el promedio DEL DÍA de la salida es 3.33333… (lo que usa la
-        // calculadora del posteo), pero tras ella quedan 6.6667 / 2 = 3.33335 → 3.3334. Registro y ajuste dan lo mismo
-        // (V / Q sobre todo el libro); el ajuste no inserta nada.
+        // calculadora del posteo), pero tras ella quedan 6.6667 / 2 = 3.33335 → 3.3334. Con Q > 0 registro y ajuste dan lo
+        // mismo (V / Q sobre todo el libro; solo difieren con Q <= 0, donde el ajuste usa su respaldo); el ajuste no inserta nada.
         var producto = await _prueba.SembrarProductoAsync();
         var almacen = await _prueba.SembrarAlmacenAsync();
         await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Entrada(producto, almacen, 1m, 3.3333m, D1));
