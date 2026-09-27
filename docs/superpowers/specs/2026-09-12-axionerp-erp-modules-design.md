@@ -1046,6 +1046,16 @@ de que la serie de posteado no deja huecos bajo dos posteos concurrentes.
   `SocioNegocioId` (vender-a).
 - **Guarda de borrado de socios** (pendiente de la Fase 5): un socio con borradores, facturas, movimientos de cliente o
   movimientos contables → 409 `socio_negocio.conflicto`.
+- **Orden global de locks** (todo comando que escribe documentos, libros o asientos lo respeta, para que no se formen
+  ciclos): documento/borrador (`FOR UPDATE`, con sus líneas) → socios (`FOR SHARE`, orden de Id; también el alta y el cambio
+  de socio de un borrador, antes de validarlos) → productos (advisory lock, ordenados) → series (línea de serie
+  `FOR UPDATE`) → almacenes compartidos (advisory lock compartido) → cuentas (`FOR SHARE`, orden de Id) → serie `CONTAB`.
+  La aplicación de cobros bloquea primero los movimientos de cliente (`FOR UPDATE`, orden de Id: ocupan el lugar del
+  documento) y después el socio (`FOR SHARE`); comprueba que factura y pago son del mismo socio antes de bloquearlo.
+- **Cantidades exactas en la unidad base:** una cantidad cuya equivalencia en la unidad base (con el factor congelado,
+  redondeado a 6 decimales) tenga más decimales de los que admite la unidad base se rechaza (`conversion.cantidad_no_exacta`
+  al capturar la línea y al postear, `inventario.cantidad_invalida` en la red final del registro de inventario); nunca se
+  redondea en el libro.
 
 ---
 

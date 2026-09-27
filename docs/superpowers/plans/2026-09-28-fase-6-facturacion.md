@@ -292,23 +292,32 @@ el código de prueba `HACK-1`). Suite completa (`DOCKER_CONTEXT=default dotnet t
   `SocioNegocioUsoService`; grupos y cuentas usados por borradores/facturas, `GrupoContableUsoService` y
   `CuentaContableUsoService`) son consultas sin bloqueo antes del borrado lógico, el mismo patrón de
   las fases anteriores; el posteo revalida todo bajo lock y rechaza con error explícito, nunca escribe a medias. El alta y
-  la edición de borradores tampoco toman `FOR SHARE` del socio (Ruling DF-4, pendiente de la fix wave final).
+  la edición de borradores toman `FOR SHARE` del socio desde la fix wave final (Ruling DF-4, commit `52e3249`).
 - **Unidad de línea siempre la base del producto (en la UI).** La página del borrador envía siempre la unidad base del
   producto (factor 1) y no ofrece unidades alternativas. La API acepta `UnidadMedidaId` opcional (por defecto la base) y
   congela el factor de conversión como en los diarios, pero ese camino no tiene UI ni runtime verificado en esta fase.
-- **HALLAZGO pendiente de la fix wave final (NO resuelto): cantidades con más decimales que la unidad base se redondean en
-  inventario.** Una línea de 2.5 UND (unidad con `Decimales = 0`) se factura por 2.5, pero `ConversionUnidadMedidaService`
-  redondea la cantidad base a 3, así que el documento y el libro de inventario no coinciden. Afecta también a las líneas
-  de diario (Fase 4). Decisión (Ruling DJ): rechazar, no redondear, en `LineaFacturaVentaBorradorReglas`,
-  `LineaDiarioReglas`, la revalidación del posteo de facturas y diarios, y en `RegistrarAsync` como red final. Las vistas
-  de la Fase 7 mostrarán las discrepancias que existan hasta que se aplique.
-- **Otros pendientes de la fix wave final:** guarda de mismo socio en `AplicarPagoCommandHandler` antes del bloqueo de
-  socios y su test de API; campo vacío en `cobro.serie_invalida`; `Campo` de los errores de `IRegistroContable`
-  reescrito; saltar en la derivación las líneas que ya tienen error; test de concurrencia con productos distintos
-  (contienda real de la serie `FV`); tests de cuentas de IVA distintas, facturar-a bloqueado y unidad borrada; documentar el
-  orden global de locks en las desviaciones de la Fase 6. Diferidos menores: N+1 en `RecalcularIvaLineasAsync`, número de
-  `COBRO` con la fecha de hoy, búsqueda de productos en cada GET de la página de borrador, mensajes "no encontrado" cuando
-  lo que falló fue la carga, duplicación de campos de línea/buscador con los diarios, modo oscuro.
+- **RESUELTO en la fix wave final (commit `52e3249`): cantidades con más decimales que la unidad base.** Antes, una línea
+  de 2.5 UND (`Decimales = 0`) se facturaba por 2.5 y salía del inventario como −3 (redondeo en
+  `ConversionUnidadMedidaService`); afectaba también a los diarios (Fase 4). Ahora se RECHAZA, nunca se redondea:
+  `IConversionUnidadMedidaService.ObtenerConversionAsync` + `ConversionUnidadMedida.ConvertirExacta` (factor congelado
+  redondeado a 6, el mismo que se guarda en la línea y en el movimiento) → `conversion.cantidad_no_exacta` en
+  `LineaFacturaVentaBorradorReglas` y `LineaDiarioReglas` (400 en `Cantidad` con los decimales admitidos), en la
+  revalidación del posteo de facturas y diarios (`Lineas[n].Cantidad`) y `inventario.cantidad_invalida` en
+  `RegistrarAsync` como red final. Los movimientos ya escritos antes de este commit con cantidades redondeadas (si los
+  hubiera en una base real) no se corrigen: las vistas de la Fase 7 los mostrarán tal cual.
+- **Resueltos también en `52e3249`:** guarda de mismo socio en `AplicarPagoCommandHandler` antes del bloqueo del socio (con
+  test de API); `Campo` vacío en `cobro.serie_invalida` y `factura.serie_invalida`; `Campo` de los errores de
+  `IRegistroContable` sin el índice de pata; la derivación salta las líneas con error; `FOR SHARE` de los socios en el alta
+  y el cambio de socio de borradores (Ruling DF-4); tests de concurrencia con productos distintos, cuentas de IVA
+  distintas, facturar-a bloqueado y unidad borrada; orden global de locks documentado en las desviaciones de la Fase 6.
+  Siguen diferidos los menores: N+1 en `RecalcularIvaLineasAsync`, número de `COBRO` con la fecha de hoy, búsqueda de
+  productos en cada GET de la página de borrador, mensajes "no encontrado" cuando lo que falló fue la carga, duplicación
+  de campos de línea/buscador con los diarios, modo oscuro.
+- **M-7: CxC congelada de la factura vs. CxC vigente del pago.** La factura congela la CxC del grupo de cliente contable
+  de su cabecera y el pago usa la CxC del grupo VIGENTE del socio. Si el grupo cambia entre ambos, aplicar el pago a la
+  factura deja el libro de clientes cuadrado, pero en contabilidad quedan dos CxC con saldo contrario (una deudora y otra
+  acreedora por el mismo importe). Se resolverá con una reclasificación de CxC futura (asiento entre ambas cuentas al
+  aplicar o al cambiar el grupo).
 - **Mensaje del trigger ante `TRUNCATE`** (preexistente, Fase 3): `libro_inventario_append_only()` responde "UPDATE no
   permitido" también a un `TRUNCATE` (no distingue `TG_OP = 'TRUNCATE'`). El rechazo es correcto; solo el texto confunde.
 - **Down destructivo.** El `Down` de `AddFacturasVentaYLibroClientes` borra facturas posteadas y libro de clientes, y no
