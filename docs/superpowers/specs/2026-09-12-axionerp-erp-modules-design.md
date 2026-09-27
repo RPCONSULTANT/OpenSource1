@@ -1085,12 +1085,24 @@ Todas sobre repositorios Dapper paginados, con allow-list de columnas de ordenac
 - **Estado de cuenta:** antigüedad por `FechaVencimiento` respecto a una **fecha de corte** (por defecto hoy): corriente
   (no vencido), 1-30, 31-60, 61-90, 90+ días vencidos, sobre el **restante a la fecha de corte** (detalle con
   `FechaRegistro <= corte`); los pagos con restante negativo se muestran como "sin aplicar" y restan del total.
+  **Regla refinada (Task 7.3):** una fila de detalle que es una **aplicación** solo cuenta a la fecha de corte si el
+  movimiento contrario (`MovimientoClienteAplicadoId`) también está registrado a esa fecha. Así las dos patas de cada
+  aplicación entran o salen juntas (una aplicación fechada antes que su pago no reduce la factura en una fecha en que el
+  pago aún no existe) y el **total del estado de cuenta = Σ importes originales con `FechaRegistro <= corte` = saldo de CxC
+  a esa fecha**. Cualquier restante negativo va a "sin aplicar"; se listan los socios con algún movimiento a la fecha.
 - **Balance de comprobación** por rango de fechas: saldo inicial (antes de `desde`), débitos y créditos del rango y saldo
   final, solo cuentas de Posteo con movimientos o saldo; sin cierre de ejercicio (las cuentas de resultado acumulan).
+  **Presentación (Task 7.4):** las cuentas de tipo Encabezado no borradas se intercalan siempre como **filas de título**
+  (sin importes, con su sangría; aunque ninguna cuenta suya tenga filas en el rango), ordenadas por número; las de
+  totalización no se muestran. El balance agrupa por `CuentaContableId` y muestra el **número y nombre ACTUALES** de la
+  cuenta (marcada como borrada si lo está); la vista de movimientos contables muestra el número congelado en el movimiento.
 - **Valor de inventario** por producto y almacén = `SUM(ImporteCosto)` de los movimientos de valor hasta la fecha;
   existencia = `SUM(Cantidad)` de movimientos de producto (misma derivación que `IConsultaInventario`).
 - **Limpieza heredada:** `ConvertirABaseAsync` y `ObtenerFactorAsync` (redondean) se retiran de
-  `IConversionUnidadMedidaService` si no tienen llamadores.
+  `IConversionUnidadMedidaService` si no tienen llamadores. **Hecho en la Task 7.5** (no tenían ninguno).
+- **Paginación desbordada (Task 7.5):** `PageRequest.Offset` se calcula en 64 bits y se acota a `[0, int.MaxValue]`: los
+  listados anteriores a la Fase 7 responden 200 con una página vacía ante una página enorme (antes, 500). Las vistas de la
+  Fase 7 validan antes con `PaginacionValidacion` y responden 400 con `Campo = "Pagina"`.
 
 ---
 
