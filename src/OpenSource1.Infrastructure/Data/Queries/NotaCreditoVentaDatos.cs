@@ -120,13 +120,46 @@ public sealed class NotaCreditoVentaDatos(IDbSession session) : INotaCreditoVent
             cancellationToken: cancellationToken));
     }
 
-    public async Task<IReadOnlyDictionary<string, Guid>> CuentasIvaFacturaAsync(string facturaNumero, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyDictionary<long, AcreditadoLinea>> AcreditadoPorLineaAsync(
+        string facturaNumero, CancellationToken cancellationToken = default)
     {
         await session.EnsureOpenAsync(cancellationToken);
-        var filas = await session.Connection.QueryAsync<(string Identificador, Guid Cuenta)>(new CommandDefinition(
-            """SELECT "IdentificadorIva", "CuentaIvaId" FROM "LineasIvaFacturaVenta" WHERE "FacturaVentaNumero" = @Numero""",
+        var filas = await session.Connection.QueryAsync<AcreditadoFila>(new CommandDefinition(
+            """
+            SELECT n."LineaFacturaVentaId", SUM(n."Cantidad") AS "Cantidad", SUM(n."ImporteLinea") AS "ImporteLinea",
+                   SUM(n."ImporteDescuentoLinea") AS "ImporteDescuentoLinea",
+                   SUM(CASE WHEN n."DevolverInventario" THEN n."Cantidad" ELSE 0 END) AS "CantidadDevuelta",
+                   COALESCE(SUM(v."Costo"), 0) AS "CostoDevuelto"
+            FROM "LineasNotaCreditoVenta" n
+            JOIN "LineasFacturaVenta" f ON f."Id" = n."LineaFacturaVentaId"
+            LEFT JOIN LATERAL (
+                SELECT SUM(mv."ImporteCosto") AS "Costo" FROM "MovimientosValor" mv
+                WHERE mv."MovimientoProductoId" = n."MovimientoProductoId" AND mv."TipoValor" = @CostoDirecto
+            ) v ON true
+            WHERE f."FacturaVentaNumero" = @Numero
+            GROUP BY n."LineaFacturaVentaId"
+            """,
+            new { Numero = facturaNumero, CostoDirecto = (short)TipoValor.CostoDirecto }, session.CurrentTransaction,
+            cancellationToken: cancellationToken));
+        return filas.ToDictionary(
+            f => f.LineaFacturaVentaId,
+            f => new AcreditadoLinea(f.Cantidad, f.ImporteLinea, f.ImporteDescuentoLinea, f.CantidadDevuelta, f.CostoDevuelto));
+    }
+
+    public async Task<IReadOnlyDictionary<string, IvaFacturaGrupo>> IvaFacturaAsync(string facturaNumero, CancellationToken cancellationToken = default)
+    {
+        await session.EnsureOpenAsync(cancellationToken);
+        var filas = await session.Connection.QueryAsync<(string Identificador, decimal Porcentaje, decimal ImporteIva, Guid Cuenta, decimal Acreditado)>(new CommandDefinition(
+            """
+            SELECT i."IdentificadorIva", i."PorcentajeIva", i."ImporteIva", i."CuentaIvaId",
+                   COALESCE((SELECT SUM(ni."ImporteIva") FROM "LineasIvaNotaCreditoVenta" ni
+                             JOIN "NotasCreditoVenta" n ON n."Numero" = ni."NotaCreditoVentaNumero"
+                             WHERE n."FacturaVentaNumero" = i."FacturaVentaNumero" AND ni."IdentificadorIva" = i."IdentificadorIva"), 0)
+            FROM "LineasIvaFacturaVenta" i
+            WHERE i."FacturaVentaNumero" = @Numero
+            """,
             new { Numero = facturaNumero }, session.CurrentTransaction, cancellationToken: cancellationToken));
-        return filas.ToDictionary(f => f.Identificador, f => f.Cuenta, StringComparer.Ordinal);
+        return filas.ToDictionary(f => f.Identificador, f => new IvaFacturaGrupo(f.Porcentaje, f.ImporteIva, f.Cuenta, f.Acreditado), StringComparer.Ordinal);
     }
 
     public async Task<CostoSalidaVenta?> CostoSalidaAsync(long movimientoProductoId, CancellationToken cancellationToken = default)
@@ -206,6 +239,16 @@ public sealed class NotaCreditoVentaDatos(IDbSession session) : INotaCreditoVent
         }
 
         await session.EnsureOpenAsync(cancellationToken);
+    }
+
+    private sealed class AcreditadoFila
+    {
+        public long LineaFacturaVentaId { get; init; }
+        public decimal Cantidad { get; init; }
+        public decimal ImporteLinea { get; init; }
+        public decimal ImporteDescuentoLinea { get; init; }
+        public decimal CantidadDevuelta { get; init; }
+        public decimal CostoDevuelto { get; init; }
     }
 
     private sealed class LineaFila

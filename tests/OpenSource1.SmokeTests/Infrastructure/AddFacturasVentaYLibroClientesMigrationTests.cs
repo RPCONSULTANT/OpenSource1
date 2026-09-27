@@ -87,6 +87,11 @@ public sealed class AddFacturasVentaYLibroClientesMigrationTests(PostgresTestFix
             ("""TRUNCATE "FacturasVenta" CASCADE""", null),
             ("""TRUNCATE "MovimientosCliente" CASCADE""", null),
         };
+        // Sin CASCADE, el TRUNCATE de LineasFacturaVenta lo rechaza Postgres (0A000) por la FK de LineasNotaCreditoVenta(Borrador)
+        // antes de llegar al trigger: tampoco se trunca nada.
+        var sinCascade = await Assert.ThrowsAsync<PostgresException>(() => conexion.ExecuteAsync("""TRUNCATE "LineasFacturaVenta" """));
+        Assert.Equal("0A000", sinCascade.SqlState);
+
         foreach (var (sql, tabla) in sentencias)
         {
             var error = await Assert.ThrowsAsync<PostgresException>(() =>

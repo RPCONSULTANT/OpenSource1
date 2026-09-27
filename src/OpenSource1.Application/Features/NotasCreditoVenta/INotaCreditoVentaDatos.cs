@@ -18,6 +18,19 @@ public sealed record CostoSalidaVenta(decimal CantidadBase, decimal ImporteCosto
     public decimal CostoUnitario => -ImporteCosto / CantidadBase;
 }
 
+/// <summary>
+/// Lo ya acreditado de una línea de factura por notas POSTEADAS (Ruling FI): cantidad, importe y descuento acreditados; cantidad
+/// devuelta al inventario y valor de costo devuelto (Σ CostoDirecto de sus entradas de devolución, positivo).
+/// </summary>
+public sealed record AcreditadoLinea(
+    decimal Cantidad, decimal ImporteLinea, decimal ImporteDescuentoLinea, decimal CantidadDevuelta, decimal CostoDevuelto)
+{
+    public static readonly AcreditadoLinea Ninguno = new(0m, 0m, 0m, 0m, 0m);
+}
+
+/// <summary>Grupo de IVA de la factura: su IVA, su cuenta congelada y el IVA ya acreditado por notas POSTEADAS de la factura.</summary>
+public sealed record IvaFacturaGrupo(decimal PorcentajeIva, decimal ImporteIva, Guid CuentaIvaId, decimal IvaAcreditado);
+
 /// <summary>Línea viva de un borrador de nota, leída (y bloqueada) para postearla.</summary>
 public sealed record LineaNotaAPostear(
     Guid Id,
@@ -84,8 +97,14 @@ public interface INotaCreditoVentaDatos
     /// <summary>Movimiento de cliente (tipo Factura) de la factura; <see langword="null"/> en una factura de total 0.</summary>
     Task<MovimientoClienteFactura?> MovimientoClienteFacturaAsync(string facturaNumero, CancellationToken cancellationToken = default);
 
-    /// <summary>Cuenta de IVA congelada de cada línea de IVA de la factura, por identificador (ordinal).</summary>
-    Task<IReadOnlyDictionary<string, Guid>> CuentasIvaFacturaAsync(string facturaNumero, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Lo acreditado de cada línea de la factura por notas POSTEADAS (ver <see cref="AcreditadoLinea"/>); las líneas sin notas no
+    /// aparecen. Exacto bajo el bloqueo de la factura.
+    /// </summary>
+    Task<IReadOnlyDictionary<long, AcreditadoLinea>> AcreditadoPorLineaAsync(string facturaNumero, CancellationToken cancellationToken = default);
+
+    /// <summary>Grupos de IVA de la factura por identificador (ordinal), con su cuenta congelada y lo acreditado por notas posteadas.</summary>
+    Task<IReadOnlyDictionary<string, IvaFacturaGrupo>> IvaFacturaAsync(string facturaNumero, CancellationToken cancellationToken = default);
 
     /// <summary>Costo vigente de la salida <paramref name="movimientoProductoId"/> (ver <see cref="CostoSalidaVenta"/>), o null si no existe.</summary>
     Task<CostoSalidaVenta?> CostoSalidaAsync(long movimientoProductoId, CancellationToken cancellationToken = default);

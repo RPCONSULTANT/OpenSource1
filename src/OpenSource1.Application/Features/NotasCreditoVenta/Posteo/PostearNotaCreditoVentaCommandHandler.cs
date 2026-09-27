@@ -29,7 +29,10 @@ namespace OpenSource1.Application.Features.NotasCreditoVenta.Posteo;
 /// concurrentes sobre la misma línea se serializan en la factura y la segunda ve lo que acreditó la primera), exactitud de la
 /// devolución, producto, almacén y costo de la salida original; cuentas (Ventas derivada; IVA y CxC CONGELADAS de la factura;
 /// inventario derivada para el batch de costo). Nada se escribe hasta que no queda ningún error.</item>
-/// <item>IVA agrupado de la nota (<see cref="CalculadoraIvaFactura"/>), número <c>NC</c>, asiento en memoria.</item>
+/// <item>Importes RECALCULADOS desde la línea de la factura (no los guardados en el borrador) y TOPADOS por lo que queda por
+/// acreditar bajo el bloqueo (Ruling FI, <see cref="TopesNotaCredito"/>): importe y descuento por línea, IVA por grupo y costo de
+/// la devolución; la nota que agota toma los remanentes exactos. IVA agrupado de la nota (<see cref="CalculadoraIvaFactura"/>) sobre
+/// los importes topados, número <c>NC</c>, asiento en memoria con los importes topados.</item>
 /// <item>Devolución (Review Focus 2): por línea con <c>DevolverInventario</c>, entrada <c>Venta</c> con cantidad POSITIVA en el
 /// almacén de la línea original, en unidad base (convertida con el factor congelado de la factura), al costo unitario EXACTO de la
 /// salida original: <c>−ImporteCosto / CantidadBase</c> de su movimiento de producto, con <c>ImporteCosto</c> = Σ de sus movimientos
@@ -104,6 +107,12 @@ public sealed class PostearNotaCreditoVentaCommandHandler(
             restanteFactura = bloqueado.Single().ImporteRestante;
         }
 
+        // Líneas de la factura y lo acreditado por notas POSTEADAS, leídos BAJO el bloqueo de la factura. Los valores de cada línea de
+        // la nota se toman de su línea de factura (no de la copia del borrador) y los importes se recalculan y topan más abajo.
+        var lineasFactura = (await datos.LineasFacturaAsync(factura.Numero, cancellationToken)).ToDictionary(l => l.Id);
+        var acreditado = await datos.AcreditadoPorLineaAsync(factura.Numero, cancellationToken);
+        lineas = [.. lineas.Select(l => lineasFactura.TryGetValue(l.LineaFacturaVentaId, out var o) ? TopesNotaCredito.DesdeOriginal(l, o) : l)];
+
         // 3. Socios (compartido) y productos con devolución (orden único) antes de revalidarlos.
         await datos.BloquearSociosAsync([borrador.SocioNegocioId, borrador.SocioNegocioFacturarAId], cancellationToken);
         await registroInventario.BloquearProductosAsync(
@@ -113,14 +122,12 @@ public sealed class PostearNotaCreditoVentaCommandHandler(
         var errores = new List<Error>();
         await ValidarCabeceraAsync(borrador, factura, errores, cancellationToken);
 
-        var lineasFactura = (await datos.LineasFacturaAsync(factura.Numero, cancellationToken)).ToDictionary(l => l.Id);
-        var acreditadas = await datos.CantidadesAcreditadasAsync(factura.Numero, cancellationToken);
         var devoluciones = new Dictionary<Guid, Devolucion>();
         var lineasValidas = new List<LineaNotaAPostear>();
         foreach (var linea in lineas)
         {
             var antes = errores.Count;
-            if (await ValidarLineaAsync(linea, lineasFactura, acreditadas, errores, cancellationToken) is { } devolucion)
+            if (await ValidarLineaAsync(linea, lineasFactura, acreditado, errores, cancellationToken) is { } devolucion)
             {
                 devoluciones[linea.Id] = devolucion;
             }
@@ -132,16 +139,36 @@ public sealed class PostearNotaCreditoVentaCommandHandler(
         }
 
         ValidarIvaCoherente(lineas, errores);
-        var cuentasIvaFactura = await datos.CuentasIvaFacturaAsync(factura.Numero, cancellationToken);
-        var cuentas = await DerivarCuentasAsync(borrador, lineasValidas, devoluciones, cuentasIvaFactura, errores, cancellationToken);
+        var ivaFactura = await datos.IvaFacturaAsync(factura.Numero, cancellationToken);
+        var cuentas = await DerivarCuentasAsync(
+            borrador, lineasValidas, devoluciones, ivaFactura.ToDictionary(p => p.Key, p => p.Value.CuentaIvaId, StringComparer.Ordinal),
+            errores, cancellationToken);
         if (errores.Count > 0)
         {
             return Fallo([.. errores]);
         }
 
-        // 5. IVA agrupado. Total 0 solo si todas las líneas devuelven inventario (Ruling FE).
-        var totales = CalculadoraIvaFactura.Calcular(
-            [.. lineas.Select(l => new LineaCalculoIva(l.NumeroLinea, l.IdentificadorIva!, l.PorcentajeIva, l.ImporteLinea))]);
+        // 5. Importes recalculados y TOPADOS por lo que queda por acreditar (Ruling FI) e IVA agrupado topado por grupo. Total 0 solo
+        //    si todas las líneas devuelven inventario (Ruling FE).
+        var topes = TopesNotaCredito.Calcular(lineas, lineasFactura, acreditado, ivaFactura);
+        lineas = topes.Lineas;
+        var totales = topes.Totales;
+
+        // Un grupo de IVA con remanente que la nota no traía (solo al agotar la factura) usa la cuenta congelada de la factura.
+        var cuentasIva = new Dictionary<string, Guid>(cuentas.CuentaIvaPorIdentificador, StringComparer.Ordinal);
+        foreach (var grupo in totales.Grupos.Where(g => !cuentasIva.ContainsKey(g.IdentificadorIva)))
+        {
+            var cuentaIva = ivaFactura[grupo.IdentificadorIva].CuentaIvaId;
+            if (await ValidarCuentaCongeladaAsync(cuentaIva, "IdentificadorIva", $"la cuenta de IVA '{grupo.IdentificadorIva}'", cancellationToken)
+                is { } errorIva)
+            {
+                return Fallo(errorIva);
+            }
+
+            cuentasIva[grupo.IdentificadorIva] = cuentaIva;
+        }
+
+        cuentas = cuentas with { CuentaIvaPorIdentificador = cuentasIva };
         var conImporte = totales.ImporteTotal != 0m;
         if (!conImporte && !lineas.All(l => l.DevolverInventario))
         {
@@ -209,7 +236,8 @@ public sealed class PostearNotaCreditoVentaCommandHandler(
                 devolucion.CantidadBase,
                 EsEntrada: true,
                 devolucion.UnidadBaseId,
-                devolucion.CostoUnitario,
+                // Costo unitario tal que CantidadBase × costo redondeado a 4 = el importe topado (se comprueba abajo).
+                devolucion.ImporteCosto / devolucion.CantidadBase,
                 borrador.FechaRegistro,
                 borrador.FechaDocumento,
                 TipoDocumentoInventario.NotaCreditoVenta,
@@ -221,6 +249,13 @@ public sealed class PostearNotaCreditoVentaCommandHandler(
             if (!entrada.TryObtenerValor(out var registrada))
             {
                 return Fallo(NotaCreditoVentaErrores.DeLinea(linea.NumeroLinea, entrada.Errores[0]));
+            }
+
+            if (registrada.ImporteCosto != devolucion.ImporteCosto)
+            {
+                // Imposible (división decimal de 28 dígitos): abortar antes que devolver otro valor del calculado.
+                throw new InvalidOperationException(
+                    $"La devolución de la línea {linea.NumeroLinea} se valoró en {registrada.ImporteCosto} y no en {devolucion.ImporteCosto}.");
             }
 
             movimientos[linea.Id] = registrada.MovimientoProductoId;
@@ -339,7 +374,7 @@ public sealed class PostearNotaCreditoVentaCommandHandler(
     private async Task<Devolucion?> ValidarLineaAsync(
         LineaNotaAPostear linea,
         IReadOnlyDictionary<long, LineaFacturaVenta> lineasFactura,
-        IReadOnlyDictionary<long, decimal> acreditadas,
+        IReadOnlyDictionary<long, AcreditadoLinea> acreditado,
         List<Error> errores,
         CancellationToken cancellationToken)
     {
@@ -352,7 +387,7 @@ public sealed class PostearNotaCreditoVentaCommandHandler(
 
         // Review Focus 1: la cantidad pendiente se recalcula aquí, con la factura bloqueada.
         var calculo = await LineaNotaCreditoVentaReglas.ValidarAsync(
-            unitOfWork, conversion, original, acreditadas.GetValueOrDefault(original.Id), linea.Cantidad, linea.DevolverInventario,
+            unitOfWork, conversion, original, Acreditado(acreditado, original.Id).Cantidad, linea.Cantidad, linea.DevolverInventario,
             cancellationToken);
         if (!calculo.TryObtenerValor(out var valores))
         {
@@ -422,7 +457,11 @@ public sealed class PostearNotaCreditoVentaCommandHandler(
             return null;
         }
 
-        return new Devolucion(valores.CantidadBase!.Value, valores.UnidadBaseId!.Value, costo.CostoUnitario);
+        // Proporcional al costo exacto de la salida, redondeado a 4 como lo haría el registro, y topado por lo que queda de su valor.
+        var cantidadBase = valores.CantidadBase!.Value;
+        var calculado = Math.Round(cantidadBase * costo.CostoUnitario, 4, MidpointRounding.AwayFromZero);
+        var importe = TopesNotaCredito.TopeCosto(calculado, costo, Acreditado(acreditado, original.Id), linea.Cantidad, original.Cantidad);
+        return new Devolucion(cantidadBase, valores.UnidadBaseId!.Value, importe);
     }
 
     /// <summary>Un mismo identificador de IVA con porcentajes distintos no se puede agrupar.</summary>
@@ -599,6 +638,9 @@ public sealed class PostearNotaCreditoVentaCommandHandler(
 
     private static Result<ResultadoPosteoNotaCredito> Fallo(params Error[] errores) => Result<ResultadoPosteoNotaCredito>.Fallo(errores);
 
-    /// <summary>Entrada de devolución ya calculada: cantidad y unidad base, costo unitario exacto de la salida original.</summary>
-    private sealed record Devolucion(decimal CantidadBase, Guid UnidadBaseId, decimal CostoUnitario);
+    private static AcreditadoLinea Acreditado(IReadOnlyDictionary<long, AcreditadoLinea> acreditado, long lineaId) =>
+        acreditado.TryGetValue(lineaId, out var a) ? a : AcreditadoLinea.Ninguno;
+
+    /// <summary>Entrada de devolución ya calculada: cantidad y unidad base e importe de costo (positivo, ya topado).</summary>
+    private sealed record Devolucion(decimal CantidadBase, Guid UnidadBaseId, decimal ImporteCosto);
 }

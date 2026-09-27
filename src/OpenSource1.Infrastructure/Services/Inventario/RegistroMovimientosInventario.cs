@@ -129,10 +129,11 @@ public sealed class RegistroMovimientosInventario(
         // Solo se valida en entradas: en una salida CostoUnitario se ignora (el contrato no lo usa allí). La entrada de una
         // TRANSFERENCIA admite más de 4 decimales: recibe el costo exacto de su salida gemela (-ImporteCosto / CantidadBase,
         // p. ej. 5.3333 / 4 = 1.333325) para que su importe sea exactamente el opuesto; redondearlo a 4 decimales
-        // descuadraría la reclasificación. Lo mismo la entrada de tipo VENTA (Task 8.6): solo la registra la devolución de una
-        // nota de crédito, al costo exacto de la salida original, para que el valor que vuelve sea exactamente el que salió
+        // descuadraría la reclasificación. Lo mismo la entrada de tipo VENTA con origen NotaCreditoVenta (Task 8.6, Ruling FI): la
+        // devolución de una nota de crédito, al costo exacto de la salida original, para que el valor que vuelve sea exactamente el que salió
         // (proporcional a la cantidad). CostoPorUnidad se sigue guardando redondeado a 4.
-        var costoExacto = esTransferencia || solicitud.TipoMovimiento == TipoMovimientoInventario.Venta;
+        var costoExacto = esTransferencia
+            || (solicitud.TipoMovimiento == TipoMovimientoInventario.Venta && solicitud.TipoOrigen == TipoOrigenMovimiento.NotaCreditoVenta);
         if (solicitud.EsEntrada && solicitud.CostoUnitario is { } costoSolicitado
             && !(costoExacto ? EsCostoTransferenciaValido(costoSolicitado) : EsImporteValido(costoSolicitado)))
         {

@@ -359,6 +359,135 @@ public sealed class PostearNotaCreditoVentaTests(PostgresTestFixture fixture) : 
         Assert.Equal(0m, await RestanteAsync(movimientoFactura));
     }
 
+    // ----- Ruling FI: nunca se acredita de más en importe, IVA ni costo -----
+
+    [Fact]
+    public async Task RulingFI_TresNotasDe1Sobre3x333Al10_SumanExactamenteLoFacturado_EnImporteDescuentoEIva()
+    {
+        // Factura: 3 × 3.33 al 10 % = 9.99 − 1.00 = 8.99; IVA 18 % = 1.62; total 10.61. Cada nota de 1 calcula 3.33 − 0.33 = 3.00.
+        var socio = await SocioAsync();
+        var factura = await FacturaAsync(socio, null, C(await CuentaAsync(), 3m, 3.33m, descuento: 10m));
+        var linea = Assert.Single(await LineasFacturaAsync(factura));
+        var movimientoFactura = Assert.Single(await MovimientosClienteAsync(TipoDocumentoCliente.Factura, factura)).Id;
+
+        var notas = new List<NotaCreditoVenta>();
+        for (var i = 0; i < 3; i++)
+        {
+            var borrador = Ok(await CrearBorradorAsync(factura));
+            Ok(await LineaAsync(borrador.Id, linea.Id, 1m));
+            var vistaPrevia = Assert.IsType<OpenSource1.Application.Features.FacturasVenta.Calculo.TotalesFactura>(await TotalesAsync(borrador.Id));
+            var resultado = Ok(await PostearAsync(borrador.Id));
+            Assert.Equal(vistaPrevia.ImporteTotal, resultado.ImporteTotal);
+            notas.Add(await NotaAsync(resultado.Numero));
+            Assert.Equal(0m, (await AsientoAsync(notas[^1].RegistroContableId!.Value)).Sum(m => m.Importe));
+        }
+
+        var lineasNotas = new List<LineaNotaCreditoVenta>();
+        foreach (var nota in notas)
+        {
+            lineasNotas.Add(Assert.Single(await LineasNotaAsync(nota.Numero)));
+        }
+
+        Assert.Equal([3.00m, 3.00m, 2.99m], lineasNotas.Select(l => l.ImporteLinea));
+        Assert.Equal([0.33m, 0.33m, 0.34m], lineasNotas.Select(l => l.ImporteDescuentoLinea));
+        Assert.Equal([0.54m, 0.54m, 0.54m], notas.Select(n => n.ImporteIva));
+        Assert.Equal((8.99m, 1.62m, 10.61m), (notas.Sum(n => n.ImporteSinIva), notas.Sum(n => n.ImporteIva), notas.Sum(n => n.ImporteTotal)));
+        Assert.Equal(0m, await RestanteAsync(movimientoFactura));
+    }
+
+    [Fact]
+    public async Task RulingFI_SinDescuento_0335x3_TresNotasSuman101_YElIvaDeBasesPequenasNuncaExcedeElDeLaFactura()
+    {
+        var socio = await SocioAsync();
+        var cuenta = await CuentaAsync();
+
+        // 3 × 0.335 = 1.005 -> 1.01; cada nota de 1 calcula 0.34.
+        Assert.Equal([0.34m, 0.34m, 0.33m], await TresNotasDe1Async(await FacturaAsync(socio, null, C(cuenta, 3m, 0.335m)), n => n.ImporteSinIva));
+
+        // 3 × 0.03 al 18 %: IVA de la factura ROUND(0.0162) = 0.02; cada nota calcula ROUND(0.0054) = 0.01 -> 0.01, 0.01, 0.00.
+        Assert.Equal([0.01m, 0.01m, 0m], await TresNotasDe1Async(await FacturaAsync(socio, null, C(cuenta, 3m, 0.03m)), n => n.ImporteIva));
+
+        // 3 × 0.01 al 18 %: IVA de la factura 0.01; cada nota calcula 0.00; la que agota el grupo toma el remanente 0.01.
+        Assert.Equal([0m, 0m, 0.01m], await TresNotasDe1Async(await FacturaAsync(socio, null, C(cuenta, 3m, 0.01m)), n => n.ImporteIva));
+    }
+
+    [Fact]
+    public async Task RulingFI_DevolucionEnTresNotasDeUnaSalidaDe10_0001_SumaExacta_YElValorDelProductoVuelveAlOriginal()
+    {
+        // Entradas 1 × 3.3333 + 2 × 3.3334 = 10.0001; la venta de 3 sale por −10.0001; cada devolución de 1 calcula 3.3334.
+        var socio = await SocioAsync();
+        var almacen = await _prueba.SembrarAlmacenAsync();
+        var producto = await ProductoAsync();
+        await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Entrada(producto, almacen, 1m, 3.3333m, D1));
+        await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Entrada(producto, almacen, 2m, 3.3334m, D1));
+        var factura = await FacturaAsync(socio, almacen, P(producto, 3m, 50m));
+        var linea = Assert.Single(await LineasFacturaAsync(factura));
+        Assert.Equal(-10.0001m, await CostoSalidaAsync(linea.MovimientoProductoId!.Value));
+
+        var importes = new List<decimal>();
+        for (var i = 0; i < 3; i++)
+        {
+            var borrador = Ok(await CrearBorradorAsync(factura));
+            Ok(await LineaAsync(borrador.Id, linea.Id, 1m, devolver: true));
+            var resultado = Ok(await PostearAsync(borrador.Id));
+            importes.Add(Assert.Single(await MovimientosInventarioNotaAsync(resultado.Numero)).ImporteCosto);
+            Assert.Equal(0m, (await AsientoAsync((await NotaAsync(resultado.Numero)).RegistroContableId!.Value)).Sum(m => m.Importe));
+        }
+
+        Assert.Equal([3.3334m, 3.3334m, 3.3333m], importes);
+        await using var conexion = _prueba.NuevaConexion();
+        Assert.Equal((10.0001m, 3m), await conexion.QuerySingleAsync<(decimal, decimal)>(
+            """SELECT SUM("ImporteCosto"), SUM("CantidadValorada") FROM "MovimientosValor" WHERE "ProductoId" = @P""", new { P = producto }));
+    }
+
+    [Fact]
+    public async Task RulingFI_EntradaVentaDeOtroOrigen_SigueExigiendo4DecimalesEnElCosto()
+    {
+        var almacen = await _prueba.SembrarAlmacenAsync();
+        var producto = await ProductoAsync();
+        var venta = LibroInventarioPrueba.Entrada(producto, almacen, 1m, 1.00001m, D1, tipo: TipoMovimientoInventario.Venta);
+
+        var otroOrigen = await _prueba.RegistrarAsync(venta);
+        Assert.Equal(("inventario.costo_invalido", "CostoUnitario"), Unico(otroOrigen));
+        Assert.True((await _prueba.RegistrarAsync(venta with { TipoOrigen = TipoOrigenMovimiento.NotaCreditoVenta })).EsExito);
+    }
+
+    [Fact]
+    public async Task RulingFI_ElDocumentoUsaImportesRecalculadosDesdeLaFactura_NoLosGuardadosEnElBorrador()
+    {
+        var socio = await SocioAsync();
+        var factura = await FacturaAsync(socio, null, C(await CuentaAsync(), 2m, 50m));
+        var borrador = Ok(await CrearBorradorAsync(factura));
+        var linea = Ok(await LineaAsync(borrador.Id, Assert.Single(await LineasFacturaAsync(factura)).Id, 1m));
+        await EjecutarSqlAsync(
+            """UPDATE "LineasNotaCreditoVentaBorrador" SET "ImporteLinea" = 999, "PrecioUnitario" = 999 WHERE "Id" = @Id""", new { Id = linea.Id });
+
+        var resultado = Ok(await PostearAsync(borrador.Id));
+
+        Assert.Equal(59m, resultado.ImporteTotal);
+        Assert.Equal((50m, 50m), (Assert.Single(await LineasNotaAsync(resultado.Numero)) is var l ? (l.ImporteLinea, l.PrecioUnitario) : default));
+    }
+
+    /// <summary>Tres notas de 1 (sin devolución) sobre la única línea de la factura; devuelve el valor elegido de cada nota posteada.</summary>
+    private async Task<List<decimal>> TresNotasDe1Async(string factura, Func<NotaCreditoVenta, decimal> valor)
+    {
+        var linea = Assert.Single(await LineasFacturaAsync(factura));
+        var valores = new List<decimal>();
+        for (var i = 0; i < 3; i++)
+        {
+            var borrador = Ok(await CrearBorradorAsync(factura));
+            Ok(await LineaAsync(borrador.Id, linea.Id, 1m));
+            var nota = await NotaAsync(Ok(await PostearAsync(borrador.Id)).Numero);
+            valores.Add(valor(nota));
+            if (nota.RegistroContableId is { } registro)
+            {
+                Assert.Equal(0m, (await AsientoAsync(registro)).Sum(m => m.Importe));
+            }
+        }
+
+        return valores;
+    }
+
     // ----- Total 0 (Ruling FE) -----
 
     [Fact]
@@ -681,8 +810,8 @@ public sealed class PostearNotaCreditoVentaTests(PostgresTestFixture fixture) : 
     private static LineaFactura P(Guid producto, decimal cantidad, decimal precio, decimal? descuento = null, Guid? unidad = null) =>
         new(TipoLineaFactura.Producto, producto, cantidad, precio, descuento, unidad, null);
 
-    private static LineaFactura C(Guid cuenta, decimal cantidad, decimal precio, Guid? grupoIva = null) =>
-        new(TipoLineaFactura.CuentaContable, cuenta, cantidad, precio, null, null, grupoIva ?? GrupoContableIds.IvaProductoItbis18);
+    private static LineaFactura C(Guid cuenta, decimal cantidad, decimal precio, Guid? grupoIva = null, decimal? descuento = null) =>
+        new(TipoLineaFactura.CuentaContable, cuenta, cantidad, precio, descuento, null, grupoIva ?? GrupoContableIds.IvaProductoItbis18);
 
     private static LineaFactura Comentario(string texto) => new(TipoLineaFactura.Comentario, Guid.Empty, 0m, 0m, null, null, null) { Texto = texto };
 
