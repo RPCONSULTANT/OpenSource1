@@ -148,7 +148,30 @@ the model since the last migration."; `grep -rnE "TODO|FIXME|NotImplemented"` en
 la palabra española "TODO(S)" como énfasis); suite completa (`DOCKER_CONTEXT=default dotnet test test.slnx`):
 **1293/1293** (1273 + 26 nuevos − 6 retirados de conversión), 17 min 11 s.
 
-### Resumen del proyecto (Fases 0-7)
+### Resultado de la Fase 8
+
+Fase 8 cerrada en `feat/erp-fase-8-notas-credito` (plan `2026-09-30-fase-8-notas-credito.md`): retirados los módulos
+obsoletos `Entradas` y `AppSettings` con sus tablas (migración `RetirarEntradasYAppSettings`; la build queda con **0 avisos**)
+(Task 8.2, `68e1481`); `Producto.CostoUnitario` al día con cada movimiento (V/Q de todo el libro si Q > 0) y en el ajuste
+de costo, con la migración de datos `RecalcularCostoUnitario` (Task 8.3, `c790a51` y `e70914a`); nueva regla de importes
+en facturas: precio > 0 obligatorio, importe 0 solo con 100 % de descuento, y una factura de total 0 se postea con
+inventario y sin cliente ni asiento (Task 8.4, `8fe7ba0`); fechas de registro permitidas generales y por usuario
+(`registro.fecha_no_permitida`) en todos los posteos, configurables solo por el Administrador (Task 8.5, `2e4c348`);
+notas de crédito de venta ligadas a una factura posteada, con topes de cantidad, importe, IVA y costo, devolución opcional
+de inventario al costo de la venta, asiento inverso y aplicación automática a la factura (Task 8.6, `437161b` y `998a7b2`),
+con sus páginas e integración en las vistas de la Fase 7 (Task 8.7, `7ebfc4e`).
+
+Verificación final (Task 8.8): cadena de migraciones en PostgreSQL 17 desde una base vacía hasta HEAD, `Down` hasta el
+final de la Fase 7 (`AddSerieCobro`) y vuelta a HEAD con esquema idéntico al de una base nueva (`pg_dump -s`); desde una
+base de la Fase 7 (`b661b62`) con datos (filas de `Entradas`/`AppSettings`, productos, libro de inventario, factura posteada
+con su movimiento de cliente) sube a HEAD con los libros y documentos intactos, las tablas obsoletas eliminadas y el costo
+unitario recalculado (producto con movimientos → V/Q a 4 decimales; Q = 0 y sin movimientos → conserva; borrado con
+movimientos → recalculado); con una nota de crédito posteada, un borrador y fechas configuradas baja a la Fase 7 (las
+tablas obsoletas vuelven vacías, con sus columnas en otro orden) y vuelve a HEAD. `ApplicationDbContextModelTests` en verde;
+`has-pending-model-changes` → "No changes have been made to the model since the last migration."; sonda con `Up()` vacío;
+`dotnet build test.slnx --no-incremental` con 0 errores y **0 avisos**; suite completa: **1359/1359**, 19 min 44 s.
+
+### Resumen del proyecto (Fases 0-8)
 
 - **Fase 0 — Saneamiento:** secretos fuera del repositorio (`appsettings.Example.json`, User Secrets), vulnerabilidad de
   OpenApi resuelta, sin borrado automático de la base, CORS sin fallback permisivo, `Location` correcto al crear usuario.
@@ -173,14 +196,16 @@ la palabra española "TODO(S)" como énfasis); suite completa (`DOCKER_CONTEXT=d
   derivado, motor de posteo atómico (inventario + cliente + asiento), cobros y aplicación, guarda de borrado de socios y
   orden global de locks.
 - **Fase 7 — Vistas de movimientos:** ver arriba.
+- **Fase 8 — Notas de crédito, reglas de importe, fechas permitidas y limpieza:** ver arriba.
 
 ### Ramas e integración
 
 Las ramas están encadenadas, cada una creada desde la anterior: `feat/erp-fase-0-1-kernel` (ya integrada en `main`) →
 `feat/erp-fase-2-dominio-maestro` → `feat/erp-fase-3-inventario` → `feat/erp-fase-4-diarios` →
-`feat/erp-fase-5-contabilidad` → `feat/erp-fase-6-facturacion` → `feat/erp-fase-7-vistas`. Todos los commits son locales;
-no se ha hecho merge ni push de ninguna. **La integración en `main` y el PR los hará el usuario** (basta con integrar
-`feat/erp-fase-7-vistas`, que contiene todas las anteriores).
+`feat/erp-fase-5-contabilidad` → `feat/erp-fase-6-facturacion` → `feat/erp-fase-7-vistas` →
+`feat/erp-fase-8-notas-credito`. Todos los commits son locales; no se ha hecho merge ni push de ninguna. **La integración en
+`main` y el PR los hará el usuario** (basta con integrar `feat/erp-fase-8-notas-credito`, que contiene todas las
+anteriores).
 
 ### Requisitos de despliegue
 
@@ -194,6 +219,11 @@ no se ha hecho merge ni push de ninguna. **La integración en `main` y el PR los
   directamente.
 - Migraciones aplicadas con `dotnet ef database update` (la aplicación no borra ni recrea la base). Los `Down` de
   `AddLibroContable` y `AddFacturasVentaYLibroClientes` son destructivos (ver contabilidad y facturación).
+- Fase 8: el `Up` de `RetirarEntradasYAppSettings` **borra los datos** de `Entradas` y `AppSettings` (su `Down` recrea las
+  tablas vacías); el `Down` de `RecalcularCostoUnitario` no hace nada (el costo recalculado se conserva); el `Down` de
+  `AddNotasCreditoVenta` borra las notas de crédito (posteadas y borradores) y sus series, pero sus movimientos de
+  inventario, cliente y contables quedan en los libros con valores de enumeración que la Fase 7 no conoce. Las series
+  sembradas `NC` y `NC-BORR` chocan con una serie creada a mano con ese código (el `Up` fallaría por el índice único).
 
 ### Limitaciones aceptadas y pendientes acumulados
 
@@ -213,9 +243,12 @@ no se ha hecho merge ni push de ninguna. **La integración en `main` y el PR los
 - `soloConExistencia` = existencia ≠ 0: un producto con existencia 0 y valor residual ≠ 0 queda fuera del filtro y de su
   `ValorTotal` (definir como existencia ≠ 0 o valor ≠ 0, o documentarlo en la página).
 - El mensaje del trigger append-only responde "UPDATE no permitido" también a un `TRUNCATE`.
-- `Producto.CostoUnitario` puede quedar desfasado: solo se escribe al crear el producto (0) y lo reescribe la rutina de
+- ~~`Producto.CostoUnitario` puede quedar desfasado: solo se escribe al crear el producto (0) y lo reescribe la rutina de
   ajuste de costo (`AjusteCostoInventario`); entre ajustes no sigue a las entradas, y `RegistroMovimientosInventario` lo usa
-  como costo de respaldo (salida sin existencia valorable). Pendiente de la Fase 3 que no se revisó en la Fase 5.
+  como costo de respaldo (salida sin existencia valorable). Pendiente de la Fase 3 que no se revisó en la Fase 5.~~
+  **Resuelto en la Fase 8** (Task 8.3): se actualiza con cada movimiento y en el ajuste (V/Q de todo el libro; con Q ≤ 0
+  el registro lo conserva y el ajuste deja el último promedio ajustado), y la migración `RecalcularCostoUnitario` lo
+  recalculó en las bases existentes. Queda: una consulta de agregación extra por movimiento.
 
 **Contabilidad**
 - `PosteoAutomaticoCosto` sin implementar: el asiento de la factura no lleva costo de ventas/inventario; lo contabiliza el
@@ -232,7 +265,18 @@ no se ha hecho merge ni push de ninguna. **La integración en `main` y el PR los
   posteo revalida bajo lock.
 
 **Facturación y CxC**
-- **Notas de crédito sin implementar** (y ningún otro documento que revierta una factura posteada).
+- ~~**Notas de crédito sin implementar** (y ningún otro documento que revierta una factura posteada).~~ **Resuelto en la
+  Fase 8** (Tasks 8.6-8.7): notas de crédito de venta ligadas a la factura. Quedan: la devolución se registra como entrada
+  de tipo "Venta" con cantidad positiva (así se ve en movimientos de producto); un socio bloqueado para facturación impide
+  postear la nota; las guardas de uso de grupos y cuentas no cuentan los documentos posteados (ni facturas ni notas); la
+  ficha de la factura calcula lo acreditado con una llamada por nota (N+1).
+- **Resuelto en la Fase 8** (Task 8.4): la regla de importe 0 (`factura.importe_cero` retirado; importe 0 solo con 100 %
+  de descuento, precio > 0 obligatorio; factura de total 0 sin cliente ni asiento). Queda: la API conserva el precio por
+  defecto del producto si no se envía (la UI lo exige).
+- **Resuelto en la Fase 8** (Task 8.5): fechas de registro permitidas (rango general y excepciones por usuario) en
+  diarios, facturas, notas de crédito, cobros y aplicaciones. Quedan: una aplicación sin fecha valida la fecha de hoy
+  (UTC); una sesión de Blazor abierta antes del despliegue no tiene el claim `CanAdministrar` hasta volver a iniciar sesión;
+  la excepción de un usuario borrado en Identity queda hasta que se elimina desde la página.
 - **CxC congelada vs. vigente (M-7):** la factura congela la CxC de su grupo y el pago usa la del grupo vigente del socio;
   si el grupo cambia entre ambos, contabilidad queda con dos CxC de saldo contrario. Pendiente una **reclasificación de CxC**
   (asiento entre ambas cuentas al aplicar o al cambiar el grupo).
@@ -267,11 +311,13 @@ no se ha hecho merge ni push de ninguna. **La integración en `main` y el PR los
 - El oráculo del test de estado de cuenta (`SaldoSqlAsync`) no es del todo independiente de la consulta probada (usar
   `SUM(ImporteOriginal)` con `FechaRegistro <= corte`); la consulta de control del test del balance tampoco del todo.
 - Números de cuenta aleatorios en los tests contables; el test del redondeo con transferencia no ejecuta una segunda pasada.
-- Los tests de integración requieren Docker (`DOCKER_CONTEXT=default`); la suite completa tarda ~16 min.
+- Los tests de integración requieren Docker (`DOCKER_CONTEXT=default`); la suite completa tarda ~16 min (~19 min tras la
+  Fase 8).
 
 **Código heredado**
-- Módulos de prueba `Entradas` y `AppSettings` (API, cliente y páginas Blazor) marcados `[Obsolete]` desde el Entregable 2:
-  son el origen de los 6 avisos CS0618 de la build. Candidatos a retirar (con sus tests y rutas).
+- ~~Módulos de prueba `Entradas` y `AppSettings` (API, cliente y páginas Blazor) marcados `[Obsolete]` desde el Entregable 2:
+  son el origen de los 6 avisos CS0618 de la build. Candidatos a retirar (con sus tests y rutas).~~ **Resuelto en la
+  Fase 8** (Task 8.2): retirados código, API, páginas, tests y tablas; la build queda con 0 avisos.
 - Residuales de la revisión de la tanda final: el test `CoherenciaVistasApiTests` fija valores esperados del lado de
   clientes pero del lado de inventario solo la existencia final (no el valor ni existencias intermedias): conviene fijar
   el valor final y alguna existencia intermedia. La API de cobros acepta una aplicación con fecha anterior a alguno de sus

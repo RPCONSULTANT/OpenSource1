@@ -170,7 +170,7 @@ Reglas:
 
 ## Task 8.8 — Cierre de la Fase 8
 
-- [ ] Cadena de migraciones desde vacía y desde el final de la Fase 7 con datos (incluidas filas de Entradas/AppSettings
+- [x] Cadena de migraciones desde vacía y desde el final de la Fase 7 con datos (incluidas filas de Entradas/AppSettings
   que se borran); Down y vuelta a HEAD.
-- [ ] `ApplicationDbContextModelTests`, `has-pending-model-changes`, build con 0 avisos, suite completa.
-- [ ] Actualizar la sección de pendientes del proyecto (plan de la Fase 7) marcando lo resuelto en esta fase.
+- [x] `ApplicationDbContextModelTests`, `has-pending-model-changes`, build con 0 avisos, suite completa.
+- [x] Actualizar la sección de pendientes del proyecto (plan de la Fase 7) marcando lo resuelto en esta fase.
