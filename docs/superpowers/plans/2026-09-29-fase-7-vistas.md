@@ -272,3 +272,8 @@ no se ha hecho merge ni push de ninguna. **La integración en `main` y el PR los
 **Código heredado**
 - Módulos de prueba `Entradas` y `AppSettings` (API, cliente y páginas Blazor) marcados `[Obsolete]` desde el Entregable 2:
   son el origen de los 6 avisos CS0618 de la build. Candidatos a retirar (con sus tests y rutas).
+- Residuales de la revisión de la tanda final: el test `CoherenciaVistasApiTests` fija valores esperados del lado de
+  clientes pero del lado de inventario solo la existencia final (no el valor ni existencias intermedias): conviene fijar
+  el valor final y alguna existencia intermedia. La API de cobros acepta una aplicación con fecha anterior a alguno de sus
+  movimientos (`AplicarPagoCommandHandler` no valida la fecha); el estado de cuenta lo tolera con la regla del movimiento
+  contrario, pero conviene decidir si se rechaza.

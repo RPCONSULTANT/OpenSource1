@@ -1101,8 +1101,9 @@ Todas sobre repositorios Dapper paginados, con allow-list de columnas de ordenac
 - **Limpieza heredada:** `ConvertirABaseAsync` y `ObtenerFactorAsync` (redondean) se retiran de
   `IConversionUnidadMedidaService` si no tienen llamadores. **Hecho en la Task 7.5** (no tenían ninguno).
 - **Paginación desbordada (Task 7.5):** `PageRequest.Offset` se calcula en 64 bits y se acota a `[0, int.MaxValue]`: los
-  listados anteriores a la Fase 7 responden 200 con una página vacía ante una página enorme (antes, 500). Las vistas de la
-  Fase 7 validan antes con `PaginacionValidacion` y responden 400 con `Campo = "Pagina"`.
+  listados, incluidas las vistas de la Fase 7, responden 200 con una página vacía ante una página enorme (antes, 500), y
+  las páginas Blazor de las vistas saltan a la última página con resultados. (`PaginacionValidacion`, que devolvía 400 en
+  las vistas, se retiró en la tanda final de la Fase 7 por redundante.)
 
 ---
 
