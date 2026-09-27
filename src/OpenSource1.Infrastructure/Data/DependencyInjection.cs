@@ -13,6 +13,7 @@ using OpenSource1.Application.Features.Cobros;
 using OpenSource1.Application.Features.CategoriasProducto;
 using OpenSource1.Application.Features.Contabilidad;
 using OpenSource1.Application.Features.FacturasVenta.Posteadas;
+using OpenSource1.Application.Features.Inventario.Consultas;
 using OpenSource1.Application.Features.MovimientosCliente;
 using OpenSource1.Application.Features.CuentasContables;
 using OpenSource1.Application.Features.DiariosInventario.Lineas;
@@ -115,6 +116,7 @@ public static class DependencyInjection
         services.AddScoped<ISocioNegocioUsoService, SocioNegocioUsoService>();
         services.AddScoped<IFacturaVentaReadRepository, DapperFacturaVentaReadRepository>();
         services.AddScoped<IMovimientoClienteReadRepository, DapperMovimientoClienteReadRepository>();
+        services.AddScoped<IInventarioConsultasReadRepository, DapperInventarioConsultasRepository>();
         services.AddScoped<IConversionUnidadMedidaService, ConversionUnidadMedidaService>();
         services.AddScoped<IGeneradorNumeroDocumento, GeneradorNumeroDocumento>();
         services.AddScoped<IConsultaInventario, ConsultaInventario>();

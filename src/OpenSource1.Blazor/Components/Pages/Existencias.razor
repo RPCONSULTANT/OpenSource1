@@ -1,0 +1,271 @@
+@page "/inventario/existencias"
+@attribute [Authorize(Policy = ApplicationPolicies.CanConsult)]
+@using Microsoft.AspNetCore.Authorization
+@using OpenSource1.Application.Features.Almacenes.Dtos
+@using OpenSource1.Application.Features.Inventario.Consultas
+@using OpenSource1.Application.Features.Inventario.Consultas.Dtos
+@using OpenSource1.Application.Features.Productos.Dtos
+@using OpenSource1.Application.Security
+@using OpenSource1.Blazor.Services
+@using OpenSource1.Core.Common
+@inject IInventarioConsultasApiClient ConsultasApiClient
+@inject IProductoApiClient ProductoApiClient
+@inject IAlmacenApiClient AlmacenApiClient
+@inject ILogger<Existencias> Logger
+
+<PageTitle>Existencias por almacén – AxionERP</PageTitle>
+
+<div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+    <div>
+        <p class="text-xs font-bold tracking-widest uppercase text-brand-600 mb-1">Inventario</p>
+        <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">Existencias y valor por almacén</h1>
+        <p class="text-sm text-slate-500 mt-1">Existencia (suma de movimientos de producto) y valor de inventario (suma del costo de los movimientos de valor) a una fecha.</p>
+    </div>
+    <div class="flex flex-wrap items-center gap-2">
+        <a href="/inventario/movimientos-producto" class="btn-press rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Movimientos de producto</a>
+        <a href="/inventario/movimientos-valor" class="btn-press rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Movimientos de valor</a>
+    </div>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(message))
+{
+    <div class="mb-6"><MessageBox Type="@messageType" Message="@message" Errors="@errores" /></div>
+}
+@if (almacenes.CargaFallida || productos.CargaFallida)
+{
+    <div class="mb-6"><MessageBox Type="warning" Message="No fue posible cargar las opciones de almacén o de producto; los filtros ya aplicados se siguen usando." /></div>
+}
+
+<div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden mb-6">
+    <form method="get" action="/inventario/existencias" data-enhance class="p-4 sm:p-6">
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1" for="almacenId">Almacén</label>
+                <select id="almacenId" name="almacenId" class="@FiltroCss">
+                    <option value="" selected="@(AlmacenId is null)">— Todos —</option>
+                    @if (AlmacenId is { } almacenElegido && almacenes.Items.All(a => a.Id != almacenElegido))
+                    {
+                        <option value="@almacenElegido" selected="selected">Almacén seleccionado (@almacenElegido)</option>
+                    }
+                    @foreach (var a in almacenes.Items)
+                    {
+                        <option value="@a.Id" selected="@(a.Id == AlmacenId)">@a.Codigo — @a.Nombre@(a.Bloqueado ? " (bloqueado)" : "")</option>
+                    }
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1" for="texto">Producto (código o nombre)</label>
+                <input id="texto" type="text" name="texto" value="@Texto" placeholder="ej. Arroz" class="@FiltroCss" />
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1" for="productoId">Producto concreto</label>
+                <select id="productoId" name="productoId" class="@FiltroCss">
+                    <option value="" selected="@(ProductoId is null)">— Todos —</option>
+                    @OpcionProductoVigente()
+                    @foreach (var p in productos.Items)
+                    {
+                        <option value="@p.Id" selected="@(p.Id == ProductoId)">@p.Codigo — @p.Nombre</option>
+                    }
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1" for="fecha">Fecha de corte</label>
+                <input id="fecha" type="date" name="fecha" value="@(string.IsNullOrWhiteSpace(Fecha) ? EntradaFecha.Formatear(fechaAplicada) : Fecha)" class="@FiltroCss" />
+            </div>
+            <div class="flex items-end">
+                <label class="inline-flex items-center gap-2 text-sm text-slate-700" for="soloConExistencia">
+                    <input id="soloConExistencia" type="checkbox" name="soloConExistencia" value="true" checked="@SoloConExistencia" class="rounded border-slate-300" />
+                    Solo con existencia
+                </label>
+            </div>
+        </div>
+        <div class="mt-4 flex items-center gap-2">
+            <button type="submit" class="btn-press rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700">Consultar</button>
+            <a href="/inventario/existencias" title="Limpiar campos" class="btn-press rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Limpiar campos</a>
+        </div>
+        <p class="mt-2 text-xs text-slate-400">La lista «Producto concreto» muestra los primeros @InventarioVistasOpciones.MaximoProductos productos cuyo nombre contiene el texto; sin fecha se usa la de hoy.</p>
+    </form>
+</div>
+
+<div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden mb-8">
+    <div class="px-6 py-4 border-b border-slate-100 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+            <h2 class="text-sm font-semibold text-slate-700">Existencias al @EntradaFecha.Formatear(fechaAplicada)</h2>
+            <p class="mt-1 text-xs text-slate-500">@total fila(s) producto-almacén · página @Pagina de @Math.Max(totalPaginas, 1).</p>
+        </div>
+        <div class="text-right" data-testid="valor-total">
+            <p class="text-xs font-bold uppercase tracking-wide text-slate-400">Valor total (todas las filas filtradas)</p>
+            <p class="text-xl font-extrabold text-slate-900">@VentasOpciones.Importe(valorTotal)</p>
+        </div>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-slate-100 text-sm" data-testid="tabla-existencias">
+            <thead class="bg-slate-50">
+                <tr>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Producto</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Almacén</th>
+                    <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Existencia</th>
+                    <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Valor</th>
+                    <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Costo medio</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase"></th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-50 bg-white">
+                @if (filas.Count == 0)
+                {
+                    <tr><td colspan="6" class="px-4 py-8 text-center text-slate-400 text-sm">@(cargaFallida ? "No fue posible cargar las existencias." : "No hay existencias con esos criterios.")</td></tr>
+                }
+                @foreach (var e in filas)
+                {
+                    <tr @key="(e.ProductoId, e.AlmacenId)" class="hover:bg-slate-50">
+                        <td class="px-4 py-3 text-slate-700"><span class="font-mono text-xs">@e.ProductoCodigo</span> <span class="text-xs text-slate-400">@e.ProductoNombre</span></td>
+                        <td class="px-4 py-3 text-slate-700"><span class="font-mono text-xs">@e.AlmacenCodigo</span> <span class="text-xs text-slate-400">@e.AlmacenNombre</span></td>
+                        <td class="px-4 py-3 text-right font-semibold @(e.Existencia < 0 ? "text-red-700" : "text-slate-800")">@InventarioVistasOpciones.Cantidad(e.Existencia) <span class="text-xs font-normal text-slate-400">@e.UnidadBaseCodigo</span></td>
+                        <td class="px-4 py-3 text-right text-slate-800">@VentasOpciones.Importe(e.Valor)</td>
+                        <td class="px-4 py-3 text-right text-slate-600">@(e.CostoMedio is { } costo ? InventarioVistasOpciones.CostoUnitario(costo) : "—")</td>
+                        <td class="px-4 py-3 text-xs"><a class="text-brand-700 underline" href="@($"/inventario/movimientos-producto?productoId={e.ProductoId}&almacenId={e.AlmacenId}&hasta={EntradaFecha.Formatear(fechaAplicada)}")">Movimientos</a></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    @if (totalPaginas > 1)
+    {
+        <div class="flex items-center justify-between gap-3 border-t border-slate-100 px-6 py-4">
+            <p class="text-xs text-slate-500">Página @Pagina de @totalPaginas</p>
+            <div class="flex items-center gap-2">
+                @if (Pagina > 1)
+                {
+                    <a href="@BuildUrl(Pagina - 1)" class="btn-press rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">« Anterior</a>
+                }
+                @if (Pagina < totalPaginas)
+                {
+                    <a href="@BuildUrl(Pagina + 1)" class="btn-press rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">Siguiente »</a>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private const string FiltroCss = "block w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-600/20";
+
+    [SupplyParameterFromQuery(Name = "almacenId")] private string? AlmacenIdTexto { get; set; }
+    [SupplyParameterFromQuery(Name = "productoId")] private string? ProductoIdTexto { get; set; }
+    [SupplyParameterFromQuery(Name = "texto")] private string? Texto { get; set; }
+    [SupplyParameterFromQuery(Name = "fecha")] private string? Fecha { get; set; }
+    [SupplyParameterFromQuery(Name = "soloConExistencia")] private string? SoloConExistenciaTexto { get; set; }
+
+    /// <summary>Casilla de un formulario GET: solo llega (con "true") si está marcada.</summary>
+    private bool SoloConExistencia => string.Equals(SoloConExistenciaTexto, "true", StringComparison.OrdinalIgnoreCase);
+    [SupplyParameterFromQuery(Name = "pagina")] private string? PaginaTexto { get; set; }
+
+    // Los filtros llegan como texto y se interpretan aquí: un valor manipulado en la URL (Guid o número inválido) da un aviso,
+    // no la página de error (el binder de [SupplyParameterFromQuery] lanza con Guid?/int? no interpretables).
+    private Guid? ProductoId;
+    private Guid? AlmacenId;
+    private int Pagina = 1;
+
+    private OpcionesCargadas<AlmacenResponse> almacenes = OpcionesCargadas<AlmacenResponse>.SinCargar;
+    private OpcionesCargadas<ProductoResponse> productos = OpcionesCargadas<ProductoResponse>.SinCargar;
+    private ProductoResponse? productoVigente;
+    private IReadOnlyList<ExistenciaVistaResponse> filas = [];
+    private long total;
+    private int totalPaginas;
+    private decimal valorTotal;
+    private DateOnly fechaAplicada = DateOnly.FromDateTime(DateTime.UtcNow);
+    private bool cargaFallida;
+    private string? message;
+    private string messageType = "info";
+    private IReadOnlyList<string>? errores;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        message = null;
+        errores = null;
+        cargaFallida = false;
+        filas = [];
+        total = 0;
+        totalPaginas = 0;
+        valorTotal = 0;
+        var filtroInvalido = InventarioVistasOpciones.FiltroInvalido(
+            ("productoId", ProductoIdTexto), ("almacenId", AlmacenIdTexto));
+        ProductoId = InventarioVistasOpciones.ParseGuid(ProductoIdTexto);
+        AlmacenId = InventarioVistasOpciones.ParseGuid(AlmacenIdTexto);
+        Pagina = Math.Max(InventarioVistasOpciones.ParseEntero(PaginaTexto) ?? 1, 1);
+
+        almacenes = await InventarioVistasOpciones.AlmacenesAsync(AlmacenApiClient, Logger);
+        productos = await InventarioVistasOpciones.ProductosAsync(ProductoApiClient, Texto, Logger);
+        productoVigente = await InventarioVistasOpciones.ProductoVigenteAsync(ProductoApiClient, ProductoId, productos.Items, Logger);
+
+        if (filtroInvalido is not null)
+        {
+            Show("warning", filtroInvalido);
+            return;
+        }
+
+        if (!InventarioVistasOpciones.TryFecha(Fecha, "La fecha de corte", out var fecha, out var errorFecha))
+        {
+            Show("warning", errorFecha ?? "La fecha de corte no es válida.");
+            return;
+        }
+
+        var criterios = new ExistenciaVistaCriterios(AlmacenId, ProductoId, EmptyAsNull(Texto), fecha, SoloConExistencia);
+        try
+        {
+            var resultado = await ConsultasApiClient.ListExistenciasAsync(criterios, Paginacion());
+            if (resultado.Succeeded && resultado.Valor!.Pagina.TotalPaginas > 0 && Pagina > resultado.Valor.Pagina.TotalPaginas)
+            {
+                Pagina = resultado.Valor.Pagina.TotalPaginas;
+                resultado = await ConsultasApiClient.ListExistenciasAsync(criterios, Paginacion());
+            }
+
+            if (!resultado.Succeeded)
+            {
+                cargaFallida = true;
+                Show("warning", resultado.Message, resultado.Errors);
+                return;
+            }
+
+            var valor = resultado.Valor!;
+            filas = valor.Pagina.Items;
+            total = valor.Pagina.Total;
+            totalPaginas = valor.Pagina.TotalPaginas;
+            valorTotal = valor.ValorTotal;
+            fechaAplicada = valor.Fecha;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not load existencias.");
+            cargaFallida = true;
+            Show("danger", "No fue posible cargar las existencias.");
+        }
+    }
+
+    /// <summary>Orden explícito: por código de producto (y de almacén) ascendente.</summary>
+    private PageRequest Paginacion() => new(Pagina, PageRequest.TamanoPorDefecto, "ProductoCodigo", Descendente: false);
+
+    private RenderFragment OpcionProductoVigente() => __builder =>
+    {
+        if (ProductoId is { } id && productos.Items.All(p => p.Id != id))
+        {
+            <option value="@id" selected="selected">@(productoVigente is null ? $"Producto seleccionado ({id})" : $"{productoVigente.Codigo} — {productoVigente.Nombre}")</option>
+        }
+    };
+
+    private string BuildUrl(int pagina)
+    {
+        var parameters = new List<string>();
+        if (AlmacenId is { } a) parameters.Add($"almacenId={a}");
+        if (ProductoId is { } p) parameters.Add($"productoId={p}");
+        if (!string.IsNullOrWhiteSpace(Texto)) parameters.Add($"texto={Uri.EscapeDataString(Texto)}");
+        if (!string.IsNullOrWhiteSpace(Fecha)) parameters.Add($"fecha={Uri.EscapeDataString(Fecha)}");
+        if (SoloConExistencia) parameters.Add("soloConExistencia=true");
+        if (pagina > 1) parameters.Add($"pagina={pagina}");
+        return parameters.Count == 0 ? "/inventario/existencias" : $"/inventario/existencias?{string.Join("&", parameters)}";
+    }
+
+    private void Show(string type, string text, IReadOnlyList<string>? detalle = null) { messageType = type; message = text; errores = detalle; }
+
+    private static string? EmptyAsNull(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+}
