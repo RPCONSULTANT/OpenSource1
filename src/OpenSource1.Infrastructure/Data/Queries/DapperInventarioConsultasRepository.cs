@@ -229,6 +229,12 @@ public sealed class DapperInventarioConsultasRepository(IDbSession session) : II
         // los ids del par (las filas agregadas no tienen Id propio).
         var ordenColumna = ColumnasExistencias.EsValida(pagina.OrdenarPor) ? pagina.OrdenarPor! : "ProductoCodigo";
         var direccion = pagina.Descendente ? "DESC" : "ASC";
+        // La columna pedida y los códigos sin repetir (el orden por defecto ya es ProductoCodigo), y los ids del par.
+        var ordenSql = string.Join(", ", new[] { ordenColumna, "ProductoCodigo", "AlmacenCodigo" }
+            .Distinct(StringComparer.Ordinal)
+            .Select(c => $"{ColumnasExistencias.Citar(c)} {direccion}")
+            .Append($"\"ProductoId\" {direccion}")
+            .Append($"\"AlmacenId\" {direccion}"));
         parameters.Add("TamanoPagina", pagina.TamanoPagina);
         parameters.Add("Offset", pagina.Offset);
 
@@ -240,8 +246,7 @@ public sealed class DapperInventarioConsultasRepository(IDbSession session) : II
         var pageSql = $"""
             {filasSql}
             SELECT * FROM f {exterior}
-            ORDER BY {ColumnasExistencias.Citar(ordenColumna)} {direccion}, "ProductoCodigo" {direccion}, "AlmacenCodigo" {direccion},
-                     "ProductoId" {direccion}, "AlmacenId" {direccion}
+            ORDER BY {ordenSql}
             LIMIT @TamanoPagina OFFSET @Offset
             """;
 

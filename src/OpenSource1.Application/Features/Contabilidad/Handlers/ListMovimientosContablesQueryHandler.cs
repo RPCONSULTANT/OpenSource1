@@ -7,12 +7,6 @@ using OpenSource1.Core.Enums;
 
 namespace OpenSource1.Application.Features.Contabilidad.Handlers;
 
-internal static class ContabilidadErrores
-{
-    public static Error RangoFechasInvalido() =>
-        new("contabilidad.rango_fechas_invalido", "La fecha 'desde' no puede ser posterior a 'hasta'.", "Desde");
-}
-
 public sealed class ListMovimientosContablesQueryHandler(IContabilidadReadRepository readRepository)
     : IRequestHandler<ListMovimientosContablesQuery, Result<PagedResult<MovimientoContableResponse>>>
 {

@@ -63,9 +63,8 @@ public sealed class DapperContabilidadReadRepository(IDbSession session) : ICont
         }
 
         // Número de documento por contenido (ILIKE con los metacaracteres escapados; mismo criterio que las vistas de inventario).
-        var filtrosTexto = new List<string>();
-        FilterExpressionBuilder.AddTextFilter(filtrosTexto, parameters, ColumnasMovimientos, "NumeroDocumento", search.NumeroDocumento);
-        filtros.AddRange(filtrosTexto.Select(f => f.Replace("\"NumeroDocumento\"", "m.\"NumeroDocumento\"", StringComparison.Ordinal)));
+        // Sin prefijo de alias: el WHERE solo se aplica sobre "MovimientosContables" (conteo y CTE de la página), sin joins.
+        FilterExpressionBuilder.AddTextFilter(filtros, parameters, ColumnasMovimientos, "NumeroDocumento", search.NumeroDocumento);
 
         var whereSql = filtros.Count == 0 ? string.Empty : "WHERE " + string.Join(" AND ", filtros);
 
