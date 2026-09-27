@@ -211,6 +211,9 @@ no se ha hecho merge ni push de ninguna. **La integración en `main` y el PR los
 - `soloConExistencia` = existencia ≠ 0: un producto con existencia 0 y valor residual ≠ 0 queda fuera del filtro y de su
   `ValorTotal` (definir como existencia ≠ 0 o valor ≠ 0, o documentarlo en la página).
 - El mensaje del trigger append-only responde "UPDATE no permitido" también a un `TRUNCATE`.
+- `Producto.CostoUnitario` puede quedar desfasado: solo se escribe al crear el producto (0) y lo reescribe la rutina de
+  ajuste de costo (`AjusteCostoInventario`); entre ajustes no sigue a las entradas, y `RegistroMovimientosInventario` lo usa
+  como costo de respaldo (salida sin existencia valorable). Pendiente de la Fase 3 que no se revisó en la Fase 5.
 
 **Contabilidad**
 - `PosteoAutomaticoCosto` sin implementar: el asiento de la factura no lleva costo de ventas/inventario; lo contabiliza el
@@ -263,3 +266,7 @@ no se ha hecho merge ni push de ninguna. **La integración en `main` y el PR los
   `SUM(ImporteOriginal)` con `FechaRegistro <= corte`); la consulta de control del test del balance tampoco del todo.
 - Números de cuenta aleatorios en los tests contables; el test del redondeo con transferencia no ejecuta una segunda pasada.
 - Los tests de integración requieren Docker (`DOCKER_CONTEXT=default`); la suite completa tarda ~16 min.
+
+**Código heredado**
+- Módulos de prueba `Entradas` y `AppSettings` (API, cliente y páginas Blazor) marcados `[Obsolete]` desde el Entregable 2:
+  son el origen de los 6 avisos CS0618 de la build. Candidatos a retirar (con sus tests y rutas).
