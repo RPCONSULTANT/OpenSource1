@@ -3,6 +3,7 @@ using OpenSource1.Application.Data;
 using OpenSource1.Application.Data.UnitOfWork;
 using OpenSource1.Application.Services.Clientes;
 using OpenSource1.Application.Services.Contabilidad;
+using OpenSource1.Application.Services.Registro;
 using OpenSource1.Core.Common;
 using OpenSource1.Core.Entities.Clientes;
 using OpenSource1.Core.Entities.Contabilidad;
@@ -15,7 +16,7 @@ namespace OpenSource1.Application.Features.Cobros;
 /// excepción deshacen todo, incluido el número de la serie <c>COBRO</c>, que así no deja huecos.
 /// <list type="number">
 /// <item>Validación de la entrada (importe, fecha, descripción) sin transacción.</item>
-/// <item>Socio (<c>FOR SHARE</c>): existe y no está bloqueado <c>Todo</c>; cuenta de caja/banco válida; CxC derivada del grupo de
+/// <item>Socio (<c>FOR SHARE</c>): existe y no está bloqueado <c>Todo</c>; fecha de registro permitida (Task 8.5); cuenta de caja/banco válida; CxC derivada del grupo de
 /// cliente contable VIGENTE del socio (<see cref="IDerivadorCuentas.CuentaCxCAsync"/>, D4). Todos los errores juntos y ANTES de
 /// escribir: un fallo no intenta un solo INSERT.</item>
 /// <item>Número <c>COBRO</c>, movimiento Pago (<c>ImporteOriginal = −importe</c>, CxC y grupo congelados) con su detalle Pago y
@@ -34,7 +35,8 @@ public sealed class RegistrarPagoClienteCommandHandler(
     IDerivadorCuentas derivador,
     IRegistroMovimientosCliente registroClientes,
     IRegistroContable registroContable,
-    IGeneradorNumeroDocumento generadorNumero)
+    IGeneradorNumeroDocumento generadorNumero,
+    IValidadorFechaRegistro validadorFecha)
     : IRequestHandler<RegistrarPagoClienteCommand, Result<ResultadoPagoCliente>>
 {
     private const int LongitudNumero = 20;
@@ -84,6 +86,9 @@ public sealed class RegistrarPagoClienteCommandHandler(
             errores.Add(new Error(
                 "cobro.socio_bloqueado", "El cliente está bloqueado para todo: no se le pueden registrar cobros.", "SocioNegocioId"));
         }
+
+        // Fechas de registro permitidas (Task 8.5), antes de escribir y dentro de la transacción.
+        errores.AddRange((await validadorFecha.ValidarAsync(request.FechaRegistro, cancellationToken)).Errores);
 
         var cuentaCajaId = request.CuentaCajaId ?? CuentaContableIds.Caja;
         var caja = await unitOfWork.Repository<CuentaContable>().FirstOrDefaultAsync(x => x.Id == cuentaCajaId, cancellationToken: cancellationToken);

@@ -1,6 +1,7 @@
 using MediatR;
 using OpenSource1.Application.Data.UnitOfWork;
 using OpenSource1.Application.Services.Clientes;
+using OpenSource1.Application.Services.Registro;
 using OpenSource1.Core.Common;
 using OpenSource1.Core.Enums;
 
@@ -15,6 +16,7 @@ namespace OpenSource1.Application.Features.Cobros;
 /// <item>Mismo socio en ambos movimientos (<c>clientes.socios_distintos</c>) ANTES de bloquear el socio.</item>
 /// <item>Socio (<c>FOR SHARE</c>): un socio bloqueado <c>Todo</c> no admite aplicaciones (como no admite pagos); bloqueado solo para
 /// <c>Facturacion</c>, sí.</item>
+/// <item>Fecha de la aplicación (la indicada o la de hoy) dentro de las fechas de registro permitidas (Task 8.5).</item>
 /// <item><see cref="IRegistroMovimientosCliente.AplicarAsync"/> valida con los restantes posteriores al bloqueo (mismo socio, signos,
 /// importe ≤ mínimo de los restantes) antes de insertar las dos filas Aplicación.</item>
 /// </list>
@@ -27,7 +29,8 @@ namespace OpenSource1.Application.Features.Cobros;
 public sealed class AplicarPagoCommandHandler(
     IUnitOfWork unitOfWork,
     IRegistroMovimientosCliente registroClientes,
-    ICobroDatos datos)
+    ICobroDatos datos,
+    IValidadorFechaRegistro validadorFecha)
     : IRequestHandler<AplicarPagoCommand, Result<ResultadoAplicacionPago>>
 {
     public async Task<Result<ResultadoAplicacionPago>> Handle(AplicarPagoCommand request, CancellationToken cancellationToken)
@@ -106,11 +109,19 @@ public sealed class AplicarPagoCommandHandler(
                 "MovimientoFacturaId"));
         }
 
+        // Fechas de registro permitidas (Task 8.5): la fecha EFECTIVA de la aplicación (la indicada o la de hoy).
+        var fechaRegistro = request.FechaRegistro ?? DateOnly.FromDateTime(DateTime.UtcNow);
+        var fecha = await validadorFecha.ValidarAsync(fechaRegistro, cancellationToken);
+        if (fecha.EsFallo)
+        {
+            return Fallo([.. fecha.Errores]);
+        }
+
         var aplicacion = await registroClientes.AplicarAsync(new AplicacionClienteSolicitud(
             factura.Id,
             pago.Id,
             request.Importe,
-            request.FechaRegistro ?? DateOnly.FromDateTime(DateTime.UtcNow),
+            fechaRegistro,
             TipoOrigenMovimiento.Cobro,
             pago.NumeroDocumento), cancellationToken);
         if (!aplicacion.TryObtenerValor(out var registrada))

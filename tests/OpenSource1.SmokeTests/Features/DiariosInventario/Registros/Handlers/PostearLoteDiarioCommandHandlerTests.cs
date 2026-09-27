@@ -6,6 +6,7 @@ using OpenSource1.Application.Features.DiariosInventario.Registros;
 using OpenSource1.Application.Features.DiariosInventario.Registros.Commands;
 using OpenSource1.Application.Features.DiariosInventario.Registros.Handlers;
 using OpenSource1.Application.Services.Inventario;
+using OpenSource1.Application.Services.Registro;
 
 namespace OpenSource1.SmokeTests.Features.DiariosInventario.Registros.Handlers;
 
@@ -28,7 +29,8 @@ public class PostearLoteDiarioCommandHandlerTests
             Mock.Of<IConversionUnidadMedidaService>(),
             Mock.Of<IRegistroMovimientosInventario>(),
             Mock.Of<IGeneradorNumeroDocumento>(),
-            Mock.Of<IUsuarioActual>());
+            Mock.Of<IUsuarioActual>(),
+            Mock.Of<IValidadorFechaRegistro>());
 
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => handler.Handle(new PostearLoteDiarioCommand(Guid.NewGuid()), default));

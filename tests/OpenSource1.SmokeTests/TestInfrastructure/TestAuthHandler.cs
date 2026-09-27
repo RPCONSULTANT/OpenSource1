@@ -26,9 +26,15 @@ public sealed class TestAuthHandler(
             ? roleValues.ToString().Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             : ["Administrador"];
 
+        // "X-Test-UserId" (opcional): Id del usuario (NameIdentifier) distinto del nombre, p. ej. el Guid de un usuario real de
+        // Identity para las excepciones por usuario de las fechas de registro permitidas (Task 8.5).
+        var userId = Request.Headers.TryGetValue("X-Test-UserId", out var userIdValues)
+            ? userIdValues.ToString()
+            : userName;
+
         var claims = new List<Claim>
         {
-            new(ClaimTypes.NameIdentifier, userName),
+            new(ClaimTypes.NameIdentifier, userId),
             new(ClaimTypes.Name, userName),
             new(ClaimTypes.Email, $"{userName}@test.local")
         };

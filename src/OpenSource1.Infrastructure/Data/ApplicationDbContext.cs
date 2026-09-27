@@ -45,6 +45,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<LineaIvaFacturaVenta> LineasIvaFacturaVenta => Set<LineaIvaFacturaVenta>();
     public DbSet<MovimientoCliente> MovimientosCliente => Set<MovimientoCliente>();
     public DbSet<MovimientoClienteDetalle> MovimientosClienteDetalle => Set<MovimientoClienteDetalle>();
+    public DbSet<ConfiguracionRegistro> ConfiguracionesRegistro => Set<ConfiguracionRegistro>();
+    public DbSet<ConfiguracionRegistroUsuario> ConfiguracionesRegistroUsuario => Set<ConfiguracionRegistroUsuario>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -1124,6 +1126,42 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
             entity.HasOne<MovimientoCliente>().WithMany().HasForeignKey(x => x.MovimientoClienteId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne<MovimientoCliente>().WithMany().HasForeignKey(x => x.MovimientoClienteAplicadoId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // Fechas de registro permitidas (Task 8.5): fila general única sembrada (sin límites) y excepciones por usuario.
+        modelBuilder.Entity<ConfiguracionRegistro>(entity =>
+        {
+            entity.ToTable("ConfiguracionesRegistro");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.CreatedBy).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.UpdatedBy).HasMaxLength(100);
+            entity.Property<uint>("xmin").HasColumnName("xmin").IsRowVersion();
+            entity.Property(x => x.IsDeleted).HasDefaultValue(false);
+            entity.Property(x => x.DeletedBy).HasMaxLength(100);
+            entity.HasQueryFilter(x => !x.IsDeleted);
+            entity.HasData(new
+            {
+                Id = ConfiguracionRegistroIds.General,
+                CreatedAtUtc = FechaSemilla,
+                CreatedBy = "system",
+                IsDeleted = false
+            });
+        });
+
+        modelBuilder.Entity<ConfiguracionRegistroUsuario>(entity =>
+        {
+            entity.ToTable("ConfiguracionesRegistroUsuario");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.NombreUsuario).HasMaxLength(256).IsRequired();
+            entity.Property(x => x.CreatedBy).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.UpdatedBy).HasMaxLength(100);
+            // UsuarioId es una referencia lógica a la base de Identity (sin FK). Único entre las filas vivas: tras borrar la
+            // excepción de un usuario se le puede volver a crear otra.
+            entity.HasIndex(x => x.UsuarioId).IsUnique().HasFilter("\"IsDeleted\" = false");
+            entity.Property<uint>("xmin").HasColumnName("xmin").IsRowVersion();
+            entity.Property(x => x.IsDeleted).HasDefaultValue(false);
+            entity.Property(x => x.DeletedBy).HasMaxLength(100);
+            entity.HasQueryFilter(x => !x.IsDeleted);
         });
     }
 

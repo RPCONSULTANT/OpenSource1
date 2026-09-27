@@ -130,6 +130,11 @@ builder.Services.AddHttpClient<IContabilidadConsultasApiClient, ContabilidadCons
     var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<ApiClientOptions>>().Value;
     client.BaseAddress = options.BaseAddress;
 }).AddHttpMessageHandler<BearerTokenHandler>();
+builder.Services.AddHttpClient<IFechasRegistroApiClient, FechasRegistroApiClient>((serviceProvider, client) =>
+{
+    var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<ApiClientOptions>>().Value;
+    client.BaseAddress = options.BaseAddress;
+}).AddHttpMessageHandler<BearerTokenHandler>();
 
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
@@ -151,6 +156,7 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy(ApplicationPolicies.CanModify, policy => policy.RequireClaim("permission", ApplicationPolicies.CanModify));
     options.AddPolicy(ApplicationPolicies.CanDelete, policy => policy.RequireClaim("permission", ApplicationPolicies.CanDelete));
     options.AddPolicy(ApplicationPolicies.CanConsult, policy => policy.RequireClaim("permission", ApplicationPolicies.CanConsult));
+    options.AddPolicy(ApplicationPolicies.CanAdministrar, policy => policy.RequireClaim("permission", ApplicationPolicies.CanAdministrar));
 });
 
 var app = builder.Build();

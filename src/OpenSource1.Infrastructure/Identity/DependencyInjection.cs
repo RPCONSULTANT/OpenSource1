@@ -91,6 +91,8 @@ public static class DependencyInjection
                 policy.RequireRole(ApplicationRoles.Administrator, ApplicationRoles.Supervisor));
             options.AddPolicy(ApplicationPolicies.CanDelete, policy =>
                 policy.RequireRole(ApplicationRoles.Administrator));
+            options.AddPolicy(ApplicationPolicies.CanAdministrar, policy =>
+                policy.RequireRole(ApplicationRoles.Administrator));
         });
 
         // Catálogo de permisos finos por recurso (Permisos.*), resuelto al vuelo para nombres de

@@ -6,6 +6,7 @@ using OpenSource1.Application.Features.FacturasVenta.Calculo;
 using OpenSource1.Application.Services.Clientes;
 using OpenSource1.Application.Services.Contabilidad;
 using OpenSource1.Application.Services.Inventario;
+using OpenSource1.Application.Services.Registro;
 using OpenSource1.Core.Common;
 using OpenSource1.Core.Entities;
 using OpenSource1.Core.Entities.Contabilidad;
@@ -24,7 +25,7 @@ namespace OpenSource1.Application.Features.FacturasVenta.Posteo;
 /// <item>Bloqueo compartido de los socios vender-a y facturar-a (contra su borrado concurrente) y de los productos (orden único,
 /// antes de revalidarlos: el factor y la unidad base no pueden cambiar hasta el commit).</item>
 /// <item>Revalidación contra el estado ACTUAL (socios, término, productos, almacenes, unidades y factor congelado, cuentas de
-/// líneas CuentaContable, IVA coherente) y <b>derivación de TODAS las cuentas</b> (CxC, Ventas, IVA, inventario) antes de
+/// líneas CuentaContable, IVA coherente, fecha de registro permitida — Task 8.5) y <b>derivación de TODAS las cuentas</b> (CxC, Ventas, IVA, inventario) antes de
 /// escribir nada: cualquier fallo devuelve todos los errores (con el número de línea) sin haber intentado un solo INSERT.</item>
 /// <item>IVA agrupado (<see cref="CalculadoraIvaFactura"/>).</item>
 /// <item>Número de la serie <c>FV</c>, salidas de inventario (Venta), movimiento de cliente (facturar-a), asiento contable y, al
@@ -50,7 +51,8 @@ public sealed class PostearFacturaVentaCommandHandler(
     IRegistroMovimientosCliente registroClientes,
     IRegistroContable registroContable,
     IGeneradorNumeroDocumento generadorNumero,
-    IUsuarioActual usuario)
+    IUsuarioActual usuario,
+    IValidadorFechaRegistro validadorFecha)
     : IRequestHandler<PostearFacturaVentaCommand, Result<ResultadoPosteoFactura>>
 {
     private const int LongitudNumero = 20;
@@ -266,6 +268,10 @@ public sealed class PostearFacturaVentaCommandHandler(
     /// <summary>Socios existentes y no bloqueados para facturar (Facturacion ni Todo); término de pago existente.</summary>
     private async Task ValidarCabeceraAsync(FacturaVentaBorrador borrador, List<Error> errores, CancellationToken cancellationToken)
     {
+        // Fechas de registro permitidas (Task 8.5): la de la cabecera, contra el rango del usuario o el general.
+        var fecha = await validadorFecha.ValidarAsync(borrador.FechaRegistro, cancellationToken);
+        errores.AddRange(fecha.Errores);
+
         var socios = unitOfWork.Repository<SocioNegocio>();
         var venderA = await socios.FirstOrDefaultAsync(x => x.Id == borrador.SocioNegocioId, cancellationToken: cancellationToken);
         if (venderA is null || venderA.Bloqueado != BloqueoSocioNegocio.Ninguno)

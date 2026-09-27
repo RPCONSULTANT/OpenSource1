@@ -572,6 +572,82 @@ public sealed class PostearLoteDiarioTests(PostgresTestFixture fixture) : IClass
         return [.. resultados];
     }
 
+    // ----- Task 8.5: fechas de registro permitidas (Review Focus 4 de la Fase 8) -----
+
+    [Fact]
+    public async Task ReviewFocus4_LineaConFechaFueraDelRangoPermitido_400EnSuLinea_SinEscribir_YExcepcionesDeUsuario()
+    {
+        var fechas = new FechasRegistroPrueba(_prueba);
+        var amplio = Guid.NewGuid();
+        var estrecho = Guid.NewGuid();
+        var p = await _prueba.SembrarProductoAsync();
+        var alm = await _prueba.SembrarAlmacenAsync();
+
+        async Task<(Guid Lote, int LineaD1, int LineaD2)> LoteAsync()
+        {
+            var lote = await CrearLoteAsync(PlantillaDiarioIds.Articulo);
+            var l1 = await AgregarLineaAsync(lote, TipoMovimientoInventario.AjustePositivo, p, alm, 1m, 5m, D1);
+            var l2 = await AgregarLineaAsync(lote, TipoMovimientoInventario.AjustePositivo, p, alm, 1m, 5m, D2);
+            return (lote, l1.NumeroLinea, l2.NumeroLinea);
+        }
+
+        try
+        {
+            // Sin rango.
+            await PostearOkAsync((await LoteAsync()).Lote);
+
+            // General desde el 02/09: solo la línea del 01/09 falla, con su número de línea; nada escrito ni número consumido.
+            await fechas.GeneralAsync(D2, null);
+            var (lote, lineaD1, _) = await LoteAsync();
+            var ultimo = await UltimoNumeroAsync();
+            var filas = await _prueba.ContarFilasAsync(p);
+            foreach (var usuario in new Guid?[] { null, Guid.NewGuid() })
+            {
+                var fallo = await PostearComoAsync(lote, usuario);
+                var error = Assert.Single(fallo.Errores);
+                Assert.Equal(("registro.fecha_no_permitida", $"Lineas[{lineaD1}].FechaRegistro"), (error.Codigo, error.Campo));
+                Assert.Contains($"Línea {lineaD1}", error.Mensaje);
+                Assert.Contains("01/09/2026", error.Mensaje);
+                Assert.Contains("general", error.Mensaje);
+            }
+
+            Assert.Equal((ultimo, filas, 2), (await UltimoNumeroAsync(), await _prueba.ContarFilasAsync(p), await LineasVivasAsync(lote)));
+
+            // Excepción más amplia: el usuario registra el mismo lote.
+            await fechas.UsuarioAsync(amplio, D1, D2);
+            Assert.Equal(2, (await PostearComoAsync(lote, amplio)).Valor.Movimientos);
+
+            // Excepción más estrecha (general sin límites): el usuario falla en la línea del 01/09; el sistema no.
+            await fechas.GeneralAsync(null, null);
+            await fechas.UsuarioAsync(estrecho, D2, D2);
+            var (lote2, lineaD1b, _) = await LoteAsync();
+            ultimo = await UltimoNumeroAsync();
+            filas = await _prueba.ContarFilasAsync(p);
+            var falloEstrecho = Assert.Single((await PostearComoAsync(lote2, estrecho)).Errores);
+            Assert.Equal(("registro.fecha_no_permitida", $"Lineas[{lineaD1b}].FechaRegistro"), (falloEstrecho.Codigo, falloEstrecho.Campo));
+            Assert.Contains("usuario", falloEstrecho.Mensaje);
+            Assert.Equal((ultimo, filas, 2), (await UltimoNumeroAsync(), await _prueba.ContarFilasAsync(p), await LineasVivasAsync(lote2)));
+            Assert.True((await PostearComoAsync(lote2, null)).EsExito);
+
+            // Dentro del rango general con los límites inclusivos.
+            await fechas.GeneralAsync(D1, D2);
+            await PostearOkAsync((await LoteAsync()).Lote);
+        }
+        finally
+        {
+            await fechas.LimpiarAsync();
+        }
+    }
+
+    /// <summary>Registro con el validador de fechas de registro del usuario indicado (null = proceso del sistema).</summary>
+    private async Task<Result<ResultadoRegistroLote>> PostearComoAsync(Guid loteId, Guid? usuario)
+    {
+        await using var scope = _prueba.Provider.CreateAsyncScope();
+        var handler = ActivatorUtilities.CreateInstance<PostearLoteDiarioCommandHandler>(
+            scope.ServiceProvider, FechasRegistroPrueba.Validador(scope.ServiceProvider, usuario));
+        return await handler.Handle(new PostearLoteDiarioCommand(loteId), default);
+    }
+
     private async Task<Guid> CrearLoteAsync(Guid plantillaId)
     {
         await using var contexto = _prueba.NuevoContexto();

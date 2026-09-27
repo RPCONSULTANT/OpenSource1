@@ -5,6 +5,7 @@ using OpenSource1.Application.Features.DiariosInventario.Lineas;
 using OpenSource1.Application.Features.DiariosInventario.Lotes;
 using OpenSource1.Application.Features.DiariosInventario.Registros.Commands;
 using OpenSource1.Application.Services.Inventario;
+using OpenSource1.Application.Services.Registro;
 using OpenSource1.Core.Common;
 using OpenSource1.Core.Entities;
 using OpenSource1.Core.Entities.Inventario;
@@ -23,7 +24,8 @@ namespace OpenSource1.Application.Features.DiariosInventario.Registros.Handlers;
 /// Se toma ANTES de la prevalidación (el brief lo pone después) para que la unidad base y el factor que se revalidan no
 /// puedan cambiar hasta el commit: cambiar la unidad base toma el mismo bloqueo.</item>
 /// <item>Prevalidación de todas las líneas con las reglas de captura contra el estado ACTUAL, más el factor congelado
-/// (<c>diario.factor_cambiado</c>); devuelve TODOS los errores, sin escribir nada.</item>
+/// (<c>diario.factor_cambiado</c>) y la fecha de registro de cada línea contra las fechas permitidas del usuario
+/// (<c>registro.fecha_no_permitida</c>, Task 8.5); devuelve TODOS los errores, sin escribir nada.</item>
 /// <item>Número de registro de la serie del lote (o de la plantilla).</item>
 /// <item>Movimientos en el orden de las desviaciones (fecha, entradas antes que salidas, número de línea).</item>
 /// <item>Invariante de reclasificación (salida + entrada = 0), <c>RegistroDiario</c> y borrado lógico de las líneas.</item>
@@ -46,7 +48,8 @@ public sealed class PostearLoteDiarioCommandHandler(
     IConversionUnidadMedidaService conversion,
     IRegistroMovimientosInventario registroMovimientos,
     IGeneradorNumeroDocumento generadorNumero,
-    IUsuarioActual usuario)
+    IUsuarioActual usuario,
+    IValidadorFechaRegistro validadorFecha)
     : IRequestHandler<PostearLoteDiarioCommand, Result<ResultadoRegistroLote>>
 {
     private const int LongitudNumeroRegistro = 20;
@@ -188,9 +191,16 @@ public sealed class PostearLoteDiarioCommandHandler(
             .ThenBy(x => x.TipoMovimiento == TipoMovimientoInventario.AjustePositivo ? 0 : 1)
             .ThenBy(x => x.NumeroLinea);
 
-    /// <summary>Reglas de captura contra el estado actual + factor congelado. Devuelve el primer error de la línea o null.</summary>
+    /// <summary>Fecha permitida, reglas de captura contra el estado actual y factor congelado. Devuelve el primer error de la línea o null.</summary>
     private async Task<Error?> PrevalidarAsync(Guid loteDiarioId, LineaDiarioARegistrar linea, CancellationToken cancellationToken)
     {
+        // Fechas de registro permitidas (Task 8.5): cada línea lleva su propia fecha.
+        var fecha = await validadorFecha.ValidarAsync(linea.FechaRegistro, cancellationToken);
+        if (fecha.EsFallo)
+        {
+            return DeLinea(linea, fecha.Errores[0]);
+        }
+
         var datosLinea = new LineaDiarioDatos(
             loteDiarioId, linea.FechaRegistro, linea.FechaDocumento, linea.NumeroDocumento, linea.TipoMovimiento,
             linea.ProductoId, linea.AlmacenId, linea.AlmacenDestinoId, linea.UnidadMedidaId, linea.Cantidad,

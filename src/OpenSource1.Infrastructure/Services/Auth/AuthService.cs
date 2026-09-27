@@ -282,7 +282,7 @@ public sealed class AuthService(
 
         if (roleSet.Contains(ApplicationRoles.Administrator))
         {
-            permissions.UnionWith([ApplicationPolicies.CanAdd, ApplicationPolicies.CanModify, ApplicationPolicies.CanDelete, ApplicationPolicies.CanConsult]);
+            permissions.UnionWith([ApplicationPolicies.CanAdd, ApplicationPolicies.CanModify, ApplicationPolicies.CanDelete, ApplicationPolicies.CanConsult, ApplicationPolicies.CanAdministrar]);
         }
 
         if (roleSet.Contains(ApplicationRoles.Supervisor))

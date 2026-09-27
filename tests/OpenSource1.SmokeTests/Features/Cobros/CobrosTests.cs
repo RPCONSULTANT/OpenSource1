@@ -95,6 +95,104 @@ public sealed class CobrosTests(PostgresTestFixture fixture) : IClassFixture<Pos
         Assert.Equal(antes, await FotoAsync());
     }
 
+    // ----- Task 8.5: fechas de registro permitidas (Review Focus 4 de la Fase 8) -----
+
+    [Fact]
+    public async Task ReviewFocus4_Pago_FechaFueraDelRangoPermitido_400EnFechaRegistro_SinEscribir_YExcepcionesDeUsuario()
+    {
+        var fechas = new FechasRegistroPrueba(_prueba);
+        var socio = await SocioAsync();
+        var amplio = Guid.NewGuid();
+        var estrecho = Guid.NewGuid();
+        var otro = Guid.NewGuid();
+        try
+        {
+            // Sin rango: cualquier fecha.
+            Ok(await PagarAsync(new RegistrarPagoClienteCommand(socio, 1m, D15), otro));
+
+            // General 10/09-12/09: límites inclusivos dentro; el 15/09 falla (sistema o usuario sin fila) sin escribir.
+            await fechas.GeneralAsync(D10, D12);
+            Ok(await PagarAsync(new RegistrarPagoClienteCommand(socio, 1m, D10), null));
+            Ok(await PagarAsync(new RegistrarPagoClienteCommand(socio, 1m, D12), otro));
+            var antes = await FotoAsync();
+            foreach (var usuario in new Guid?[] { null, otro })
+            {
+                var fallo = await PagarAsync(new RegistrarPagoClienteCommand(socio, 1m, D15), usuario);
+                Assert.Equal(("registro.fecha_no_permitida", "FechaRegistro"), Unico(fallo));
+                Assert.Contains("15/09/2026", fallo.Errores[0].Mensaje);
+                Assert.Contains("general", fallo.Errores[0].Mensaje);
+                Assert.Contains("del 10/09/2026 al 12/09/2026", fallo.Errores[0].Mensaje);
+            }
+
+            Assert.Equal(antes, await FotoAsync());
+
+            // Excepción más amplia: el usuario registra el 15/09.
+            await fechas.UsuarioAsync(amplio, D10, null);
+            Ok(await PagarAsync(new RegistrarPagoClienteCommand(socio, 1m, D15), amplio));
+
+            // Excepción más estrecha: el 10/09 (permitido en general) le falla al usuario con SU rango; al sistema no.
+            await fechas.UsuarioAsync(estrecho, D12, D12);
+            antes = await FotoAsync();
+            var falloEstrecho = await PagarAsync(new RegistrarPagoClienteCommand(socio, 1m, D10), estrecho);
+            Assert.Equal(("registro.fecha_no_permitida", "FechaRegistro"), Unico(falloEstrecho));
+            Assert.Contains("usuario", falloEstrecho.Errores[0].Mensaje);
+            Assert.Contains("del 12/09/2026 al 12/09/2026", falloEstrecho.Errores[0].Mensaje);
+            Assert.Equal(antes, await FotoAsync());
+            Ok(await PagarAsync(new RegistrarPagoClienteCommand(socio, 1m, D10), null));
+            Ok(await PagarAsync(new RegistrarPagoClienteCommand(socio, 1m, D12), estrecho));
+        }
+        finally
+        {
+            await fechas.LimpiarAsync();
+        }
+    }
+
+    [Fact]
+    public async Task ReviewFocus4_Aplicacion_FechaFueraDelRangoPermitido_400EnFechaRegistro_SinEscribir_YExcepcionesDeUsuario()
+    {
+        var fechas = new FechasRegistroPrueba(_prueba);
+        var socio = await SocioAsync();
+        var factura = await FacturaPosteadaAsync(socio, 100m);
+        var pago = (await PagarOkAsync(new RegistrarPagoClienteCommand(socio, 100m, D12))).MovimientoClienteId;
+        var amplio = Guid.NewGuid();
+        var estrecho = Guid.NewGuid();
+        try
+        {
+            // Sin rango.
+            Ok(await AplicarAsync(new AplicarPagoCommand(factura, pago, 1m, D15), null));
+
+            // General 10/09-12/09: el 15/09 y la fecha por defecto (hoy, posterior) fallan sin escribir; el 12/09 no.
+            await fechas.GeneralAsync(D10, D12);
+            var antes = await FotoAsync();
+            var fallo = await AplicarAsync(new AplicarPagoCommand(factura, pago, 1m, D15), null);
+            Assert.Equal(("registro.fecha_no_permitida", "FechaRegistro"), Unico(fallo));
+            Assert.Contains("general", fallo.Errores[0].Mensaje);
+            Assert.Equal(("registro.fecha_no_permitida", "FechaRegistro"), Unico(await AplicarAsync(new AplicarPagoCommand(factura, pago, 1m), null)));
+            Assert.Equal(antes, await FotoAsync());
+            Ok(await AplicarAsync(new AplicarPagoCommand(factura, pago, 1m, D12), null));
+
+            // Excepción más amplia (sin "hasta"): el usuario aplica el 15/09 y con la fecha por defecto.
+            await fechas.UsuarioAsync(amplio, D10, null);
+            Ok(await AplicarAsync(new AplicarPagoCommand(factura, pago, 1m, D15), amplio));
+            Ok(await AplicarAsync(new AplicarPagoCommand(factura, pago, 1m), amplio));
+
+            // Excepción más estrecha: el 12/09 le falla al usuario; su día 11/09 no.
+            await fechas.UsuarioAsync(estrecho, new DateOnly(2026, 9, 11), new DateOnly(2026, 9, 11));
+            antes = await FotoAsync();
+            var falloEstrecho = await AplicarAsync(new AplicarPagoCommand(factura, pago, 1m, D12), estrecho);
+            Assert.Equal(("registro.fecha_no_permitida", "FechaRegistro"), Unico(falloEstrecho));
+            Assert.Contains("usuario", falloEstrecho.Errores[0].Mensaje);
+            Assert.Equal(antes, await FotoAsync());
+            Ok(await AplicarAsync(new AplicarPagoCommand(factura, pago, 1m, new DateOnly(2026, 9, 11)), estrecho));
+
+            Assert.Equal(118m - 5m, await RestanteAsync(factura));
+        }
+        finally
+        {
+            await fechas.LimpiarAsync();
+        }
+    }
+
     [Fact]
     public async Task Aplicacion_ExcedeElRestanteDeLaFactura_400_YAplicarElRestanteExactoCierraLaFactura()
     {
@@ -572,6 +670,24 @@ public sealed class CobrosTests(PostgresTestFixture fixture) : IClassFixture<Pos
     }
 
     private async Task<ResultadoPagoCliente> PagarOkAsync(RegistrarPagoClienteCommand comando) => Ok(await PagarAsync(comando));
+
+    /// <summary>Pago con el validador de fechas de registro del usuario indicado (null = proceso del sistema).</summary>
+    private async Task<Result<ResultadoPagoCliente>> PagarAsync(RegistrarPagoClienteCommand comando, Guid? usuario)
+    {
+        await using var scope = _prueba.Provider.CreateAsyncScope();
+        var handler = ActivatorUtilities.CreateInstance<RegistrarPagoClienteCommandHandler>(
+            scope.ServiceProvider, FechasRegistroPrueba.Validador(scope.ServiceProvider, usuario));
+        return await handler.Handle(comando, default);
+    }
+
+    /// <summary>Aplicación con el validador de fechas de registro del usuario indicado (null = proceso del sistema).</summary>
+    private async Task<Result<ResultadoAplicacionPago>> AplicarAsync(AplicarPagoCommand comando, Guid? usuario)
+    {
+        await using var scope = _prueba.Provider.CreateAsyncScope();
+        var handler = ActivatorUtilities.CreateInstance<AplicarPagoCommandHandler>(
+            scope.ServiceProvider, FechasRegistroPrueba.Validador(scope.ServiceProvider, usuario));
+        return await handler.Handle(comando, default);
+    }
 
     private async Task<Result<ResultadoAplicacionPago>> AplicarAsync(AplicarPagoCommand comando)
     {

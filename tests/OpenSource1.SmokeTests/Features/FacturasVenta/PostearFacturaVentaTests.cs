@@ -361,6 +361,72 @@ public sealed class PostearFacturaVentaTests(PostgresTestFixture fixture) : ICla
         Assert.Equal(antes, await FotoAsync());
     }
 
+    // ----- Task 8.5: fechas de registro permitidas (Review Focus 4 de la Fase 8) -----
+
+    [Fact]
+    public async Task ReviewFocus4_FechaDeRegistroFueraDelRangoPermitido_400EnFechaRegistro_SinEscribir_YExcepcionesDeUsuario()
+    {
+        var fechas = new FechasRegistroPrueba(_prueba);
+        var amplio = Guid.NewGuid();
+        var estrecho = Guid.NewGuid();
+        var otro = Guid.NewGuid();
+        var socio = await SocioAsync();
+        var ingresos = await CuentaAsync(posteoDirecto: true);
+
+        async Task<Guid> BorradorConLineaAsync()
+        {
+            var borrador = await BorradorAsync(socio); // FechaRegistro = D10
+            await LineaCuentaAsync(borrador.Id, ingresos, GrupoContableIds.IvaProductoItbis18, 1m, 100m);
+            return borrador.Id;
+        }
+
+        try
+        {
+            // Sin rango (la semilla): se postea en cualquier fecha.
+            PostearOk(await PostearComoAsync(await BorradorConLineaAsync(), otro));
+
+            // Rango general que excluye el 10/09: falla en FechaRegistro con el rango y su origen, sin escribir nada.
+            await fechas.GeneralAsync(new DateOnly(2026, 9, 11), null);
+            var fuera = await BorradorConLineaAsync();
+            var antes = await FotoAsync();
+            foreach (var usuario in new Guid?[] { null, otro })
+            {
+                var fallo = await PostearComoAsync(fuera, usuario);
+                Assert.Equal(("registro.fecha_no_permitida", "FechaRegistro"), Unico(fallo));
+                Assert.Contains("10/09/2026", fallo.Errores[0].Mensaje);
+                Assert.Contains("general", fallo.Errores[0].Mensaje);
+                Assert.Contains("desde el 11/09/2026", fallo.Errores[0].Mensaje);
+            }
+
+            Assert.Equal(antes, await FotoAsync());
+            Assert.Equal((false, 1L, 0L), await EstadoBorradorAsync(fuera));
+
+            // Excepción de usuario MÁS AMPLIA que la general: ese usuario sí postea el mismo borrador.
+            await fechas.UsuarioAsync(amplio, new DateOnly(2026, 9, 1), new DateOnly(2026, 9, 10));
+            PostearOk(await PostearComoAsync(fuera, amplio));
+
+            // Excepción MÁS ESTRECHA que la general (sin límites): el usuario falla con SU rango; el sistema postea.
+            await fechas.GeneralAsync(null, null);
+            await fechas.UsuarioAsync(estrecho, new DateOnly(2026, 9, 11), new DateOnly(2026, 9, 20));
+            var estrechoFuera = await BorradorConLineaAsync();
+            antes = await FotoAsync();
+            var falloEstrecho = await PostearComoAsync(estrechoFuera, estrecho);
+            Assert.Equal(("registro.fecha_no_permitida", "FechaRegistro"), Unico(falloEstrecho));
+            Assert.Contains("usuario", falloEstrecho.Errores[0].Mensaje);
+            Assert.Contains("del 11/09/2026 al 20/09/2026", falloEstrecho.Errores[0].Mensaje);
+            Assert.Equal(antes, await FotoAsync());
+            PostearOk(await PostearComoAsync(estrechoFuera, null));
+
+            // Dentro del rango general, con los dos límites inclusivos.
+            await fechas.GeneralAsync(D10, D10);
+            PostearOk(await PostearComoAsync(await BorradorConLineaAsync(), null));
+        }
+        finally
+        {
+            await fechas.LimpiarAsync();
+        }
+    }
+
     [Fact]
     public async Task SinLineasConImporte_400_SinEscribirNiConsumirNumero()
     {
@@ -1082,6 +1148,17 @@ public sealed class PostearFacturaVentaTests(PostgresTestFixture fixture) : ICla
     }
 
     private async Task<ResultadoPosteoFactura> PostearOkAsync(Guid borradorId) => Ok(await PostearAsync(borradorId));
+
+    /// <summary>Posteo con el validador de fechas de registro del usuario indicado (null = proceso del sistema).</summary>
+    private async Task<Result<ResultadoPosteoFactura>> PostearComoAsync(Guid borradorId, Guid? usuario)
+    {
+        await using var scope = _prueba.Provider.CreateAsyncScope();
+        var handler = ActivatorUtilities.CreateInstance<PostearFacturaVentaCommandHandler>(
+            scope.ServiceProvider, FechasRegistroPrueba.Validador(scope.ServiceProvider, usuario));
+        return await handler.Handle(new PostearFacturaVentaCommand(borradorId), default);
+    }
+
+    private static ResultadoPosteoFactura PostearOk(Result<ResultadoPosteoFactura> resultado) => Ok(resultado);
 
     private async Task<ResultadoPosteoCostoInventario> PostearCostoAsync(Guid productoId)
     {

@@ -21,6 +21,7 @@ using OpenSource1.Application.Features.DiariosInventario.Plantillas;
 using OpenSource1.Application.Features.DiariosInventario.Registros;
 using OpenSource1.Application.Features.FacturasVenta.Borradores;
 using OpenSource1.Application.Features.FacturasVenta.Posteo;
+using OpenSource1.Application.Features.FechasRegistro;
 using OpenSource1.Application.Features.GruposClienteContable;
 using OpenSource1.Application.Features.GruposContables;
 using OpenSource1.Application.Features.Productos;
@@ -32,6 +33,7 @@ using OpenSource1.Application.Services.Auth;
 using OpenSource1.Application.Services.Clientes;
 using OpenSource1.Application.Services.Contabilidad;
 using OpenSource1.Application.Services.Inventario;
+using OpenSource1.Application.Services.Registro;
 using OpenSource1.Infrastructure.Data.Repositories;
 using OpenSource1.Infrastructure.Data.Queries;
 using OpenSource1.Infrastructure.Data.UnitOfWork;
@@ -40,6 +42,7 @@ using OpenSource1.Infrastructure.Services.Auth;
 using OpenSource1.Infrastructure.Services.Clientes;
 using OpenSource1.Infrastructure.Services.Contabilidad;
 using OpenSource1.Infrastructure.Services.Inventario;
+using OpenSource1.Infrastructure.Services.Registro;
 using OpenSource1.Infrastructure.Services.Users;
 
 namespace OpenSource1.Infrastructure.Data;
@@ -116,6 +119,8 @@ public static class DependencyInjection
         services.AddScoped<IConsultaInventario, ConsultaInventario>();
         services.AddScoped<IRegistroMovimientosInventario, RegistroMovimientosInventario>();
         services.AddScoped<IAjusteCostoInventario, AjusteCostoInventario>();
+        services.AddScoped<IFechasRegistroReadRepository, DapperFechasRegistroReadRepository>();
+        services.AddScoped<IValidadorFechaRegistro, ValidadorFechaRegistro>();
 
         // Usuario del libro de inventario fuera de HTTP (tests, batch): la API registra antes su UsuarioActualHttp y
         // este TryAdd no lo pisa.
