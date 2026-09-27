@@ -439,6 +439,7 @@ else
     private LineaFacturaVentaBorradorResponse? lineaAEditar;
     private LineaFacturaVentaBorradorResponse? lineaAEliminar;
 
+    private bool addInputNuevo;
     private bool canAdd;
     private bool canModify;
     private bool canDelete;
@@ -447,6 +448,8 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        // En un GET el formulario de alta es nuevo; en un POST llega enlazado y no se retoca (el precio vacío debe fallar).
+        addInputNuevo = AddInput is null;
         AddInput ??= new() { Tipo = (short)AddTipo, CantidadTexto = AddTipo == TipoLineaFactura.Comentario ? null : "1" };
         UpdateInputLinea ??= new();
         DeleteInputLinea ??= new();
@@ -565,7 +568,16 @@ else
         {
             try { addProducto = await ProductoApiClient.GetByIdAsync(id); }
             catch (Exception ex) { Logger.LogWarning(ex, "Could not load producto {Id}.", id); }
-            if (addProducto is not null) return;
+            if (addProducto is not null)
+            {
+                // El precio es obligatorio (Task 8.4): se propone el precio de venta (unidad base) si es mayor que cero.
+                if (addInputNuevo && addProducto.PrecioVenta > 0 && string.IsNullOrWhiteSpace(AddInput!.PrecioUnitarioTexto))
+                {
+                    AddInput.PrecioUnitarioTexto = addProducto.PrecioVenta.ToString("0.00##", CultureInfo.InvariantCulture);
+                }
+
+                return;
+            }
         }
 
         (addProductoOpciones, addProductoOpcionesCargaFallida) = await BuscarProductosAsync(AddProductoQuery);
@@ -685,10 +697,11 @@ else
                     <ValidationMessage For="() => model.CantidadTexto" />
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{prefix}_PrecioUnitarioTexto")">Precio unitario@(tipo == TipoLineaFactura.CuentaContable ? " *" : "")</label>
+                    <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{prefix}_PrecioUnitarioTexto")">Precio unitario <span class="text-red-500">*</span></label>
                     <input id="@($"{prefix}_PrecioUnitarioTexto")" type="text" inputmode="decimal" name="@($"{prefix}.PrecioUnitarioTexto")" value="@model.PrecioUnitarioTexto"
-                           placeholder="@(tipo == TipoLineaFactura.Producto ? "Vacío = precio de venta" : "")" class="@InputCss" />
+                           aria-describedby="@($"{prefix}_PrecioAyuda")" class="@InputCss" />
                     <ValidationMessage For="() => model.PrecioUnitarioTexto" />
+                    <p id="@($"{prefix}_PrecioAyuda")" class="mt-1 text-xs text-slate-400" data-testid="ayuda-precio">Mayor que cero; para regalar, use 100 % de descuento.</p>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{prefix}_PorcentajeDescuentoTexto")">Descuento %</label>
@@ -798,7 +811,9 @@ else
             if (result.Succeeded)
             {
                 var r = result.Valor!;
-                Nav.NavigateTo($"/facturas-venta/{Uri.EscapeDataString(r.Numero)}?ok=posteada&registro={Uri.EscapeDataString(r.RegistroContable)}");
+                // Una factura de total 0 (todo al 100 % de descuento) no lleva asiento: sin "registro".
+                var registro = r.RegistroContable is { } numeroRegistro ? $"&registro={Uri.EscapeDataString(numeroRegistro)}" : string.Empty;
+                Nav.NavigateTo($"/facturas-venta/{Uri.EscapeDataString(r.Numero)}?ok=posteada{registro}");
                 return;
             }
 

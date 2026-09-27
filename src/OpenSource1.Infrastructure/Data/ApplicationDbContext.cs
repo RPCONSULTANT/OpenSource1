@@ -985,7 +985,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.HasIndex(x => new { x.SocioNegocioFacturarAId, x.FechaRegistro })
                 .HasDatabaseName("IX_FacturasVenta_SocioNegocioFacturarAId_FechaRegistro");
             entity.HasIndex(x => x.FechaRegistro).HasDatabaseName("IX_FacturasVenta_FechaRegistro");
-            // Red de seguridad (Task 6.4): un asiento pertenece a una sola factura (NULL admite varias: total 0 no se postea).
+            // Red de seguridad (Task 6.4): un asiento pertenece a una sola factura. NULL admite varias: las de total 0 (Task 8.4).
             entity.HasIndex(x => x.RegistroContableId).IsUnique().HasDatabaseName("IX_FacturasVenta_RegistroContableId");
 
             entity.HasOne<SocioNegocio>().WithMany().HasForeignKey(x => x.SocioNegocioId).OnDelete(DeleteBehavior.Restrict);

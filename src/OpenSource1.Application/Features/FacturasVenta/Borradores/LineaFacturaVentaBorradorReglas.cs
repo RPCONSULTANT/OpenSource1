@@ -227,7 +227,8 @@ internal static class LineaFacturaVentaBorradorReglas
                 : CantidadBaseDemasiadoGrande();
         }
 
-        // 6. Precio: por defecto el PrecioVenta del producto (en unidad base) por el factor de la unidad de la línea.
+        // 6. Precio: por defecto el PrecioVenta del producto (en unidad base) por el factor de la unidad de la línea. El precio
+        // por defecto también debe ser > 0 (Task 8.4): un producto sin precio de venta exige informarlo.
         decimal precio;
         if (datos.PrecioUnitario is { } precioInformado)
         {
@@ -242,6 +243,15 @@ internal static class LineaFacturaVentaBorradorReglas
             catch (OverflowException)
             {
                 precio = decimal.MaxValue;
+            }
+
+            if (precio <= 0m)
+            {
+                return Fallo(
+                    "factura.precio_invalido",
+                    $"El producto {producto.Codigo} no tiene precio de venta en esa unidad: indique el precio unitario " +
+                    $"(mayor que cero; {AyudaRegalo}).",
+                    "PrecioUnitario");
             }
         }
 
@@ -353,6 +363,11 @@ internal static class LineaFacturaVentaBorradorReglas
             return Fallo("factura.importe_invalido", "El importe de la línea resultante es demasiado grande.", "Cantidad");
         }
 
+        if (ValidarImporte(importeLinea, porcentajeDescuento) is { } errorImporte)
+        {
+            return Result<LineaFacturaCalculada>.Fallo(errorImporte);
+        }
+
         var iva = await derivador.IvaAsync(cabecera.GrupoIvaNegocioId, grupoIvaProductoId, cancellationToken);
         if (!iva.TryObtenerValor(out var setupIva))
         {
@@ -374,12 +389,31 @@ internal static class LineaFacturaVentaBorradorReglas
                 "Cantidad")
             : null;
 
-    private static Error? ValidarPrecio(decimal precio) =>
-        precio < 0 || precio > ImporteMaximo || decimal.Round(precio, 4) != precio
+    /// <summary>Ayuda común a los errores de precio e importe 0 (Task 8.4).</summary>
+    public const string AyudaRegalo = "para regalar, use 100 % de descuento";
+
+    /// <summary>
+    /// Precio unitario de una línea Producto o CuentaContable: mayor que cero (Task 8.4: el precio 0 está bloqueado; un regalo
+    /// se factura con 100 % de descuento), menor que 1e14 y con 4 decimales como máximo. También lo revalida el posteo.
+    /// </summary>
+    public static Error? ValidarPrecio(decimal precio) =>
+        precio <= 0 || precio > ImporteMaximo || decimal.Round(precio, 4) != precio
             ? new Error(
                 "factura.precio_invalido",
-                "El precio unitario debe ser mayor o igual que cero, menor que 1e14 y tener como máximo 4 decimales.",
+                $"El precio unitario debe ser mayor que cero ({AyudaRegalo}), menor que 1e14 y tener como máximo 4 decimales.",
                 "PrecioUnitario")
+            : null;
+
+    /// <summary>
+    /// Importe de línea 0 solo con 100 % de descuento (Task 8.4). Con descuento parcial puede ocurrir por redondeo (cantidad ×
+    /// precio &lt; 0.005). También lo revalida el posteo.
+    /// </summary>
+    public static Error? ValidarImporte(decimal importeLinea, decimal porcentajeDescuento) =>
+        importeLinea == 0m && porcentajeDescuento != 100m
+            ? new Error(
+                "factura.importe_invalido",
+                $"El importe de la línea resultante es 0: aumente la cantidad o el precio ({AyudaRegalo}).",
+                "Cantidad")
             : null;
 
     private static string Truncar(string texto) =>

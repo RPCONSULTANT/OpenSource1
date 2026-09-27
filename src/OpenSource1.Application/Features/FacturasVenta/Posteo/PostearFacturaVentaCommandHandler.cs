@@ -26,9 +26,12 @@ namespace OpenSource1.Application.Features.FacturasVenta.Posteo;
 /// <item>Revalidación contra el estado ACTUAL (socios, término, productos, almacenes, unidades y factor congelado, cuentas de
 /// líneas CuentaContable, IVA coherente) y <b>derivación de TODAS las cuentas</b> (CxC, Ventas, IVA, inventario) antes de
 /// escribir nada: cualquier fallo devuelve todos los errores (con el número de línea) sin haber intentado un solo INSERT.</item>
-/// <item>IVA agrupado (<see cref="CalculadoraIvaFactura"/>); total 0 → 400 <c>factura.importe_cero</c>.</item>
+/// <item>IVA agrupado (<see cref="CalculadoraIvaFactura"/>).</item>
 /// <item>Número de la serie <c>FV</c>, salidas de inventario (Venta), movimiento de cliente (facturar-a), asiento contable y, al
 /// final, el documento posteado con su <c>RegistroContableId</c> (sin UPDATE de la factura). Borrado lógico del borrador.</item>
+/// <item>Total 0 (Task 8.4: todas las líneas al 100 % de descuento, un regalo): se postea el documento (líneas y líneas de IVA de
+/// base 0) y sale el inventario, pero NO hay movimiento de cliente ni asiento (<c>RegistroContableId</c> null, número
+/// <c>CONTAB</c> sin consumir). Las demás validaciones y derivaciones (CxC, Ventas, IVA, inventario) se exigen igual.</item>
 /// </list>
 /// <para>
 /// Orden GLOBAL de locks: borrador → líneas → socios (compartido) → productos (ordenados) → línea de serie <c>FV</c> →
@@ -125,11 +128,8 @@ public sealed class PostearFacturaVentaCommandHandler(
         [
             .. lineasConImporte.Select(l => new LineaCalculoIva(l.NumeroLinea, l.IdentificadorIva!, l.PorcentajeIva, l.ImporteLinea))
         ]);
-        if (totales.ImporteTotal == 0m)
-        {
-            return Fallo(new Error(
-                "factura.importe_cero", "La factura no tiene importe: una factura legal con total 0 no se puede postear.", "Lineas"));
-        }
+        // Total 0 (regalo): sin movimiento de cliente ni asiento. Las líneas ya se revalidaron (precio > 0, importe 0 solo al 100 %).
+        var conImporte = totales.ImporteTotal != 0m;
 
         // 5. Número de la factura (FOR UPDATE de la línea de la serie FV, sin huecos: se deshace con todo lo demás).
         var numeroResultado = await generadorNumero.SiguienteAsync(
@@ -146,7 +146,7 @@ public sealed class PostearFacturaVentaCommandHandler(
         }
 
         var descripcion = Truncar(borrador.Descripcion ?? $"Factura de venta {numero}");
-        var asiento = AsientoFacturaVenta.Construir(borrador, lineasConImporte, totales, cuentas, numero, descripcion);
+        var asiento = conImporte ? AsientoFacturaVenta.Construir(borrador, lineasConImporte, totales, cuentas, numero, descripcion) : null;
 
         // 6. Salidas de inventario por línea de Producto (en orden de línea). Existencia insuficiente -> Lineas[n].Cantidad.
         var movimientos = new Dictionary<Guid, long>();
@@ -177,39 +177,21 @@ public sealed class PostearFacturaVentaCommandHandler(
             movimientos[linea.Id] = registrado.MovimientoProductoId;
         }
 
-        // 7. Libro de clientes: la factura al facturar-a, con la CxC congelada.
-        var movimientoCliente = await registroClientes.RegistrarAsync(new MovimientoClienteSolicitud(
-            borrador.SocioNegocioFacturarAId,
-            borrador.FechaRegistro,
-            borrador.FechaDocumento,
-            borrador.FechaVencimiento,
-            TipoDocumentoCliente.Factura,
-            numero,
-            descripcion,
-            totales.ImporteTotal,
-            borrador.GrupoClienteContableId,
-            cuentas.CuentaCxCId,
-            TipoOrigenMovimiento.FacturaVenta,
-            numero), cancellationToken);
-        if (movimientoCliente.EsFallo)
+        // 7-8. Libro de clientes (la factura al facturar-a, con la CxC congelada) y asiento; nada de eso con total 0.
+        AsientoRegistrado? asientoRegistrado = null;
+        if (asiento is not null)
         {
-            return Result<ResultadoPosteoFactura>.Fallo(movimientoCliente);
+            var registrado = await RegistrarClienteYAsientoAsync(borrador, numero, descripcion, totales, cuentas, asiento, cancellationToken);
+            if (!registrado.TryObtenerValor(out asientoRegistrado))
+            {
+                return Result<ResultadoPosteoFactura>.Fallo(registrado);
+            }
         }
 
-        // 8. Asiento (IRegistroContable comprueba el cuadre antes y después de insertar).
-        var registro = await registroContable.RegistrarAsync(asiento, cancellationToken);
-        if (!registro.TryObtenerValor(out var asientoRegistrado))
-        {
-            // Los campos "Lineas[i].X" de IRegistroContable indexan las PATAS del asiento (base 0), no las líneas de la
-            // factura: se propagan sin ese campo para no confundirlos con Lineas[NumeroLinea].
-            return Fallo([.. registro.Errores.Select(e =>
-                e.Campo is { } campo && campo.StartsWith("Lineas[", StringComparison.Ordinal) ? e with { Campo = null } : e)]);
-        }
-
-        // 9. Documento legal, ya con el asiento (se inserta el último: nunca se actualiza).
+        // 9. Documento legal, ya con el asiento si lo hay (se inserta el último: nunca se actualiza).
         var ahora = DateTimeOffset.UtcNow;
         var creadoPor = CreadoPor();
-        var factura = CrearFactura(borrador, numero, totales, asientoRegistrado.RegistroContableId, ahora, creadoPor, usuario.Id);
+        var factura = CrearFactura(borrador, numero, totales, asientoRegistrado?.RegistroContableId, ahora, creadoPor, usuario.Id);
         await datos.InsertarFacturaAsync(
             factura,
             [.. lineas.Select(l => CrearLinea(numero, l, movimientos.TryGetValue(l.Id, out var m) ? m : null))],
@@ -237,7 +219,48 @@ public sealed class PostearFacturaVentaCommandHandler(
         await unitOfWork.CommitAsync(cancellationToken);
 
         return Result<ResultadoPosteoFactura>.Exito(
-            new ResultadoPosteoFactura(numero, totales.ImporteTotal, asientoRegistrado.NumeroRegistro));
+            new ResultadoPosteoFactura(numero, totales.ImporteTotal, asientoRegistrado?.NumeroRegistro));
+    }
+
+    /// <summary>Movimiento de cliente del facturar-a (con la CxC congelada) y asiento de la factura (pasos 7 y 8).</summary>
+    private async Task<Result<AsientoRegistrado>> RegistrarClienteYAsientoAsync(
+        FacturaVentaBorrador borrador,
+        string numero,
+        string descripcion,
+        TotalesFactura totales,
+        CuentasFactura cuentas,
+        AsientoContable asiento,
+        CancellationToken cancellationToken)
+    {
+        var movimientoCliente = await registroClientes.RegistrarAsync(new MovimientoClienteSolicitud(
+            borrador.SocioNegocioFacturarAId,
+            borrador.FechaRegistro,
+            borrador.FechaDocumento,
+            borrador.FechaVencimiento,
+            TipoDocumentoCliente.Factura,
+            numero,
+            descripcion,
+            totales.ImporteTotal,
+            borrador.GrupoClienteContableId,
+            cuentas.CuentaCxCId,
+            TipoOrigenMovimiento.FacturaVenta,
+            numero), cancellationToken);
+        if (movimientoCliente.EsFallo)
+        {
+            return Result<AsientoRegistrado>.Fallo(movimientoCliente);
+        }
+
+        // IRegistroContable comprueba el cuadre antes y después de insertar.
+        var registro = await registroContable.RegistrarAsync(asiento, cancellationToken);
+        if (registro.EsExito)
+        {
+            return registro;
+        }
+
+        // Los campos "Lineas[i].X" de IRegistroContable indexan las PATAS del asiento (base 0), no las líneas de la factura: se
+        // propagan sin ese campo para no confundirlos con Lineas[NumeroLinea].
+        return Result<AsientoRegistrado>.Fallo([.. registro.Errores.Select(e =>
+            e.Campo is { } campo && campo.StartsWith("Lineas[", StringComparison.Ordinal) ? e with { Campo = null } : e)]);
     }
 
     /// <summary>Socios existentes y no bloqueados para facturar (Facturacion ni Todo); término de pago existente.</summary>
@@ -276,6 +299,14 @@ public sealed class PostearFacturaVentaCommandHandler(
         if (linea.Cantidad <= 0m)
         {
             errores.Add(DeLinea(linea, new Error("factura.cantidad_invalida", "La cantidad debe ser mayor que cero.", "Cantidad")));
+            return;
+        }
+
+        // Regla de importes (Task 8.4), la misma del alta: precio > 0 e importe 0 solo con 100 % de descuento.
+        if ((LineaFacturaVentaBorradorReglas.ValidarPrecio(linea.PrecioUnitario)
+             ?? LineaFacturaVentaBorradorReglas.ValidarImporte(linea.ImporteLinea, linea.PorcentajeDescuentoLinea)) is { } errorImporte)
+        {
+            errores.Add(DeLinea(linea, errorImporte));
             return;
         }
 
@@ -477,7 +508,7 @@ public sealed class PostearFacturaVentaCommandHandler(
     }
 
     private static FacturaVenta CrearFactura(
-        FacturaVentaBorrador b, string numero, TotalesFactura totales, long registroContableId, DateTimeOffset ahora, string creadoPor,
+        FacturaVentaBorrador b, string numero, TotalesFactura totales, long? registroContableId, DateTimeOffset ahora, string creadoPor,
         Guid? usuarioId) => new()
     {
         Numero = numero,

@@ -13,6 +13,7 @@ namespace OpenSource1.Application.Features.FacturasVenta.Posteo;
 public sealed record PostearFacturaVentaCommand(Guid FacturaVentaBorradorId) : IRequest<Result<ResultadoPosteoFactura>>;
 
 /// <summary>
-/// Resultado del posteo: número de la factura (serie <c>FV</c>), su total y el número del registro contable (serie <c>CONTAB</c>).
+/// Resultado del posteo: número de la factura (serie <c>FV</c>), su total y el número del registro contable (serie <c>CONTAB</c>),
+/// null en una factura de total 0 (todas sus líneas al 100 % de descuento), que no lleva asiento (Task 8.4).
 /// </summary>
-public sealed record ResultadoPosteoFactura(string Numero, decimal ImporteTotal, string RegistroContable);
+public sealed record ResultadoPosteoFactura(string Numero, decimal ImporteTotal, string? RegistroContable);

@@ -13,6 +13,9 @@ public sealed class LineaFacturaForm : IValidatableObject
 {
     public const int LongitudDescripcion = 200;
 
+    /// <summary>Ayuda de la regla de importes (Task 8.4), la misma que la de los mensajes de la API.</summary>
+    public const string AyudaRegalo = "para regalar, use 100 % de descuento";
+
     public short Tipo { get; set; } = (short)TipoLineaFactura.Producto;
 
     /// <summary>Solo Producto; vacío = el almacén de la cabecera.</summary>
@@ -26,7 +29,10 @@ public sealed class LineaFacturaForm : IValidatableObject
 
     public string? CantidadTexto { get; set; }
 
-    /// <summary>Producto: vacío = <c>PrecioVenta × factor</c> (lo calcula la API). CuentaContable: obligatorio.</summary>
+    /// <summary>
+    /// Obligatorio y mayor que cero en Producto y CuentaContable (Task 8.4: para regalar, 100 % de descuento). La página lo
+    /// rellena con el precio de venta del producto elegido; la API conserva su precio por defecto para otros clientes.
+    /// </summary>
     public string? PrecioUnitarioTexto { get; set; }
 
     public string? PorcentajeDescuentoTexto { get; set; }
@@ -97,18 +103,15 @@ public sealed class LineaFacturaForm : IValidatableObject
 
         if (string.IsNullOrWhiteSpace(PrecioUnitarioTexto))
         {
-            if (tipo == TipoLineaFactura.CuentaContable)
-            {
-                yield return new ValidationResult("El precio unitario es obligatorio en una línea de cuenta contable.", [nameof(PrecioUnitarioTexto)]);
-            }
+            yield return new ValidationResult($"El precio unitario es obligatorio ({AyudaRegalo}).", [nameof(PrecioUnitarioTexto)]);
         }
         else if (!EntradaDecimal.TryParse(PrecioUnitarioTexto, out var precio, out var errorPrecio, "El precio unitario"))
         {
             yield return new ValidationResult(errorPrecio, [nameof(PrecioUnitarioTexto)]);
         }
-        else if (precio < 0)
+        else if (precio <= 0)
         {
-            yield return new ValidationResult("El precio unitario no puede ser negativo.", [nameof(PrecioUnitarioTexto)]);
+            yield return new ValidationResult($"El precio unitario debe ser mayor que cero ({AyudaRegalo}).", [nameof(PrecioUnitarioTexto)]);
         }
 
         if (!string.IsNullOrWhiteSpace(PorcentajeDescuentoTexto))

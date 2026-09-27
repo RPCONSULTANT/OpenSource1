@@ -312,6 +312,65 @@ public sealed class FacturasVentaBorradoresApiTests : IClassFixture<PostgresTest
     }
 
     [Fact]
+    public async Task ReglaDeImportes_PrecioCeroEImporteCeroBloqueados_SalvoCienPorCientoDeDescuento()
+    {
+        var client = Admin();
+        var borrador = await CrearBorradorOkAsync(client, new { socioNegocioId = await CrearSocioAsync(client, "Importes") });
+        var producto = await CrearProductoAsync(client, 10m);
+        var url = $"{Base}/borradores/{borrador.Id}/lineas";
+
+        // Precio 0 informado, en Producto y en CuentaContable: 400 con la ayuda del 100 % de descuento.
+        await AssertErrorAsync(await client.PostAsJsonAsync(url, new { tipo = TipoLineaFactura.Producto, productoId = producto, cantidad = 1m, precioUnitario = 0m }),
+            HttpStatusCode.BadRequest, "100 % de descuento", "PrecioUnitario");
+        await AssertErrorAsync(await client.PostAsJsonAsync(url, new
+        {
+            tipo = TipoLineaFactura.CuentaContable, cuentaContableId = CuentaContableIds.Ventas, cantidad = 1m, precioUnitario = 0m,
+            porcentajeDescuentoLinea = 100m, grupoIvaProductoId = GrupoContableIds.IvaProductoItbis18
+        }), HttpStatusCode.BadRequest, "mayor que cero", "PrecioUnitario");
+
+        // Precio por defecto 0 (producto sin precio de venta) y sin precio informado: el mismo error, explicado.
+        var sinPrecio = await CrearProductoAsync(client, 0m);
+        await AssertErrorAsync(await client.PostAsJsonAsync(url, LineaProducto(sinPrecio, 1m)),
+            HttpStatusCode.BadRequest, "no tiene precio de venta", "PrecioUnitario");
+
+        // Importe de línea 0 por redondeo (0.001 × 1 = 0.001 -> 0.00) sin 100 % de descuento: 400; con descuento parcial también.
+        // (Línea de cuenta: sin unidad base que limite los decimales de la cantidad.)
+        await AssertErrorAsync(await client.PostAsJsonAsync(url, new
+        {
+            tipo = TipoLineaFactura.CuentaContable, cuentaContableId = CuentaContableIds.Ventas, cantidad = 0.001m, precioUnitario = 1m,
+            grupoIvaProductoId = GrupoContableIds.IvaProductoItbis18
+        }), HttpStatusCode.BadRequest, "importe de la línea", "Cantidad");
+        await AssertErrorAsync(await client.PostAsJsonAsync(url, new
+        {
+            tipo = TipoLineaFactura.CuentaContable, cuentaContableId = CuentaContableIds.Ventas, cantidad = 0.001m, precioUnitario = 1m,
+            porcentajeDescuentoLinea = 50m, grupoIvaProductoId = GrupoContableIds.IvaProductoItbis18
+        }), HttpStatusCode.BadRequest, "importe de la línea", "Cantidad");
+        Assert.Equal(0, (await GetBorradorAsync(client, borrador.Id)).NumeroLineas);
+
+        // Con el 100 % de descuento el importe 0 se admite (regalo), también con el precio por defecto.
+        var regalo = await CrearLineaOkAsync(client, borrador.Id, new
+        {
+            tipo = TipoLineaFactura.Producto, productoId = producto, cantidad = 3m, porcentajeDescuentoLinea = 100m
+        });
+        Assert.Equal((10m, 100m, 30m, 0m), (regalo.PrecioUnitario, regalo.PorcentajeDescuentoLinea, regalo.ImporteDescuentoLinea, regalo.ImporteLinea));
+        var cuentaRegalo = await CrearLineaOkAsync(client, borrador.Id, new
+        {
+            tipo = TipoLineaFactura.CuentaContable, cuentaContableId = CuentaContableIds.Ventas, cantidad = 1m, precioUnitario = 25m,
+            porcentajeDescuentoLinea = 100m, grupoIvaProductoId = GrupoContableIds.IvaProductoItbis18
+        });
+        Assert.Equal(0m, cuentaRegalo.ImporteLinea);
+
+        // Modificar aplica la misma regla.
+        await AssertErrorAsync(await client.PutAsJsonAsync($"{Base}/lineas-borrador/{regalo.Id}", new
+        {
+            tipo = TipoLineaFactura.Producto, productoId = producto, cantidad = 3m, precioUnitario = 0m, porcentajeDescuentoLinea = 100m,
+            xmin = regalo.Xmin
+        }), HttpStatusCode.BadRequest, "100 % de descuento", "PrecioUnitario");
+
+        Assert.Equal(2, (await GetBorradorAsync(client, borrador.Id)).NumeroLineas);
+    }
+
+    [Fact]
     public async Task LineaProducto_CantidadNoExactaEnLaUnidadBase_400EnCantidadConLosDecimalesAdmitidos_SinRedondear()
     {
         var client = Admin();

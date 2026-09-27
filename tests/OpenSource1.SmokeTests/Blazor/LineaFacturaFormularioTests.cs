@@ -49,7 +49,7 @@ public sealed class LineaFacturaFormularioTests
     }
 
     [Fact]
-    public void Producto_SinPrecioNiAlmacen_EnviaNulos_YNoEnviaCuentaNiGrupoIva()
+    public void Producto_SinAlmacen_EnviaNulo_YNoEnviaCuentaNiGrupoIva()
     {
         var productoId = Guid.NewGuid();
         var unidadId = Guid.NewGuid();
@@ -57,7 +57,7 @@ public sealed class LineaFacturaFormularioTests
         {
             Tipo = (short)TipoLineaFactura.Producto,
             CantidadTexto = "2,5",
-            PrecioUnitarioTexto = "",
+            PrecioUnitarioTexto = "12,5",
             PorcentajeDescuentoTexto = "10",
             Descripcion = "",
             CuentaContableId = Guid.NewGuid(),
@@ -71,7 +71,7 @@ public sealed class LineaFacturaFormularioTests
         Assert.Equal(unidadId, input.UnidadMedidaId);
         Assert.Null(input.AlmacenId);
         Assert.Equal(2.5m, input.Cantidad);
-        Assert.Null(input.PrecioUnitario);
+        Assert.Equal(12.5m, input.PrecioUnitario);
         Assert.Equal(10m, input.PorcentajeDescuentoLinea);
         Assert.Null(input.Descripcion);
         Assert.Null(input.CuentaContableId);
@@ -141,6 +141,26 @@ public sealed class LineaFacturaFormularioTests
             ? EntradaDecimal.MensajeInvalido.Replace(EntradaDecimal.EtiquetaPorDefecto, "La cantidad", StringComparison.Ordinal)
             : mensaje;
         Assert.Contains(errores, e => e.ErrorMessage == esperado);
+    }
+
+    /// <summary>Task 8.4: el precio es obligatorio y mayor que cero en Producto y CuentaContable (para regalar, 100 % de descuento).</summary>
+    [Theory]
+    [InlineData(TipoLineaFactura.Producto, "", "El precio unitario es obligatorio")]
+    [InlineData(TipoLineaFactura.CuentaContable, "", "El precio unitario es obligatorio")]
+    [InlineData(TipoLineaFactura.Producto, "0", "100 % de descuento")]
+    [InlineData(TipoLineaFactura.CuentaContable, "0.00", "100 % de descuento")]
+    [InlineData(TipoLineaFactura.Producto, "-1", "mayor que cero")]
+    public void Precio_VacioCeroONegativo_EsInvalido_ConLaAyudaDelDescuento(TipoLineaFactura tipo, string precio, string fragmento)
+    {
+        var form = new LineaFacturaForm
+        {
+            Tipo = (short)tipo, CantidadTexto = "1", PrecioUnitarioTexto = precio, PorcentajeDescuentoTexto = "100",
+            CuentaContableId = Guid.NewGuid(), GrupoIvaProductoId = Guid.NewGuid(),
+        };
+
+        var error = Assert.Single(Validar(form));
+        Assert.Equal([nameof(LineaFacturaForm.PrecioUnitarioTexto)], error.MemberNames);
+        Assert.Contains(fragmento, error.ErrorMessage);
     }
 
     [Fact]

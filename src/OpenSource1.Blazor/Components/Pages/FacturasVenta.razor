@@ -109,7 +109,7 @@
                             <td class="px-4 py-3 text-right text-slate-700">@VentasOpciones.Importe(f.ImporteSinIva)</td>
                             <td class="px-4 py-3 text-right text-slate-700">@VentasOpciones.Importe(f.ImporteIva)</td>
                             <td class="px-4 py-3 text-right font-semibold text-slate-900">@VentasOpciones.Importe(f.ImporteTotal)</td>
-                            <td class="px-4 py-3 font-mono text-xs text-slate-500">@f.NumeroRegistroContable</td>
+                            <td class="px-4 py-3 font-mono text-xs text-slate-500">@(f.NumeroRegistroContable ?? "—")</td>
                         </tr>
                     }
                 </tbody>
@@ -154,7 +154,7 @@ else
             <div><p class="text-xs font-bold uppercase tracking-wide text-slate-400">Fechas</p><p class="mt-1 text-slate-700">Reg. @EntradaFecha.Formatear(c.FechaRegistro) · Doc. @EntradaFecha.Formatear(c.FechaDocumento)</p>
                 <p class="text-xs text-slate-500">Vence @EntradaFecha.Formatear(c.FechaVencimiento)@(c.TerminoPagoCodigo is null ? "" : $" ({c.TerminoPagoCodigo})")</p></div>
             <div><p class="text-xs font-bold uppercase tracking-wide text-slate-400">Almacén / Asiento</p><p class="mt-1 text-slate-700">@c.AlmacenCodigo · @c.Moneda</p>
-                <p class="text-xs font-mono text-slate-500" data-testid="registro-contable">@c.NumeroRegistroContable</p></div>
+                <p class="text-xs font-mono text-slate-500" data-testid="registro-contable">@(c.NumeroRegistroContable ?? "Sin asiento (total 0)")</p></div>
             @if (!string.IsNullOrWhiteSpace(c.Descripcion))
             {
                 <div class="sm:col-span-2 lg:col-span-4"><p class="text-xs font-bold uppercase tracking-wide text-slate-400">Descripción</p><p class="mt-1 text-slate-700">@c.Descripcion</p></div>
@@ -288,7 +288,9 @@ else
 
         if (Ok == "posteada" && detalle is not null)
         {
-            Show("success", $"Factura {detalle.Cabecera.Numero} posteada por {VentasOpciones.Importe(detalle.Cabecera.ImporteTotal)}. Registro contable {Registro ?? detalle.Cabecera.NumeroRegistroContable}.");
+            var registro = Registro ?? detalle.Cabecera.NumeroRegistroContable;
+            Show("success", $"Factura {detalle.Cabecera.Numero} posteada por {VentasOpciones.Importe(detalle.Cabecera.ImporteTotal)}. " +
+                (registro is null ? "Total 0 (100 % de descuento): sin movimiento de cliente ni registro contable." : $"Registro contable {registro}."));
         }
     }
 

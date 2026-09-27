@@ -71,6 +71,34 @@ public sealed class FacturasVentaPosteoApiTests : IClassFixture<PostgresTestFixt
     }
 
     [Fact]
+    public async Task Postear_TotalCeroPorCienPorCientoDeDescuento_200SinRegistroContable_NiSaldoDelCliente()
+    {
+        var client = Admin();
+        var socio = await CrearSocioAsync(client, "Cliente regalo");
+        var cuenta = await CrearCuentaAsync(client);
+        var borrador = await CrearBorradorAsync(client, socio);
+        var linea = await client.PostAsJsonAsync($"{Base}/borradores/{borrador.Id}/lineas", new
+        {
+            tipo = TipoLineaFactura.CuentaContable, cuentaContableId = cuenta, cantidad = 1m, precioUnitario = 40m, porcentajeDescuentoLinea = 100m,
+            grupoIvaProductoId = GrupoContableIds.IvaProductoItbis18
+        });
+        Assert.True(linea.StatusCode == HttpStatusCode.Created, await linea.Content.ReadAsStringAsync());
+
+        var respuesta = await client.PostAsync($"{Base}/borradores/{borrador.Id}/postear", null);
+
+        var cuerpo = await respuesta.Content.ReadAsStringAsync();
+        Assert.True(respuesta.StatusCode == HttpStatusCode.OK, cuerpo);
+        var json = JsonDocument.Parse(cuerpo).RootElement;
+        Assert.Equal(0m, json.GetProperty("importeTotal").GetDecimal());
+        Assert.Equal(JsonValueKind.Null, json.GetProperty("registroContable").ValueKind);
+        var detalle = (await client.GetFromJsonAsync<FacturaVentaDetalleResponse>($"{Base}/{json.GetProperty("numero").GetString()}"))!;
+        Assert.Equal((0m, (long?)null, (string?)null),
+            (detalle.Cabecera.ImporteTotal, detalle.Cabecera.RegistroContableId, detalle.Cabecera.NumeroRegistroContable));
+        var saldo = JsonDocument.Parse(await client.GetStringAsync($"/api/clientes/{socio}/saldo")).RootElement;
+        Assert.Equal(0m, saldo.GetProperty("saldo").GetDecimal());
+    }
+
+    [Fact]
     public async Task Postear_400ConElCampoDeLaLinea_OSinLineas_YNadaEscrito()
     {
         var client = Admin();

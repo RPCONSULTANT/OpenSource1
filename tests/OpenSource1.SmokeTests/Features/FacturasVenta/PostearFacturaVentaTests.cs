@@ -362,25 +362,161 @@ public sealed class PostearFacturaVentaTests(PostgresTestFixture fixture) : ICla
     }
 
     [Fact]
-    public async Task SinLineasConImporte_O_TotalCero_400_SinEscribirNiConsumirNumero()
+    public async Task SinLineasConImporte_400_SinEscribirNiConsumirNumero()
     {
         var socio = await SocioAsync();
         var almacen = await _prueba.SembrarAlmacenAsync();
-        var producto = await ProductoAsync();
-        await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Entrada(producto, almacen, 5m, 1m, D1));
         var vacio = await BorradorAsync(socio, almacen: almacen);
         var soloComentario = await BorradorAsync(socio, almacen: almacen);
         await ComentarioAsync(soloComentario.Id, "Solo texto");
-        var gratis = await BorradorAsync(socio, almacen: almacen);
-        await LineaProductoAsync(gratis.Id, producto, 1m, 0m);
         var antes = await FotoAsync();
 
         Assert.Equal(("factura.sin_lineas", "Id"), Unico(await PostearAsync(vacio.Id)));
         Assert.Equal(("factura.sin_lineas", "Id"), Unico(await PostearAsync(soloComentario.Id)));
-        Assert.Equal(("factura.importe_cero", "Lineas"), Unico(await PostearAsync(gratis.Id)));
 
         Assert.Equal(antes, await FotoAsync());
-        Assert.Equal((false, 1L, 0L), await EstadoBorradorAsync(gratis.Id));
+        Assert.Equal((false, 1L, 0L), await EstadoBorradorAsync(soloComentario.Id));
+    }
+
+    // ----- Regla de importes (Task 8.4): total 0 solo con 100 % de descuento -----
+
+    [Fact]
+    public async Task ReviewFocus5_TotalCero_TodasAl100_DocumentoEInventario_SinClienteNiAsiento_YElBatchDeCostoContabilizaLaSalida()
+    {
+        var socio = await SocioAsync();
+        var almacen = await _prueba.SembrarAlmacenAsync();
+        var producto = await ProductoAsync();
+        var otrosIngresos = await CuentaAsync(posteoDirecto: true);
+        await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Entrada(producto, almacen, 10m, 4m, D1));
+        // La entrada queda contabilizada antes: el batch de después solo verá la salida de la factura.
+        Assert.Empty((await PostearCostoAsync(producto)).Pendientes);
+        var borrador = await BorradorAsync(socio, almacen: almacen);
+        await LineaProductoAsync(borrador.Id, producto, 2m, 10m, descuento: 100m);
+        await LineaCuentaAsync(borrador.Id, otrosIngresos, GrupoContableIds.IvaProductoExento, 1m, 25m, descuento: 100m);
+        await ComentarioAsync(borrador.Id, "Obsequio");
+        var antes = await FotoFilasAsync();
+
+        var resultado = await PostearOkAsync(borrador.Id);
+
+        // Foto: número FV consumido, CONTAB no; documento (3 líneas, 2 de IVA) e inventario (1 salida); cero filas de cliente y contables.
+        Assert.Equal(Siguiente(antes["serie FV"]!), resultado.Numero);
+        Assert.Equal((0m, (string?)null), (resultado.ImporteTotal, resultado.RegistroContable));
+        var despues = await FotoFilasAsync();
+        Assert.Equal(antes["serie CONTAB"], despues["serie CONTAB"]);
+        foreach (var (tabla, filas) in new (string, long)[]
+                 {
+                     ("FacturasVenta", 1), ("LineasFacturaVenta", 3), ("LineasIvaFacturaVenta", 2), ("MovimientosProducto", 1),
+                     ("MovimientosValor", 1), ("MovimientosCliente", 0), ("MovimientosClienteDetalle", 0), ("RegistrosContables", 0),
+                     ("MovimientosContables", 0),
+                 })
+        {
+            Assert.True(long.Parse(antes[tabla]!) + filas == long.Parse(despues[tabla]!), $"{tabla}: {antes[tabla]} -> {despues[tabla]}");
+        }
+
+        var factura = await FacturaAsync(resultado.Numero);
+        Assert.Equal((0m, 0m, 0m, (long?)null), (factura.ImporteSinIva, factura.ImporteIva, factura.ImporteTotal, factura.RegistroContableId));
+        Assert.Equal(
+            [(10000, 100m, 20m, 0m, true), (20000, 100m, 25m, 0m, false), (30000, 0m, 0m, 0m, false)],
+            (await LineasAsync(resultado.Numero)).Select(l =>
+                (l.NumeroLinea, l.PorcentajeDescuentoLinea, l.ImporteDescuentoLinea, l.ImporteLinea, l.MovimientoProductoId is not null)));
+        Assert.Equal(
+            [("EXENTO", 0m, 0m, 0m, CuentaContableIds.IvaPorPagar), ("ITBIS18", 18m, 0m, 0m, CuentaContableIds.IvaPorPagar)],
+            (await LineasIvaAsync(resultado.Numero)).Select(l => (l.IdentificadorIva, l.PorcentajeIva, l.BaseImponible, l.ImporteIva, l.CuentaIvaId)));
+        Assert.Empty(await MovimientosClienteAsync(resultado.Numero));
+        var salida = Assert.Single(await SalidasAsync(resultado.Numero));
+        Assert.Equal((-2m, 0m, -8m, socio), (salida.Cantidad, salida.ImporteVenta, salida.ImporteCosto, salida.SocioNegocioId!.Value));
+        Assert.Equal(8m, await _prueba.ConsultarAsync(c => c.ExistenciaAsync(producto, almacen, null)));
+        Assert.Equal((true, 0L, 3L), await EstadoBorradorAsync(borrador.Id));
+
+        // Otra factura de total 0: el índice único sobre RegistroContableId admite varios NULL.
+        var otro = await BorradorAsync(socio, almacen: almacen);
+        await LineaProductoAsync(otro.Id, producto, 1m, 10m, descuento: 100m);
+        var segunda = await PostearOkAsync(otro.Id);
+        Assert.Equal(Siguiente(resultado.Numero), segunda.Numero);
+        Assert.Null((await FacturaAsync(segunda.Numero)).RegistroContableId);
+        Assert.Equal(despues["serie CONTAB"], (await FotoFilasAsync())["serie CONTAB"]);
+
+        // El batch de costo de la Fase 5 contabiliza las salidas (costo 8 + 4) contra costo de ventas, aunque la factura no tenga asiento.
+        var batch = await PostearCostoAsync(producto);
+        Assert.Empty(batch.Pendientes);
+        Assert.Equal(2, batch.MovimientosValorContabilizados);
+        Assert.Equal(
+            [(CuentaContableIds.Inventario, -12m), (CuentaContableIds.CostoVentas, 12m)],
+            await CostoContabilizadoAsync(producto, D10));
+    }
+
+    [Fact]
+    public async Task ReviewFocus5_FacturaMixta_UnaLineaAl100_ElAsientoYElClienteSoloLlevanLasLineasConImporte()
+    {
+        var socio = await SocioAsync();
+        var almacen = await _prueba.SembrarAlmacenAsync();
+        var producto = await ProductoAsync();
+        var otrosIngresos = await CuentaAsync(posteoDirecto: true);
+        await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Entrada(producto, almacen, 10m, 4m, D1));
+        var borrador = await BorradorAsync(socio, almacen: almacen);
+        await LineaProductoAsync(borrador.Id, producto, 1m, 10m, descuento: 100m);
+        await LineaProductoAsync(borrador.Id, producto, 2m, 50m);
+        await LineaCuentaAsync(borrador.Id, otrosIngresos, GrupoContableIds.IvaProductoExento, 1m, 25m, descuento: 100m);
+
+        var resultado = await PostearOkAsync(borrador.Id);
+
+        Assert.Equal(118m, resultado.ImporteTotal);
+        var factura = await FacturaAsync(resultado.Numero);
+        Assert.Equal(resultado.RegistroContable, await EscalarAsync<string>(
+            """SELECT "NumeroRegistro" FROM "RegistrosContables" WHERE "Id" = @Id""", new { Id = factura.RegistroContableId }));
+        Assert.Equal((100m, 18m, 118m), (factura.ImporteSinIva, factura.ImporteIva, factura.ImporteTotal));
+        Assert.Equal(
+            [("EXENTO", 0m, 0m), ("ITBIS18", 100m, 18m)],
+            (await LineasIvaAsync(resultado.Numero)).Select(l => (l.IdentificadorIva, l.BaseImponible, l.ImporteIva)));
+
+        // Sin pata para la cuenta al 100 % ni para el IVA exento de base 0.
+        var asiento = await AsientoAsync(factura.RegistroContableId!.Value);
+        Assert.Equal(
+            [(CuentaContableIds.CxC, 118m), (CuentaContableIds.Ventas, -100m), (CuentaContableIds.IvaPorPagar, -18m)],
+            asiento.Select(m => (m.CuentaContableId, m.Importe)));
+        var cliente = Assert.Single(await MovimientosClienteAsync(resultado.Numero));
+        Assert.Equal(118m, cliente.ImporteOriginal);
+
+        // Las dos líneas de producto salen del inventario, la regalada con importe de venta 0.
+        Assert.Equal(
+            [(-1m, 0m, -4m), (-2m, 100m, -8m)],
+            (await SalidasAsync(resultado.Numero)).Select(s => (s.Cantidad, s.ImporteVenta, s.ImporteCosto)));
+    }
+
+    [Fact]
+    public async Task ReviewFocus5_Revalidacion_PrecioCeroOImporteCeroSinDescuentoTotal_400ConLaLinea_SinEscribir()
+    {
+        // Borradores guardados antes de la regla (o tocados por datos): el posteo vuelve a exigirla.
+        var socio = await SocioAsync();
+        var almacen = await _prueba.SembrarAlmacenAsync();
+        var producto = await ProductoAsync();
+        var otrosIngresos = await CuentaAsync(posteoDirecto: true);
+        await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Entrada(producto, almacen, 10m, 4m, D1));
+        var borrador = await BorradorAsync(socio, almacen: almacen);
+        var precioCero = await LineaProductoAsync(borrador.Id, producto, 1m, 10m);
+        var importeCero = await LineaCuentaAsync(borrador.Id, otrosIngresos, GrupoContableIds.IvaProductoItbis18, 1m, 5m, descuento: 50m);
+        var cuentaPrecioCero = await LineaCuentaAsync(borrador.Id, otrosIngresos, GrupoContableIds.IvaProductoItbis18, 1m, 5m, descuento: 100m);
+        await LineaProductoAsync(borrador.Id, producto, 1m, 10m, descuento: 100m);
+        await LineaProductoAsync(borrador.Id, producto, 1m, 10m);
+        await EjecutarSqlAsync(
+            """
+            UPDATE "LineasFacturaVentaBorrador" SET "PrecioUnitario" = 0, "ImporteDescuentoLinea" = 0, "ImporteLinea" = 0 WHERE "Id" IN (@A, @C);
+            UPDATE "LineasFacturaVentaBorrador" SET "ImporteDescuentoLinea" = 5, "ImporteLinea" = 0 WHERE "Id" = @B;
+            """,
+            new { A = precioCero.Id, B = importeCero.Id, C = cuentaPrecioCero.Id });
+        var antes = await FotoAsync();
+
+        var resultado = await PostearAsync(borrador.Id);
+
+        Assert.True(resultado.EsFallo);
+        Assert.Equal(
+            [("factura.precio_invalido", "Lineas[10000].PrecioUnitario"), ("factura.importe_invalido", "Lineas[20000].Cantidad"),
+             ("factura.precio_invalido", "Lineas[30000].PrecioUnitario")],
+            resultado.Errores.Select(e => (e.Codigo, e.Campo)));
+        Assert.All(resultado.Errores, e => Assert.StartsWith("Línea ", e.Mensaje));
+        Assert.Contains("100 %", resultado.Errores[0].Mensaje);
+        Assert.Equal(antes, await FotoAsync());
+        Assert.Equal((false, 5L, 0L), await EstadoBorradorAsync(borrador.Id));
     }
 
     [Fact]
@@ -916,9 +1052,9 @@ public sealed class PostearFacturaVentaTests(PostgresTestFixture fixture) : ICla
             borradorId, TipoLineaFactura.Producto, producto, null, null, almacen, unidad, cantidad, precio, descuento, null));
 
     private Task<LineaFacturaVentaBorradorResponse> LineaCuentaAsync(
-        Guid borradorId, Guid cuenta, Guid grupoIva, decimal cantidad, decimal precio) =>
+        Guid borradorId, Guid cuenta, Guid grupoIva, decimal cantidad, decimal precio, decimal? descuento = null) =>
         LineaAsync(new CreateLineaFacturaVentaBorradorCommand(
-            borradorId, TipoLineaFactura.CuentaContable, null, cuenta, null, null, null, cantidad, precio, null, grupoIva));
+            borradorId, TipoLineaFactura.CuentaContable, null, cuenta, null, null, null, cantidad, precio, descuento, grupoIva));
 
     private Task<LineaFacturaVentaBorradorResponse> ComentarioAsync(Guid borradorId, string texto) =>
         LineaAsync(new CreateLineaFacturaVentaBorradorCommand(
@@ -946,6 +1082,26 @@ public sealed class PostearFacturaVentaTests(PostgresTestFixture fixture) : ICla
     }
 
     private async Task<ResultadoPosteoFactura> PostearOkAsync(Guid borradorId) => Ok(await PostearAsync(borradorId));
+
+    private async Task<ResultadoPosteoCostoInventario> PostearCostoAsync(Guid productoId)
+    {
+        await using var scope = _prueba.Provider.CreateAsyncScope();
+        return await scope.ServiceProvider.GetRequiredService<IPosteoCostoInventario>().PostearAsync(productoId);
+    }
+
+    /// <summary>Neto por cuenta (orden de número de cuenta) de lo que el batch de costo contabilizó para el producto en la fecha.</summary>
+    private async Task<List<(Guid, decimal)>> CostoContabilizadoAsync(Guid productoId, DateOnly fecha)
+    {
+        await using var conexion = _prueba.NuevaConexion();
+        return [.. await conexion.QueryAsync<(Guid, decimal)>(
+            """
+            SELECT m."CuentaContableId", SUM(m."Importe") FROM "MovimientosContables" m
+            JOIN "CuentasContables" c ON c."Id" = m."CuentaContableId"
+            WHERE m."ProductoId" = @P AND m."FechaRegistro" = @F AND m."TipoOrigen" = @T
+            GROUP BY m."CuentaContableId", c."Numero" ORDER BY c."Numero"
+            """,
+            new { P = productoId, F = fecha, T = (short)TipoOrigenMovimiento.CostoInventario })];
+    }
 
     private async Task<Result> BorrarSocioAsync(Guid socioId)
     {
