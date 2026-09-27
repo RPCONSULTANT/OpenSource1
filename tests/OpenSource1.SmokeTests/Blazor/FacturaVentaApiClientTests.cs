@@ -115,6 +115,37 @@ public sealed class FacturaVentaApiClientTests
         var resultado = await client.PostearAsync(Guid.NewGuid());
 
         Assert.False(resultado.Succeeded);
+        Assert.Null(resultado.Valor);
+        Assert.Equal("La API no devolvió el resultado esperado (posteo de facturas).", resultado.Message);
+    }
+
+    [Fact]
+    public async Task UpdateLinea_409_DevuelveElMensajeRealDeConcurrencia()
+    {
+        const string cuerpo = """{"title":"El registro fue modificado por otro usuario.","status":409}""";
+        var handler = new Grabador(HttpStatusCode.Conflict, cuerpo);
+        var client = new FacturaVentaApiClient(Http(handler), NullLogger<FacturaVentaApiClient>.Instance);
+        var lineaId = Guid.NewGuid();
+
+        var resultado = await client.UpdateLineaAsync(
+            lineaId, new LineaFacturaInput(TipoLineaFactura.Comentario, null, null, "Nota", null, null, null, null, null, null), xmin: 5);
+
+        Assert.False(resultado.Succeeded);
+        Assert.Equal("El registro fue modificado por otro usuario.", resultado.Message);
+        Assert.Empty(resultado.Errors!);
+        Assert.Equal(HttpMethod.Put, handler.Metodo);
+        Assert.EndsWith($"api/facturas-venta/lineas-borrador/{lineaId}", handler.Uri!.AbsolutePath);
+        using var json = JsonDocument.Parse(handler.Cuerpo!);
+        Assert.Equal(5, json.RootElement.GetProperty("xmin").GetInt64());
+    }
+
+    [Fact]
+    public async Task GetBorrador_404_EsNulo()
+    {
+        var client = new FacturaVentaApiClient(
+            Http(new Grabador(HttpStatusCode.NotFound, """{"status":404}""")), NullLogger<FacturaVentaApiClient>.Instance);
+
+        Assert.Null(await client.GetBorradorAsync(Guid.NewGuid()));
     }
 
     [Fact]

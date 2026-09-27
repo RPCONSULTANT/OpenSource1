@@ -57,6 +57,11 @@
     </div>
 }
 
+@if (posteoError is not null && !MuestraDialogoPosteo)
+{
+    <div class="mb-6" data-testid="errores-posteo"><MessageBox Type="warning" Message="@posteoError" Errors="@posteoErrores" /></div>
+}
+
 @if (loadError is not null)
 {
     <MessageBox Type="danger" Message="@loadError" />
@@ -189,7 +194,7 @@ else
     }
 
     <!-- ── Agregar línea ── -->
-    @if (canAdd && Abierta)
+    @if (borrador is not null && canAdd && Abierta)
     {
         <div class="rounded-2xl border border-green-200 bg-white shadow-sm overflow-hidden mb-6">
             <div class="px-6 py-4 bg-green-50 border-b border-green-100 flex flex-wrap items-center justify-between gap-2">
@@ -309,36 +314,22 @@ else
         </div>
     }
 
-    @if (PostearConfirm)
+    @if (MuestraDialogoPosteo)
     {
-        @if (canModify)
-        {
-            <ConfirmDialog Title="Confirmar posteo de la factura" Message="Se generará la factura legal con su número, las salidas de inventario, el movimiento del cliente y el asiento contable. Esta acción no se puede deshacer." Variant="success" CancelHref="@UrlBase">
-                @if (posteoError is not null)
-                {
-                    <div class="mb-4" data-testid="errores-posteo"><MessageBox Type="warning" Message="@posteoError" Errors="@posteoErrores" /></div>
-                }
-                <p class="rounded-xl border border-brand-100 bg-brand-50 px-4 py-3 text-sm text-brand-900">@borrador.Numero — @borrador.NombreFacturacion (@lineas.Count línea(s))@(totales is null ? "" : $" · Total {VentasOpciones.Importe(totales.ImporteTotal)}")</p>
-                <EditForm Model="PostearInput" FormName="confirm-postear" OnValidSubmit="PostearAsync" class="mt-4">
-                    <button type="submit" class="btn-press rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700">Sí, postear</button>
-                    <a href="@UrlBase" class="btn-press ml-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Cancelar</a>
-                </EditForm>
-            </ConfirmDialog>
-        }
-        else
-        {
-            @* Sin CanModify no se muestra el diálogo, pero el EditForm sigue en el árbol de render: un POST forzado (DOM alterado,
-               replay) llega a PostearAsync y recibe el 403 real de la API con su mensaje, en vez del error genérico de Blazor por
-               formulario ausente. La autorización real la hace la API ([Authorize(Policy = CanModify)]). *@
+        <ConfirmDialog Title="Confirmar posteo de la factura" Message="Se generará la factura legal con su número, las salidas de inventario, el movimiento del cliente y el asiento contable. Esta acción no se puede deshacer." Variant="success" CancelHref="@UrlBase">
             @if (posteoError is not null)
             {
-                <div class="mb-6" data-testid="errores-posteo"><MessageBox Type="warning" Message="@posteoError" Errors="@posteoErrores" /></div>
+                <div class="mb-4" data-testid="errores-posteo"><MessageBox Type="warning" Message="@posteoError" Errors="@posteoErrores" /></div>
             }
-            <EditForm Model="PostearInput" FormName="confirm-postear" OnValidSubmit="PostearAsync"></EditForm>
-        }
+            <p class="rounded-xl border border-brand-100 bg-brand-50 px-4 py-3 text-sm text-brand-900">@borrador.Numero — @borrador.NombreFacturacion (@lineas.Count línea(s))@(totales is null ? "" : $" · Total {VentasOpciones.Importe(totales.ImporteTotal)}")</p>
+            <EditForm Model="PostearInput" FormName="confirm-postear" OnValidSubmit="PostearAsync" class="mt-4">
+                <button type="submit" class="btn-press rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700">Sí, postear</button>
+                <a href="@UrlBase" class="btn-press ml-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Cancelar</a>
+            </EditForm>
+        </ConfirmDialog>
     }
 
-    @if (DeleteLineaId.HasValue && canDelete && Abierta)
+    @if (MuestraDialogoBorrarLinea)
     {
         <ConfirmDialog Title="Confirmar eliminación" Message="Esta acción eliminará la línea seleccionada del borrador." Variant="danger" CancelHref="@UrlBase">
             <p class="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-900">@(lineaAEliminar is null ? DeleteLineaId.Value.ToString() : $"Línea {lineaAEliminar.NumeroLinea} — {VentasOpciones.TipoLinea(lineaAEliminar.Tipo)}: {lineaAEliminar.Descripcion}")</p>
@@ -351,7 +342,37 @@ else
     }
 }
 
+@* Formularios de acción que el estado (borrador posteado/eliminado/liberado, línea borrada) o el permiso ya no dejan mostrar:
+   se mantiene en el árbol un EditForm vacío con el MISMO FormName y handler, para que un POST obsoleto, doble o forzado llegue
+   al handler y reciba el mensaje real (404/409/400/403 de la API o el de la guarda) en vez del 400 genérico de Blazor
+   ("Cannot submit the form…"). La autorización real la hace la API. *@
+@if (!MuestraFormAgregar)
+{
+    <EditForm Model="AddInput" FormName="add-linea" OnValidSubmit="CreateLineaAsync"></EditForm>
+}
+@if (!MuestraFormModificar)
+{
+    <EditForm Model="UpdateInputLinea" FormName="update-linea" OnValidSubmit="UpdateLineaAsync"></EditForm>
+}
+@if (!MuestraLiberar)
+{
+    <EditForm Model="LiberarInput" FormName="liberar" OnValidSubmit="LiberarAsync"></EditForm>
+}
+@if (!MuestraReabrir)
+{
+    <EditForm Model="ReabrirInput" FormName="reabrir" OnValidSubmit="ReabrirAsync"></EditForm>
+}
+@if (!MuestraDialogoPosteo)
+{
+    <EditForm Model="PostearInput" FormName="confirm-postear" OnValidSubmit="PostearAsync"></EditForm>
+}
+@if (!MuestraDialogoBorrarLinea)
+{
+    <EditForm Model="DeleteInputLinea" FormName="delete-linea" OnValidSubmit="DeleteLineaAsync"></EditForm>
+}
+
 @code {
+    private const string BorradorNoDisponible = "No se encontró el borrador de factura: puede haber sido posteado o eliminado por otro usuario.";
     private const string InputCss = "block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20";
 
     [Parameter] public Guid BorradorId { get; set; }
@@ -380,6 +401,20 @@ else
     private TipoLineaFactura AddTipo => TipoQuery is 2 ? TipoLineaFactura.CuentaContable : TipoQuery is 3 ? TipoLineaFactura.Comentario : TipoLineaFactura.Producto;
 
     private bool Abierta => borrador?.Estado == EstadoFacturaBorrador.Abierta;
+
+    // Qué formularios de acción están visibles (el resto se mantiene vacío en el árbol, ver el final del marcado).
+    private bool MuestraFormAgregar => borrador is not null && canAdd && Abierta && !(AddTipo == TipoLineaFactura.Producto && addProducto is null);
+
+    private bool MuestraFormModificar => borrador is not null && canModify && Abierta && EditLineaId.HasValue && lineaAEditar is not null
+        && !(lineaAEditar.Tipo == TipoLineaFactura.Producto && editProducto is null);
+
+    private bool MuestraLiberar => borrador is not null && canModify && Abierta;
+
+    private bool MuestraReabrir => borrador is not null && canModify && !Abierta;
+
+    private bool MuestraDialogoPosteo => borrador is not null && PostearConfirm && canModify;
+
+    private bool MuestraDialogoBorrarLinea => borrador is not null && DeleteLineaId.HasValue && canDelete && Abierta;
 
     private FacturaVentaBorradorResponse? borrador;
     private IReadOnlyList<LineaFacturaVentaBorradorResponse> lineas = [];
@@ -489,7 +524,7 @@ else
             lineaAEliminar = lineas.FirstOrDefault(x => x.Id == DeleteLineaId.Value);
         }
 
-        if (EditLineaId.HasValue && canModify)
+        if (EditLineaId.HasValue)
         {
             lineaAEditar = lineas.FirstOrDefault(x => x.Id == EditLineaId.Value);
             if (lineaAEditar is null)
@@ -513,12 +548,12 @@ else
             }
         }
 
-        if (canAdd && Abierta && AddTipo == TipoLineaFactura.Producto)
+        if (Abierta && AddTipo == TipoLineaFactura.Producto)
         {
             await CargarProductoAgregarAsync();
         }
 
-        if (canModify && Abierta && lineaAEditar?.Tipo == TipoLineaFactura.Producto)
+        if (Abierta && lineaAEditar?.Tipo == TipoLineaFactura.Producto)
         {
             await CargarProductoEditarAsync();
         }
@@ -676,13 +711,23 @@ else
 
     private async Task CreateLineaAsync()
     {
-        if (borrador is null || !Abierta)
+        if (borrador is null)
+        {
+            Show("warning", BorradorNoDisponible);
+            return;
+        }
+
+        if (!Abierta)
         {
             Show("warning", "El borrador está liberado: reábralo para agregar líneas.");
             return;
         }
 
-        if (OpcionesFallidas(AddTipo)) return;
+        if (OpcionesFallidas(AddTipo))
+        {
+            Show("danger", "No fue posible cargar las opciones de la línea; recargue la página.");
+            return;
+        }
 
         if (AddTipo == TipoLineaFactura.Producto && addProducto is null)
         {
@@ -696,19 +741,35 @@ else
 
     private async Task UpdateLineaAsync()
     {
-        if (borrador is null || !Abierta)
+        if (borrador is null)
+        {
+            Show("warning", BorradorNoDisponible);
+            return;
+        }
+
+        if (!Abierta)
         {
             Show("warning", "El borrador está liberado: reábralo para modificar líneas.");
             return;
         }
 
-        if (!EditLineaId.HasValue || lineaAEditar is null)
+        if (!EditLineaId.HasValue)
         {
             Show("warning", "Seleccione primero una línea a modificar.");
             return;
         }
 
-        if (OpcionesFallidas(lineaAEditar.Tipo)) return;
+        if (lineaAEditar is null)
+        {
+            Show("warning", "No se encontró la línea seleccionada. Puede haber sido eliminada por otro usuario.");
+            return;
+        }
+
+        if (OpcionesFallidas(lineaAEditar.Tipo))
+        {
+            Show("danger", "No fue posible cargar las opciones de la línea; recargue la página.");
+            return;
+        }
 
         if (lineaAEditar.Tipo == TipoLineaFactura.Producto && (editProducto is null || editProducto.Id == Guid.Empty))
         {

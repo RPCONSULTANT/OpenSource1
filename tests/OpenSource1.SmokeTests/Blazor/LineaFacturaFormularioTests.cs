@@ -128,19 +128,19 @@ public sealed class LineaFacturaFormularioTests
 
     [Theory]
     [InlineData("", "La cantidad es obligatoria.")]
-    [InlineData("abc", null)]
+    [InlineData("abc", "INVALIDO")]
     [InlineData("0", "La cantidad debe ser mayor que cero.")]
-    public void Producto_ConCantidadInvalida_SeñalaLaCantidad(string cantidad, string? mensaje)
+    public void Producto_ConCantidadInvalida_SeñalaLaCantidad(string cantidad, string mensaje)
     {
         var form = new LineaFacturaForm { Tipo = (short)TipoLineaFactura.Producto, CantidadTexto = cantidad };
 
         var errores = Validar(form).Where(r => r.MemberNames.Contains(nameof(LineaFacturaForm.CantidadTexto))).ToList();
 
-        Assert.NotEmpty(errores);
-        if (mensaje is not null)
-        {
-            Assert.Contains(errores, e => e.ErrorMessage == mensaje);
-        }
+        // "INVALIDO" = el mensaje de EntradaDecimal para texto no numérico, con la etiqueta de la cantidad.
+        var esperado = mensaje == "INVALIDO"
+            ? EntradaDecimal.MensajeInvalido.Replace(EntradaDecimal.EtiquetaPorDefecto, "La cantidad", StringComparison.Ordinal)
+            : mensaje;
+        Assert.Contains(errores, e => e.ErrorMessage == esperado);
     }
 
     [Fact]

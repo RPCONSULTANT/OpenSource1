@@ -441,7 +441,7 @@ else
             var result = await CobroApiClient.AplicarPagoAsync(input);
             if (result.Succeeded)
             {
-                Nav.NavigateTo($"{BuildUrl()}{(BuildUrl().Contains('?') ? "&" : "?")}ok=aplicado");
+                Nav.NavigateTo(BuildUrl(ok: "aplicado"));
                 return;
             }
 
@@ -455,13 +455,17 @@ else
         }
     }
 
-    private string BuildUrl(bool? todos = null, int? pagina = null)
+    /// <summary>URL de la página conservando cliente, búsqueda, vista y página (al cambiar de vista se vuelve a la página 1).</summary>
+    private string BuildUrl(bool? todos = null, int? pagina = null, string? ok = null)
     {
         var parameters = new List<string>();
+        var todosEfectivo = todos ?? Todos;
         if (SocioId.HasValue) parameters.Add($"socioId={SocioId.Value}");
         if (!string.IsNullOrWhiteSpace(SocioQuery)) parameters.Add($"socioQuery={Uri.EscapeDataString(SocioQuery)}");
-        if (todos ?? Todos) parameters.Add("todos=true");
-        if (pagina is > 1) parameters.Add($"pagina={pagina}");
+        if (todosEfectivo) parameters.Add("todos=true");
+        var paginaEfectiva = pagina ?? (todos is null ? Pagina : 1);
+        if (todosEfectivo && paginaEfectiva > 1) parameters.Add($"pagina={paginaEfectiva}");
+        if (!string.IsNullOrWhiteSpace(ok)) parameters.Add($"ok={Uri.EscapeDataString(ok)}");
         return parameters.Count == 0 ? "/cobros" : $"/cobros?{string.Join("&", parameters)}";
     }
 
