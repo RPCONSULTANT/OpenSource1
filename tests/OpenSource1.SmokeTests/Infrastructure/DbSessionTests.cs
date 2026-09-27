@@ -30,17 +30,17 @@ namespace OpenSource1.SmokeTests.Infrastructure;
 /// sobrescrituras de configuración del test se apliquen) que <c>Jwt:SigningKey</c> tenga 32+
 /// caracteres. El placeholder de <c>appsettings.json</c> ("__SET_IN_USER_SECRETS__") no llega a
 /// 32, así que revienta con <c>InvalidOperationException</c> antes de levantar nada. Se reproduce
-/// igual, sin tocar nada de esta tarea, en <c>AppSettingsApiTests</c> (ya existente). Por eso aquí
+/// igual, sin tocar nada de esta tarea, en los tests de la API de entonces. Por eso aquí
 /// se construye directamente el árbol de DI de
 /// <c>OpenSource1.Infrastructure.Data.DependencyInjection.AddApplicationData</c> — exactamente la
 /// porción que Task 1.5 cambia — sin arrastrar Identity/JWT.
 ///
-/// La escritura de prueba tampoco usa <see cref="ApplicationDbContext"/> con la entidad
-/// <c>Entrada</c> real; en su lugar usa un <see cref="DbContext"/> mínimo y propio de este test
+/// La escritura de prueba tampoco usa <see cref="ApplicationDbContext"/> con una entidad
+/// real; en su lugar usa un <see cref="DbContext"/> mínimo y propio de este test
 /// (<see cref="ProbeDbContext"/>), configurado exactamente igual que el registro real de Step 3
 /// (<c>UseNpgsql(session.Connection)</c>), contra su propia tabla. La propiedad que Task 1.5
 /// introduce — misma conexión, misma transacción, visible para Dapper — es agnóstica al modelo de
-/// entidades: se cumple o no se cumple independientemente de si el modelo es Entrada o esta tabla
+/// entidades: se cumple o no se cumple independientemente de si el modelo es el real o esta tabla
 /// de prueba. (El bug histórico de constructor sin enlazar en <c>DireccionFiscal</c> que en su
 /// momento impedía construir <c>ApplicationDbContext.Model</c> se corrigió con el patrón factory +
 /// constructor privado de la Task de estandarización de value objects; ver

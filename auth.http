@@ -60,17 +60,17 @@ Content-Type: application/json
   "newPassword": "Password1234"
 }
 
-### List app settings with JWT
-GET {{baseUrl}}/api/app-settings
+### List unidades de medida with JWT
+GET {{baseUrl}}/api/unidades-medida
 Authorization: Bearer {{accessToken}}
 
-### Create app setting with JWT
-POST {{baseUrl}}/api/app-settings
+### Create unidad de medida with JWT
+POST {{baseUrl}}/api/unidades-medida
 Authorization: Bearer {{accessToken}}
 Content-Type: application/json
 
 {
-  "key": "Demo",
-  "value": "Enabled",
-  "description": "Demo setting"
+  "codigo": "DEMO",
+  "nombre": "Unidad demo",
+  "decimales": 0
 }

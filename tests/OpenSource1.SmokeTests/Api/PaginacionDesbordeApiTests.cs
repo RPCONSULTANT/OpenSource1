@@ -52,8 +52,6 @@ public sealed class PaginacionDesbordeApiTests : IClassFixture<PostgresTestFixtu
     [InlineData("/api/diarios-inventario/lotes")]
     [InlineData("/api/diarios-inventario/registros")]
     [InlineData("/api/contabilidad/registros")]
-    [InlineData("/api/app-settings")]
-    [InlineData("/api/entradas")]
     public async Task ListadoAntiguo_PaginaEnorme_Devuelve200ConPaginaVacia(string url)
     {
         foreach (var tamano in new[] { 50, 200 })

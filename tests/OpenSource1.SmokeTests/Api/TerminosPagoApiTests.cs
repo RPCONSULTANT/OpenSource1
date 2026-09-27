@@ -109,7 +109,7 @@ public sealed class TerminosPagoApiTests : IClassFixture<PostgresTestFixture>
     [Fact]
     public async Task Create_TrasBorrarElMismoCodigo_NoChocaConElIndiceUnico_YDevuelve201()
     {
-        // Mismo hallazgo que AppSettingsApiTests: el filtro global de EF (!IsDeleted) oculta la
+        // Mismo hallazgo que ProductosApiTests: el filtro global de EF (!IsDeleted) oculta la
         // fila borrada lógicamente del chequeo de existencia; sin el índice único parcial
         // "IsDeleted = false" el INSERT de abajo chocaría contra el índice a nivel de Postgres.
         var client = CreateClient("Administrador");

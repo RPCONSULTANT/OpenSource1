@@ -10,8 +10,6 @@ namespace OpenSource1.Infrastructure.Data;
 
 public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : DbContext(options)
 {
-    public DbSet<AppSetting> AppSettings => Set<AppSetting>();
-    public DbSet<Entrada>    Entradas    => Set<Entrada>();
     public DbSet<SocioNegocio> SociosNegocio => Set<SocioNegocio>();
     public DbSet<Producto>   Productos   => Set<Producto>();
     public DbSet<TerminoPago> TerminosPago => Set<TerminoPago>();
@@ -51,45 +49,6 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
-
-        modelBuilder.Entity<AppSetting>(entity =>
-        {
-            entity.ToTable("AppSettings");
-            entity.HasKey(setting => setting.Id);
-            entity.Property(setting => setting.Key).HasMaxLength(150).IsRequired();
-            entity.Property(setting => setting.Value).HasMaxLength(1_000).IsRequired();
-            entity.Property(setting => setting.Description).HasMaxLength(500);
-            entity.Property(setting => setting.CreatedBy).HasMaxLength(100).IsRequired();
-            entity.Property(setting => setting.UpdatedBy).HasMaxLength(100);
-            // Filtro parcial: excluye las filas borradas logicamente para que una Key pueda
-            // reutilizarse tras un soft delete. Sin el filtro, el HasQueryFilter de abajo oculta
-            // la fila fantasma de los chequeos de existencia (que sí respetan el filtro global),
-            // pero el INSERT de un registro nuevo con la misma Key sigue chocando contra el
-            // indice unico a nivel de Postgres, que no sabe nada del filtro de EF.
-            entity.HasIndex(setting => setting.Key).IsUnique().HasFilter("\"IsDeleted\" = false");
-            entity.HasIndex(setting => setting.CreatedAtUtc).HasDatabaseName("IX_AppSettings_CreatedAtUtc");
-            entity.Property<uint>("xmin").HasColumnName("xmin").IsRowVersion();
-            entity.Property(setting => setting.IsDeleted).HasDefaultValue(false);
-            entity.Property(setting => setting.DeletedBy).HasMaxLength(100);
-            entity.HasQueryFilter(setting => !setting.IsDeleted);
-        });
-
-        modelBuilder.Entity<Entrada>(entity =>
-        {
-            entity.ToTable("Entradas");
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.Titulo).HasMaxLength(200).IsRequired();
-            entity.Property(e => e.Descripcion).HasMaxLength(1_000);
-            entity.Property(e => e.Tipo).HasMaxLength(100).IsRequired();
-            entity.Property(e => e.Estado).HasMaxLength(50).IsRequired();
-            entity.Property(e => e.CreatedBy).HasMaxLength(100).IsRequired();
-            entity.Property(e => e.UpdatedBy).HasMaxLength(100);
-            entity.HasIndex(e => e.CreatedAtUtc).HasDatabaseName("IX_Entradas_CreatedAtUtc");
-            entity.Property<uint>("xmin").HasColumnName("xmin").IsRowVersion();
-            entity.Property(e => e.IsDeleted).HasDefaultValue(false);
-            entity.Property(e => e.DeletedBy).HasMaxLength(100);
-            entity.HasQueryFilter(e => !e.IsDeleted);
-        });
 
         modelBuilder.Entity<SocioNegocio>(entity =>
         {
@@ -169,7 +128,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.HasOne<GrupoInventario>().WithMany().HasForeignKey(x => x.GrupoInventarioId).OnDelete(DeleteBehavior.Restrict);
             entity.Property(x => x.CreatedBy).HasMaxLength(100).IsRequired();
             entity.Property(x => x.UpdatedBy).HasMaxLength(100);
-            // Mismo filtro parcial que AppSettings.Key: ver comentario de arriba.
+            // Filtro parcial: un Codigo de un producto borrado lógicamente debe poder reutilizarse (el HasQueryFilter oculta
+            // la fila del chequeo de existencia, pero el índice único de Postgres no sabe nada del filtro de EF).
             entity.HasIndex(x => x.Codigo).IsUnique().HasFilter("\"IsDeleted\" = false");
             entity.HasIndex(x => x.CreatedAtUtc).HasDatabaseName("IX_Productos_CreatedAtUtc");
             entity.Property<uint>("xmin").HasColumnName("xmin").IsRowVersion();

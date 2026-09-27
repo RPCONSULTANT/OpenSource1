@@ -6,7 +6,7 @@ namespace OpenSource1.Api.Infrastructure;
 /// <summary>
 /// Puente entre <see cref="Result"/>/<see cref="Result{T}"/> y las respuestas HTTP de la API.
 /// Hoy la consumen los controllers cuyos handlers ya devuelven <c>Result</c>/<c>Result&lt;T&gt;</c>
-/// (por ejemplo <c>AppSettingsController</c>, <c>SociosNegocioController</c>, <c>EntradasController</c>,
+/// (por ejemplo <c>SociosNegocioController</c>,
 /// <c>ProductosController</c>, en sus acciones de listado). Los comandos de SocioNegocio/Producto
 /// siguen sin migrar a <c>ICommand&lt;T&gt;</c>/<c>IQuery&lt;T&gt;</c> a propósito (fase
 /// posterior, tras el renombrado a SocioNegocio). Traduce solo el camino de fallo — el de éxito

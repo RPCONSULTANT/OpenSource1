@@ -8,7 +8,6 @@ using OpenSource1.Application.Data.Repositories;
 using OpenSource1.Application.Data.UnitOfWork;
 using OpenSource1.Application.Features.SociosNegocio;
 using OpenSource1.Application.Features.Almacenes;
-using OpenSource1.Application.Features.AppSettings;
 using OpenSource1.Application.Features.Cobros;
 using OpenSource1.Application.Features.CategoriasProducto;
 using OpenSource1.Application.Features.Contabilidad;
@@ -20,7 +19,6 @@ using OpenSource1.Application.Features.DiariosInventario.Lineas;
 using OpenSource1.Application.Features.DiariosInventario.Lotes;
 using OpenSource1.Application.Features.DiariosInventario.Plantillas;
 using OpenSource1.Application.Features.DiariosInventario.Registros;
-using OpenSource1.Application.Features.Entradas;
 using OpenSource1.Application.Features.FacturasVenta.Borradores;
 using OpenSource1.Application.Features.FacturasVenta.Posteo;
 using OpenSource1.Application.Features.GruposClienteContable;
@@ -34,7 +32,6 @@ using OpenSource1.Application.Services.Auth;
 using OpenSource1.Application.Services.Clientes;
 using OpenSource1.Application.Services.Contabilidad;
 using OpenSource1.Application.Services.Inventario;
-using OpenSource1.Application.Services.Settings;
 using OpenSource1.Infrastructure.Data.Repositories;
 using OpenSource1.Infrastructure.Data.Queries;
 using OpenSource1.Infrastructure.Data.UnitOfWork;
@@ -43,7 +40,6 @@ using OpenSource1.Infrastructure.Services.Auth;
 using OpenSource1.Infrastructure.Services.Clientes;
 using OpenSource1.Infrastructure.Services.Contabilidad;
 using OpenSource1.Infrastructure.Services.Inventario;
-using OpenSource1.Infrastructure.Services.Settings;
 using OpenSource1.Infrastructure.Services.Users;
 
 namespace OpenSource1.Infrastructure.Data;
@@ -82,8 +78,6 @@ public static class DependencyInjection
             options.UseNpgsql(identityConnectionString);
         });
 
-        services.AddScoped<IAppSettingReadRepository, DapperAppSettingReadRepository>();
-        services.AddScoped<IEntradaReadRepository, DapperEntradaReadRepository>();
         services.AddScoped<ISocioNegocioReadRepository, DapperSocioNegocioReadRepository>();
         services.AddScoped<IProductoReadRepository, DapperProductoReadRepository>();
         services.AddScoped<ITerminoPagoReadRepository, DapperTerminoPagoReadRepository>();
@@ -128,7 +122,6 @@ public static class DependencyInjection
         services.TryAddScoped<IUsuarioActual, UsuarioActualSistema>();
         services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
         services.AddScoped<IUnitOfWork, OpenSource1.Infrastructure.Data.UnitOfWork.UnitOfWork>();
-        services.AddScoped<IAppSettingService, AppSettingService>();
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IUserAdminService, UserAdminService>();
         services.AddHostedService<DatabaseMigrationHostedService>();

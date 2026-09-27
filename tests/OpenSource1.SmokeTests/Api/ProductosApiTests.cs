@@ -123,7 +123,7 @@ public sealed class ProductosApiTests : IClassFixture<PostgresTestFixture>
     [Fact]
     public async Task Create_TrasBorrarElMismoCodigo_NoChocaConElIndiceUnico_YDevuelve201()
     {
-        // Hallazgo 1, mismo mecanismo que AppSettings.Key pero en un módulo vivo: verificado
+        // Hallazgo 1 (índice único con soft delete): verificado
         // contra Postgres real que borrar (soft delete) y recrear con el mismo Codigo ya no
         // choca contra "IX_Productos_Codigo" gracias al índice único parcial "IsDeleted = false".
         var client = CreateClient("Administrador");
@@ -169,7 +169,7 @@ public sealed class ProductosApiTests : IClassFixture<PostgresTestFixture>
     public async Task Create_ConCodigoDuplicadoActivo_Devuelve409EnVezDe500()
     {
         // Hallazgo 1, parte 2: ProductosController.Create no hace un chequeo de existencia previo
-        // (a diferencia de AppSettingsController), así que un Codigo duplicado siempre llegó hasta
+        // (a diferencia de otros controllers), así que un Codigo duplicado siempre llegó hasta
         // el INSERT y violaba "IX_Productos_Codigo" directamente. Antes del fix a
         // GlobalExceptionHandler, el DbUpdateException resultante (con Npgsql.PostgresException
         // SqlState 23505 como InnerException, confirmado contra Postgres real) no tenía rama

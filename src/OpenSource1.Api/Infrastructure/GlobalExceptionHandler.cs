@@ -98,7 +98,7 @@ public sealed class GlobalExceptionHandler(
         // PostgreSQL reporta unique_violation con SQLSTATE 23505. Npgsql lo expone como
         // Npgsql.PostgresException, que EF Core envuelve como InnerException de DbUpdateException
         // al fallar un INSERT/UPDATE — verificado empíricamente contra Postgres real (ver
-        // ProductosApiTests/AppSettingsApiTests). Sin esta rama, cualquier índice único (incluidos
+        // ProductosApiTests). Sin esta rama, cualquier índice único (incluidos
         // los parciales usados por el soft delete) que se viole por fuera de la validación de
         // aplicación (condiciones de carrera entre el chequeo de existencia y el INSERT, o
         // entidades futuras sin ese chequeo) cae en el 500 desnudo de la rama genérica.

@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using OpenSource1.Api;
 using OpenSource1.Application.Data.UnitOfWork;
-using OpenSource1.Application.Features.AppSettings;
+using OpenSource1.Application.Features.UnidadesMedida;
 using OpenSource1.Core.Common;
 using OpenSource1.Core.Entities;
 using OpenSource1.SmokeTests.TestInfrastructure;
@@ -34,21 +34,24 @@ public sealed class PaginacionEstableTests : IClassFixture<PostgresTestFixture>
     {
         await using var scope = _factory.Services.CreateAsyncScope();
         var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
-        var repository = unitOfWork.Repository<AppSetting>();
+        var repository = unitOfWork.Repository<UnidadMedida>();
 
-        var prefijo = $"pag-estable-{Guid.NewGuid():N}-";
+        // Nombre (máx. 50) con un prefijo único para filtrar solo las filas de esta prueba; Codigo (máx. 10) único.
+        var sufijo = Guid.NewGuid().ToString("N");
+        var prefijo = $"pag-estable-{sufijo}-";
         var claves = Enumerable.Range(0, 7).Select(i => $"{prefijo}{i:D2}").ToList();
 
-        foreach (var clave in claves)
+        for (var i = 0; i < claves.Count; i++)
         {
-            await repository.AddAsync(new AppSetting { Key = clave, Value = "v" }, CancellationToken.None);
+            await repository.AddAsync(
+                new UnidadMedida { Codigo = $"{sufijo[..8]}{i:D2}", Nombre = claves[i] }, CancellationToken.None);
         }
 
         // Un único SaveChangesAsync: ApplyAuditValues calcula "now" una sola vez para las 7
         // filas, garantizando el empate de CreatedAtUtc que dispara el defecto sin el fix.
         await unitOfWork.SaveChangesAsync(CancellationToken.None);
 
-        var readRepository = scope.ServiceProvider.GetRequiredService<IAppSettingReadRepository>();
+        var readRepository = scope.ServiceProvider.GetRequiredService<IUnidadMedidaReadRepository>();
 
         var vistas = new List<string>();
         var pagina = 1;
@@ -56,11 +59,11 @@ public sealed class PaginacionEstableTests : IClassFixture<PostgresTestFixture>
         while (true)
         {
             var resultado = await readRepository.ListAsync(
-                new PageRequest(pagina, tamanoPagina, "CreatedAtUtc", true), CancellationToken.None);
+                new UnidadMedidaSearchCriteria(null, prefijo), new PageRequest(pagina, tamanoPagina, "CreatedAtUtc", true), CancellationToken.None);
             Assert.True(resultado.EsExito);
 
             var paginaResultado = resultado.Valor!;
-            vistas.AddRange(paginaResultado.Items.Where(x => x.Key.StartsWith(prefijo, StringComparison.Ordinal)).Select(x => x.Key));
+            vistas.AddRange(paginaResultado.Items.Where(x => x.Nombre.StartsWith(prefijo, StringComparison.Ordinal)).Select(x => x.Nombre));
 
             if ((long)pagina * tamanoPagina >= paginaResultado.Total)
             {
