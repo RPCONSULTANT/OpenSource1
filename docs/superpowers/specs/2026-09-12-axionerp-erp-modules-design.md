@@ -1077,6 +1077,21 @@ para filtros y paginación por query string, según la convención del proyecto.
 Todas sobre repositorios Dapper paginados, con allow-list de columnas de ordenación
 (Fase 1.8).
 
+**Desviaciones acordadas durante la ejecución de la Fase 7** (ver el plan `2026-09-29-fase-7-vistas.md`):
+
+- **Saldo acumulado** en movimientos de producto solo cuando el filtro fija un producto (y opcionalmente un almacén): es
+  el único caso en que tiene sentido; se calcula con una función de ventana ordenada por `(FechaRegistro, Id)` más el
+  saldo anterior al rango (`desde`) y a la página. Sin producto, la columna no se devuelve.
+- **Estado de cuenta:** antigüedad por `FechaVencimiento` respecto a una **fecha de corte** (por defecto hoy): corriente
+  (no vencido), 1-30, 31-60, 61-90, 90+ días vencidos, sobre el **restante a la fecha de corte** (detalle con
+  `FechaRegistro <= corte`); los pagos con restante negativo se muestran como "sin aplicar" y restan del total.
+- **Balance de comprobación** por rango de fechas: saldo inicial (antes de `desde`), débitos y créditos del rango y saldo
+  final, solo cuentas de Posteo con movimientos o saldo; sin cierre de ejercicio (las cuentas de resultado acumulan).
+- **Valor de inventario** por producto y almacén = `SUM(ImporteCosto)` de los movimientos de valor hasta la fecha;
+  existencia = `SUM(Cantidad)` de movimientos de producto (misma derivación que `IConsultaInventario`).
+- **Limpieza heredada:** `ConvertirABaseAsync` y `ObtenerFactorAsync` (redondean) se retiran de
+  `IConversionUnidadMedidaService` si no tienen llamadores.
+
 ---
 
 ## Estrategia de verificación
