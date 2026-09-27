@@ -10,6 +10,8 @@ using OpenSource1.Application.Features.Contabilidad.Dtos;
 using OpenSource1.Application.Features.FacturasVenta.Borradores.Dtos;
 using OpenSource1.Application.Features.Inventario.Consultas.Dtos;
 using OpenSource1.Application.Features.MovimientosCliente.Dtos;
+using OpenSource1.Application.Features.NotasCreditoVenta.Borradores.Dtos;
+using OpenSource1.Application.Features.NotasCreditoVenta.Posteo;
 using OpenSource1.Application.Services.Contabilidad;
 using OpenSource1.Core.Common;
 using OpenSource1.Core.Entities.Contabilidad;
@@ -31,6 +33,9 @@ namespace OpenSource1.SmokeTests.Api;
 /// <item>existencias: <c>ValorTotal</c> = Σ valores = saldo final de la 1301 en el balance; existencia de cada fila =
 /// <c>IConsultaInventario.ExistenciaAsync</c> a esa fecha.</item>
 /// </list>
+/// Task 8.7: el escenario incluye una nota de crédito PARCIAL con devolución de inventario (posteada por la API después del
+/// ajuste de costo, aplicada automáticamente a lo que quedaba de la factura y con el resto como saldo a favor) y otra vez el
+/// batch de costo: el estado de cuenta sigue igual a la CxC del balance y las existencias a la 1301 en cada corte.
 /// Mutaciones de control (fallan): saldo inicial del balance ignorado o desplazado un día; aplicaciones posteriores al corte
 /// contadas en el estado de cuenta. REQUIERE DOCKER.
 /// </summary>
@@ -86,10 +91,18 @@ public sealed class CoherenciaVistasApiTests(PostgresTestFixture fixture) : ICla
         Assert.True(ajuste.MovimientosValorCreados > 0, "La entrada retroactiva no generó ajustes de costo.");
         await PostearCostoAsync(producto);
 
+        // Nota de crédito parcial de A el 15/03 por la API (Task 8.7): 1 de las 2 u, con devolución (50 + 9 de ITBIS = 59). Se aplica
+        // sola a lo que quedaba de la factura (41.6) y el resto (17.4) queda a favor del cliente; la entrada vuelve al costo de la
+        // salida (ya ajustado) y el batch de costo la lleva a la 1301.
+        var nota = await PostearNotaCreditoAsync(a, facturaA, new DateOnly(2022, 3, 15), cantidad: 1m);
+        Assert.Equal((59m, 41.6m), (nota.ImporteTotal, nota.ImporteAplicado));
+        await PostearCostoAsync(producto);
+
         var cortes = new[]
         {
             "2022-01-04", "2022-01-05", "2022-01-10", "2022-01-31", "2022-02-14", "2022-02-15", "2022-02-27", "2022-02-28",
-            "2022-03-01", "2022-03-05", "2022-03-09", "2022-03-10", "2022-06-30", "2022-12-31",
+            "2022-03-01", "2022-03-05", "2022-03-09", "2022-03-10", "2022-03-14", "2022-03-15", "2022-03-31", "2022-06-30",
+            "2022-12-31",
         };
         var fallos = new StringBuilder();
         foreach (var texto in cortes)
@@ -102,17 +115,34 @@ public sealed class CoherenciaVistasApiTests(PostgresTestFixture fixture) : ICla
 
         // Control de que el escenario no es trivial (y de la fecha de corte de las aplicaciones, que las sumas anteriores no ven:
         // una aplicación mueve importe entre documentos del mismo cliente sin cambiar su total). El 05/03 el cobro de B (200)
-        // está entero sin aplicar (su aplicación es del 10/03) y lo abierto es 41.6 de A (141.6 − 100) + 153.4 de B; a la fecha
-        // final solo quedan los 41.6 de A y 46.6 sin aplicar de B. La cartera es −5 en todas.
-        foreach (var (corte, abierto, sinAplicar) in new[] { ("2022-03-05", 195m, -200m), ("2022-03-09", 195m, -200m), ("2022-12-31", 41.6m, -46.6m) })
+        // está entero sin aplicar (su aplicación es del 10/03) y lo abierto es 41.6 de A (141.6 − 100) + 153.4 de B; el 14/03
+        // solo quedan los 41.6 de A y 46.6 sin aplicar de B (cartera −5). Desde el 15/03 la nota (59) cierra la factura de A y deja
+        // 17.4 a favor: nada abierto, 64 sin aplicar, cartera −64.
+        foreach (var (corte, abierto, sinAplicar, cartera) in new[]
+                 {
+                     ("2022-03-05", 195m, -200m, -5m), ("2022-03-09", 195m, -200m, -5m), ("2022-03-14", 41.6m, -46.6m, -5m),
+                     ("2022-03-15", 0m, -64m, -64m), ("2022-12-31", 0m, -64m, -64m),
+                 })
         {
             var t = (await GetAsync<EstadoCuentaResponse>($"/api/clientes/estado-cuenta?fechaCorte={corte}")).Totales;
-            Assert.Equal((corte, abierto, sinAplicar, -5m), (corte, t.Corriente + t.Dias1a30 + t.Dias31a60 + t.Dias61a90 + t.Mas90, t.SinAplicar, t.Total));
+            Assert.Equal((corte, abierto, sinAplicar, cartera), (corte, t.Corriente + t.Dias1a30 + t.Dias31a60 + t.Dias61a90 + t.Mas90, t.SinAplicar, t.Total));
         }
 
+        // Movimientos de A: la nota aparece como NotaCredito (−59, restante −17.4) y la factura queda cerrada.
+        var movimientosA = await GetAsync<PagedResult<MovimientoClienteResponse>>($"/api/clientes/{a}/movimientos?tamanoPagina=50");
+        Assert.Equal(
+            [(TipoDocumentoCliente.Factura, 141.6m, 0m), (TipoDocumentoCliente.NotaCredito, -59m, -17.4m), (TipoDocumentoCliente.Pago, -100m, 0m)],
+            movimientosA.Items.OrderBy(m => m.TipoDocumento).Select(m => (m.TipoDocumento, m.ImporteOriginal, m.ImporteRestante)));
+
+        // Existencias: 9 u el 14/03 y 10 u (la devolución) desde el 15/03; los movimientos del producto muestran la devolución.
+        Assert.Equal(9m, Assert.Single((await GetAsync<ExistenciasVistaResponse>("/api/inventario/existencias?fecha=2022-03-14")).Pagina.Items).Existencia);
         var existencias = await GetAsync<ExistenciasVistaResponse>("/api/inventario/existencias?fecha=2022-12-31");
-        Assert.Equal(9m, Assert.Single(existencias.Pagina.Items).Existencia);
+        Assert.Equal(10m, Assert.Single(existencias.Pagina.Items).Existencia);
         Assert.True(existencias.ValorTotal > 0m);
+        var devoluciones = await GetAsync<PagedResult<MovimientoProductoVistaResponse>>(
+            $"/api/inventario/movimientos-producto?productoId={producto}&tipoOrigen={(int)TipoOrigenMovimiento.NotaCreditoVenta}");
+        var devolucion = Assert.Single(devoluciones.Items);
+        Assert.Equal((1m, TipoDocumentoInventario.NotaCreditoVenta, nota.Numero), (devolucion.Cantidad, devolucion.TipoDocumento, devolucion.NumeroDocumento));
     }
 
     private async Task ComprobarCorteAsync(DateOnly corte, Guid[] socios, Guid producto, StringBuilder fallos)
@@ -266,6 +296,28 @@ public sealed class CoherenciaVistasApiTests(PostgresTestFixture fixture) : ICla
             movimientoFacturaId = factura, movimientoPagoId = pago, importe, fechaRegistro,
         });
         Assert.True(response.StatusCode == HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+    }
+
+    /// <summary>
+    /// Nota de crédito por <c>api/notas-credito-venta</c>: borrador desde la factura del movimiento, <paramref name="cantidad"/> de la
+    /// línea de producto CON devolución, y posteo.
+    /// </summary>
+    private async Task<ResultadoPosteoNotaCredito> PostearNotaCreditoAsync(Guid socio, long movimientoFactura, DateOnly fechaRegistro, decimal cantidad)
+    {
+        var facturas = await GetAsync<PagedResult<MovimientoClienteResponse>>($"/api/clientes/{socio}/movimientos?tipoDocumento=1");
+        var numeroFactura = facturas.Items.Single(m => m.Id == movimientoFactura).NumeroDocumento;
+        var creado = await _client.PostAsJsonAsync("/api/notas-credito-venta/borradores", new { facturaVentaNumero = numeroFactura, fechaRegistro });
+        Assert.True(creado.StatusCode == HttpStatusCode.Created, await creado.Content.ReadAsStringAsync());
+        var borrador = (await creado.Content.ReadFromJsonAsync<NotaCreditoVentaBorradorResponse>())!;
+        var acreditables = await GetAsync<List<LineaFacturaAcreditableResponse>>($"/api/notas-credito-venta/borradores/{borrador.Id}/lineas-acreditables");
+        var linea = await _client.PostAsJsonAsync($"/api/notas-credito-venta/borradores/{borrador.Id}/lineas", new
+        {
+            lineaFacturaVentaId = acreditables.Single(x => x.Tipo == TipoLineaFactura.Producto).LineaFacturaVentaId, cantidad, devolverInventario = true,
+        });
+        Assert.True(linea.StatusCode == HttpStatusCode.Created, await linea.Content.ReadAsStringAsync());
+        var posteo = await _client.PostAsync($"/api/notas-credito-venta/borradores/{borrador.Id}/postear", null);
+        Assert.True(posteo.StatusCode == HttpStatusCode.OK, await posteo.Content.ReadAsStringAsync());
+        return (await posteo.Content.ReadFromJsonAsync<ResultadoPosteoNotaCredito>())!;
     }
 
     private async Task PostearCostoAsync(Guid producto)

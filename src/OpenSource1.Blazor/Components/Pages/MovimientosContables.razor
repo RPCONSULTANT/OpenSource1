@@ -160,6 +160,10 @@
                             {
                                 <a class="text-brand-700 underline" href="@($"/facturas-venta/{Uri.EscapeDataString(m.NumeroDocumento)}")">@m.NumeroDocumento</a>
                             }
+                            else if (m.TipoDocumento == TipoDocumentoContable.NotaCreditoVenta && !string.IsNullOrEmpty(m.NumeroDocumento))
+                            {
+                                <a class="text-brand-700 underline" href="@($"/notas-credito-venta/{Uri.EscapeDataString(m.NumeroDocumento)}")">@m.NumeroDocumento</a>
+                            }
                             else
                             {
                                 @(m.NumeroDocumento ?? "—")

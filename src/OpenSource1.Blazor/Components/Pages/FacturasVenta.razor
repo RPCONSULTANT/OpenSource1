@@ -1,16 +1,23 @@
 @page "/facturas-venta"
 @page "/facturas-venta/{Numero}"
 @attribute [Authorize(Policy = ApplicationPolicies.CanConsult)]
+@using System.ComponentModel.DataAnnotations
 @using System.Globalization
 @using Microsoft.AspNetCore.Authorization
 @using OpenSource1.Application.Features.FacturasVenta.Posteadas
 @using OpenSource1.Application.Features.FacturasVenta.Posteadas.Dtos
+@using OpenSource1.Application.Features.NotasCreditoVenta.Borradores.Dtos
+@using OpenSource1.Application.Features.NotasCreditoVenta.Posteadas
+@using OpenSource1.Application.Features.NotasCreditoVenta.Posteadas.Dtos
 @using OpenSource1.Application.Security
 @using OpenSource1.Blazor.Services
 @using OpenSource1.Core.Common
 @using OpenSource1.Core.Enums
 @inject IFacturaVentaApiClient FacturaApiClient
+@inject INotaCreditoVentaApiClient NotaApiClient
+@inject IAuthorizationService AuthorizationService
 @inject ILogger<FacturasVenta> Logger
+@inject NavigationManager Nav
 
 <PageTitle>@(Numero is null ? "Facturas de venta" : $"Factura {Numero}") – AxionERP</PageTitle>
 
@@ -24,6 +31,10 @@
         @if (Numero is not null)
         {
             <a href="/facturas-venta" class="btn-press rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Volver al listado</a>
+            @if (detalle is not null && canAdd && TienePendiente)
+            {
+                <a href="@($"/facturas-venta/{Uri.EscapeDataString(Numero)}?crearNota=true")" class="btn-press rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700" data-testid="crear-nota">Crear nota de crédito</a>
+            }
         }
         <a href="/facturas-venta/borradores" class="btn-press rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Borradores</a>
     </div>
@@ -38,7 +49,7 @@
         }
         else
         {
-            <MessageBox Type="@messageType" Message="@message" />
+            <MessageBox Type="@messageType" Message="@message" Errors="@errores" />
         }
     </div>
 }
@@ -178,6 +189,7 @@ else
                         <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Descuento</th>
                         <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Importe</th>
                         <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">IVA</th>
+                        <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Acreditado</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-50 bg-white">
@@ -191,7 +203,7 @@ else
                             <td class="px-4 py-3 text-xs text-slate-500">@(l.AlmacenCodigo ?? "—")</td>
                             @if (l.Tipo == TipoLineaFactura.Comentario)
                             {
-                                <td colspan="5"></td>
+                                <td colspan="6"></td>
                             }
                             else
                             {
@@ -200,6 +212,24 @@ else
                                 <td class="px-4 py-3 text-right text-slate-500">@(l.ImporteDescuentoLinea == 0 ? "—" : $"{VentasOpciones.Importe(l.ImporteDescuentoLinea)} ({l.PorcentajeDescuentoLinea.ToString("0.#####", CultureInfo.InvariantCulture)}%)")</td>
                                 <td class="px-4 py-3 text-right font-semibold text-slate-800">@VentasOpciones.Importe(l.ImporteLinea)</td>
                                 <td class="px-4 py-3 text-xs text-slate-500">@l.IdentificadorIva @l.PorcentajeIva.ToString("0.##", CultureInfo.InvariantCulture)%</td>
+                                <td class="px-4 py-3 text-right text-xs @(Acreditado(l.Id).Cantidad > 0 ? "font-semibold text-amber-700" : "text-slate-400")" data-testid="acreditado">
+                                    @if (notasCargaFallida)
+                                    {
+                                        @("?")
+                                    }
+                                    else if (Acreditado(l.Id) is { Cantidad: > 0 } a)
+                                    {
+                                        @($"{a.Cantidad.ToString("0.######", CultureInfo.InvariantCulture)} · {VentasOpciones.Importe(a.Importe)}")
+                                        @if (a.Devuelto > 0)
+                                        {
+                                            <span class="block text-slate-400">devuelto @a.Devuelto.ToString("0.######", CultureInfo.InvariantCulture)</span>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        @("—")
+                                    }
+                                </td>
                             }
                         </tr>
                     }
@@ -242,9 +272,113 @@ else
             <p class="mt-4 text-xs"><a class="text-brand-700 underline" href="@($"/cobros?socioId={c.SocioNegocioFacturarAId}")">Movimientos y cobros del cliente</a></p>
         </div>
     </div>
+
+    <!-- ── Notas de crédito de la factura ── -->
+    <div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden mb-8" data-testid="notas-factura">
+        <div class="px-6 py-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2">
+            <div>
+                <h2 class="text-sm font-semibold text-slate-700">Notas de crédito</h2>
+                <p class="mt-1 text-xs text-slate-500">@(notasCargaFallida ? "No fue posible cargar las notas de crédito de la factura." : $"{notasFactura.Count} posteada(s) por {VentasOpciones.Importe(notasFactura.Sum(n => n.ImporteTotal))} · {borradoresNota.Count} borrador(es).")</p>
+            </div>
+            @if (canAdd && TienePendiente)
+            {
+                <a href="@($"/facturas-venta/{Uri.EscapeDataString(Numero!)}?crearNota=true")" class="btn-press rounded-lg border border-brand-200 bg-brand-50 px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-100">Crear nota de crédito</a>
+            }
+            else if (!notasCargaFallida && !TienePendiente)
+            {
+                <span class="text-xs font-semibold text-slate-500">Factura acreditada por completo.</span>
+            }
+        </div>
+        @if (notasFactura.Count > 0 || borradoresNota.Count > 0)
+        {
+            <table class="min-w-full divide-y divide-slate-100 text-sm">
+                <thead class="bg-slate-50"><tr>
+                    <th class="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase">Número</th>
+                    <th class="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase">Estado</th>
+                    <th class="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase">Fecha reg.</th>
+                    <th class="px-4 py-2 text-right text-xs font-semibold text-slate-500 uppercase">Total</th>
+                    <th class="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase">Asiento</th>
+                </tr></thead>
+                <tbody class="divide-y divide-slate-50">
+                    @foreach (var n in notasFactura)
+                    {
+                        <tr @key="n.Numero">
+                            <td class="px-4 py-2"><a class="font-mono text-xs font-semibold text-brand-700 underline" href="@($"/notas-credito-venta/{Uri.EscapeDataString(n.Numero)}")">@n.Numero</a></td>
+                            <td class="px-4 py-2 text-xs text-slate-700">Posteada</td>
+                            <td class="px-4 py-2 text-xs text-slate-500">@EntradaFecha.Formatear(n.FechaRegistro)</td>
+                            <td class="px-4 py-2 text-right font-semibold text-slate-800">@VentasOpciones.Importe(n.ImporteTotal)</td>
+                            <td class="px-4 py-2 font-mono text-xs text-slate-500">@(n.NumeroRegistroContable ?? "—")</td>
+                        </tr>
+                    }
+                    @foreach (var b in borradoresNota)
+                    {
+                        <tr @key="b.Id">
+                            <td class="px-4 py-2"><a class="font-mono text-xs font-semibold text-brand-700 underline" href="@($"/notas-credito-venta/borradores/{b.Id}")">@b.Numero</a></td>
+                            <td class="px-4 py-2 text-xs text-amber-700">Borrador (@b.NumeroLineas línea(s))</td>
+                            <td class="px-4 py-2 text-xs text-slate-500">@EntradaFecha.Formatear(b.FechaRegistro)</td>
+                            <td class="px-4 py-2 text-right text-slate-400">—</td>
+                            <td class="px-4 py-2 text-xs text-slate-400">—</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+
+    @if (MuestraFormCrearNota)
+    {
+        <ConfirmDialog Title="Crear nota de crédito" Message="@($"Se creará un borrador de nota de crédito de la factura {c.Numero}. Después podrá elegir las líneas y cantidades a acreditar.")" Variant="warning" CancelHref="@($"/facturas-venta/{Uri.EscapeDataString(Numero!)}")">
+            @if (crearNotaError is not null)
+            {
+                <div class="mb-4" data-testid="errores-crear-nota"><MessageBox Type="warning" Message="@crearNotaError" Errors="@crearNotaErrores" /></div>
+            }
+            <EditForm Model="CrearNotaInput" FormName="crear-nota" OnValidSubmit="CrearNotaAsync" Enhance="true">
+                <DataAnnotationsValidator />
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1" for="CrearNotaInput_FechaRegistroTexto">Fecha de registro</label>
+                        <input id="CrearNotaInput_FechaRegistroTexto" type="date" name="CrearNotaInput.FechaRegistroTexto" value="@CrearNotaInput!.FechaRegistroTexto" class="@InputCss" />
+                        <ValidationMessage For="() => CrearNotaInput.FechaRegistroTexto" />
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1" for="CrearNotaInput_FechaDocumentoTexto">Fecha de documento</label>
+                        <input id="CrearNotaInput_FechaDocumentoTexto" type="date" name="CrearNotaInput.FechaDocumentoTexto" value="@CrearNotaInput.FechaDocumentoTexto" class="@InputCss" />
+                        <ValidationMessage For="() => CrearNotaInput.FechaDocumentoTexto" />
+                    </div>
+                    <div class="sm:col-span-2">
+                        <label class="block text-sm font-medium text-slate-700 mb-1" for="CrearNotaInput_Descripcion">Descripción</label>
+                        <input id="CrearNotaInput_Descripcion" type="text" name="CrearNotaInput.Descripcion" value="@CrearNotaInput.Descripcion" maxlength="200" class="@InputCss" />
+                        <ValidationMessage For="() => CrearNotaInput.Descripcion" />
+                    </div>
+                    <label class="inline-flex items-center gap-2 text-sm text-slate-700" for="CrearNotaInput_CopiarLineas">
+                        <input id="CrearNotaInput_CopiarLineas" type="checkbox" name="CrearNotaInput.CopiarLineas" value="true" checked="@CrearNotaInput.CopiarLineas" class="rounded border-slate-300" />
+                        Copiar todo lo pendiente (nota total)
+                    </label>
+                    <label class="inline-flex items-center gap-2 text-sm text-slate-700" for="CrearNotaInput_DevolverInventario">
+                        <input id="CrearNotaInput_DevolverInventario" type="checkbox" name="CrearNotaInput.DevolverInventario" value="true" checked="@CrearNotaInput.DevolverInventario" class="rounded border-slate-300" />
+                        Devolver al inventario las líneas de producto copiadas
+                    </label>
+                </div>
+                <p class="mt-2 text-xs text-slate-400">Fechas vacías: registro = hoy, documento = registro. La fecha de registro no puede ser anterior a la de la factura (@EntradaFecha.Formatear(c.FechaRegistro)).</p>
+                <div class="mt-5 flex items-center gap-3">
+                    <button type="submit" class="btn-press rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700">Crear borrador</button>
+                    <a href="@($"/facturas-venta/{Uri.EscapeDataString(Numero!)}?crearNota=true")" class="btn-press rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Limpiar campos</a>
+                    <a href="@($"/facturas-venta/{Uri.EscapeDataString(Numero!)}")" class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">Cancelar</a>
+                </div>
+            </EditForm>
+        </ConfirmDialog>
+    }
+}
+
+@* El formulario de alta de la nota se mantiene en el árbol aunque el permiso o el estado (factura acreditada del todo, diálogo
+   cerrado) no lo muestren: un POST obsoleto o forzado llega al handler y recibe el mensaje real de la API (403/400). *@
+@if (!MuestraFormCrearNota)
+{
+    <EditForm Model="CrearNotaInput" FormName="crear-nota" OnValidSubmit="CrearNotaAsync"></EditForm>
 }
 
 @code {
+    private const string InputCss = "block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20";
     private const string FiltroCss = "block w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-600/20";
 
     [Parameter] public string? Numero { get; set; }
@@ -256,6 +390,11 @@ else
     [SupplyParameterFromQuery(Name = "pagina")] private int Pagina { get; set; } = 1;
     [SupplyParameterFromQuery(Name = "ok")] private string? Ok { get; set; }
     [SupplyParameterFromQuery(Name = "registro")] private string? Registro { get; set; }
+    [SupplyParameterFromQuery(Name = "crearNota")] private bool CrearNota { get; set; }
+
+    [SupplyParameterFromForm(FormName = "crear-nota")] private CrearNotaForm? CrearNotaInput { get; set; }
+
+    [CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
 
     private IReadOnlyList<FacturaVentaResponse> facturas = [];
     private long total;
@@ -264,6 +403,34 @@ else
     private bool detalleCargaFallida;
     private string? message;
     private string messageType = "info";
+    private IReadOnlyList<string> errores = [];
+    private bool canAdd;
+    private IReadOnlyList<NotaCreditoVentaResponse> notasFactura = [];
+    private IReadOnlyList<NotaCreditoVentaBorradorResponse> borradoresNota = [];
+    private Dictionary<long, (decimal Cantidad, decimal Importe, decimal Devuelto)> acreditadoPorLinea = [];
+    private bool notasCargaFallida;
+    private string? crearNotaError;
+    private IReadOnlyList<string> crearNotaErrores = [];
+
+    private bool MuestraFormCrearNota => detalle is not null && canAdd && CrearNota;
+
+    /// <summary>Queda algo por acreditar en alguna línea (si las notas no cargaron, se asume que sí: la API valida).</summary>
+    private bool TienePendiente => detalle is not null && (notasCargaFallida || detalle.Lineas
+        .Where(l => l.Tipo != TipoLineaFactura.Comentario)
+        .Any(l => l.Cantidad > Acreditado(l.Id).Cantidad));
+
+    private (decimal Cantidad, decimal Importe, decimal Devuelto) Acreditado(long lineaId) =>
+        acreditadoPorLinea.TryGetValue(lineaId, out var a) ? a : (0m, 0m, 0m);
+
+    protected override async Task OnInitializedAsync()
+    {
+        CrearNotaInput ??= new();
+        if (AuthenticationStateTask is not null)
+        {
+            var user = (await AuthenticationStateTask).User;
+            canAdd = (await AuthorizationService.AuthorizeAsync(user, ApplicationPolicies.CanAdd)).Succeeded;
+        }
+    }
 
     protected override async Task OnParametersSetAsync()
     {
@@ -286,11 +453,93 @@ else
             return;
         }
 
+        if (detalle is not null)
+        {
+            await CargarNotasAsync(detalle.Cabecera.Numero);
+        }
+
         if (Ok == "posteada" && detalle is not null)
         {
             var registro = Registro ?? detalle.Cabecera.NumeroRegistroContable;
             Show("success", $"Factura {detalle.Cabecera.Numero} posteada por {VentasOpciones.Importe(detalle.Cabecera.ImporteTotal)}. " +
                 (registro is null ? "Total 0 (100 % de descuento): sin movimiento de cliente ni registro contable." : $"Registro contable {registro}."));
+        }
+    }
+
+    /// <summary>
+    /// Notas posteadas de la factura (con lo acreditado y lo devuelto por línea, sumando las líneas de sus detalles: la API de notas
+    /// no expone un agregado por factura) y borradores de nota pendientes. El filtro de la API es "contiene": se queda solo lo exacto.
+    /// </summary>
+    private async Task CargarNotasAsync(string numeroFactura)
+    {
+        try
+        {
+            var paginaNotas = await NotaApiClient.ListNotasAsync(
+                new NotaCreditoVentaSearchCriteria(FacturaVentaNumero: numeroFactura), new PageRequest(1, PageRequest.TamanoMaximo, "Numero", Descendente: false));
+            notasFactura = paginaNotas.Items.Where(n => n.FacturaVentaNumero == numeroFactura).ToList();
+            var acumulado = new Dictionary<long, (decimal Cantidad, decimal Importe, decimal Devuelto)>();
+            foreach (var nota in notasFactura)
+            {
+                var detalleNota = await NotaApiClient.GetNotaAsync(nota.Numero)
+                    ?? throw new InvalidOperationException($"La nota {nota.Numero} no se encontró al leer su detalle.");
+                foreach (var linea in detalleNota.Lineas)
+                {
+                    var previo = acumulado.GetValueOrDefault(linea.LineaFacturaVentaId);
+                    acumulado[linea.LineaFacturaVentaId] = (
+                        previo.Cantidad + linea.Cantidad, previo.Importe + linea.ImporteLinea, previo.Devuelto + (linea.DevolverInventario ? linea.Cantidad : 0m));
+                }
+            }
+
+            acreditadoPorLinea = acumulado;
+            var paginaBorradores = await NotaApiClient.ListBorradoresAsync(
+                new NotaCreditoVentaBorradorFiltro(null, numeroFactura, null, null), new PageRequest(1, PageRequest.TamanoMaximo, "CreatedAtUtc", Descendente: false));
+            borradoresNota = paginaBorradores.Items.Where(b => b.FacturaVentaNumero == numeroFactura).ToList();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not load notas de crédito of factura {Numero}.", numeroFactura);
+            notasCargaFallida = true;
+        }
+    }
+
+    private async Task CrearNotaAsync()
+    {
+        if (detalle is null)
+        {
+            // Si la factura no cargó (API caída), se conserva el mensaje de carga.
+            if (!detalleCargaFallida)
+            {
+                Show("warning", "No se encontró la factura posteada.");
+            }
+
+            return;
+        }
+
+        var f = CrearNotaInput!;
+        try
+        {
+            var result = await NotaApiClient.CreateBorradorAsync(new NotaCreditoBorradorInput(
+                detalle.Cabecera.Numero, f.FechaRegistro, f.FechaDocumento, EmptyAsNull(f.Descripcion), f.CopiarLineas, f.DevolverInventario));
+            if (result.Succeeded)
+            {
+                Nav.NavigateTo($"/notas-credito-venta/borradores/{result.Valor!.Id}?ok=creado");
+                return;
+            }
+
+            crearNotaErrores = result.Errors ?? [];
+            crearNotaError = result.Message;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not create nota de crédito from factura {Numero}.", detalle.Cabecera.Numero);
+            crearNotaError = "No fue posible crear el borrador de nota de crédito.";
+        }
+
+        // Si el diálogo no está a la vista (POST obsoleto o sin permiso), el mensaje real se muestra arriba.
+        if (!MuestraFormCrearNota)
+        {
+            errores = crearNotaErrores;
+            Show("warning", crearNotaError!);
         }
     }
 
@@ -346,4 +595,41 @@ else
     private void Show(string type, string text) { messageType = type; message = text; }
 
     private static string? EmptyAsNull(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    /// <summary>Alta de un borrador de nota desde la factura: fechas opcionales (vacías = valores por defecto de la API).</summary>
+    public sealed class CrearNotaForm : IValidatableObject
+    {
+        public string? FechaRegistroTexto { get; set; }
+
+        public string? FechaDocumentoTexto { get; set; }
+
+        [MaxLength(200, ErrorMessage = "La descripción admite como máximo 200 caracteres.")]
+        public string? Descripcion { get; set; }
+
+        public bool CopiarLineas { get; set; }
+
+        public bool DevolverInventario { get; set; }
+
+        public DateOnly? FechaRegistro => Fecha(FechaRegistroTexto);
+
+        public DateOnly? FechaDocumento => Fecha(FechaDocumentoTexto);
+
+        public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+        {
+            foreach (var (texto, campo, etiqueta) in new[]
+                     {
+                         (FechaRegistroTexto, nameof(FechaRegistroTexto), "La fecha de registro"),
+                         (FechaDocumentoTexto, nameof(FechaDocumentoTexto), "La fecha de documento"),
+                     })
+            {
+                if (!string.IsNullOrWhiteSpace(texto) && !EntradaFecha.TryParse(texto, out _, out var error, etiqueta))
+                {
+                    yield return new ValidationResult(error ?? $"{etiqueta} no es válida.", [campo]);
+                }
+            }
+        }
+
+        private static DateOnly? Fecha(string? texto) =>
+            !string.IsNullOrWhiteSpace(texto) && EntradaFecha.TryParse(texto, out var valor, out _) ? valor : null;
+    }
 }

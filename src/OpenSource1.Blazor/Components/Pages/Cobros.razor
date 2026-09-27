@@ -130,6 +130,10 @@
                                     {
                                         <a class="text-brand-700 hover:underline" href="@($"/facturas-venta/{Uri.EscapeDataString(m.NumeroDocumento)}")">@m.NumeroDocumento</a>
                                     }
+                                    else if (m.TipoDocumento == TipoDocumentoCliente.NotaCredito)
+                                    {
+                                        <a class="text-brand-700 hover:underline" href="@($"/notas-credito-venta/{Uri.EscapeDataString(m.NumeroDocumento)}")">@m.NumeroDocumento</a>
+                                    }
                                     else
                                     {
                                         @m.NumeroDocumento

@@ -143,7 +143,16 @@
                     <tr @key="m.Id" class="hover:bg-slate-50">
                         <td class="px-4 py-3 text-xs text-slate-500 whitespace-nowrap">@EntradaFecha.Formatear(m.FechaRegistro)</td>
                         <td class="px-4 py-3 text-xs text-slate-700">@InventarioVistasOpciones.TipoMovimiento(m.TipoMovimiento)</td>
-                        <td class="px-4 py-3 font-mono text-xs text-slate-600">@(m.NumeroDocumento ?? "—")</td>
+                        <td class="px-4 py-3 font-mono text-xs text-slate-600">
+                            @if (InventarioVistasOpciones.UrlDocumento(m.TipoDocumento, m.NumeroDocumento) is { } url)
+                            {
+                                <a class="text-brand-700 underline" href="@url">@m.NumeroDocumento</a>
+                            }
+                            else
+                            {
+                                @(m.NumeroDocumento ?? "—")
+                            }
+                        </td>
                         <td class="px-4 py-3 text-slate-700"><span class="font-mono text-xs">@m.ProductoCodigo</span> <span class="text-xs text-slate-400">@m.ProductoNombre</span></td>
                         <td class="px-4 py-3 text-slate-700"><span class="font-mono text-xs">@m.AlmacenCodigo</span> <span class="text-xs text-slate-400">@m.AlmacenNombre</span></td>
                         <td class="px-4 py-3 text-right font-semibold @(m.Cantidad < 0 ? "text-red-700" : "text-slate-800")">@InventarioVistasOpciones.Cantidad(m.Cantidad)</td>

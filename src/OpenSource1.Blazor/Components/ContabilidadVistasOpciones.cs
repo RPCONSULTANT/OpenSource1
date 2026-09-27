@@ -17,6 +17,7 @@ public static class ContabilidadVistasOpciones
         ((int)TipoDocumentoContable.CostoInventario, "Costo de inventario"),
         ((int)TipoDocumentoContable.FacturaVenta, "Factura de venta"),
         ((int)TipoDocumentoContable.Cobro, "Cobro"),
+        ((int)TipoDocumentoContable.NotaCreditoVenta, "Nota de crédito de venta"),
     ];
 
     public static string TipoDocumento(TipoDocumentoContable tipo) =>

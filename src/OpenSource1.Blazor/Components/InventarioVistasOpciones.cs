@@ -32,11 +32,22 @@ public static class InventarioVistasOpciones
         ((int)TipoOrigenMovimiento.AjusteCosto, "Ajuste de costo"),
         ((int)TipoOrigenMovimiento.CostoInventario, "Costo de inventario"),
         ((int)TipoOrigenMovimiento.Cobro, "Cobro"),
+        ((int)TipoOrigenMovimiento.NotaCreditoVenta, "Nota de crédito de venta"),
         ((int)TipoOrigenMovimiento.Migracion, "Migración"),
     ];
 
     public static string TipoMovimiento(TipoMovimientoInventario tipo) =>
         TiposMovimiento.FirstOrDefault(x => x.Valor == (int)tipo).Etiqueta ?? tipo.ToString();
+
+    /// <summary>Enlace a la ficha del documento de origen (factura o nota de crédito de venta); null si no tiene ficha.</summary>
+    public static string? UrlDocumento(TipoDocumentoInventario tipo, string? numero) => string.IsNullOrEmpty(numero)
+        ? null
+        : tipo switch
+        {
+            TipoDocumentoInventario.FacturaVenta => $"/facturas-venta/{Uri.EscapeDataString(numero)}",
+            TipoDocumentoInventario.NotaCreditoVenta => $"/notas-credito-venta/{Uri.EscapeDataString(numero)}",
+            _ => null
+        };
 
     public static string TipoOrigen(TipoOrigenMovimiento origen) =>
         TiposOrigen.FirstOrDefault(x => x.Valor == (int)origen).Etiqueta ?? origen.ToString();
