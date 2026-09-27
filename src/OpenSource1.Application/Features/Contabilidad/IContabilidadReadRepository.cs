@@ -3,7 +3,7 @@ using OpenSource1.Core.Common;
 
 namespace OpenSource1.Application.Features.Contabilidad;
 
-/// <summary>Consultas paginadas del libro contable (Task 5.5; las vistas completas llegan en la Fase 7).</summary>
+/// <summary>Consultas del libro contable: listados paginados (Task 5.5, filtros ampliados en la 7.4) y balance de comprobación (7.4).</summary>
 public interface IContabilidadReadRepository
 {
     Task<Result<PagedResult<MovimientoContableResponse>>> ListMovimientosAsync(
@@ -11,4 +11,11 @@ public interface IContabilidadReadRepository
 
     Task<Result<PagedResult<RegistroContableResponse>>> ListRegistrosAsync(
         PageRequest paginacion, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Balance de comprobación del rango: cuentas de Posteo con movimientos en el rango o saldo inicial distinto de cero y
+    /// cuentas de Encabezado como títulos, ordenadas por número; totales de las de Posteo.
+    /// </summary>
+    Task<BalanceComprobacionResponse> GetBalanceComprobacionAsync(
+        BalanceComprobacionCriterios criterios, CancellationToken cancellationToken = default);
 }

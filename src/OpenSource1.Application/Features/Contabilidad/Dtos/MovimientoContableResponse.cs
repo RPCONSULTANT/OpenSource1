@@ -25,6 +25,13 @@ public sealed class MovimientoContableResponse
     public long RegistroContableId { get; init; }
     public string NumeroRegistro { get; init; } = string.Empty;
     public Guid? SocioNegocioId { get; init; }
+
+    /// <summary>Código ACTUAL del socio (Task 7.4), aunque esté borrado lógicamente.</summary>
+    public string? SocioCodigo { get; init; }
+
+    /// <summary>Nombre comercial ACTUAL del socio (Task 7.4).</summary>
+    public string? SocioNombre { get; init; }
+
     public Guid? ProductoId { get; init; }
     public Guid? GrupoNegocioId { get; init; }
     public Guid? GrupoProductoId { get; init; }
