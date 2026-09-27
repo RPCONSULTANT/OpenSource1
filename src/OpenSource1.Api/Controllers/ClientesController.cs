@@ -24,7 +24,7 @@ public sealed class ClientesController(ISender sender) : ControllerBase
     /// ascendente. <c>soloAbiertos</c>: <c>true</c> abiertos, <c>false</c> cerrados, ausente todos. Task 7.3:
     /// <c>tipoDocumento</c> (1 Factura, 2 Nota de crédito, 3 Pago, 4 Ajuste; otro → 400) y <c>fechaCorte</c> (restante y abierto
     /// A ESA FECHA, con la regla del estado de cuenta, sin los movimientos registrados después; ausente = restante actual).
-    /// Fechas invertidas o una página fuera de rango → 400. Orden: <c>Id</c>, <c>FechaRegistro</c>, <c>FechaVencimiento</c>,
+    /// Fechas invertidas → 400; una página enorme → 200 con página vacía. Orden: <c>Id</c>, <c>FechaRegistro</c>, <c>FechaVencimiento</c>,
     /// <c>NumeroDocumento</c>, <c>ImporteOriginal</c>, <c>ImporteRestante</c> (otra columna se ignora).
     /// </summary>
     [HttpGet("{id:guid}/movimientos")]
@@ -61,7 +61,7 @@ public sealed class ClientesController(ISender sender) : ControllerBase
     /// negativos en <c>sinAplicar</c> y el <c>total</c> (= saldo a esa fecha), más los <c>totales</c> de todos los clientes
     /// filtrados. <c>socioId</c> = un cliente (inexistente → página vacía); <c>texto</c> busca en código y nombre;
     /// <c>soloConSaldo</c> oculta los clientes sin documentos abiertos. Orden: <c>Nombre</c> (por defecto), <c>Codigo</c>,
-    /// <c>Total</c>; desempate por el Id del socio. Una página fuera de rango → 400.
+    /// <c>Total</c>; desempate por el Id del socio. Una página enorme → 200 con página vacía.
     /// </summary>
     [HttpGet("estado-cuenta")]
     [Authorize(Policy = ApplicationPolicies.CanConsult)]

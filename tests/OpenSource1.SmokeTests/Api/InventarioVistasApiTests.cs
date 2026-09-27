@@ -349,9 +349,6 @@ public sealed class InventarioVistasApiTests(PostgresTestFixture fixture) : ICla
     [InlineData(UrlValor + "?tipoMovimiento=0", "TipoMovimiento")]
     [InlineData(UrlProducto + "?tipoOrigen=6", "TipoOrigen")]
     [InlineData(UrlValor + "?tipoOrigen=70000", "TipoOrigen")]
-    [InlineData(UrlProducto + "?pagina=2147483647", "Pagina")]
-    [InlineData(UrlValor + "?pagina=2147483647&tamanoPagina=200", "Pagina")]
-    [InlineData(UrlExistencias + "?pagina=2147483647", "Pagina")]
     public async Task FiltroInvalido_Devuelve400ConCampo(string url, string campo)
     {
         using var respuesta = await _client.GetAsync(url);

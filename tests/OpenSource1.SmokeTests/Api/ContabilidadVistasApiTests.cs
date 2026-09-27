@@ -233,8 +233,6 @@ public sealed class ContabilidadVistasApiTests(PostgresTestFixture fixture) : IC
     [InlineData(UrlMovimientos + "?tipoDocumento=9", "TipoDocumento")]
     [InlineData(UrlMovimientos + "?tipoDocumento=-1", "TipoDocumento")]
     [InlineData(UrlMovimientos + "?tipoDocumento=70000", "TipoDocumento")]
-    [InlineData(UrlMovimientos + "?pagina=2147483647", "Pagina")]
-    [InlineData(UrlMovimientos + "?pagina=2147483647&tamanoPagina=2", "Pagina")]
     [InlineData(UrlBalance + "?desde=2025-05-01&hasta=2025-04-01", "Desde")]
     public async Task FiltroInvalido_Devuelve400ConCampo(string url, string campo)
     {

@@ -42,11 +42,6 @@ public sealed class ListMovimientosClienteQueryHandler(IMovimientoClienteReadRep
                 "TipoDocumento"));
         }
 
-        if (PaginacionValidacion.Validar(request.Paginacion, "movimiento_cliente") is { } errorPagina)
-        {
-            errores.Add(errorPagina);
-        }
-
         if (errores.Count > 0)
         {
             return Result<PagedResult<MovimientoClienteResponse>>.Fallo([.. errores]);
@@ -88,19 +83,15 @@ public sealed class ListMovimientosAbiertosClienteQueryHandler(IMovimientoClient
 }
 
 /// <summary>
-/// Estado de cuenta (Task 7.3). Fecha de corte por defecto: hoy UTC (mismo criterio de "hoy" que el resto de handlers). Solo
-/// valida la página (Review Focus 5); el socio del filtro no es entidad de ruta (inexistente = página vacía).
+/// Estado de cuenta (Task 7.3). Fecha de corte por defecto: hoy UTC (mismo criterio de "hoy" que el resto de handlers). Sin
+/// validaciones: la página se normaliza y una página enorme da 200 con página vacía (<see cref="PageRequest.Offset"/>); el
+/// socio del filtro no es entidad de ruta (inexistente = página vacía).
 /// </summary>
 public sealed class GetEstadoCuentaQueryHandler(IMovimientoClienteReadRepository readRepository)
     : IRequestHandler<GetEstadoCuentaQuery, Result<EstadoCuentaResponse>>
 {
     public async Task<Result<EstadoCuentaResponse>> Handle(GetEstadoCuentaQuery request, CancellationToken cancellationToken)
     {
-        if (PaginacionValidacion.Validar(request.Paginacion, "estado_cuenta") is { } errorPagina)
-        {
-            return Result<EstadoCuentaResponse>.Fallo(errorPagina);
-        }
-
         var criterios = request.Criterios with
         {
             FechaCorte = request.Criterios.FechaCorte ?? DateOnly.FromDateTime(DateTime.UtcNow)

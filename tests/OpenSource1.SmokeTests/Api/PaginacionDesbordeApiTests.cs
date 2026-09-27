@@ -7,10 +7,10 @@ using OpenSource1.SmokeTests.TestInfrastructure;
 namespace OpenSource1.SmokeTests.Api;
 
 /// <summary>
-/// Task 7.5: una <c>pagina</c> enorme (<c>int.MaxValue</c>) no puede dar 500 en ningún listado paginado. Los listados
-/// anteriores a la Fase 7 (sin <c>PaginacionValidacion</c>) se apoyan en <see cref="OpenSource1.Core.Common.PageRequest.Offset"/>,
-/// acotado a <c>int.MaxValue</c>: responden 200 con una página vacía que conserva la página pedida. Las vistas de la Fase 7
-/// siguen respondiendo 400 con <c>Campo = "Pagina"</c> (cubierto en sus propios tests). REQUIERE DOCKER.
+/// Task 7.5: una <c>pagina</c> enorme (<c>int.MaxValue</c>) no puede dar 500 en ningún listado paginado. Todos, incluidas
+/// las vistas de la Fase 7, se apoyan en <see cref="OpenSource1.Core.Common.PageRequest.Offset"/>, acotado a
+/// <c>int.MaxValue</c>: responden 200 con una página vacía que conserva la página pedida (las páginas Blazor saltan entonces
+/// a la última). Los movimientos de un cliente (ruta con socio) se cubren en <c>ClientesVistasApiTests</c>. REQUIERE DOCKER.
 /// </summary>
 [Collection(PostgresCollection.Name)]
 public sealed class PaginacionDesbordeApiTests : IClassFixture<PostgresTestFixture>, IDisposable
@@ -68,19 +68,25 @@ public sealed class PaginacionDesbordeApiTests : IClassFixture<PostgresTestFixtu
         }
     }
 
+    /// <summary>Las vistas de la Fase 7: mismo contrato; existencias y estado de cuenta anidan la página en <c>pagina</c>.</summary>
     [Theory]
-    [InlineData("/api/inventario/movimientos-producto")]
-    [InlineData("/api/inventario/movimientos-valor")]
-    [InlineData("/api/inventario/existencias")]
-    [InlineData("/api/contabilidad/movimientos")]
-    [InlineData("/api/clientes/estado-cuenta")]
-    public async Task VistaFase7_PaginaEnorme_Devuelve400ConCampoPagina(string url)
+    [InlineData("/api/inventario/movimientos-producto", false)]
+    [InlineData("/api/inventario/movimientos-valor", false)]
+    [InlineData("/api/inventario/existencias", true)]
+    [InlineData("/api/contabilidad/movimientos", false)]
+    [InlineData("/api/clientes/estado-cuenta", true)]
+    public async Task VistaFase7_PaginaEnorme_Devuelve200ConPaginaVacia(string url, bool anidada)
     {
-        using var respuesta = await _client.GetAsync($"{url}?{PaginaEnorme}");
-        var cuerpo = await respuesta.Content.ReadAsStringAsync();
+        foreach (var tamano in new[] { 50, 200 })
+        {
+            using var respuesta = await _client.GetAsync($"{url}?{PaginaEnorme}&tamanoPagina={tamano}");
+            var cuerpo = await respuesta.Content.ReadAsStringAsync();
 
-        Assert.True(respuesta.StatusCode == HttpStatusCode.BadRequest, $"{url}: {(int)respuesta.StatusCode} {cuerpo}");
-        using var json = JsonDocument.Parse(cuerpo);
-        Assert.True(json.RootElement.GetProperty("errors").TryGetProperty("Pagina", out _), cuerpo);
+            Assert.True(respuesta.StatusCode == HttpStatusCode.OK, $"{url} (tamaño {tamano}): {(int)respuesta.StatusCode} {cuerpo}");
+            using var json = JsonDocument.Parse(cuerpo);
+            var pagina = anidada ? json.RootElement.GetProperty("pagina") : json.RootElement;
+            Assert.Equal(0, pagina.GetProperty("items").GetArrayLength());
+            Assert.Equal(int.MaxValue, pagina.GetProperty("pagina").GetInt32());
+        }
     }
 }

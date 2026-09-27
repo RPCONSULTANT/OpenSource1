@@ -35,12 +35,6 @@ public sealed class ListMovimientosContablesQueryHandler(IContabilidadReadReposi
                 "TipoDocumento"));
         }
 
-        // Una página cuyo OFFSET desborda int daba 500 en Postgres (hueco heredado de la Task 5.5).
-        if (PaginacionValidacion.Validar(request.Paginacion, "contabilidad") is { } errorPagina)
-        {
-            errores.Add(errorPagina);
-        }
-
         return errores.Count > 0
             ? Task.FromResult(Result<PagedResult<MovimientoContableResponse>>.Fallo([.. errores]))
             : readRepository.ListMovimientosAsync(request.Search, request.Paginacion, cancellationToken);

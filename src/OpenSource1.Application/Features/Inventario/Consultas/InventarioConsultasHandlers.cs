@@ -8,13 +8,13 @@ namespace OpenSource1.Application.Features.Inventario.Consultas;
 
 /// <summary>
 /// Validación común de las vistas de inventario (Review Focus 5): los filtros inválidos son 400 con <c>Campo</c>, nunca 500.
-/// Página &lt; 1 y tamaño fuera de [1, 200] se normalizan (<see cref="PageRequest.Normalizar"/>); una página cuyo desplazamiento
-/// no cabe en un entero (el OFFSET saldría negativo) es 400.
+/// Página &lt; 1 y tamaño fuera de [1, 200] se normalizan (<see cref="PageRequest.Normalizar"/>); una página enorme no es error:
+/// <see cref="PageRequest.Offset"/> se acota a <c>int.MaxValue</c> y la vista responde 200 con una página vacía, como el resto.
 /// </summary>
 internal static class InventarioConsultasValidacion
 {
     public static List<Error> Validar(
-        DateOnly? desde, DateOnly? hasta, int? tipoMovimiento, int? tipoOrigen, PageRequest paginacion)
+        DateOnly? desde, DateOnly? hasta, int? tipoMovimiento, int? tipoOrigen)
     {
         var errores = new List<Error>();
         if (desde is { } d && hasta is { } h && d > h)
@@ -38,16 +38,7 @@ internal static class InventarioConsultasValidacion
                 "TipoOrigen"));
         }
 
-        ValidarPagina(paginacion, errores);
         return errores;
-    }
-
-    public static void ValidarPagina(PageRequest paginacion, List<Error> errores)
-    {
-        if (PaginacionValidacion.Validar(paginacion, "inventario") is { } error)
-        {
-            errores.Add(error);
-        }
     }
 
     /// <summary>Los enums del libro son <c>smallint</c>: un valor fuera de <c>short</c> nunca está definido.</summary>
@@ -63,7 +54,7 @@ public sealed class ListMovimientosProductoVistaQueryHandler(IInventarioConsulta
         ListMovimientosProductoVistaQuery request, CancellationToken cancellationToken)
     {
         var c = request.Criterios;
-        var errores = InventarioConsultasValidacion.Validar(c.Desde, c.Hasta, c.TipoMovimiento, c.TipoOrigen, request.Paginacion);
+        var errores = InventarioConsultasValidacion.Validar(c.Desde, c.Hasta, c.TipoMovimiento, c.TipoOrigen);
         if (errores.Count > 0)
         {
             return Result<PagedResult<MovimientoProductoVistaResponse>>.Fallo([.. errores]);
@@ -81,7 +72,7 @@ public sealed class ListMovimientosValorVistaQueryHandler(IInventarioConsultasRe
         ListMovimientosValorVistaQuery request, CancellationToken cancellationToken)
     {
         var c = request.Criterios;
-        var errores = InventarioConsultasValidacion.Validar(c.Desde, c.Hasta, c.TipoMovimiento, c.TipoOrigen, request.Paginacion);
+        var errores = InventarioConsultasValidacion.Validar(c.Desde, c.Hasta, c.TipoMovimiento, c.TipoOrigen);
         if (errores.Count > 0)
         {
             return Result<PagedResult<MovimientoValorVistaResponse>>.Fallo([.. errores]);
@@ -97,13 +88,6 @@ public sealed class ListExistenciasVistaQueryHandler(IInventarioConsultasReadRep
 {
     public async Task<Result<ExistenciasVistaResponse>> Handle(ListExistenciasVistaQuery request, CancellationToken cancellationToken)
     {
-        var errores = new List<Error>();
-        InventarioConsultasValidacion.ValidarPagina(request.Paginacion, errores);
-        if (errores.Count > 0)
-        {
-            return Result<ExistenciasVistaResponse>.Fallo([.. errores]);
-        }
-
         // Fecha de corte por defecto: hoy (mismo criterio de "hoy" que el resto de handlers).
         var criterios = request.Criterios with { Fecha = request.Criterios.Fecha ?? DateOnly.FromDateTime(DateTime.UtcNow) };
         return Result<ExistenciasVistaResponse>.Exito(

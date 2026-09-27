@@ -33,7 +33,7 @@ public sealed class InventarioController(ISender sender) : ControllerBase
     /// Movimientos de producto (Task 7.2), por defecto en orden cronológico ascendente (<c>FechaRegistro</c>, <c>Id</c>). Con
     /// <c>productoId</c> cada fila trae <c>saldoAcumulado</c> (existencia tras el movimiento, incluido lo anterior a <c>desde</c> y
     /// a la página); sin él la propiedad no se devuelve. <c>tipoMovimiento</c>/<c>tipoOrigen</c> como entero; uno no definido,
-    /// fechas invertidas o una página fuera de rango → 400. Orden: <c>Id</c>, <c>FechaRegistro</c>, <c>NumeroDocumento</c>,
+    /// o fechas invertidas → 400 (una página enorme → 200 con página vacía). Orden: <c>Id</c>, <c>FechaRegistro</c>, <c>NumeroDocumento</c>,
     /// <c>Cantidad</c>, <c>TipoMovimiento</c>, <c>TipoOrigen</c> (otra columna se ignora).
     /// </summary>
     [HttpGet("movimientos-producto")]

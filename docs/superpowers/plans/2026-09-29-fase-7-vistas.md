@@ -135,8 +135,10 @@ movimientos contables con filtros y enlace al asiento, y balance de comprobació
 Todo solo lectura, sin migraciones ni índices nuevos, < 200 ms con 100 000 movimientos salvo el estado de cuenta de toda la
 cartera (ver pendientes). Cierre (Task 7.5): retirados `ConvertirABaseAsync`/`ObtenerFactorAsync` (sin llamadores; tests
 reexpresados sobre `ObtenerConversionAsync`), `PageRequest.Offset` acotado a `[0, int.MaxValue]` (los 19 listados
-anteriores a la Fase 7 respondían 500 con `pagina=2147483647`; ahora 200 con página vacía, y las vistas de la Fase 7 400 con
-`Campo = "Pagina"`), y las reglas refinadas del estado de cuenta y del balance registradas en el spec.
+anteriores a la Fase 7 respondían 500 con `pagina=2147483647`; ahora 200 con página vacía), y las reglas refinadas del
+estado de cuenta y del balance registradas en el spec. Tanda final de correcciones: retirada `PaginacionValidacion` (las
+vistas de la Fase 7 respondían 400 con `Campo = "Pagina"`; ahora 200 con página vacía como el resto, y sus páginas Blazor
+saltan a la última).
 
 Verificación final: `dotnet build test.slnx --no-incremental` con 0 errores y solo los 6 avisos CS0618 preexistentes;
 `ApplicationDbContextModelTests` en verde; `dotnet ef migrations has-pending-model-changes` → "No changes have been made to
@@ -239,8 +241,8 @@ no se ha hecho merge ni push de ninguna. **La integración en `main` y el PR los
 **UI (Blazor Static SSR)**
 - Duplicación entre páginas de vistas (`MovimientosProducto.razor`/`MovimientosValor.razor`; campos de línea y buscador de
   diarios y facturas); `Definido<TEnum>` duplicado (moverlo a `Application/Common`).
-- Una página enorme en la URL en las vistas de la 7.2/7.3 muestra el aviso de "fuera de rango" en lugar de ir a la última
-  (la 7.4 ya la acota); en los listados antiguos muestra una página vacía.
+- Una página enorme en la URL en los listados anteriores a la Fase 7 muestra una página vacía (las vistas de la Fase 7
+  saltan a la última; con cero resultados muestran "página N de 1").
 - Selects cargados con `TamanoMaximo = 200` (almacenes) en lugar de buscador; búsqueda de productos en cada GET del
   borrador; mensajes "no encontrado" cuando lo que falló fue la carga; un 200 sin cuerpo en `ContabilidadApiClient` se
   muestra con el mensaje genérico; modo oscuro incompleto; texto (código o nombre) frente a select de producto (solo

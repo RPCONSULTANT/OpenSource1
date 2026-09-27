@@ -253,9 +253,6 @@ public sealed class ClientesVistasApiTests(PostgresTestFixture fixture) : IClass
     [InlineData("movimientos", "tipoDocumento=9", "TipoDocumento")]
     [InlineData("movimientos", "tipoDocumento=0", "TipoDocumento")]
     [InlineData("movimientos", "tipoDocumento=70000", "TipoDocumento")]
-    [InlineData("movimientos", "pagina=2147483647", "Pagina")]
-    [InlineData("estado", "pagina=2147483647", "Pagina")]
-    [InlineData("estado", "pagina=2147483647&tamanoPagina=2", "Pagina")]
     public async Task FiltroInvalido_Devuelve400ConCampo(string vista, string query, string campo)
     {
         var url = await UrlAsync(vista, query);
@@ -263,6 +260,26 @@ public sealed class ClientesVistasApiTests(PostgresTestFixture fixture) : IClass
         var cuerpo = await respuesta.Content.ReadAsStringAsync();
         Assert.True(respuesta.StatusCode == HttpStatusCode.BadRequest, $"{url}: {respuesta.StatusCode} {cuerpo}");
         Assert.True(JsonDocument.Parse(cuerpo).RootElement.GetProperty("errors").TryGetProperty(campo, out _), cuerpo);
+    }
+
+    /// <summary>
+    /// Una página enorme no es error (mismo contrato que el resto de listados): <c>PageRequest.Offset</c> se acota y la vista
+    /// responde 200 con una página vacía que conserva la página pedida (la página Blazor salta entonces a la última).
+    /// </summary>
+    [Theory]
+    [InlineData("movimientos", "pagina=2147483647")]
+    [InlineData("estado", "pagina=2147483647")]
+    [InlineData("estado", "pagina=2147483647&tamanoPagina=2")]
+    public async Task PaginaEnorme_Devuelve200ConPaginaVacia(string vista, string query)
+    {
+        var url = await UrlAsync(vista, query);
+        var respuesta = await _client.GetAsync(url);
+        var cuerpo = await respuesta.Content.ReadAsStringAsync();
+        Assert.True(respuesta.StatusCode == HttpStatusCode.OK, $"{url}: {respuesta.StatusCode} {cuerpo}");
+        var raiz = JsonDocument.Parse(cuerpo).RootElement;
+        var pag = vista == "estado" ? raiz.GetProperty("pagina") : raiz;
+        Assert.Equal(0, pag.GetProperty("items").GetArrayLength());
+        Assert.Equal(int.MaxValue, pag.GetProperty("pagina").GetInt32());
     }
 
     [Theory]
