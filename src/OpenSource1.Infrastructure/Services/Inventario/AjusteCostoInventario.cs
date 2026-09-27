@@ -38,6 +38,12 @@ namespace OpenSource1.Infrastructure.Services.Inventario;
 /// idempotente.
 /// </para>
 /// <para>
+/// <b>Proyección <c>Producto.CostoUnitario</c> al terminar</b> (Task 8.3): <see cref="ProyeccionCostoUnitario"/>, la MISMA
+/// definición que usa <c>RegistrarAsync</c> tras cada movimiento (<c>V / Q</c> sobre todo el libro de valor del producto,
+/// ya con los ajustes de esta pasada, a 4 decimales; si <c>Q &lt;= 0</c> se conserva). No es el promedio del último DÍA de la
+/// calculadora, que excluye las salidas de ese día: tras ellas el promedio vigente puede diferir en la cuarta cifra.
+/// </para>
+/// <para>
 /// <b>Divergencia transitoria con el posteo</b> (<see cref="CostoPromedioCalculadora"/> no conoce el futuro), en dos formas:
 /// (1) una salida posteada en un día con <c>Q &lt;= 0</c> se valora a <c>Producto.CostoUnitario</c>; (2) una entrada
 /// posteada después cambia el pool que valora un día con <c>Q &lt;= 0</c> ya ajustado (p. ej. una entrada fechada entre ese
@@ -130,10 +136,10 @@ public sealed class AjusteCostoInventario(IDbSession session, IUsuarioActual usu
         var tx = session.CurrentTransaction;
 
         // Releído bajo el bloqueo: otra ejecución concurrente pudo ajustarlo mientras se esperaba.
-        var producto = await session.Connection.QuerySingleOrDefaultAsync<ProductoFila>(new CommandDefinition(
-            """SELECT "CostoUnitario", "CostoAjustado" FROM "Productos" WHERE "Id" = @productoId""",
+        var costoAjustado = await session.Connection.QuerySingleOrDefaultAsync<bool?>(new CommandDefinition(
+            """SELECT "CostoAjustado" FROM "Productos" WHERE "Id" = @productoId""",
             new { productoId }, tx, cancellationToken: ct));
-        if (producto is null || (soloSiPendiente && producto.CostoAjustado))
+        if (costoAjustado is null || (soloSiPendiente && costoAjustado.Value))
         {
             return null;
         }
@@ -253,15 +259,15 @@ public sealed class AjusteCostoInventario(IDbSession session, IUsuarioActual usu
             }
         }
 
-        // Dos columnas por SQL y solo si cambian: no se pisa el resto del maestro ni se toca su xmin sin necesidad.
+        // Una columna por SQL y solo si cambia: no se pisa el resto del maestro ni se toca su xmin sin necesidad.
         var ajustado = !pendiente;
-        var costoFinal = CostoPromedioCalculadora.CostoPorUnidad(ultimoCosto ?? producto.CostoUnitario);
         await session.Connection.ExecuteAsync(new CommandDefinition(
-            """
-            UPDATE "Productos" SET "CostoAjustado" = @ajustado, "CostoUnitario" = @costoFinal
-            WHERE "Id" = @productoId AND ("CostoAjustado" <> @ajustado OR "CostoUnitario" <> @costoFinal)
-            """,
-            new { productoId, ajustado, costoFinal }, tx, cancellationToken: ct));
+            """UPDATE "Productos" SET "CostoAjustado" = @ajustado WHERE "Id" = @productoId AND "CostoAjustado" <> @ajustado""",
+            new { productoId, ajustado }, tx, cancellationToken: ct));
+
+        // Promedio final ajustado = misma definición que el registro (Task 8.3): V / Q sobre todo el libro de valor, ya con
+        // los ajustes y redondeos de esta pasada; si Q <= 0 se conserva. También solo si cambia.
+        await ProyeccionCostoUnitario.ActualizarAsync(session, productoId, ct);
 
         return (insertados, ajustado);
     }
@@ -329,8 +335,6 @@ public sealed class AjusteCostoInventario(IDbSession session, IUsuarioActual usu
     }
 
     private sealed record ContextoInsercion(Guid ProductoId, DateTimeOffset CreatedAtUtc, string CreatedBy, Guid? UsuarioId);
-
-    private sealed record ProductoFila(decimal CostoUnitario, bool CostoAjustado);
 
     private sealed record MovimientoFila(
         long Id, Guid AlmacenId, TipoMovimientoInventario TipoMovimiento, TipoDocumentoInventario TipoDocumento,

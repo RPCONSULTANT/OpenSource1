@@ -385,7 +385,7 @@ tabla. El VO `Pais` se conserva tal cual (los países no necesitan administraci�
 | `Precio numeric(18,2)` | → `PrecioVenta numeric(18,4)` |
 | `UnidadMedidaBaseId uuid` | FK → `UnidadesMedida`, NOT NULL |
 | `MetodoCosteo smallint` | Promedio=1 (único implementado) |
-| `CostoUnitario numeric(18,4)` | **Proyección mantenida**, no autoritativa: la recalcula la rutina de ajuste de costo. El valor autoritativo siempre se deriva de `MovimientosValor` |
+| `CostoUnitario numeric(18,4)` | **Proyección mantenida**, no autoritativa: la recalcula la rutina de ajuste de costo y, desde la Fase 8, cada movimiento de inventario (promedio `V / Q` sobre todo el libro de valor; si `Q <= 0` se conserva). El valor autoritativo siempre se deriva de `MovimientosValor` |
 | `CostoEstandar numeric(18,4)` | Informativo |
 | `CostoAjustado bool` | La doc confirma que `Cost is Adjusted` vive en `Item`, no en el movimiento |
 | `CategoriaId uuid` | FK → `CategoriasProducto` (hoy es texto libre sin catálogo) |

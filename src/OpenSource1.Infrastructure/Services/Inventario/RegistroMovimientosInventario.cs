@@ -16,6 +16,8 @@ namespace OpenSource1.Infrastructure.Services.Inventario;
 /// <remarks>
 /// Las validaciones y la comprobación de existencia van ANTES del primer INSERT: un resultado fallido no deja filas
 /// escritas en la transacción del llamador. Serializa por producto con <see cref="BloqueoInventarioProducto"/>.
+/// Fuera del libro solo actualiza, en el maestro <c>Productos</c> y por SQL de una columna, <c>CostoAjustado</c> y la
+/// proyección <c>CostoUnitario</c> (<see cref="ProyeccionCostoUnitario"/>).
 /// </remarks>
 public sealed class RegistroMovimientosInventario(
     IDbSession session,
@@ -322,6 +324,11 @@ public sealed class RegistroMovimientosInventario(
                 """UPDATE "Productos" SET "CostoAjustado" = false WHERE "Id" = @ProductoId AND "CostoAjustado" = true""",
                 new { solicitud.ProductoId }, tx, cancellationToken: ct));
         }
+
+        // 8. Proyección Producto.CostoUnitario (Task 8.3): promedio vigente a la última fecha con movimientos (V / Q sobre
+        //    todo el libro de valor del producto, ya con esta fila); si Q <= 0 se conserva. Mismo bloqueo y transacción;
+        //    una sola columna y solo si cambia (el xmin del maestro cambia: una edición concurrente del producto recibe 409).
+        await ProyeccionCostoUnitario.ActualizarAsync(session, solicitud.ProductoId, ct);
 
         return Result<MovimientoRegistrado>.Exito(
             new MovimientoRegistrado(movimientoProductoId, movimientoValorId, cantidadBase, importeCosto));

@@ -459,6 +459,13 @@ public sealed class RegistroMovimientosInventarioTests(PostgresTestFixture fixtu
             producto, almacen, 10m, 5m, D1, tipo: TipoMovimientoInventario.Transferencia));
         await EstablecerCostoAjustadoAsync(producto, true);
 
+        // La entrada deja la proyección en 5 (V / Q sobre todo el libro, Task 8.3); se fija otro valor para distinguir el
+        // costo de reserva del de la entrada.
+        await using (var conexion = _prueba.NuevaConexion())
+        {
+            await conexion.ExecuteAsync("""UPDATE "Productos" SET "CostoUnitario" = 7 WHERE "Id" = @producto""", new { producto });
+        }
+
         Assert.Null(await _prueba.ConsultarAsync(c => c.CostoPromedioAsync(producto, D1)));
 
         var salida = await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Salida(
