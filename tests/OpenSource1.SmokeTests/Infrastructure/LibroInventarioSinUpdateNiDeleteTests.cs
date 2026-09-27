@@ -32,7 +32,9 @@ namespace OpenSource1.SmokeTests.Infrastructure;
 /// documento de venta posteado (<c>FacturasVenta</c>, <c>LineasFacturaVenta</c>, <c>LineasIvaFacturaVenta</c>) y el libro de
 /// clientes (<c>MovimientosCliente</c>, <c>MovimientosClienteDetalle</c>), mismo trigger (migración
 /// <c>AddFacturasVentaYLibroClientes</c>), sin excepción. Los borradores (<c>FacturasVentaBorrador</c>,
-/// <c>LineasFacturaVentaBorrador</c>) NO están protegidos: el <c>\b</c> tras el nombre los distingue.
+/// <c>LineasFacturaVentaBorrador</c>) NO están protegidos: el <c>\b</c> tras el nombre los distingue. La Task 8.6 añade el documento
+/// de nota de crédito posteado (<c>NotasCreditoVenta</c>, <c>LineasNotaCreditoVenta</c>, <c>LineasIvaNotaCreditoVenta</c>; migración
+/// <c>AddNotasCreditoVenta</c>), sin excepción; sus borradores tampoco están protegidos.
 /// </para>
 /// </summary>
 public sealed class LibroInventarioSinUpdateNiDeleteTests
@@ -41,11 +43,13 @@ public sealed class LibroInventarioSinUpdateNiDeleteTests
     [
         "MovimientosValor", "AplicacionesMovimientoProducto", "RegistrosDiario", "MovimientosContables", "RegistrosContables",
         "FacturasVenta", "LineasFacturaVenta", "LineasIvaFacturaVenta", "MovimientosCliente", "MovimientosClienteDetalle",
+        "NotasCreditoVenta", "LineasNotaCreditoVenta", "LineasIvaNotaCreditoVenta",
     ];
     private static readonly string[] EntidadesProtegidas =
     [
         "MovimientoValor", "AplicacionMovimientoProducto", "RegistroDiario", "MovimientoContable", "RegistroContable",
         "FacturaVenta", "LineaFacturaVenta", "LineaIvaFacturaVenta", "MovimientoCliente", "MovimientoClienteDetalle",
+        "NotaCreditoVenta", "LineaNotaCreditoVenta", "LineaIvaNotaCreditoVenta",
     ];
 
     /// <summary>

@@ -14,5 +14,9 @@ public enum TipoOrigenMovimiento : short
     AjusteCosto = 3,
     CostoInventario = 4,
     Cobro = 5,
+
+    /// <summary>Posteo de notas de crédito de venta (Task 8.6): documento, devolución de inventario, cliente y asiento.</summary>
+    NotaCreditoVenta = 6,
+
     Migracion = 99
 }

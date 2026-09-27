@@ -347,7 +347,7 @@ public sealed class InventarioVistasApiTests(PostgresTestFixture fixture) : ICla
     [InlineData(UrlValor + "?desde=2026-05-02&hasta=2026-05-01", "Desde")]
     [InlineData(UrlProducto + "?tipoMovimiento=9", "TipoMovimiento")]
     [InlineData(UrlValor + "?tipoMovimiento=0", "TipoMovimiento")]
-    [InlineData(UrlProducto + "?tipoOrigen=6", "TipoOrigen")]
+    [InlineData(UrlProducto + "?tipoOrigen=7", "TipoOrigen")]
     [InlineData(UrlValor + "?tipoOrigen=70000", "TipoOrigen")]
     public async Task FiltroInvalido_Devuelve400ConCampo(string url, string campo)
     {

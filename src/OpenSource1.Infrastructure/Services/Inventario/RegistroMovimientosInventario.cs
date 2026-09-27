@@ -129,13 +129,16 @@ public sealed class RegistroMovimientosInventario(
         // Solo se valida en entradas: en una salida CostoUnitario se ignora (el contrato no lo usa allí). La entrada de una
         // TRANSFERENCIA admite más de 4 decimales: recibe el costo exacto de su salida gemela (-ImporteCosto / CantidadBase,
         // p. ej. 5.3333 / 4 = 1.333325) para que su importe sea exactamente el opuesto; redondearlo a 4 decimales
-        // descuadraría la reclasificación. CostoPorUnidad se sigue guardando redondeado a 4.
+        // descuadraría la reclasificación. Lo mismo la entrada de tipo VENTA (Task 8.6): solo la registra la devolución de una
+        // nota de crédito, al costo exacto de la salida original, para que el valor que vuelve sea exactamente el que salió
+        // (proporcional a la cantidad). CostoPorUnidad se sigue guardando redondeado a 4.
+        var costoExacto = esTransferencia || solicitud.TipoMovimiento == TipoMovimientoInventario.Venta;
         if (solicitud.EsEntrada && solicitud.CostoUnitario is { } costoSolicitado
-            && !(esTransferencia ? EsCostoTransferenciaValido(costoSolicitado) : EsImporteValido(costoSolicitado)))
+            && !(costoExacto ? EsCostoTransferenciaValido(costoSolicitado) : EsImporteValido(costoSolicitado)))
         {
-            // La entrada de una Transferencia no exige 4 decimales (ver el comentario de arriba): el mensaje no puede
-            // prometer un límite que esta rama no comprueba.
-            var mensaje = esTransferencia
+            // Esas entradas no exigen 4 decimales (ver el comentario de arriba): el mensaje no puede prometer un límite que
+            // esta rama no comprueba.
+            var mensaje = costoExacto
                 ? "El costo unitario debe ser mayor o igual que cero y menor que 1e14."
                 : "El costo unitario debe ser menor que 1e14 y tener como máximo 4 decimales.";
             return Fallo(new Error("inventario.costo_invalido", mensaje, "CostoUnitario"));
@@ -434,7 +437,10 @@ public sealed class RegistroMovimientosInventario(
     private static bool EsImporteValido(decimal valor) =>
         valor >= 0 && valor <= ImporteMaximo && decimal.Round(valor, 4) == valor;
 
-    /// <summary>Rango de numeric(18,4) sin exigir 4 decimales (solo el costo de la entrada gemela de una transferencia).</summary>
+    /// <summary>
+    /// Rango de numeric(18,4) sin exigir 4 decimales (solo el costo de la entrada gemela de una transferencia y el de la devolución
+    /// de una venta, que llevan el costo exacto de su salida).
+    /// </summary>
     private static bool EsCostoTransferenciaValido(decimal valor) => valor >= 0 && valor <= ImporteMaximo;
 
     private static string Formato(decimal valor) => valor.ToString("0.######", CultureInfo.InvariantCulture);

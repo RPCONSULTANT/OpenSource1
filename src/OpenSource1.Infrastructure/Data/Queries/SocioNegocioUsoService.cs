@@ -5,9 +5,9 @@ using OpenSource1.Application.Features.SociosNegocio;
 namespace OpenSource1.Infrastructure.Data.Queries;
 
 /// <summary>
-/// Guarda de uso de socios de negocio (Task 6.4). En uso si es vender-a o facturar-a de un borrador de factura NO borrado, o si
-/// aparece en una factura posteada (vender-a o facturar-a), en el libro de clientes, en el libro contable o en el libro de
-/// inventario (los libros y el documento posteado no tienen borrado lógico).
+/// Guarda de uso de socios de negocio (Task 6.4). En uso si es vender-a o facturar-a de un borrador de factura o de nota de crédito
+/// (Task 8.6) NO borrado, o si aparece en una factura o una nota de crédito posteadas (vender-a o facturar-a), en el libro de
+/// clientes, en el libro contable o en el libro de inventario (los libros y los documentos posteados no tienen borrado lógico).
 /// </summary>
 public sealed class SocioNegocioUsoService(IDbSession session) : ISocioNegocioUsoService
 {
@@ -19,6 +19,13 @@ public sealed class SocioNegocioUsoService(IDbSession session) : ISocioNegocioUs
             SELECT 1 FROM "FacturasVenta" WHERE "SocioNegocioId" = @Id
         ) OR EXISTS (
             SELECT 1 FROM "FacturasVenta" WHERE "SocioNegocioFacturarAId" = @Id
+        ) OR EXISTS (
+            SELECT 1 FROM "NotasCreditoVentaBorrador"
+            WHERE "IsDeleted" = false AND ("SocioNegocioId" = @Id OR "SocioNegocioFacturarAId" = @Id)
+        ) OR EXISTS (
+            SELECT 1 FROM "NotasCreditoVenta" WHERE "SocioNegocioId" = @Id
+        ) OR EXISTS (
+            SELECT 1 FROM "NotasCreditoVenta" WHERE "SocioNegocioFacturarAId" = @Id
         ) OR EXISTS (
             SELECT 1 FROM "MovimientosCliente" WHERE "SocioNegocioId" = @Id
         ) OR EXISTS (

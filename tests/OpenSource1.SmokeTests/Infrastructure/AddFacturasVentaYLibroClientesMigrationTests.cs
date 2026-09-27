@@ -78,7 +78,9 @@ public sealed class AddFacturasVentaYLibroClientesMigrationTests(PostgresTestFix
             ("""DELETE FROM "MovimientosCliente" WHERE "Id" = @Factura""", "MovimientosCliente"),
             ("""UPDATE "MovimientosClienteDetalle" SET "Importe" = 0 WHERE "MovimientoClienteId" = @Factura""", "MovimientosClienteDetalle"),
             ("""DELETE FROM "MovimientosClienteDetalle" WHERE "MovimientoClienteId" = @Factura""", "MovimientosClienteDetalle"),
-            ("""TRUNCATE "LineasFacturaVenta" """, "LineasFacturaVenta"),
+            // Desde la Task 8.6 LineasNotaCreditoVenta(Borrador) referencia LineasFacturaVenta: sin CASCADE, Postgres lo rechaza antes
+            // (0A000) por la FK; con CASCADE salta el trigger (de esta tabla o de la de notas, ambas append-only).
+            ("""TRUNCATE "LineasFacturaVenta" CASCADE""", null),
             ("""TRUNCATE "LineasIvaFacturaVenta" """, "LineasIvaFacturaVenta"),
             ("""TRUNCATE "MovimientosClienteDetalle" """, "MovimientosClienteDetalle"),
             // Con CASCADE se truncan también las tablas hijas: salta el trigger de la primera, sea cual sea.

@@ -43,6 +43,11 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<FacturaVenta> FacturasVenta => Set<FacturaVenta>();
     public DbSet<LineaFacturaVenta> LineasFacturaVenta => Set<LineaFacturaVenta>();
     public DbSet<LineaIvaFacturaVenta> LineasIvaFacturaVenta => Set<LineaIvaFacturaVenta>();
+    public DbSet<NotaCreditoVentaBorrador> NotasCreditoVentaBorrador => Set<NotaCreditoVentaBorrador>();
+    public DbSet<LineaNotaCreditoVentaBorrador> LineasNotaCreditoVentaBorrador => Set<LineaNotaCreditoVentaBorrador>();
+    public DbSet<NotaCreditoVenta> NotasCreditoVenta => Set<NotaCreditoVenta>();
+    public DbSet<LineaNotaCreditoVenta> LineasNotaCreditoVenta => Set<LineaNotaCreditoVenta>();
+    public DbSet<LineaIvaNotaCreditoVenta> LineasIvaNotaCreditoVenta => Set<LineaIvaNotaCreditoVenta>();
     public DbSet<MovimientoCliente> MovimientosCliente => Set<MovimientoCliente>();
     public DbSet<MovimientoClienteDetalle> MovimientosClienteDetalle => Set<MovimientoClienteDetalle>();
     public DbSet<ConfiguracionRegistro> ConfiguracionesRegistro => Set<ConfiguracionRegistro>();
@@ -320,6 +325,31 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                     IsDeleted = false
                 });
 
+            // Series de notas de crédito de venta (Task 8.6): NC-BORR (borradores, con huecos) y NC (posteadas, sin huecos).
+            entity.HasData(
+                new
+                {
+                    Id = SerieNotaCreditoVentaIds.SerieBorradorId,
+                    Codigo = SerieNotaCreditoVentaIds.CodigoBorrador,
+                    Descripcion = "Borradores de nota de crédito de venta",
+                    PermiteHuecos = true,
+                    PorDefecto = false,
+                    CreatedAtUtc = FechaSemilla,
+                    CreatedBy = "system",
+                    IsDeleted = false
+                },
+                new
+                {
+                    Id = SerieNotaCreditoVentaIds.SeriePosteadaId,
+                    Codigo = SerieNotaCreditoVentaIds.CodigoPosteada,
+                    Descripcion = "Notas de crédito de venta",
+                    PermiteHuecos = false,
+                    PorDefecto = false,
+                    CreatedAtUtc = FechaSemilla,
+                    CreatedBy = "system",
+                    IsDeleted = false
+                });
+
             // Serie COBRO (Task 6.5): pagos de clientes, sin huecos (se deshace con la transacción del pago). Mismo patrón.
             entity.HasData(new
             {
@@ -415,6 +445,37 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                 {
                     Id = SerieFacturaVentaIds.LineaSeriePosteadaId,
                     SerieId = SerieFacturaVentaIds.SeriePosteadaId,
+                    NumeroInicial = "00000001",
+                    NumeroFinal = "99999999",
+                    UltimoNumeroUsado = "00000000",
+                    FechaInicial = new DateOnly(2020, 1, 1),
+                    Incremento = 1,
+                    Bloqueada = false,
+                    CreatedAtUtc = FechaSemilla,
+                    CreatedBy = "system",
+                    IsDeleted = false
+                });
+
+            // Líneas vigentes de NC-BORR y NC (Task 8.6), 8 dígitos. Misma regla: NUNCA editar "UltimoNumeroUsado" aquí.
+            entity.HasData(
+                new
+                {
+                    Id = SerieNotaCreditoVentaIds.LineaSerieBorradorId,
+                    SerieId = SerieNotaCreditoVentaIds.SerieBorradorId,
+                    NumeroInicial = "00000001",
+                    NumeroFinal = "99999999",
+                    UltimoNumeroUsado = "00000000",
+                    FechaInicial = new DateOnly(2020, 1, 1),
+                    Incremento = 1,
+                    Bloqueada = false,
+                    CreatedAtUtc = FechaSemilla,
+                    CreatedBy = "system",
+                    IsDeleted = false
+                },
+                new
+                {
+                    Id = SerieNotaCreditoVentaIds.LineaSeriePosteadaId,
+                    SerieId = SerieNotaCreditoVentaIds.SeriePosteadaId,
                     NumeroInicial = "00000001",
                     NumeroFinal = "99999999",
                     UltimoNumeroUsado = "00000000",
@@ -790,6 +851,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         });
 
         ConfigurarFacturasVentaPosteadas(modelBuilder);
+        ConfigurarNotasCreditoVenta(modelBuilder);
         ConfigurarLibroClientes(modelBuilder);
 
         modelBuilder.Entity<RegistroDiario>(entity =>
@@ -1063,6 +1125,204 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.HasIndex(x => x.CuentaIvaId).HasDatabaseName("IX_LineasIvaFacturaVenta_CuentaIvaId");
 
             entity.HasOne<FacturaVenta>().WithMany().HasForeignKey(x => x.FacturaVentaNumero).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<CuentaContable>().WithMany().HasForeignKey(x => x.CuentaIvaId).OnDelete(DeleteBehavior.Restrict);
+        });
+    }
+
+    /// <summary>
+    /// Notas de crédito de venta (Task 8.6): borradores (maestros con <c>xmin</c> y soft delete, mismo patrón que los de factura) y el
+    /// documento posteado (<c>NotasCreditoVenta</c>, PK <c>Numero</c>; <c>LineasNotaCreditoVenta</c>; <c>LineasIvaNotaCreditoVenta</c>),
+    /// append-only con el trigger <c>libro_inventario_append_only()</c> (migración <c>AddNotasCreditoVenta</c>). FK Restrict y sin
+    /// navegación.
+    /// </summary>
+    private static void ConfigurarNotasCreditoVenta(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<NotaCreditoVentaBorrador>(entity =>
+        {
+            entity.ToTable("NotasCreditoVentaBorrador");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Numero).HasMaxLength(20).IsRequired();
+            entity.Property(x => x.FacturaVentaNumero).HasMaxLength(20).IsRequired();
+            entity.Property(x => x.NombreFacturacion).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.RazonSocialFacturacion).HasMaxLength(200);
+            entity.Property(x => x.NumeroDocumentoFiscal).HasMaxLength(20);
+            entity.Property(x => x.DireccionFacturacionLinea1).HasMaxLength(300);
+            entity.Property(x => x.DireccionFacturacionLinea2).HasMaxLength(300);
+            entity.Property(x => x.CiudadFacturacion).HasMaxLength(100);
+            entity.Property(x => x.PaisCodigoFacturacion).HasMaxLength(2);
+            entity.Property(x => x.Moneda).HasMaxLength(3).IsRequired();
+            entity.Property(x => x.Descripcion).HasMaxLength(200);
+            entity.Property(x => x.CreatedBy).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.UpdatedBy).HasMaxLength(100);
+            entity.HasIndex(x => x.Numero).IsUnique().HasFilter("\"IsDeleted\" = false");
+            entity.HasIndex(x => x.CreatedAtUtc).HasDatabaseName("IX_NotasCreditoVentaBorrador_CreatedAtUtc");
+            entity.HasIndex(x => x.FacturaVentaNumero).HasDatabaseName("IX_NotasCreditoVentaBorrador_FacturaVentaNumero");
+
+            entity.HasOne<FacturaVenta>().WithMany().HasForeignKey(x => x.FacturaVentaNumero).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<SocioNegocio>().WithMany().HasForeignKey(x => x.SocioNegocioId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<SocioNegocio>().WithMany().HasForeignKey(x => x.SocioNegocioFacturarAId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<GrupoNegocio>().WithMany().HasForeignKey(x => x.GrupoNegocioId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<GrupoIvaNegocio>().WithMany().HasForeignKey(x => x.GrupoIvaNegocioId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<GrupoClienteContable>().WithMany().HasForeignKey(x => x.GrupoClienteContableId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<CuentaContable>().WithMany().HasForeignKey(x => x.CuentaCxCId).OnDelete(DeleteBehavior.Restrict);
+
+            entity.Property<uint>("xmin").HasColumnName("xmin").IsRowVersion();
+            entity.Property(x => x.IsDeleted).HasDefaultValue(false);
+            entity.Property(x => x.DeletedBy).HasMaxLength(100);
+            entity.HasQueryFilter(x => !x.IsDeleted);
+        });
+
+        modelBuilder.Entity<LineaNotaCreditoVentaBorrador>(entity =>
+        {
+            entity.ToTable("LineasNotaCreditoVentaBorrador", t =>
+            {
+                t.HasCheckConstraint("CK_LineasNotaCreditoVentaBorrador_Tipo", "\"Tipo\" IN (1, 2)");
+                t.HasCheckConstraint("CK_LineasNotaCreditoVentaBorrador_Cantidad", "\"Cantidad\" > 0");
+                // Solo una línea de Producto devuelve inventario.
+                t.HasCheckConstraint("CK_LineasNotaCreditoVentaBorrador_Devolucion", "\"Tipo\" = 1 OR \"DevolverInventario\" = false");
+            });
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Descripcion).HasMaxLength(200);
+            entity.Property(x => x.CantidadPorUnidadMedida).HasPrecision(18, 6);
+            entity.Property(x => x.Cantidad).HasPrecision(18, 6);
+            entity.Property(x => x.PrecioUnitario).HasPrecision(18, 4);
+            entity.Property(x => x.PorcentajeDescuentoLinea).HasPrecision(9, 5);
+            entity.Property(x => x.ImporteDescuentoLinea).HasPrecision(18, 4);
+            entity.Property(x => x.ImporteLinea).HasPrecision(18, 4);
+            entity.Property(x => x.IdentificadorIva).HasMaxLength(20);
+            entity.Property(x => x.PorcentajeIva).HasPrecision(9, 5);
+            entity.Property(x => x.CreatedBy).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.UpdatedBy).HasMaxLength(100);
+
+            // Una línea de nota por línea de factura en cada borrador (el NumeroLinea es el de la línea de factura).
+            entity.HasIndex(x => new { x.NotaCreditoVentaBorradorId, x.NumeroLinea }).IsUnique().HasFilter("\"IsDeleted\" = false");
+            entity.HasIndex(x => new { x.NotaCreditoVentaBorradorId, x.LineaFacturaVentaId }).IsUnique().HasFilter("\"IsDeleted\" = false");
+            entity.HasIndex(x => x.LineaFacturaVentaId).HasDatabaseName("IX_LineasNotaCreditoVentaBorrador_LineaFacturaVentaId");
+            entity.HasIndex(x => x.CreatedAtUtc).HasDatabaseName("IX_LineasNotaCreditoVentaBorrador_CreatedAtUtc");
+
+            entity.HasOne<NotaCreditoVentaBorrador>().WithMany().HasForeignKey(x => x.NotaCreditoVentaBorradorId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<LineaFacturaVenta>().WithMany().HasForeignKey(x => x.LineaFacturaVentaId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<Producto>().WithMany().HasForeignKey(x => x.ProductoId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<CuentaContable>().WithMany().HasForeignKey(x => x.CuentaContableId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<Almacen>().WithMany().HasForeignKey(x => x.AlmacenId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<UnidadMedida>().WithMany().HasForeignKey(x => x.UnidadMedidaId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<GrupoProducto>().WithMany().HasForeignKey(x => x.GrupoProductoId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<GrupoIvaProducto>().WithMany().HasForeignKey(x => x.GrupoIvaProductoId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<GrupoInventario>().WithMany().HasForeignKey(x => x.GrupoInventarioId).OnDelete(DeleteBehavior.Restrict);
+
+            entity.Property<uint>("xmin").HasColumnName("xmin").IsRowVersion();
+            entity.Property(x => x.IsDeleted).HasDefaultValue(false);
+            entity.Property(x => x.DeletedBy).HasMaxLength(100);
+            entity.HasQueryFilter(x => !x.IsDeleted);
+        });
+
+        modelBuilder.Entity<NotaCreditoVenta>(entity =>
+        {
+            entity.ToTable("NotasCreditoVenta", t =>
+            {
+                t.HasCheckConstraint("CK_NotasCreditoVenta_Total", "\"ImporteTotal\" = \"ImporteSinIva\" + \"ImporteIva\"");
+                t.HasCheckConstraint(
+                    "CK_NotasCreditoVenta_Redondeo",
+                    "\"ImporteSinIva\" = ROUND(\"ImporteSinIva\", 2) AND \"ImporteIva\" = ROUND(\"ImporteIva\", 2) AND " +
+                    "\"ImporteTotal\" = ROUND(\"ImporteTotal\", 2)");
+                t.HasCheckConstraint("CK_NotasCreditoVenta_TotalNoNegativo", "\"ImporteTotal\" >= 0");
+            });
+            entity.HasKey(x => x.Numero);
+            entity.Property(x => x.Numero).HasMaxLength(20);
+            entity.Property(x => x.NumeroBorrador).HasMaxLength(20).IsRequired();
+            entity.Property(x => x.FacturaVentaNumero).HasMaxLength(20).IsRequired();
+            entity.Property(x => x.NombreFacturacion).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.RazonSocialFacturacion).HasMaxLength(200);
+            entity.Property(x => x.NumeroDocumentoFiscal).HasMaxLength(20);
+            entity.Property(x => x.DireccionFacturacionLinea1).HasMaxLength(300);
+            entity.Property(x => x.DireccionFacturacionLinea2).HasMaxLength(300);
+            entity.Property(x => x.CiudadFacturacion).HasMaxLength(100);
+            entity.Property(x => x.PaisCodigoFacturacion).HasMaxLength(2);
+            entity.Property(x => x.Moneda).HasMaxLength(3).IsRequired();
+            entity.Property(x => x.Descripcion).HasMaxLength(200);
+            entity.Property(x => x.ImporteSinIva).HasPrecision(18, 4);
+            entity.Property(x => x.ImporteIva).HasPrecision(18, 4);
+            entity.Property(x => x.ImporteTotal).HasPrecision(18, 4);
+            entity.Property(x => x.CreatedBy).HasMaxLength(100).IsRequired();
+
+            entity.HasIndex(x => x.NumeroBorrador).IsUnique().HasDatabaseName("IX_NotasCreditoVenta_NumeroBorrador");
+            entity.HasIndex(x => x.FacturaVentaNumero).HasDatabaseName("IX_NotasCreditoVenta_FacturaVentaNumero");
+            entity.HasIndex(x => new { x.SocioNegocioId, x.FechaRegistro }).HasDatabaseName("IX_NotasCreditoVenta_SocioNegocioId_FechaRegistro");
+            entity.HasIndex(x => new { x.SocioNegocioFacturarAId, x.FechaRegistro })
+                .HasDatabaseName("IX_NotasCreditoVenta_SocioNegocioFacturarAId_FechaRegistro");
+            entity.HasIndex(x => x.FechaRegistro).HasDatabaseName("IX_NotasCreditoVenta_FechaRegistro");
+            // Un asiento pertenece a una sola nota; NULL admite varias (notas de total 0).
+            entity.HasIndex(x => x.RegistroContableId).IsUnique().HasDatabaseName("IX_NotasCreditoVenta_RegistroContableId");
+
+            entity.HasOne<FacturaVenta>().WithMany().HasForeignKey(x => x.FacturaVentaNumero).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<SocioNegocio>().WithMany().HasForeignKey(x => x.SocioNegocioId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<SocioNegocio>().WithMany().HasForeignKey(x => x.SocioNegocioFacturarAId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<GrupoNegocio>().WithMany().HasForeignKey(x => x.GrupoNegocioId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<GrupoIvaNegocio>().WithMany().HasForeignKey(x => x.GrupoIvaNegocioId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<GrupoClienteContable>().WithMany().HasForeignKey(x => x.GrupoClienteContableId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<CuentaContable>().WithMany().HasForeignKey(x => x.CuentaCxCId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<RegistroContable>().WithMany().HasForeignKey(x => x.RegistroContableId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<LineaNotaCreditoVenta>(entity =>
+        {
+            entity.ToTable("LineasNotaCreditoVenta", t =>
+            {
+                t.HasCheckConstraint("CK_LineasNotaCreditoVenta_Tipo", "\"Tipo\" IN (1, 2)");
+                t.HasCheckConstraint("CK_LineasNotaCreditoVenta_Cantidad", "\"Cantidad\" > 0");
+                // Red de seguridad: una devolución siempre tiene su entrada de inventario, y solo una línea de Producto devuelve.
+                t.HasCheckConstraint(
+                    "CK_LineasNotaCreditoVenta_Devolucion",
+                    "(\"DevolverInventario\" = true AND \"Tipo\" = 1 AND \"MovimientoProductoId\" IS NOT NULL) OR " +
+                    "(\"DevolverInventario\" = false AND \"MovimientoProductoId\" IS NULL)");
+            });
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).UseIdentityAlwaysColumn();
+            entity.Property(x => x.NotaCreditoVentaNumero).HasMaxLength(20).IsRequired();
+            entity.Property(x => x.Descripcion).HasMaxLength(200);
+            entity.Property(x => x.CantidadPorUnidadMedida).HasPrecision(18, 6);
+            entity.Property(x => x.Cantidad).HasPrecision(18, 6);
+            entity.Property(x => x.PrecioUnitario).HasPrecision(18, 4);
+            entity.Property(x => x.PorcentajeDescuentoLinea).HasPrecision(9, 5);
+            entity.Property(x => x.ImporteDescuentoLinea).HasPrecision(18, 4);
+            entity.Property(x => x.ImporteLinea).HasPrecision(18, 4);
+            entity.Property(x => x.IdentificadorIva).HasMaxLength(20);
+            entity.Property(x => x.PorcentajeIva).HasPrecision(9, 5);
+
+            entity.HasIndex(x => new { x.NotaCreditoVentaNumero, x.NumeroLinea }).IsUnique()
+                .HasDatabaseName("IX_LineasNotaCreditoVenta_NotaCreditoVentaNumero_NumeroLinea");
+            // Lo ya acreditado de una línea de factura (revalidación bajo el bloqueo de la factura).
+            entity.HasIndex(x => x.LineaFacturaVentaId).HasDatabaseName("IX_LineasNotaCreditoVenta_LineaFacturaVentaId");
+            entity.HasIndex(x => x.MovimientoProductoId).HasDatabaseName("IX_LineasNotaCreditoVenta_MovimientoProductoId");
+
+            entity.HasOne<NotaCreditoVenta>().WithMany().HasForeignKey(x => x.NotaCreditoVentaNumero).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<LineaFacturaVenta>().WithMany().HasForeignKey(x => x.LineaFacturaVentaId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<Producto>().WithMany().HasForeignKey(x => x.ProductoId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<CuentaContable>().WithMany().HasForeignKey(x => x.CuentaContableId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<Almacen>().WithMany().HasForeignKey(x => x.AlmacenId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<UnidadMedida>().WithMany().HasForeignKey(x => x.UnidadMedidaId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<GrupoProducto>().WithMany().HasForeignKey(x => x.GrupoProductoId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<GrupoIvaProducto>().WithMany().HasForeignKey(x => x.GrupoIvaProductoId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<GrupoInventario>().WithMany().HasForeignKey(x => x.GrupoInventarioId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<MovimientoProducto>().WithMany().HasForeignKey(x => x.MovimientoProductoId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<LineaIvaNotaCreditoVenta>(entity =>
+        {
+            entity.ToTable("LineasIvaNotaCreditoVenta");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).UseIdentityAlwaysColumn();
+            entity.Property(x => x.NotaCreditoVentaNumero).HasMaxLength(20).IsRequired();
+            entity.Property(x => x.IdentificadorIva).HasMaxLength(20).IsRequired();
+            entity.Property(x => x.PorcentajeIva).HasPrecision(9, 5);
+            entity.Property(x => x.BaseImponible).HasPrecision(18, 4);
+            entity.Property(x => x.ImporteIva).HasPrecision(18, 4);
+
+            entity.HasIndex(x => new { x.NotaCreditoVentaNumero, x.IdentificadorIva }).IsUnique()
+                .HasDatabaseName("IX_LineasIvaNotaCreditoVenta_NotaCreditoVentaNumero_IdentificadorIva");
+            entity.HasIndex(x => x.CuentaIvaId).HasDatabaseName("IX_LineasIvaNotaCreditoVenta_CuentaIvaId");
+
+            entity.HasOne<NotaCreditoVenta>().WithMany().HasForeignKey(x => x.NotaCreditoVentaNumero).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne<CuentaContable>().WithMany().HasForeignKey(x => x.CuentaIvaId).OnDelete(DeleteBehavior.Restrict);
         });
     }

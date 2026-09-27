@@ -9,7 +9,8 @@ namespace OpenSource1.Infrastructure.Services.Contabilidad;
 /// NO borrada lógicamente de: un grupo contable de cliente (CxC, descuento o interés; Task 5.3) o uno de los tres setups
 /// contables (Task 5.4), o si tiene algún movimiento en el libro contable (Task 5.5; el libro no tiene borrado lógico y usa el
 /// índice <c>IX_MovimientosContables_CuentaContableId_FechaRegistro</c>), o una línea viva de borrador de factura de tipo
-/// CuentaContable (Task 6.2).
+/// CuentaContable (Task 6.2), o un borrador vivo de nota de crédito que la lleve en una línea CuentaContable o como CxC congelada
+/// (Task 8.6).
 /// </summary>
 public sealed class CuentaContableUsoService(IDbSession session) : ICuentaContableUsoService
 {
@@ -33,6 +34,10 @@ public sealed class CuentaContableUsoService(IDbSession session) : ICuentaContab
               AND ("CuentaInventarioId" = @Id OR "CuentaAjusteInventarioId" = @Id OR "CuentaVariacionCostoId" = @Id)
         ) OR EXISTS (
             SELECT 1 FROM "LineasFacturaVentaBorrador" WHERE "IsDeleted" = false AND "CuentaContableId" = @Id
+        ) OR EXISTS (
+            SELECT 1 FROM "LineasNotaCreditoVentaBorrador" WHERE "IsDeleted" = false AND "CuentaContableId" = @Id
+        ) OR EXISTS (
+            SELECT 1 FROM "NotasCreditoVentaBorrador" WHERE "IsDeleted" = false AND "CuentaCxCId" = @Id
         )
         """;
 

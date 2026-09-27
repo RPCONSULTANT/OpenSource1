@@ -9,5 +9,8 @@ public enum TipoDocumentoContable : short
     Ninguno = 0,
     CostoInventario = 1,
     FacturaVenta = 2,
-    Cobro = 3
+    Cobro = 3,
+
+    /// <summary>Nota de crédito de venta (Task 8.6): asiento inverso al de la factura.</summary>
+    NotaCreditoVenta = 4
 }
