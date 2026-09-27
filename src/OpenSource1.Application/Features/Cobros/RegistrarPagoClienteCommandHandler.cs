@@ -125,7 +125,7 @@ public sealed class RegistrarPagoClienteCommandHandler(
 
         if (numero.Length > LongitudNumero)
         {
-            return Fallo(new Error("cobro.serie_invalida", $"El número de cobro generado supera los {LongitudNumero} caracteres.", "Id"));
+            return Fallo(new Error("cobro.serie_invalida", $"El número de cobro generado supera los {LongitudNumero} caracteres."));
         }
 
         var fechaDocumento = request.FechaDocumento ?? request.FechaRegistro;

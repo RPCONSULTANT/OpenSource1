@@ -237,6 +237,54 @@ public sealed class PostearLoteDiarioTests(PostgresTestFixture fixture) : IClass
     }
 
     [Fact]
+    public async Task CantidadNoExactaEnLaUnidadBase_AlRegistrar_FallaEnLineasNCantidad_SinEscribirNiConsumirNumero()
+    {
+        // Las líneas se guardaron con cantidades válidas y luego quedaron no exactas (dato legado / cambio directo): la
+        // revalidación del registro las rechaza con su número de línea en vez de redondearlas en el libro.
+        var und = await _prueba.SembrarProductoAsync();
+        var metro = await _prueba.SembrarProductoAsync();
+        await EjecutarSqlAsync(
+            """
+            UPDATE "Productos" SET "UnidadMedidaBaseId" = (SELECT "Id" FROM "UnidadesMedida" WHERE "Codigo" = 'MT') WHERE "Id" = @P;
+            UPDATE "UnidadesMedidaProducto" SET "CantidadPorUnidadMedida" = 3 WHERE "ProductoId" = @P;
+            """, new { P = metro });
+        var alm = await _prueba.SembrarAlmacenAsync();
+        var lote = await CrearLoteAsync(PlantillaDiarioIds.Articulo);
+        await AgregarLineaAsync(lote, TipoMovimientoInventario.AjustePositivo, und, alm, 1m, 1m, D1);
+        var dosYMedio = await AgregarLineaAsync(lote, TipoMovimientoInventario.AjustePositivo, und, alm, 2m, 1m, D1);
+        var medioCaja = await AgregarLineaAsync(lote, TipoMovimientoInventario.AjustePositivo, metro, alm, 0.5m, 1m, D1, unidad: _prueba.UnidadCja);
+        var tercioCaja = await AgregarLineaAsync(lote, TipoMovimientoInventario.AjustePositivo, metro, alm, 1m, 1m, D1, unidad: _prueba.UnidadCja);
+        Assert.Equal(3m, medioCaja.CantidadPorUnidadMedida);
+        await EjecutarSqlAsync("""UPDATE "LineasDiario" SET "Cantidad" = 2.5 WHERE "Id" = @Id""", new { dosYMedio.Id });
+        await EjecutarSqlAsync("""UPDATE "LineasDiario" SET "Cantidad" = 0.333333 WHERE "Id" = @Id""", new { tercioCaja.Id });
+        var ultimo = await UltimoNumeroAsync();
+
+        var resultado = await PostearAsync(lote);
+
+        Assert.True(resultado.EsFallo);
+        Assert.Equal(
+            [
+                ("conversion.cantidad_no_exacta", $"Lineas[{dosYMedio.NumeroLinea}].Cantidad"),
+                ("conversion.cantidad_no_exacta", $"Lineas[{tercioCaja.NumeroLinea}].Cantidad"),
+            ],
+            resultado.Errores.Select(e => (e.Codigo, e.Campo)));
+        Assert.Contains("no admite decimales", resultado.Errores[0].Mensaje);
+        Assert.Contains("como máximo 2 decimales", resultado.Errores[1].Mensaje);
+        Assert.Equal((0L, 0L, 0L), await _prueba.ContarFilasAsync(und));
+        Assert.Equal((0L, 0L, 0L), await _prueba.ContarFilasAsync(metro));
+        Assert.Empty(await RegistrosDelLoteAsync(lote));
+        Assert.Equal(4, await LineasVivasAsync(lote));
+        Assert.Equal(ultimo, await UltimoNumeroAsync());
+
+        // Con la cantidad no exacta corregida, la caja de 3 con 0.5 registra 1.5 MT exactos.
+        await EjecutarSqlAsync("""UPDATE "LineasDiario" SET "Cantidad" = 2 WHERE "Id" = @Id""", new { dosYMedio.Id });
+        await EjecutarSqlAsync("""UPDATE "LineasDiario" SET "Cantidad" = 1 WHERE "Id" = @Id""", new { tercioCaja.Id });
+        await PostearOkAsync(lote);
+        Assert.Equal(4.5m, await ExistenciaAsync(metro, alm));
+        Assert.Equal(3m, await ExistenciaAsync(und, alm));
+    }
+
+    [Fact]
     public async Task LoteInexistente_NoEncontrado_YLoteBloqueado_LoteBloqueado()
     {
         var inexistente = await PostearAsync(Guid.NewGuid());

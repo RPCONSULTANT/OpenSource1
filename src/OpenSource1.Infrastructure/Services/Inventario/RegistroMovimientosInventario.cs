@@ -171,30 +171,29 @@ public sealed class RegistroMovimientosInventario(
                 new { Id = socioId }, tx, cancellationToken: ct));
         }
 
-        // 4. Cantidad en unidad base y factor congelado (el del servicio de conversión, nunca cantidadBase / cantidad).
-        var cantidadBaseResultado = await conversion.ConvertirABaseAsync(
-            solicitud.ProductoId, solicitud.UnidadMedidaId, solicitud.Cantidad, ct);
-        if (cantidadBaseResultado.EsFallo)
+        // 4. Cantidad en unidad base y factor congelado: el MISMO factor (redondeado a 6) convierte, se comprueba y se congela
+        //    (nunca cantidadBase / cantidad). Red final: una cantidad cuya equivalencia en la base tiene más decimales de los
+        //    que admite la unidad base se RECHAZA sin escribir nada (redondearla descuadraría el libro con el documento).
+        var conversionResultado = await conversion.ObtenerConversionAsync(solicitud.ProductoId, solicitud.UnidadMedidaId, ct);
+        if (!conversionResultado.TryObtenerValor(out var conversionUnidad))
         {
-            return Result<MovimientoRegistrado>.Fallo(cantidadBaseResultado);
+            return Result<MovimientoRegistrado>.Fallo(conversionResultado);
         }
 
-        var factorResultado = await conversion.ObtenerFactorAsync(solicitud.ProductoId, solicitud.UnidadMedidaId, ct);
-        if (factorResultado.EsFallo)
+        var cantidadBaseResultado = conversionUnidad.ConvertirExacta(solicitud.Cantidad);
+        if (!cantidadBaseResultado.TryObtenerValor(out var cantidadBase))
         {
-            return Result<MovimientoRegistrado>.Fallo(factorResultado);
+            var original = cantidadBaseResultado.Errores[0];
+            return Fallo(new Error("inventario.cantidad_invalida", original.Mensaje, "Cantidad"));
         }
 
-        var cantidadBase = cantidadBaseResultado.Valor;
         if (cantidadBase <= 0)
         {
-            // La cantidad convertida y redondeada a los decimales de la base quedó en cero.
             return Fallo(new Error(
-                "inventario.cantidad_invalida",
-                "La cantidad es demasiado pequeña para la precisión de la unidad base del producto.", "Cantidad"));
+                "inventario.cantidad_invalida", "La cantidad convertida a la unidad base del producto debe ser mayor que cero.", "Cantidad"));
         }
 
-        var factor = Math.Round(factorResultado.Valor, 6, MidpointRounding.AwayFromZero);
+        var factor = conversionUnidad.Factor;
         var ahora = DateTimeOffset.UtcNow;
         var creadoPor = CreadoPor();
         var marcarAjuste = false;

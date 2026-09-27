@@ -13,13 +13,15 @@ namespace OpenSource1.Application.Features.FacturasVenta.Borradores.Handlers;
 /// Modificación de la cabecera ("null = conservar", ver <see cref="UpdateFacturaVentaBorradorCommand"/>). Toma el
 /// <c>FOR UPDATE</c> del borrador antes de leer, igual que las líneas: si cambia el grupo de IVA de negocio, el IVA congelado de
 /// las líneas se recalcula en la misma transacción (un setup inexistente para alguna línea -&gt; 400
-/// <c>Lineas[n].GrupoIvaProductoId</c> y no se guarda nada).
+/// <c>Lineas[n].GrupoIvaProductoId</c> y no se guarda nada). Si cambia algún socio, los nuevos se bloquean <c>FOR SHARE</c>
+/// (después del borrador) antes de validarlos.
 /// </summary>
 public sealed class UpdateFacturaVentaBorradorCommandHandler(
     IUnitOfWork unitOfWork,
     IFacturaVentaBorradorBloqueoService bloqueo,
     IDerivadorCuentas derivador,
-    IFacturaVentaBorradorReadRepository readRepository)
+    IFacturaVentaBorradorReadRepository readRepository,
+    IFacturaVentaBorradorDatos borradorDatos)
     : IRequestHandler<UpdateFacturaVentaBorradorCommand, Result<FacturaVentaBorradorResponse>>
 {
     public async Task<Result<FacturaVentaBorradorResponse>> Handle(UpdateFacturaVentaBorradorCommand request, CancellationToken cancellationToken)
@@ -58,6 +60,8 @@ public sealed class UpdateFacturaVentaBorradorCommandHandler(
         var grupoIvaNegocioAnterior = entity.GrupoIvaNegocioId;
         if (venderAId != entity.SocioNegocioId || facturarAId != entity.SocioNegocioFacturarAId)
         {
+            // Orden de locks: borrador (ya tomado) → socios (FOR SHARE) antes de validarlos, contra su borrado concurrente.
+            await borradorDatos.BloquearSociosAsync([venderAId, facturarAId], cancellationToken);
             var snapshot = await FacturaVentaBorradorReglas.TomarSnapshotAsync(unitOfWork, venderAId, facturarAId, cancellationToken);
             if (!snapshot.TryObtenerValor(out var socios))
             {

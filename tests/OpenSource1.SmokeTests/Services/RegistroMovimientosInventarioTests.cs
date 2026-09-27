@@ -348,6 +348,59 @@ public sealed class RegistroMovimientosInventarioTests(PostgresTestFixture fixtu
         await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Entrada(producto, almacen, 1m, 1m, D1));
     }
 
+    [Fact]
+    public async Task RedFinal_DosYMedioUndSinDecimales_SeRechazaSinRedondearYSinEscribir()
+    {
+        // Antes se redondeaba a 3 (AwayFromZero) y el libro decía -3 mientras el documento decía 2.5.
+        var producto = await _prueba.SembrarProductoAsync();
+        var almacen = await _prueba.SembrarAlmacenAsync();
+        await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Entrada(producto, almacen, 10m, 1m, D1));
+        var antes = await _prueba.ContarFilasAsync(producto);
+
+        var salida = await _prueba.RegistrarAsync(LibroInventarioPrueba.Salida(producto, almacen, 2.5m, D2));
+        var entrada = await _prueba.RegistrarAsync(LibroInventarioPrueba.Entrada(producto, almacen, 2.5m, 1m, D2));
+
+        foreach (var resultado in new[] { salida, entrada })
+        {
+            var error = Assert.Single(resultado.Errores);
+            Assert.Equal(("inventario.cantidad_invalida", "Cantidad"), (error.Codigo, error.Campo));
+            Assert.Contains("no admite decimales", error.Mensaje);
+        }
+
+        Assert.Equal(antes, await _prueba.ContarFilasAsync(producto));
+        Assert.Equal(10m, await _prueba.ConsultarAsync(c => c.ExistenciaAsync(producto, almacen, null)));
+    }
+
+    [Fact]
+    public async Task RedFinal_FactorNoEntero_CajaDeTresConBaseDeDosDecimales_ExactaSeRegistra_NoExactaSeRechaza()
+    {
+        var producto = await ProductoBaseMetroConCajaDeTresAsync();
+        var almacen = await _prueba.SembrarAlmacenAsync();
+
+        // 0.5 CJA = 1.5 MT: exacta con 2 decimales; el factor congelado es 3.
+        var valida = await _prueba.RegistrarOkAsync(
+            LibroInventarioPrueba.Entrada(producto, almacen, 0.5m, 2m, D1, unidadId: _prueba.UnidadCja));
+        Assert.Equal(1.5m, valida.CantidadBase);
+        await using (var conexion = _prueba.NuevaConexion())
+        {
+            Assert.Equal((1.5m, 3m), await conexion.QuerySingleAsync<(decimal, decimal)>(
+                """SELECT "Cantidad", "CantidadPorUnidadMedida" FROM "MovimientosProducto" WHERE "Id" = @Id""",
+                new { Id = valida.MovimientoProductoId }));
+        }
+
+        var antes = await _prueba.ContarFilasAsync(producto);
+
+        // 1/3 CJA (0.333333) = 0.999999 MT: más decimales de los que admite la base -> rechazo, nada escrito.
+        var tercio = await _prueba.RegistrarAsync(
+            LibroInventarioPrueba.Salida(producto, almacen, 0.333333m, D2, unidadId: _prueba.UnidadCja));
+
+        var error = Assert.Single(tercio.Errores);
+        Assert.Equal(("inventario.cantidad_invalida", "Cantidad"), (error.Codigo, error.Campo));
+        Assert.Contains("como máximo 2 decimales", error.Mensaje);
+        Assert.Equal(antes, await _prueba.ContarFilasAsync(producto));
+        Assert.Equal(1.5m, await _prueba.ConsultarAsync(c => c.ExistenciaAsync(producto, almacen, null)));
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(-1)]
@@ -725,6 +778,20 @@ public sealed class RegistroMovimientosInventarioTests(PostgresTestFixture fixtu
         Assert.All(resultados, r => Assert.True(r.EsExito));
         Assert.Equal(20m - (2 * rondas), await _prueba.ConsultarAsync(c => c.ExistenciaAsync(a, almacen, null)));
         Assert.Equal(20m - (2 * rondas), await _prueba.ConsultarAsync(c => c.ExistenciaAsync(b, almacen, null)));
+    }
+
+    /// <summary>Producto con base MT (2 decimales) y la caja (CJA) asociada con factor 3.</summary>
+    private async Task<Guid> ProductoBaseMetroConCajaDeTresAsync()
+    {
+        var producto = await _prueba.SembrarProductoAsync();
+        await using var conexion = _prueba.NuevaConexion();
+        await conexion.ExecuteAsync(
+            """
+            UPDATE "Productos" SET "UnidadMedidaBaseId" = (SELECT "Id" FROM "UnidadesMedida" WHERE "Codigo" = 'MT') WHERE "Id" = @Id;
+            UPDATE "UnidadesMedidaProducto" SET "CantidadPorUnidadMedida" = 3 WHERE "ProductoId" = @Id;
+            """,
+            new { Id = producto });
+        return producto;
     }
 
     private async Task<bool> CostoAjustadoAsync(Guid productoId)

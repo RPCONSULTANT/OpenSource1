@@ -31,7 +31,7 @@ public sealed class LineaDiario : BaseEntity
 
     public Guid UnidadMedidaId { get; set; }
 
-    /// <summary>Factor congelado al guardar la línea (vía <c>IConversionUnidadMedidaService.ObtenerFactorAsync</c>); el registro (Task 4.3) vuelve a obtenerlo y falla con <c>diario.factor_cambiado</c> si cambió.</summary>
+    /// <summary>Factor congelado al guardar la línea (vía <c>IConversionUnidadMedidaService.ObtenerConversionAsync</c>); el registro (Task 4.3) vuelve a obtenerlo y falla con <c>diario.factor_cambiado</c> si cambió.</summary>
     public decimal CantidadPorUnidadMedida { get; set; }
 
     /// <summary>Siempre positiva, en <see cref="UnidadMedidaId"/>; el signo lo da <see cref="TipoMovimiento"/>.</summary>

@@ -207,27 +207,24 @@ internal static class LineaFacturaVentaBorradorReglas
 
         // 5. Unidad (por defecto la base) y factor congelado, como en los diarios.
         var unidadMedidaId = datos.UnidadMedidaId ?? producto.UnidadMedidaBaseId;
-        var factorResultado = await conversion.ObtenerFactorAsync(producto.Id, unidadMedidaId, cancellationToken);
-        if (factorResultado.EsFallo)
+        var conversionResultado = await conversion.ObtenerConversionAsync(producto.Id, unidadMedidaId, cancellationToken);
+        if (!conversionResultado.TryObtenerValor(out var conversionUnidad))
         {
-            var original = factorResultado.Errores[0];
+            var original = conversionResultado.Errores[0];
             return Result<LineaFacturaCalculada>.Fallo(new Error(original.Codigo, original.Mensaje, "UnidadMedidaId"));
         }
 
-        var factor = Math.Round(factorResultado.Valor, 6, MidpointRounding.AwayFromZero);
-        decimal cantidadBase;
-        try
+        // El factor congelado (redondeado a 6) es el mismo con el que el posteo convertirá. La cantidad en unidad base debe
+        // caber en numeric(18,6) y ser EXACTA con los decimales de la unidad base: nunca se redondea (2.5 UND con 0 decimales
+        // se rechaza; el inventario no puede decir 3 cuando la factura dice 2.5).
+        var factor = conversionUnidad.Factor;
+        var cantidadBaseResultado = conversionUnidad.ConvertirExacta(cantidad);
+        if (cantidadBaseResultado.EsFallo)
         {
-            cantidadBase = cantidad * factor;
-        }
-        catch (OverflowException)
-        {
-            return CantidadBaseDemasiadoGrande();
-        }
-
-        if (Math.Abs(cantidadBase) > CantidadMaxima)
-        {
-            return CantidadBaseDemasiadoGrande();
+            var original = cantidadBaseResultado.Errores[0];
+            return original.Codigo == "conversion.cantidad_no_exacta"
+                ? Result<LineaFacturaCalculada>.Fallo(original with { Campo = "Cantidad" })
+                : CantidadBaseDemasiadoGrande();
         }
 
         // 6. Precio: por defecto el PrecioVenta del producto (en unidad base) por el factor de la unidad de la línea.

@@ -306,6 +306,67 @@ public sealed class ConversionUnidadMedidaServiceTests : IClassFixture<PostgresT
         Assert.Equal("conversion.producto_no_encontrado", inexistente.Errores[0].Codigo);
     }
 
+    [Fact]
+    public async Task ObtenerConversion_FactorNoEntero_BaseConDosDecimales_AceptaSoloCantidadesExactasEnLaBase()
+    {
+        // Caja de 3 metros (base MT, 2 decimales): 0.5 CJA = 1.5 MT es exacta; 1/3 CJA (0.333333) = 0.999999 MT no lo es.
+        var (producto, cja) = await SembrarAsync("MT", "CJA", 3m);
+
+        var resultado = await ObtenerConversionAsync(producto, cja);
+
+        Assert.True(resultado.EsExito);
+        var conversion = resultado.Valor;
+        Assert.Equal((3m, (short)2, "MT"), (conversion.Factor, conversion.DecimalesBase, conversion.CodigoUnidadBase));
+        Assert.Equal(1.5m, conversion.ConvertirExacta(0.5m).Valor);
+        var tercio = conversion.ConvertirExacta(0.333333m);
+        Assert.True(tercio.EsFallo);
+        Assert.Equal(("conversion.cantidad_no_exacta", "Cantidad"), (tercio.Errores[0].Codigo, tercio.Errores[0].Campo));
+        Assert.Contains("0.999999 MT", tercio.Errores[0].Mensaje);
+        Assert.Contains("como máximo 2 decimales", tercio.Errores[0].Mensaje);
+    }
+
+    [Fact]
+    public async Task ObtenerConversion_UnidadBaseSinDecimales_RechazaDosYMedio_NoRedondea()
+    {
+        var (producto, und) = await SembrarAsync("UND", "UND", 1m, filaAsociada: false);
+
+        var conversion = (await ObtenerConversionAsync(producto, und)).Valor;
+
+        Assert.Equal(3m, conversion.ConvertirExacta(3m).Valor);
+        var error = Assert.Single(conversion.ConvertirExacta(2.5m).Errores);
+        Assert.Equal("conversion.cantidad_no_exacta", error.Codigo);
+        Assert.Contains("no admite decimales", error.Mensaje);
+    }
+
+    [Fact]
+    public async Task ObtenerConversion_MismosErroresDeResolucionQueObtenerFactor()
+    {
+        var (producto, _) = await SembrarAsync("UND", "CJA", 12m);
+
+        var noAsociada = await ObtenerConversionAsync(producto, await IdUnidadAsync("KG"));
+        var inexistente = await ObtenerConversionAsync(Guid.NewGuid(), await IdUnidadAsync("UND"));
+
+        Assert.Equal("conversion.unidad_no_asociada", noAsociada.Errores[0].Codigo);
+        Assert.Equal("conversion.producto_no_encontrado", inexistente.Errores[0].Codigo);
+    }
+
+    [Fact]
+    public void ConvertirExacta_CantidadBaseFueraDeNumeric18_6_EsCantidadInvalida()
+    {
+        var conversion = new ConversionUnidadMedida(1_000_000m, 0, "UND");
+
+        var error = Assert.Single(conversion.ConvertirExacta(999_999_999m).Errores);
+
+        Assert.Equal(("conversion.cantidad_invalida", "Cantidad"), (error.Codigo, error.Campo));
+    }
+
+    private async Task<Result<ConversionUnidadMedida>> ObtenerConversionAsync(Guid productoId, Guid unidadId)
+    {
+        await using var scope = _provider.CreateAsyncScope();
+        var servicio = scope.ServiceProvider.GetRequiredService<IConversionUnidadMedidaService>();
+        return await servicio.ObtenerConversionAsync(productoId, unidadId);
+    }
+
     private async Task<Result<decimal>> ObtenerFactorAsync(Guid productoId, Guid unidadId)
     {
         await using var scope = _provider.CreateAsyncScope();

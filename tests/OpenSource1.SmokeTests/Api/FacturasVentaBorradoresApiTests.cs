@@ -312,6 +312,41 @@ public sealed class FacturasVentaBorradoresApiTests : IClassFixture<PostgresTest
     }
 
     [Fact]
+    public async Task LineaProducto_CantidadNoExactaEnLaUnidadBase_400EnCantidadConLosDecimalesAdmitidos_SinRedondear()
+    {
+        var client = Admin();
+        var borrador = await CrearBorradorOkAsync(client, new { socioNegocioId = await CrearSocioAsync(client, "Cantidades") });
+        var url = $"{Base}/borradores/{borrador.Id}/lineas";
+
+        // Base UND (0 decimales): 2.5 se rechaza (antes el inventario la redondeaba a 3 mientras la factura decía 2.5).
+        var und = await CrearProductoAsync(client, 10m);
+        await AssertErrorAsync(await client.PostAsJsonAsync(url, LineaProducto(und, 2.5m)),
+            HttpStatusCode.BadRequest, "no admite decimales", "Cantidad");
+
+        // Caja de 3 con base MT (2 decimales): 0.5 CJA = 1.5 MT se acepta; 1/3 CJA (0.333333) = 0.999999 MT no.
+        var metro = await CrearProductoAsync(client, 10m);
+        await EjecutarSqlAsync(
+            """
+            UPDATE "Productos" SET "UnidadMedidaBaseId" = (SELECT "Id" FROM "UnidadesMedida" WHERE "Codigo" = 'MT') WHERE "Id" = @P;
+            INSERT INTO "UnidadesMedidaProducto" ("Id", "ProductoId", "UnidadMedidaId", "CantidadPorUnidadMedida", "CreatedAtUtc", "CreatedBy", "IsDeleted")
+            SELECT gen_random_uuid(), @P, "Id", 3, now(), 'test', false FROM "UnidadesMedida" WHERE "Codigo" = 'CJA'
+            """, new { P = metro });
+        var cja = await UnidadAsync("CJA");
+        var valida = await CrearLineaOkAsync(client, borrador.Id, new
+        {
+            tipo = TipoLineaFactura.Producto, productoId = metro, unidadMedidaId = cja, cantidad = 0.5m, precioUnitario = 30m
+        });
+        Assert.Equal((0.5m, 3m), (valida.Cantidad, valida.CantidadPorUnidadMedida));
+        await AssertErrorAsync(await client.PostAsJsonAsync(url, new
+            {
+                tipo = TipoLineaFactura.Producto, productoId = metro, unidadMedidaId = cja, cantidad = 0.333333m, precioUnitario = 30m
+            }),
+            HttpStatusCode.BadRequest, "como máximo 2 decimales", "Cantidad");
+
+        Assert.Equal(1, (await GetBorradorAsync(client, borrador.Id)).NumeroLineas);
+    }
+
+    [Fact]
     public async Task LineaCuentaContable_YComentario_ReglasPorTipo()
     {
         var client = Admin();

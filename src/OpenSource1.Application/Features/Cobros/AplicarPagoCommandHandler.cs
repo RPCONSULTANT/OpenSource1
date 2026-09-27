@@ -12,6 +12,7 @@ namespace OpenSource1.Application.Features.Cobros;
 /// <item>Entrada: Ids positivos y distintos, importe &gt; 0 con 2 decimales como máximo.</item>
 /// <item>Bloqueo <c>FOR UPDATE</c> de los dos movimientos en orden de Id (<see cref="IRegistroMovimientosCliente.BloquearMovimientosAsync"/>):
 /// inexistentes → 400 (<c>cobro.movimiento_invalido</c>, referencia del cuerpo, no 404).</item>
+/// <item>Mismo socio en ambos movimientos (<c>clientes.socios_distintos</c>) ANTES de bloquear el socio.</item>
 /// <item>Socio (<c>FOR SHARE</c>): un socio bloqueado <c>Todo</c> no admite aplicaciones (como no admite pagos); bloqueado solo para
 /// <c>Facturacion</c>, sí.</item>
 /// <item><see cref="IRegistroMovimientosCliente.AplicarAsync"/> valida con los restantes posteriores al bloqueo (mismo socio, signos,
@@ -84,10 +85,20 @@ public sealed class AplicarPagoCommandHandler(
             return Fallo([.. errores]);
         }
 
-        // Con socios distintos, AplicarAsync lo rechaza; aquí solo se comprueba el bloqueo de los socios implicados.
-        var sociosIds = new[] { factura.SocioNegocioId, pago.SocioNegocioId }.Distinct().ToList();
+        // Mismo socio ANTES de bloquear los socios: el error correcto (clientes.socios_distintos) aunque alguno esté bloqueado
+        // Todo, y sin tomar el FOR SHARE de un socio ajeno. AplicarAsync conserva su propia guarda (defensa en profundidad).
+        if (factura.SocioNegocioId != pago.SocioNegocioId)
+        {
+            return Fallo(new Error(
+                "clientes.socios_distintos",
+                $"El pago {pago.NumeroDocumento} y el documento {factura.NumeroDocumento} son de clientes distintos: solo se aplica entre " +
+                "movimientos del mismo cliente.",
+                "MovimientoPagoId"));
+        }
+
+        var sociosIds = new[] { factura.SocioNegocioId };
         var socios = await datos.BloquearSociosAsync(sociosIds, cancellationToken);
-        if (socios.Count != sociosIds.Count || socios.Any(s => s.Bloqueado == BloqueoSocioNegocio.Todo))
+        if (socios.Count != sociosIds.Length || socios.Any(s => s.Bloqueado == BloqueoSocioNegocio.Todo))
         {
             return Fallo(new Error(
                 "cobro.socio_bloqueado",

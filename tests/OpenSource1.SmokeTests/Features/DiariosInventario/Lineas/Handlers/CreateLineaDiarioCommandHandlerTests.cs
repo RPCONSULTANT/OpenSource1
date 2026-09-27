@@ -219,8 +219,8 @@ public class CreateLineaDiarioCommandHandlerTests
     public async Task Handle_FactorDeConversionFalla_PropagaErrorConCampoUnidadMedidaId()
     {
         var e = ArmarEscenario();
-        e.Conversion.Setup(c => c.ObtenerFactorAsync(e.Producto.Id, e.Unidad.Id, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result<decimal>.Fallo(new Error("conversion.unidad_no_asociada", "mensaje", "OtroCampo")));
+        e.Conversion.Setup(c => c.ObtenerConversionAsync(e.Producto.Id, e.Unidad.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<ConversionUnidadMedida>.Fallo(new Error("conversion.unidad_no_asociada", "mensaje", "OtroCampo")));
 
         var result = await Ejecutar(e, e.ComandoBase);
 
@@ -316,8 +316,8 @@ public class CreateLineaDiarioCommandHandlerTests
         // factor 12 (p. ej. una "caja" de 12 unidades), cantidad 2.5 cajas, costo 1.2345 (unidad base) ->
         // ImporteCosto = 2.5 * 12 * 1.2345 = 37.035.
         var e = ArmarEscenario();
-        e.Conversion.Setup(c => c.ObtenerFactorAsync(e.Producto.Id, e.Unidad.Id, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result<decimal>.Exito(12m));
+        e.Conversion.Setup(c => c.ObtenerConversionAsync(e.Producto.Id, e.Unidad.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Conversion(12m));
 
         var result = await Ejecutar(e, e.ComandoBase with { Cantidad = 2.5m, CostoUnitario = 1.2345m });
 
@@ -327,18 +327,57 @@ public class CreateLineaDiarioCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_FactorConMasDeSeisDecimales_CongelaElFactorRedondeadoA6Decimales()
+    public async Task Handle_CongelaExactamenteElFactorDeLaConversion_ElMismoConElQueSeConvierte()
     {
-        // Mismo criterio que RegistroMovimientosInventario: el factor se redondea a 6 decimales (away from zero)
-        // antes de congelarlo, nunca se guarda con más precisión de la que admite la columna.
+        // El redondeo a 6 decimales vive en IConversionUnidadMedidaService.ObtenerConversionAsync: las reglas congelan el
+        // MISMO factor con el que comprueban la exactitud y con el que el registro convertirá (nunca otro).
         var e = ArmarEscenario();
-        e.Conversion.Setup(c => c.ObtenerFactorAsync(e.Producto.Id, e.Unidad.Id, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result<decimal>.Exito(3.12345675m));
+        e.Conversion.Setup(c => c.ObtenerConversionAsync(e.Producto.Id, e.Unidad.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Conversion(3.123457m));
 
         var result = await Ejecutar(e, e.ComandoBase);
 
         Assert.True(result.EsExito, result.EsFallo ? result.Errores[0].Codigo : "");
         Assert.Equal(3.123457m, result.Valor.CantidadPorUnidadMedida);
+    }
+
+    [Fact]
+    public async Task Handle_DosYMedioEnUnidadBaseSinDecimales_400CantidadNoExactaConCampoCantidad_SinGuardar()
+    {
+        var e = ArmarEscenario();
+        e.Conversion.Setup(c => c.ObtenerConversionAsync(e.Producto.Id, e.Unidad.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Conversion(1m, decimalesBase: 0));
+
+        var result = await Ejecutar(e, e.ComandoBase with { Cantidad = 2.5m });
+
+        Assert.True(result.EsFallo);
+        Assert.Equal(("conversion.cantidad_no_exacta", "Cantidad"), (result.Errores[0].Codigo, result.Errores[0].Campo));
+        Assert.Contains("no admite decimales", result.Errores[0].Mensaje);
+        e.Lineas.Mock.Verify(r => r.AddAsync(It.IsAny<LineaDiario>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Theory]
+    [InlineData("0.5", true)]
+    [InlineData("0.333333", false)]
+    public async Task Handle_FactorNoEntero_CajaDeTresConBaseDeDosDecimales_SoloCantidadesExactasEnLaBase(string cantidad, bool valida)
+    {
+        // 0.5 CJA = 1.5 (exacta con 2 decimales); 1/3 CJA (0.333333) = 0.999999 (6 decimales): rechazada, no redondeada a 1.
+        var e = ArmarEscenario();
+        e.Conversion.Setup(c => c.ObtenerConversionAsync(e.Producto.Id, e.Unidad.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Conversion(3m, decimalesBase: 2));
+
+        var result = await Ejecutar(e, e.ComandoBase with { Cantidad = decimal.Parse(cantidad, System.Globalization.CultureInfo.InvariantCulture) });
+
+        if (valida)
+        {
+            Assert.True(result.EsExito, result.EsFallo ? result.Errores[0].Codigo : "");
+            Assert.Equal(3m, result.Valor.CantidadPorUnidadMedida);
+        }
+        else
+        {
+            Assert.Equal(("conversion.cantidad_no_exacta", "Cantidad"), (result.Errores[0].Codigo, result.Errores[0].Campo));
+            Assert.Contains("como máximo 2 decimales", result.Errores[0].Mensaje);
+        }
     }
 
     [Fact]
@@ -359,8 +398,8 @@ public class CreateLineaDiarioCommandHandlerTests
         // Cantidad por sí sola es válida (900 mil millones < máximo), pero factor 2 la lleva a 1.8 billones, que ya
         // no cabe en numeric(18,6): sin esta comprobación, el registro (Task 4.3) reventaría con 22003 al postear.
         var e = ArmarEscenario();
-        e.Conversion.Setup(c => c.ObtenerFactorAsync(e.Producto.Id, e.Unidad.Id, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result<decimal>.Exito(2m));
+        e.Conversion.Setup(c => c.ObtenerConversionAsync(e.Producto.Id, e.Unidad.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Conversion(2m));
 
         var result = await Ejecutar(e, e.ComandoBase with { Cantidad = 900_000_000_000m, CostoUnitario = 1m });
 
@@ -407,6 +446,9 @@ public class CreateLineaDiarioCommandHandlerTests
         Assert.Equal("FechaDocumento", result.Errores[0].Campo);
     }
 
+    private static Result<ConversionUnidadMedida> Conversion(decimal factor, short decimalesBase = 6) =>
+        Result<ConversionUnidadMedida>.Exito(new ConversionUnidadMedida(factor, decimalesBase, "UND"));
+
     private static async Task<Result<LineaDiarioResponse>> Ejecutar(
         Escenario e, CreateLineaDiarioCommand comando)
     {
@@ -438,8 +480,8 @@ public class CreateLineaDiarioCommandHandlerTests
         var lineas = new RepositorioEnMemoria<LineaDiario>();
 
         var conversion = new Mock<IConversionUnidadMedidaService>();
-        conversion.Setup(c => c.ObtenerFactorAsync(producto.Id, unidad.Id, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result<decimal>.Exito(1m));
+        conversion.Setup(c => c.ObtenerConversionAsync(producto.Id, unidad.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Conversion(1m));
 
         var unitOfWork = new Mock<IUnitOfWork>();
         unitOfWork.Setup(u => u.Repository<LoteDiario>()).Returns(lotes.Repo);

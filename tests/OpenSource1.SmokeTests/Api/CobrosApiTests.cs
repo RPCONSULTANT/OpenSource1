@@ -1,7 +1,9 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Dapper;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Npgsql;
 using OpenSource1.Application.Features.FacturasVenta.Borradores.Dtos;
 using OpenSource1.Application.Features.MovimientosCliente.Dtos;
 using OpenSource1.Core.Entities.Contabilidad;
@@ -21,9 +23,13 @@ public sealed class CobrosApiTests : IClassFixture<PostgresTestFixture>
     private static readonly DateOnly D10 = new(2026, 9, 10);
 
     private readonly HttpClient _client;
+    private readonly PostgresTestFixture _fixture;
 
-    public CobrosApiTests(PostgresTestFixture fixture) =>
+    public CobrosApiTests(PostgresTestFixture fixture)
+    {
+        _fixture = fixture;
         _client = fixture.CreateFactory().CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+    }
 
     [Fact]
     public async Task Factura118_Pago50_Aplicacion50_PorLaApi_MovimientosAbiertosYSaldo68()
@@ -100,6 +106,38 @@ public sealed class CobrosApiTests : IClassFixture<PostgresTestFixture>
 
         Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/api/clientes/{Guid.NewGuid()}/movimientos-abiertos")).StatusCode);
         Assert.Equal("[]", await client.GetStringAsync($"/api/clientes/{socio}/movimientos-abiertos"));
+    }
+
+    [Fact]
+    public async Task Aplicacion_EntreSociosDistintos_400SociosDistintos_AunqueUnoEsteBloqueadoTodo_SinEscribir()
+    {
+        var client = Admin();
+        var conFactura = await CrearSocioAsync(client, "Cliente con factura");
+        var conPago = await CrearSocioAsync(client, "Cliente con pago");
+        await PostearFacturaAsync(client, conFactura, 100m);
+        var pago = await client.PostAsJsonAsync("/api/cobros", new { socioNegocioId = conPago, importe = 50m, fechaRegistro = D10 });
+        Assert.True(pago.StatusCode == HttpStatusCode.OK, await pago.Content.ReadAsStringAsync());
+        var pagoId = JsonDocument.Parse(await pago.Content.ReadAsStringAsync()).RootElement.GetProperty("movimientoClienteId").GetInt64();
+        var facturaId = (await client.GetFromJsonAsync<List<MovimientoClienteResponse>>($"/api/clientes/{conFactura}/movimientos-abiertos"))![0].Id;
+
+        // El socio del pago bloqueado para todo: el error sigue siendo socios_distintos (se comprueba antes de bloquear socios).
+        await using var conexion = new NpgsqlConnection(_fixture.AppConnectionString);
+        await conexion.ExecuteAsync("""UPDATE "SociosNegocio" SET "Bloqueado" = 2 WHERE "Id" = @Id""", new { Id = conPago });
+        const string sqlFoto = """
+            SELECT (SELECT COUNT(*) FROM "MovimientosClienteDetalle")::text || '/' ||
+                   (SELECT COALESCE(pg_sequence_last_value(pg_get_serial_sequence('"MovimientosClienteDetalle"', 'Id')::regclass), 0))::text
+            """;
+        var antes = await conexion.ExecuteScalarAsync<string>(sqlFoto);
+
+        await AssertErrorAsync(
+            await client.PostAsJsonAsync("/api/cobros/aplicaciones", new { movimientoFacturaId = facturaId, movimientoPagoId = pagoId, importe = 10m }),
+            HttpStatusCode.BadRequest, "MovimientoPagoId", "clientes distintos");
+
+        Assert.Equal(antes, await conexion.ExecuteScalarAsync<string>(sqlFoto));
+        var abiertosFactura = (await client.GetFromJsonAsync<List<MovimientoClienteResponse>>($"/api/clientes/{conFactura}/movimientos-abiertos"))!;
+        var abiertosPago = (await client.GetFromJsonAsync<List<MovimientoClienteResponse>>($"/api/clientes/{conPago}/movimientos-abiertos"))!;
+        Assert.Equal([118m], abiertosFactura.Select(m => m.ImporteRestante));
+        Assert.Equal([-50m], abiertosPago.Select(m => m.ImporteRestante));
     }
 
     // ----- Helpers -----

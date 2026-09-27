@@ -3,6 +3,7 @@ using Dapper;
 using Microsoft.Extensions.DependencyInjection;
 using OpenSource1.Application.Data;
 using OpenSource1.Application.Data.UnitOfWork;
+using OpenSource1.Application.Features.FacturasVenta.Borradores;
 using OpenSource1.Application.Features.FacturasVenta.Borradores.Commands;
 using OpenSource1.Application.Features.FacturasVenta.Borradores.Dtos;
 using OpenSource1.Application.Features.FacturasVenta.Borradores.Handlers;
@@ -408,6 +409,133 @@ public sealed class PostearFacturaVentaTests(PostgresTestFixture fixture) : ICla
         Assert.Equal((false, 2L, 0L), await EstadoBorradorAsync(borrador.Id));
     }
 
+    [Fact]
+    public async Task CantidadNoExactaEnLaUnidadBase_FallaEnLineasNCantidad_SinRedondearNiEscribir()
+    {
+        // Líneas guardadas válidas y alteradas después (dato legado / cambio directo): el posteo las revalida con el factor
+        // congelado y los decimales actuales de la unidad base, en vez de redondear la salida de inventario.
+        var socio = await SocioAsync();
+        var almacen = await _prueba.SembrarAlmacenAsync();
+        var und = await ProductoAsync();
+        var metro = await ProductoMetroConCajaDeTresAsync();
+        await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Entrada(und, almacen, 10m, 1m, D1));
+        await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Entrada(metro, almacen, 4m, 1m, D1, unidadId: _prueba.UnidadCja));
+        var borrador = await BorradorAsync(socio, almacen: almacen);
+        await LineaProductoAsync(borrador.Id, und, 1m, 10m);
+        var dosYMedio = await LineaProductoAsync(borrador.Id, und, 2m, 10m);
+        var medioCaja = await LineaProductoAsync(borrador.Id, metro, 0.5m, 30m, unidad: _prueba.UnidadCja);
+        var tercioCaja = await LineaProductoAsync(borrador.Id, metro, 1m, 30m, unidad: _prueba.UnidadCja);
+        Assert.Equal(3m, medioCaja.CantidadPorUnidadMedida);
+        await EjecutarSqlAsync("""UPDATE "LineasFacturaVentaBorrador" SET "Cantidad" = 2.5 WHERE "Id" = @Id""", new { dosYMedio.Id });
+        await EjecutarSqlAsync("""UPDATE "LineasFacturaVentaBorrador" SET "Cantidad" = 0.333333 WHERE "Id" = @Id""", new { tercioCaja.Id });
+        var antes = await FotoAsync();
+
+        var resultado = await PostearAsync(borrador.Id);
+
+        Assert.True(resultado.EsFallo);
+        Assert.Equal(
+            [("conversion.cantidad_no_exacta", "Lineas[20000].Cantidad"), ("conversion.cantidad_no_exacta", "Lineas[40000].Cantidad")],
+            resultado.Errores.Select(e => (e.Codigo, e.Campo)));
+        Assert.StartsWith("Línea 20000: ", resultado.Errores[0].Mensaje);
+        Assert.Contains("no admite decimales", resultado.Errores[0].Mensaje);
+        Assert.Contains("como máximo 2 decimales", resultado.Errores[1].Mensaje);
+        Assert.Equal(antes, await FotoAsync());
+        Assert.Equal((false, 4L, 0L), await EstadoBorradorAsync(borrador.Id));
+
+        // Corregidas, la caja de 3 con 0.5 sale 1.5 MT exactos del inventario (entrada 4 CJA = 12 MT; salen 1.5 + 3 MT).
+        await EjecutarSqlAsync("""UPDATE "LineasFacturaVentaBorrador" SET "Cantidad" = 2 WHERE "Id" = @Id""", new { dosYMedio.Id });
+        await EjecutarSqlAsync("""UPDATE "LineasFacturaVentaBorrador" SET "Cantidad" = 1 WHERE "Id" = @Id""", new { tercioCaja.Id });
+        await PostearOkAsync(borrador.Id);
+        Assert.Equal(7m, await _prueba.ConsultarAsync(c => c.ExistenciaAsync(und, almacen, null)));
+        Assert.Equal(7.5m, await _prueba.ConsultarAsync(c => c.ExistenciaAsync(metro, almacen, null)));
+    }
+
+    [Fact]
+    public async Task LineaConErrorDeValidacion_NoSeDerivanSusCuentas_ComoMuchoUnErrorPorLinea()
+    {
+        // Producto bloqueado para la venta Y con un grupo de producto sin setup general: solo el error de validación de la línea.
+        var socio = await SocioAsync();
+        var almacen = await _prueba.SembrarAlmacenAsync();
+        var producto = await ProductoAsync(grupoProducto: await GrupoAsync<GrupoProducto>());
+        await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Entrada(producto, almacen, 5m, 1m, D1));
+        var borrador = await BorradorAsync(socio, almacen: almacen);
+        await LineaProductoAsync(borrador.Id, producto, 1m, 10m);
+        await EjecutarSqlAsync("""UPDATE "Productos" SET "Bloqueado" = 1 WHERE "Id" = @Id""", new { Id = producto });
+        var antes = await FotoAsync();
+
+        var resultado = await PostearAsync(borrador.Id);
+
+        Assert.Equal(("factura.producto_invalido", "Lineas[10000].ProductoId"), Unico(resultado));
+        Assert.Equal(antes, await FotoAsync());
+    }
+
+    [Fact]
+    public async Task MismoIdentificadorDeIvaConCuentasDistintas_IvaInconsistente_SinEscribir()
+    {
+        var socio = await SocioAsync();
+        var almacen = await _prueba.SembrarAlmacenAsync();
+        var otraCuentaIva = await CuentaAsync(posteoDirecto: false);
+        var normal = await ProductoAsync();
+        var conOtraCuenta = await ProductoAsync(grupoIva: await GrupoIvaConSetupAsync(_ => { }, otraCuentaIva));
+        await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Entrada(normal, almacen, 5m, 1m, D1));
+        await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Entrada(conOtraCuenta, almacen, 5m, 1m, D1));
+        var borrador = await BorradorAsync(socio, almacen: almacen);
+        await LineaProductoAsync(borrador.Id, normal, 1m, 10m);
+        await LineaProductoAsync(borrador.Id, conOtraCuenta, 1m, 10m);
+        var antes = await FotoAsync();
+
+        var resultado = await PostearAsync(borrador.Id);
+
+        var error = Assert.Single(resultado.Errores);
+        Assert.Equal(("factura.iva_inconsistente", "Lineas"), (error.Codigo, error.Campo));
+        Assert.Contains("ITBIS18", error.Mensaje);
+        Assert.Contains("cuentas de IVA distintas", error.Mensaje);
+        Assert.Contains("10000, 20000", error.Mensaje);
+        Assert.Equal(antes, await FotoAsync());
+        Assert.Equal((false, 2L, 0L), await EstadoBorradorAsync(borrador.Id));
+    }
+
+    [Fact]
+    public async Task FacturarABloqueadoParaFacturacion_FallaEnSocioNegocioFacturarAId_SinEscribir()
+    {
+        var venderA = await SocioAsync();
+        var facturarA = await SocioAsync(nombre: "Casa matriz bloqueada");
+        var almacen = await _prueba.SembrarAlmacenAsync();
+        var producto = await ProductoAsync();
+        await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Entrada(producto, almacen, 5m, 1m, D1));
+        var borrador = await BorradorAsync(venderA, facturarA, almacen);
+        await LineaProductoAsync(borrador.Id, producto, 1m, 10m);
+        await EjecutarSqlAsync("""UPDATE "SociosNegocio" SET "Bloqueado" = 1 WHERE "Id" = @Id""", new { Id = facturarA });
+        var antes = await FotoAsync();
+
+        var resultado = await PostearAsync(borrador.Id);
+
+        Assert.Equal(("factura.socio_invalido", "SocioNegocioFacturarAId"), Unico(resultado));
+        Assert.Equal(antes, await FotoAsync());
+        Assert.Equal((false, 1L, 0L), await EstadoBorradorAsync(borrador.Id));
+    }
+
+    [Fact]
+    public async Task UnidadDeLaLineaBorrada_FallaEnLineasNUnidadMedidaId_SinEscribir()
+    {
+        var socio = await SocioAsync();
+        var almacen = await _prueba.SembrarAlmacenAsync();
+        var producto = await ProductoAsync();
+        await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Entrada(producto, almacen, 50m, 1m, D1));
+        var unidad = await UnidadPropiaAsync(producto, factor: 6m);
+        var borrador = await BorradorAsync(socio, almacen: almacen);
+        await LineaProductoAsync(borrador.Id, producto, 1m, 10m);
+        await LineaProductoAsync(borrador.Id, producto, 1m, 60m, unidad: unidad);
+        await EjecutarSqlAsync("""UPDATE "UnidadesMedida" SET "IsDeleted" = true WHERE "Id" = @Id""", new { Id = unidad });
+        var antes = await FotoAsync();
+
+        var resultado = await PostearAsync(borrador.Id);
+
+        Assert.Equal(("factura.unidad_invalida", "Lineas[20000].UnidadMedidaId"), Unico(resultado));
+        Assert.Equal(antes, await FotoAsync());
+        Assert.Equal((false, 2L, 0L), await EstadoBorradorAsync(borrador.Id));
+    }
+
     // ----- Concurrencia -----
 
     [Fact]
@@ -438,6 +566,79 @@ public sealed class PostearFacturaVentaTests(PostgresTestFixture fixture) : ICla
             resultados.Select(r => long.Parse(r.Resultado!.Valor.Numero)).Order());
         Assert.Equal(ultimo + 4, long.Parse(await UltimoNumeroFvAsync()));
         Assert.Equal(90m, await _prueba.ConsultarAsync(c => c.ExistenciaAsync(producto, almacen, null)));
+    }
+
+    [Fact]
+    public async Task ReviewFocus3_CuatroPosteosConcurrentesConProductosDistintos_ContiendaRealDeLaSerieFv_SinHuecos()
+    {
+        // Cada factura con su propio producto (y almacén): los posteos no se serializan en el bloqueo de producto sino en la
+        // línea de la serie FV, que es la contienda que debe dar números consecutivos sin huecos.
+        var borradores = new List<(Guid Borrador, Guid Producto, Guid Almacen)>();
+        for (var i = 0; i < 4; i++)
+        {
+            var almacen = await _prueba.SembrarAlmacenAsync();
+            var producto = await ProductoAsync();
+            await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Entrada(producto, almacen, 10m, 1m, D1));
+            var borrador = await BorradorAsync(await SocioAsync(), almacen: almacen);
+            await LineaProductoAsync(borrador.Id, producto, 1m + i, 10m);
+            borradores.Add((borrador.Id, producto, almacen));
+        }
+
+        var ultimo = long.Parse(await UltimoNumeroFvAsync());
+
+        var resultados = await EnParaleloAsync([.. borradores.Select(b => (Func<Task<Result<ResultadoPosteoFactura>>>)(() => PostearAsync(b.Borrador)))]);
+
+        Assert.All(resultados, r =>
+        {
+            Assert.Null(r.Excepcion);
+            Assert.True(r.Resultado!.EsExito, r.Resultado.EsFallo ? r.Resultado.Errores[0].Mensaje : null);
+        });
+        Assert.Equal(
+            [ultimo + 1, ultimo + 2, ultimo + 3, ultimo + 4],
+            resultados.Select(r => long.Parse(r.Resultado!.Valor.Numero)).Order());
+        Assert.Equal(ultimo + 4, long.Parse(await UltimoNumeroFvAsync()));
+
+        for (var i = 0; i < borradores.Count; i++)
+        {
+            var (_, producto, almacen) = borradores[i];
+            Assert.Equal(9m - i, await _prueba.ConsultarAsync(c => c.ExistenciaAsync(producto, almacen, null)));
+        }
+    }
+
+    [Fact]
+    public async Task AltaYCambioDeSocioDelBorrador_EsperanAlBorradoConcurrenteDelSocio_YLoVenBorrado()
+    {
+        // Una transacción ajena tiene el socio FOR UPDATE (como el borrado del socio antes de evaluar su uso) y lo borra. El alta
+        // (y el cambio de socio) del borrador toman el socio FOR SHARE ANTES de validarlo: esperan al commit y lo ven borrado.
+        // Sin ese bloqueo, leerían la versión anterior (viva) y dejarían un borrador de un socio borrado.
+        var vivo = await SocioAsync();
+        var borrador = await BorradorAsync(vivo);
+        foreach (var caso in new[] { "alta", "cambio" })
+        {
+            var aBorrar = await SocioAsync();
+            await using var conexion = _prueba.NuevaConexion();
+            await conexion.OpenAsync();
+            await using var tx = await conexion.BeginTransactionAsync();
+            await conexion.ExecuteAsync("""SELECT 1 FROM "SociosNegocio" WHERE "Id" = @Id FOR UPDATE""", new { Id = aBorrar }, tx);
+
+            Task<Result<FacturaVentaBorradorResponse>> operacion = caso == "alta"
+                ? Task.Run(() => CrearBorradorAsync(vivo, aBorrar))
+                : Task.Run(async () =>
+                {
+                    var actual = Ok(await ObtenerBorradorAsync(borrador.Id));
+                    return await ActualizarBorradorAsync(borrador.Id, aBorrar, actual.Xmin);
+                });
+            await Task.Delay(TimeSpan.FromMilliseconds(500));
+            Assert.False(operacion.IsCompleted, $"{caso}: debió esperar al bloqueo del socio");
+
+            await conexion.ExecuteAsync("""UPDATE "SociosNegocio" SET "IsDeleted" = true WHERE "Id" = @Id""", new { Id = aBorrar }, tx);
+            await tx.CommitAsync();
+
+            var resultado = await operacion.WaitAsync(TimeSpan.FromSeconds(30));
+            Assert.Equal(("factura.socio_invalido", "SocioNegocioFacturarAId"), Unico(resultado));
+            Assert.Equal(0L, await EscalarAsync<long>(
+                """SELECT COUNT(*) FROM "FacturasVentaBorrador" WHERE "SocioNegocioFacturarAId" = @Id AND NOT "IsDeleted" """, new { Id = aBorrar }));
+        }
     }
 
     [Fact]
@@ -575,6 +776,33 @@ public sealed class PostearFacturaVentaTests(PostgresTestFixture fixture) : ICla
         return id;
     }
 
+    /// <summary>Producto con base MT (2 decimales) y la caja (CJA) asociada con factor 3.</summary>
+    private async Task<Guid> ProductoMetroConCajaDeTresAsync()
+    {
+        var id = await ProductoAsync();
+        await EjecutarSqlAsync(
+            """
+            UPDATE "Productos" SET "UnidadMedidaBaseId" = (SELECT "Id" FROM "UnidadesMedida" WHERE "Codigo" = 'MT') WHERE "Id" = @Id;
+            UPDATE "UnidadesMedidaProducto" SET "CantidadPorUnidadMedida" = 3 WHERE "ProductoId" = @Id;
+            """,
+            new { Id = id });
+        return id;
+    }
+
+    /// <summary>Unidad de medida propia del test (para poder borrarla sin tocar la semilla) asociada al producto.</summary>
+    private async Task<Guid> UnidadPropiaAsync(Guid productoId, decimal factor)
+    {
+        await using var contexto = _prueba.NuevoContexto();
+        var unidad = new UnidadMedida { Codigo = $"U{Guid.NewGuid():N}"[..8].ToUpperInvariant(), Nombre = "Unidad de prueba", CreatedBy = "test" };
+        contexto.Set<UnidadMedida>().Add(unidad);
+        contexto.Set<UnidadMedidaProducto>().Add(new UnidadMedidaProducto
+        {
+            ProductoId = productoId, UnidadMedidaId = unidad.Id, CantidadPorUnidadMedida = factor, CreatedBy = "test",
+        });
+        await contexto.SaveChangesAsync();
+        return unidad.Id;
+    }
+
     private async Task<Guid> GrupoAsync<T>() where T : GrupoContable, new()
     {
         await using var contexto = _prueba.NuevoContexto();
@@ -585,7 +813,7 @@ public sealed class PostearFacturaVentaTests(PostgresTestFixture fixture) : ICla
     }
 
     /// <summary>Grupo de IVA de producto con su setup ITBIS18 (para poder guardar la línea); devuelve el grupo y avisa del setup.</summary>
-    private async Task<Guid> GrupoIvaConSetupAsync(Action<Guid> setupCreado)
+    private async Task<Guid> GrupoIvaConSetupAsync(Action<Guid> setupCreado, Guid? cuentaIva = null)
     {
         var grupo = await GrupoAsync<GrupoIvaProducto>();
         await using var contexto = _prueba.NuevoContexto();
@@ -594,7 +822,7 @@ public sealed class PostearFacturaVentaTests(PostgresTestFixture fixture) : ICla
             GrupoIvaNegocioId = GrupoContableIds.IvaNegocioItbis18,
             GrupoIvaProductoId = grupo,
             PorcentajeIva = 18m,
-            CuentaIvaVentasId = CuentaContableIds.IvaPorPagar,
+            CuentaIvaVentasId = cuentaIva ?? CuentaContableIds.IvaPorPagar,
             IdentificadorIva = "ITBIS18",
             CreatedBy = "test",
         };
@@ -655,6 +883,31 @@ public sealed class PostearFacturaVentaTests(PostgresTestFixture fixture) : ICla
         var resultado = await handler.Handle(
             new CreateFacturaVentaBorradorCommand(venderA, facturarA, D10, D10, null, almacen, null), default);
         return Ok(resultado);
+    }
+
+    private async Task<Result<FacturaVentaBorradorResponse>> CrearBorradorAsync(Guid venderA, Guid? facturarA)
+    {
+        await using var scope = _prueba.Provider.CreateAsyncScope();
+        var handler = ActivatorUtilities.CreateInstance<CreateFacturaVentaBorradorCommandHandler>(scope.ServiceProvider);
+        return await handler.Handle(new CreateFacturaVentaBorradorCommand(venderA, facturarA, D10, D10, null, null, null), default);
+    }
+
+    private async Task<Result<FacturaVentaBorradorResponse>> ActualizarBorradorAsync(Guid borradorId, Guid facturarA, long xmin)
+    {
+        await using var scope = _prueba.Provider.CreateAsyncScope();
+        var handler = ActivatorUtilities.CreateInstance<UpdateFacturaVentaBorradorCommandHandler>(scope.ServiceProvider);
+        return await handler.Handle(
+            new UpdateFacturaVentaBorradorCommand(borradorId, null, facturarA, null, null, null, null, null, xmin), default);
+    }
+
+    private async Task<Result<FacturaVentaBorradorResponse>> ObtenerBorradorAsync(Guid borradorId)
+    {
+        await using var scope = _prueba.Provider.CreateAsyncScope();
+        var lectura = scope.ServiceProvider.GetRequiredService<IFacturaVentaBorradorReadRepository>();
+        var borrador = await lectura.GetByIdAsync(borradorId, default);
+        return borrador is null
+            ? Result<FacturaVentaBorradorResponse>.Fallo(new Error("test.no_encontrado", "Borrador no encontrado"))
+            : Result<FacturaVentaBorradorResponse>.Exito(borrador);
     }
 
     private Task<LineaFacturaVentaBorradorResponse> LineaProductoAsync(

@@ -146,40 +146,27 @@ internal static class LineaDiarioReglas
         }
 
         // 8. Unidad de medida: factor de conversión a la unidad base del producto (se congela al guardar).
-        var factorResultado = await conversion.ObtenerFactorAsync(datos.ProductoId, datos.UnidadMedidaId, cancellationToken);
-        if (factorResultado.EsFallo)
+        var conversionResultado = await conversion.ObtenerConversionAsync(datos.ProductoId, datos.UnidadMedidaId, cancellationToken);
+        if (!conversionResultado.TryObtenerValor(out var conversionUnidad))
         {
-            var original = factorResultado.Errores[0];
+            var original = conversionResultado.Errores[0];
             return Result<LineaDiarioCalculo>.Fallo(new Error(original.Codigo, original.Mensaje, "UnidadMedidaId"));
         }
 
-        var factor = Math.Round(factorResultado.Valor, 6, MidpointRounding.AwayFromZero);
-
-        // La cantidad en la unidad BASE del producto (Cantidad × factor) también debe caber en numeric(18,6): un
-        // factor grande (p. ej. una unidad "caja" con equivalencia alta) puede desbordar la columna del libro en el
-        // registro (Task 4.3) aunque Cantidad por sí sola sea válida. decimal ya comprueba el desborde de forma
-        // incondicional (no depende de "checked"), pero el bloque explícito documenta la intención.
-        decimal cantidadBase;
-        try
+        // El factor congelado (redondeado a 6) es el mismo con el que el registro convertirá. La cantidad en la unidad BASE
+        // (Cantidad × factor) debe caber en numeric(18,6) (un factor grande puede desbordar la columna del libro aunque
+        // Cantidad por sí sola sea válida) y ser EXACTA con los decimales de la unidad base: nunca se redondea (2.5 UND con
+        // 0 decimales se rechaza; el inventario no puede decir 3 cuando el diario dice 2.5).
+        var factor = conversionUnidad.Factor;
+        var cantidadBaseResultado = conversionUnidad.ConvertirExacta(datos.Cantidad);
+        if (cantidadBaseResultado.EsFallo)
         {
-            checked
-            {
-                cantidadBase = datos.Cantidad * factor;
-            }
-        }
-        catch (OverflowException)
-        {
-            return Fallo(
-                "diario.cantidad_invalida", "La cantidad, convertida a la unidad base del producto, es demasiado grande.", "Cantidad");
+            var original = cantidadBaseResultado.Errores[0];
+            var codigo = original.Codigo == "conversion.cantidad_no_exacta" ? original.Codigo : "diario.cantidad_invalida";
+            return Fallo(codigo, original.Mensaje, "Cantidad");
         }
 
-        if (Math.Abs(cantidadBase) > CantidadMaxima)
-        {
-            return Fallo(
-                "diario.cantidad_invalida", "La cantidad, convertida a la unidad base del producto, es demasiado grande.", "Cantidad");
-        }
-
-        // Defensivo: si ObtenerFactorAsync tuvo éxito, la unidad existe en el catálogo (es la base del producto, ya
+        // Defensivo: si ObtenerConversionAsync tuvo éxito, la unidad existe en el catálogo (es la base del producto, ya
         // comprobada arriba por el servicio, o está asociada vía UnidadesMedidaProducto con FK Restrict). Solo se
         // consulta aquí para obtener su Código para la respuesta.
         var unidadMedida = await unitOfWork.Repository<UnidadMedida>().FirstOrDefaultAsync(

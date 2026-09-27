@@ -63,7 +63,7 @@ public class UpdateLineaDiarioCommandHandlerTests
         });
 
         var conversion = new Mock<IConversionUnidadMedidaService>();
-        conversion.Setup(c => c.ObtenerFactorAsync(producto.Id, unidad.Id, It.IsAny<CancellationToken>())).ReturnsAsync(Result<decimal>.Exito(1m));
+        conversion.Setup(c => c.ObtenerConversionAsync(producto.Id, unidad.Id, It.IsAny<CancellationToken>())).ReturnsAsync(Result<ConversionUnidadMedida>.Exito(new ConversionUnidadMedida(1m, 6, "UND")));
 
         var unitOfWork = new Mock<IUnitOfWork>();
         unitOfWork.Setup(u => u.Repository<LineaDiario>()).Returns(lineas.Repo);

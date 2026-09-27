@@ -24,4 +24,18 @@ public sealed class FacturaVentaBorradorDatos(IDbSession session) : IFacturaVent
             sql, new { Id = facturaVentaBorradorId, Ahora = DateTimeOffset.UtcNow, Usuario = usuario },
             session.CurrentTransaction, cancellationToken: cancellationToken));
     }
+
+    public async Task BloquearSociosAsync(IEnumerable<Guid> socioNegocioIds, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(socioNegocioIds);
+        await session.EnsureOpenAsync(cancellationToken);
+        if (session.CurrentTransaction is null)
+        {
+            throw new InvalidOperationException("Bloquear los socios de un borrador de factura requiere una transacción activa.");
+        }
+
+        await session.Connection.ExecuteAsync(new CommandDefinition(
+            """SELECT 1 FROM "SociosNegocio" WHERE "Id" = ANY(@Ids) ORDER BY "Id" FOR SHARE""",
+            new { Ids = socioNegocioIds.Distinct().Order().ToArray() }, session.CurrentTransaction, cancellationToken: cancellationToken));
+    }
 }

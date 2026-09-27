@@ -99,13 +99,22 @@ public sealed class PostearFacturaVentaCommandHandler(
         // 3. Revalidación y derivación de TODAS las cuentas: nada se escribe hasta que no quede ningún error.
         var errores = new List<Error>();
         await ValidarCabeceraAsync(borrador, errores, cancellationToken);
+        var lineasValidas = new List<LineaFacturaAPostear>();
         foreach (var linea in lineasConImporte)
         {
+            var antes = errores.Count;
             await ValidarLineaAsync(linea, errores, cancellationToken);
+            if (errores.Count == antes)
+            {
+                lineasValidas.Add(linea);
+            }
         }
 
         ValidarIvaCoherente(lineasConImporte, errores);
-        var cuentas = await DerivarCuentasAsync(borrador, lineasConImporte, errores, cancellationToken);
+
+        // Solo se derivan las cuentas de las líneas sin error (como mucho un error por línea). Si alguna línea falló, el
+        // posteo termina aquí de todos modos, así que las cuentas parciales nunca se usan.
+        var cuentas = await DerivarCuentasAsync(borrador, lineasValidas, errores, cancellationToken);
         if (errores.Count > 0)
         {
             return Fallo([.. errores]);
@@ -133,7 +142,7 @@ public sealed class PostearFacturaVentaCommandHandler(
         if (numero.Length > LongitudNumero)
         {
             return Fallo(new Error(
-                "factura.serie_invalida", $"El número de factura generado supera los {LongitudNumero} caracteres.", "Id"));
+                "factura.serie_invalida", $"El número de factura generado supera los {LongitudNumero} caracteres."));
         }
 
         var descripcion = Truncar(borrador.Descripcion ?? $"Factura de venta {numero}");
@@ -191,7 +200,10 @@ public sealed class PostearFacturaVentaCommandHandler(
         var registro = await registroContable.RegistrarAsync(asiento, cancellationToken);
         if (!registro.TryObtenerValor(out var asientoRegistrado))
         {
-            return Result<ResultadoPosteoFactura>.Fallo(registro);
+            // Los campos "Lineas[i].X" de IRegistroContable indexan las PATAS del asiento (base 0), no las líneas de la
+            // factura: se propagan sin ese campo para no confundirlos con Lineas[NumeroLinea].
+            return Fallo([.. registro.Errores.Select(e =>
+                e.Campo is { } campo && campo.StartsWith("Lineas[", StringComparison.Ordinal) ? e with { Campo = null } : e)]);
         }
 
         // 9. Documento legal, ya con el asiento (se inserta el último: nunca se actualiza).
@@ -326,15 +338,16 @@ public sealed class PostearFacturaVentaCommandHandler(
             return;
         }
 
-        var factor = await conversion.ObtenerFactorAsync(producto.Id, unidad.Id, cancellationToken);
-        if (!factor.TryObtenerValor(out var valorFactor))
+        var conversionResultado = await conversion.ObtenerConversionAsync(producto.Id, unidad.Id, cancellationToken);
+        if (!conversionResultado.TryObtenerValor(out var conversionUnidad))
         {
-            var original = factor.Errores[0];
+            var original = conversionResultado.Errores[0];
             errores.Add(DeLinea(linea, new Error(original.Codigo, original.Mensaje, "UnidadMedidaId")));
             return;
         }
 
-        var vigente = Math.Round(valorFactor, 6, MidpointRounding.AwayFromZero);
+        // El factor vigente ya viene redondeado a 6: el mismo con el que RegistrarAsync convertirá y congelará.
+        var vigente = conversionUnidad.Factor;
         if (vigente != linea.CantidadPorUnidadMedida)
         {
             errores.Add(DeLinea(linea, new Error(
@@ -342,6 +355,15 @@ public sealed class PostearFacturaVentaCommandHandler(
                 $"El factor de conversión de la unidad cambió desde que se guardó la línea ({linea.CantidadPorUnidadMedida:0.######} " +
                 $"-> {vigente:0.######}); vuelva a guardar la línea.",
                 "UnidadMedidaId")));
+            return;
+        }
+
+        // La cantidad en unidad base debe ser exacta con los decimales ACTUALES de la unidad base (pudieron cambiar desde que
+        // se guardó la línea): nunca se redondea en el inventario.
+        var cantidadBase = conversionUnidad.ConvertirExacta(linea.Cantidad);
+        if (cantidadBase.EsFallo)
+        {
+            errores.Add(DeLinea(linea, cantidadBase.Errores[0] with { Campo = "Cantidad" }));
         }
     }
 
@@ -384,6 +406,8 @@ public sealed class PostearFacturaVentaCommandHandler(
         var ivaFallido = new HashSet<Guid>();
         foreach (var linea in lineas)
         {
+            // Como mucho un error por línea: tras el primero, las demás derivaciones de esa línea se omiten.
+            var conError = false;
             if (linea.Tipo == TipoLineaFactura.Producto && linea.GrupoProductoId is { } grupoProducto && linea.GrupoInventarioId is { } grupoInventario
                 && linea.AlmacenId is { } almacen)
             {
@@ -398,20 +422,22 @@ public sealed class PostearFacturaVentaCommandHandler(
                     else
                     {
                         errores.Add(DeLinea(linea, cuenta.Errores[0] with { Campo = "GrupoProductoId" }));
+                        conError = true;
                     }
                 }
 
-                if (inventarioResuelto.Add((almacen, grupoInventario)))
+                if (!conError && inventarioResuelto.Add((almacen, grupoInventario)))
                 {
                     var cuenta = await derivador.CuentaInventarioAsync(almacen, grupoInventario, cancellationToken);
                     if (cuenta.EsFallo)
                     {
                         errores.Add(DeLinea(linea, cuenta.Errores[0] with { Campo = "GrupoInventarioId" }));
+                        conError = true;
                     }
                 }
             }
 
-            if (linea.GrupoIvaProductoId is { } grupoIva && !iva.ContainsKey(grupoIva) && ivaFallido.Add(grupoIva))
+            if (!conError && linea.GrupoIvaProductoId is { } grupoIva && !iva.ContainsKey(grupoIva) && ivaFallido.Add(grupoIva))
             {
                 var setup = await derivador.IvaAsync(borrador.GrupoIvaNegocioId, grupoIva, cancellationToken);
                 if (setup.TryObtenerValor(out var setupIva))
