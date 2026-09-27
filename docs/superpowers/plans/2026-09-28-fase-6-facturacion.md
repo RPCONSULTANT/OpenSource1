@@ -342,3 +342,9 @@ el código de prueba `HACK-1`). Suite completa (`DOCKER_CONTEXT=default dotnet t
   columnas de orden/filtro, citadas sin alias sobre una subconsulta aplanada) y `FilterExpressionBuilder`; en Blazor,
   filtros GET por query string con `[SupplyParameterFromQuery]` (`int?` para enums, orden explícito porque
   `PageRequest.Descendente` es `true` por defecto), como `FacturasVenta.razor` y `DiariosInventario.razor`.
+- Residuales de la revisión final de la tanda de correcciones: en el posteo de diarios, si cambian el factor y la exactitud a
+  la vez, sale `conversion.cantidad_no_exacta` en vez de `diario.factor_cambiado` (en facturas gana `factor_cambiado`);
+  `ConvertirABaseAsync` y `ObtenerFactorAsync` (redondean) ya no tienen llamadores: retirarlos o marcarlos `[Obsolete]`
+  para que nadie vuelva a convertir con redondeo; el registro de cobros propaga el Campo `Lineas[i]` de los errores de
+  `IRegistroContable` (la factura ya no); un factor menor que 0.0000005 se redondea a 0 al congelarse (depende de la
+  validación de `UnidadesMedidaProducto`, sin UI hoy).
