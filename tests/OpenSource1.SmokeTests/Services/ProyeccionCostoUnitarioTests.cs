@@ -20,6 +20,7 @@ public sealed class ProyeccionCostoUnitarioTests(PostgresTestFixture fixture)
     private static readonly DateOnly D1 = new(2026, 5, 1);
     private static readonly DateOnly D2 = new(2026, 5, 2);
     private static readonly DateOnly D3 = new(2026, 5, 3);
+    private static readonly DateOnly D4 = new(2026, 5, 4);
     private static readonly DateOnly FechaCorte = new(2099, 12, 31);
 
     private readonly LibroInventarioPrueba _prueba = new(fixture);
@@ -94,6 +95,29 @@ public sealed class ProyeccionCostoUnitarioTests(PostgresTestFixture fixture)
         Assert.Equal(new(1, 1), await _prueba.AjustarOkAsync(producto));
         Assert.Equal(15m, await CostoUnitarioAsync(producto));
         Assert.Equal(15m, await CostoMedioVistaAsync(producto, almacen));
+    }
+
+    [Fact]
+    public async Task ProductoAgotadoTrasEntradaRetroactiva_ElAjusteDejaElUltimoPromedioAjustado_NoElConservadoPorElRegistro()
+    {
+        var producto = await _prueba.SembrarProductoAsync();
+        var almacen = await _prueba.SembrarAlmacenAsync();
+        await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Entrada(producto, almacen, 10m, 10m, D1));
+        await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Salida(producto, almacen, 5m, D3));
+        await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Entrada(producto, almacen, 10m, 20m, D2));
+        Assert.Equal(16.6667m, await CostoUnitarioAsync(producto)); // (100 − 50 + 200) / 15
+
+        // Agota el producto: Q = 0 → el registro conserva 16.6667 (calculado con la salida de D3 aún a −50).
+        var salidaD4 = await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Salida(producto, almacen, 15m, D4));
+        Assert.Equal(-250m, salidaD4.ImporteCosto);
+        Assert.Equal(0m, await CantidadValoradaAsync(producto));
+        Assert.Equal(16.6667m, await CostoUnitarioAsync(producto));
+
+        // El ajuste revalora D3 a −75 (promedio 300 / 20 = 15) y D4 a −225 (225 / 15 = 15): Q sigue en 0 y la proyección
+        // toma el último promedio ajustado, 15.
+        Assert.Equal(new(1, 2), await _prueba.AjustarOkAsync(producto));
+        Assert.Equal(0m, await CantidadValoradaAsync(producto));
+        Assert.Equal(15m, await CostoUnitarioAsync(producto));
     }
 
     [Fact]

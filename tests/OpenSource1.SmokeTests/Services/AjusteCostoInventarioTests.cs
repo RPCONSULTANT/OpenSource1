@@ -129,9 +129,9 @@ public sealed class AjusteCostoInventarioTests(PostgresTestFixture fixture)
         Assert.Equal(0m, fila.CantidadValorada);
         Assert.Equal(ultima.MovimientoProductoId, fila.MovimientoProductoId);
         Assert.Equal(D2, fila.FechaRegistro);
-        // Task 8.3: con Q = 0 al final se conserva la proyección que dejó el registro: tras la primera salida quedaban
-        // 6.6667 / 2 = 3.33335 → 3.3334 (no el promedio del día de las salidas, 3.33333…).
-        Assert.Equal(3.3334m, await CostoUnitarioAsync(producto));
+        // Task 8.3: con Q = 0 al final, el ajuste usa su último promedio ajustado con Q > 0 (el de D2: 10 / 3 → 3.3333), no
+        // la proyección que conservó el registro (tras la primera salida, 6.6667 / 2 = 3.33335 → 3.3334).
+        Assert.Equal(3.3333m, await CostoUnitarioAsync(producto));
 
         var filas = await _prueba.ContarFilasAsync(producto);
         Assert.Equal(0, (await _prueba.AjustarOkAsync(producto)).MovimientosValorCreados);

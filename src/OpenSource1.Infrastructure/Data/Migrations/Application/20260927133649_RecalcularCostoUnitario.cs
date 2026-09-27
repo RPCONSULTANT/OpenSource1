@@ -12,6 +12,8 @@ namespace OpenSource1.Infrastructure.Data.Migrations.Application
     /// resultado cabe en <c>[0, 1e14)</c>; en otro caso (y en productos sin movimientos) se conserva el valor.
     /// </summary>
     /// <remarks>
+    /// Sin filtro de borrado lógico: un producto borrado con movimientos también se recalcula (su historia sigue contando,
+    /// como en la rutina de ajuste, que tampoco filtra <c>IsDeleted</c>).
     /// SQL puro sobre <c>Productos</c>: no lee ni escribe los libros más allá de agregarlos, así que los triggers append-only no
     /// intervienen. Solo actualiza las filas cuyo valor cambia (su <c>xmin</c> cambia: una edición del maestro abierta antes
     /// recibirá 409). El dividendo se lleva a 24 decimales para que la división de PostgreSQL (que por defecto da ~16 cifras

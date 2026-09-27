@@ -13,7 +13,7 @@ namespace OpenSource1.SmokeTests.Infrastructure;
 /// Migración de datos <c>RecalcularCostoUnitario</c> (Task 8.3) contra Postgres real: parte del esquema anterior con
 /// proyecciones <c>Productos."CostoUnitario"</c> desactualizadas y comprueba que Up() las deja en <c>V / Q</c> (4 decimales)
 /// sobre todo el libro de valor si <c>Q &gt; 0</c>, conserva el valor si <c>Q &lt;= 0</c>, si el producto no tiene
-/// movimientos o si el promedio sería negativo, no toca (ni su <c>xmin</c>) la fila ya correcta, no escribe en los libros y
+/// movimientos o si el promedio sería negativo, recalcula también un producto borrado lógicamente, no toca (ni su <c>xmin</c>) la fila ya correcta, no escribe en los libros y
 /// que Down() es un no-op documentado (Up() otra vez es idempotente). REQUIERE DOCKER.
 /// </summary>
 [Collection(PostgresCollection.Name)]
@@ -45,6 +45,8 @@ public sealed class RecalcularCostoUnitarioMigrationTests(PostgresTestFixture fi
             var valorNegativo = await SembrarAsync(conexion, 6m, (10m, 2m), (-30m, 0m));              // −10 / 2 < 0: conserva 6
             var sinMovimientos = await SembrarAsync(conexion, 7.5m);                                   // conserva 7.5
             var yaCorrecto = await SembrarAsync(conexion, 12.5m, (25m, 2m));                          // 12.5: sin UPDATE
+            var borrado = await SembrarAsync(conexion, 1m, (30m, 4m));                                // borrado lógico: 7.5
+            await conexion.ExecuteAsync("""UPDATE "Productos" SET "IsDeleted" = true WHERE "Id" = @borrado""", new { borrado });
 
             var xminCorrecto = await XminAsync(conexion, yaCorrecto);
             var libroAntes = await LibroAsync(conexion);
@@ -62,6 +64,7 @@ public sealed class RecalcularCostoUnitarioMigrationTests(PostgresTestFixture fi
                 [valorNegativo] = 6m,
                 [sinMovimientos] = 7.5m,
                 [yaCorrecto] = 12.5m,
+                [borrado] = 7.5m,
             };
             await ComprobarAsync();
             Assert.Equal(xminCorrecto, await XminAsync(conexion, yaCorrecto));

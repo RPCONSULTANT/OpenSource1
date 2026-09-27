@@ -40,8 +40,11 @@ namespace OpenSource1.Infrastructure.Services.Inventario;
 /// <para>
 /// <b>Proyección <c>Producto.CostoUnitario</c> al terminar</b> (Task 8.3): <see cref="ProyeccionCostoUnitario"/>, la MISMA
 /// definición que usa <c>RegistrarAsync</c> tras cada movimiento (<c>V / Q</c> sobre todo el libro de valor del producto,
-/// ya con los ajustes de esta pasada, a 4 decimales; si <c>Q &lt;= 0</c> se conserva). No es el promedio del último DÍA de la
-/// calculadora, que excluye las salidas de ese día: tras ellas el promedio vigente puede diferir en la cuarta cifra.
+/// ya con los ajustes de esta pasada, a 4 decimales). No es el promedio del último DÍA de la calculadora, que excluye las
+/// salidas de ese día: tras ellas el promedio vigente puede diferir en la cuarta cifra. <b>Diferencia con el registro:</b> si
+/// al terminar <c>Q &lt;= 0</c> (producto agotado), el registro conserva el valor, pero ese valor se calculó con importes
+/// ANTERIORES al ajuste; la rutina usa entonces su último promedio ajustado con <c>Q &gt; 0</c> (mismo redondeo y rango), y
+/// solo si no lo hay conserva el valor.
 /// </para>
 /// <para>
 /// <b>Divergencia transitoria con el posteo</b> (<see cref="CostoPromedioCalculadora"/> no conoce el futuro), en dos formas:
@@ -266,8 +269,9 @@ public sealed class AjusteCostoInventario(IDbSession session, IUsuarioActual usu
             new { productoId, ajustado }, tx, cancellationToken: ct));
 
         // Promedio final ajustado = misma definición que el registro (Task 8.3): V / Q sobre todo el libro de valor, ya con
-        // los ajustes y redondeos de esta pasada; si Q <= 0 se conserva. También solo si cambia.
-        await ProyeccionCostoUnitario.ActualizarAsync(session, productoId, ct);
+        // los ajustes y redondeos de esta pasada. Si Q <= 0 (agotado), el último promedio ajustado con Q > 0 (el valor que
+        // el registro conservó se calculó con importes anteriores al ajuste); sin él, se conserva. Solo si cambia.
+        await ProyeccionCostoUnitario.ActualizarAsync(session, productoId, ct, respaldoSinCantidad: ultimoCosto);
 
         return (insertados, ajustado);
     }
