@@ -1,7 +1,4 @@
 using System.Globalization;
-using System.Net;
-using System.Net.Http.Json;
-using System.Text.Json;
 using OpenSource1.Application.Features.Inventario.Consultas;
 using OpenSource1.Application.Features.Inventario.Consultas.Dtos;
 using OpenSource1.Core.Common;
@@ -74,38 +71,7 @@ public sealed class InventarioConsultasApiClient(HttpClient httpClient, ILogger<
 
     private static string Fecha(DateOnly fecha) => fecha.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 
-    private async Task<ConsultaResultado<T>> GetAsync<T>(string url, string entidad, CancellationToken cancellationToken)
-    {
-        using var response = await httpClient.GetAsync(url, cancellationToken);
-        if (response.IsSuccessStatusCode)
-        {
-            T? payload;
-            try
-            {
-                payload = await response.Content.ReadFromJsonAsync<T>(cancellationToken);
-            }
-            catch (JsonException ex)
-            {
-                logger.LogWarning(ex, "API de inventario devolvió {StatusCode} con un cuerpo ilegible al obtener {Entidad}.", response.StatusCode, entidad);
-                payload = default;
-            }
-
-            return payload is null
-                ? new ConsultaResultado<T>(false, $"La API no devolvió {entidad}.")
-                : new ConsultaResultado<T>(true, string.Empty, payload);
-        }
-
-        var body = await response.Content.ReadAsStringAsync(cancellationToken);
-        logger.LogWarning("API de inventario devolvió {StatusCode} al obtener {Entidad}. Body: {Body}", response.StatusCode, entidad, body);
-
-        var mensajes = response.StatusCode == HttpStatusCode.BadRequest ? ApiRespuestas.ExtraerMensajes(body) : [];
-        var safe = response.StatusCode switch
-        {
-            HttpStatusCode.Unauthorized => "Debe iniciar sesión nuevamente.",
-            HttpStatusCode.Forbidden => "No tiene permisos para consultar el inventario.",
-            HttpStatusCode.BadRequest => mensajes.Count > 0 ? "Revise los filtros:" : "Revise los filtros.",
-            _ => $"No fue posible cargar {entidad}."
-        };
-        return new ConsultaResultado<T>(false, safe, Errors: mensajes);
-    }
+    private Task<ConsultaResultado<T>> GetAsync<T>(string url, string entidad, CancellationToken cancellationToken) =>
+        ConsultasApi.GetAsync<T>(
+            httpClient, url, entidad, "No tiene permisos para consultar el inventario.", logger, cancellationToken: cancellationToken);
 }

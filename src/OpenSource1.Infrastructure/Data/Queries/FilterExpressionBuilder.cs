@@ -108,7 +108,7 @@ internal static class FilterExpressionBuilder
     /// en vez de metacaracteres del patrón. El backslash se escapa primero para no escapar dos
     /// veces los backslashes que introducen los reemplazos de <c>%</c> y <c>_</c>.
     /// </summary>
-    private static string EscaparMetacaracteresLike(string valor) =>
+    internal static string EscaparMetacaracteresLike(string valor) =>
         valor.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_");
 
     private static List<List<string>> ParseGroups(string? rawValue)

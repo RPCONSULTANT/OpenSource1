@@ -18,6 +18,13 @@ public interface IMovimientoClienteReadRepository
     /// <summary>Movimientos del socio con restante ≠ 0, en orden cronológico (<c>FechaRegistro</c>, <c>Id</c>), sin paginar.</summary>
     Task<IReadOnlyList<MovimientoClienteResponse>> ListAbiertosAsync(Guid socioNegocioId, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Antigüedad de saldos por cliente a <see cref="EstadoCuentaCriterios.FechaCorte"/> (obligatoria aquí: el handler pone el
+    /// valor por defecto), paginada por cliente, con los tramos sumados de todos los clientes filtrados.
+    /// </summary>
+    Task<EstadoCuentaResponse> GetEstadoCuentaAsync(
+        EstadoCuentaCriterios criterios, PageRequest paginacion, CancellationToken cancellationToken = default);
+
     /// <summary><c>Σ detalle.Importe</c> de todos los movimientos del socio y cuántos siguen abiertos.</summary>
     Task<SaldoClienteResponse> GetSaldoAsync(Guid socioNegocioId, CancellationToken cancellationToken = default);
 }

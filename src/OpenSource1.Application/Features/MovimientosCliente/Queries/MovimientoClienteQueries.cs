@@ -14,3 +14,9 @@ public sealed record GetSaldoClienteQuery(Guid SocioNegocioId) : IRequest<Result
 /// la pantalla de cobros necesita para elegir qué pago aplicar a qué factura (Task 6.5).
 /// </summary>
 public sealed record ListMovimientosAbiertosClienteQuery(Guid SocioNegocioId) : IRequest<Result<IReadOnlyList<MovimientoClienteResponse>>>;
+
+/// <summary>
+/// Estado de cuenta por antigüedad de saldos (Task 7.3): todos los clientes (paginado por cliente) o uno, a una fecha de corte.
+/// </summary>
+public sealed record GetEstadoCuentaQuery(EstadoCuentaCriterios Criterios, PageRequest Paginacion)
+    : IRequest<Result<EstadoCuentaResponse>>;

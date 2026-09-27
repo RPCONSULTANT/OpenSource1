@@ -194,7 +194,7 @@ public sealed class DapperInventarioConsultasRepository(IDbSession session) : II
                 "ProductoId" IN (SELECT pt."Id" FROM "Productos" pt
                                  WHERE pt."Codigo" ILIKE @Texto ESCAPE '\' OR pt."Nombre" ILIKE @Texto ESCAPE '\')
                 """);
-            parameters.Add("Texto", $"%{EscaparLike(criterios.Texto.Trim())}%");
+            parameters.Add("Texto", $"%{FilterExpressionBuilder.EscaparMetacaracteresLike(criterios.Texto.Trim())}%");
         }
 
         var exterior = criterios.SoloConExistencia ? "WHERE \"Existencia\" <> 0" : string.Empty;
@@ -319,8 +319,4 @@ public sealed class DapperInventarioConsultasRepository(IDbSession session) : II
 
     private static string Where(IReadOnlyCollection<string> filtros) =>
         filtros.Count == 0 ? string.Empty : "WHERE " + string.Join(" AND ", filtros);
-
-    /// <summary>Mismo escape que <c>FilterExpressionBuilder</c>: <c>\</c>, <c>%</c> y <c>_</c> del usuario son literales.</summary>
-    private static string EscaparLike(string valor) =>
-        valor.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_");
 }

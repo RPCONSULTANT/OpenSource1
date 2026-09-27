@@ -1,4 +1,5 @@
 using MediatR;
+using OpenSource1.Application.Common;
 using OpenSource1.Application.Features.Inventario.Consultas.Dtos;
 using OpenSource1.Core.Common;
 using OpenSource1.Core.Enums;
@@ -43,10 +44,9 @@ internal static class InventarioConsultasValidacion
 
     public static void ValidarPagina(PageRequest paginacion, List<Error> errores)
     {
-        var normalizada = paginacion.Normalizar();
-        if ((long)(normalizada.Pagina - 1) * normalizada.TamanoPagina > int.MaxValue)
+        if (PaginacionValidacion.Validar(paginacion, "inventario") is { } error)
         {
-            errores.Add(new Error("inventario.pagina_invalida", "El número de página está fuera de rango.", "Pagina"));
+            errores.Add(error);
         }
     }
 
