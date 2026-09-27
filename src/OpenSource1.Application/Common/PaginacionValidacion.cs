@@ -4,8 +4,9 @@ namespace OpenSource1.Application.Common;
 
 /// <summary>
 /// Guarda común de las vistas paginadas (Fase 7, Review Focus 5): una página cuyo desplazamiento no cabe en un entero
-/// (<c>(Pagina - 1) * TamanoPagina</c> tras <see cref="PageRequest.Normalizar"/>) haría un OFFSET negativo y un 500 en Postgres;
-/// es 400 con <c>Campo = "Pagina"</c>. Página &lt; 1 y tamaño fuera de [1, 200] no son error: se normalizan.
+/// (<c>(Pagina - 1) * TamanoPagina</c> tras <see cref="PageRequest.Normalizar"/>) es 400 con <c>Campo = "Pagina"</c>. Página
+/// &lt; 1 y tamaño fuera de [1, 200] no son error: se normalizan. Los listados anteriores a la Fase 7 no validan: se apoyan
+/// en <see cref="PageRequest.Offset"/>, acotado a <c>int.MaxValue</c> (200 con página vacía, nunca un OFFSET negativo).
 /// </summary>
 internal static class PaginacionValidacion
 {
