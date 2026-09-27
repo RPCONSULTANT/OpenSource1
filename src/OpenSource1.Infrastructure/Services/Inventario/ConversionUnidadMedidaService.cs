@@ -7,28 +7,6 @@ namespace OpenSource1.Infrastructure.Services.Inventario;
 
 public sealed class ConversionUnidadMedidaService(ApplicationDbContext context) : IConversionUnidadMedidaService
 {
-    public async Task<Result<decimal>> ConvertirABaseAsync(
-        Guid productoId, Guid unidadMedidaId, decimal cantidad, CancellationToken cancellationToken = default)
-    {
-        var resolucion = await ResolverAsync(productoId, unidadMedidaId, cancellationToken);
-        if (resolucion.EsFallo)
-        {
-            return Result<decimal>.Fallo(resolucion);
-        }
-
-        var (factor, decimalesBase, _) = resolucion.Valor;
-        var convertido = Math.Round(cantidad * factor, decimalesBase, MidpointRounding.AwayFromZero);
-        return Result<decimal>.Exito(convertido);
-    }
-
-    public async Task<Result<decimal>> ObtenerFactorAsync(Guid productoId, Guid unidadMedidaId, CancellationToken ct = default)
-    {
-        var resolucion = await ResolverAsync(productoId, unidadMedidaId, ct);
-        return resolucion.EsFallo
-            ? Result<decimal>.Fallo(resolucion)
-            : Result<decimal>.Exito(resolucion.Valor.Factor);
-    }
-
     public async Task<Result<ConversionUnidadMedida>> ObtenerConversionAsync(
         Guid productoId, Guid unidadMedidaId, CancellationToken cancellationToken = default)
     {
@@ -47,13 +25,13 @@ public sealed class ConversionUnidadMedidaService(ApplicationDbContext context) 
 
     /// <summary>
     /// Resuelve el factor (sin redondear) y los decimales de la unidad base. Única fuente del criterio de identidad y
-    /// de los códigos de error, compartida por <see cref="ConvertirABaseAsync"/> y <see cref="ObtenerFactorAsync"/>.
+    /// de los códigos de error de <see cref="ObtenerConversionAsync"/>.
     /// </summary>
     private async Task<Result<(decimal Factor, short DecimalesBase, string CodigoBase)>> ResolverAsync(
         Guid productoId, Guid unidadMedidaId, CancellationToken cancellationToken)
     {
         // La unidad base es la que el propio producto declara (Producto.UnidadMedidaBaseId); se resuelve contra el catálogo para
-        // obtener sus Decimales. El redondeo usa SIEMPRE los decimales de la unidad base (el resultado está expresado en ella),
+        // obtener sus Decimales. La precisión es SIEMPRE la de la unidad base (el resultado está expresado en ella),
         // nunca los de la unidad de entrada. El filtro global de borrado lógico de Producto aplica en esta consulta.
         var unidadBaseId = await context.Productos
             .AsNoTracking()
