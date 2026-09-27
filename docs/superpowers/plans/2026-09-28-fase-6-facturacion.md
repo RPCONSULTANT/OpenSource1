@@ -221,6 +221,115 @@ aplicaciones concurrentes no excedan el restante. Sin asiento.
 
 ## Task 6.7 — Cierre de la Fase 6
 
-- [ ] Cadena de migraciones desde vacía y desde el final de la Fase 5 con datos; Down y vuelta a HEAD.
-- [ ] `ApplicationDbContextModelTests`, sonda vacía, `has-pending-model-changes`; `grep` TODO; suite completa.
-- [ ] Sección "Resultado y pendientes que hereda la Fase 7" al final de este plan.
+- [x] Cadena de migraciones desde vacía y desde el final de la Fase 5 con datos; Down y vuelta a HEAD.
+- [x] `ApplicationDbContextModelTests`, sonda vacía, `has-pending-model-changes`; `grep` TODO; suite completa.
+- [x] Sección "Resultado y pendientes que hereda la Fase 7" al final de este plan.
+
+---
+
+## Resultado y pendientes que hereda la Fase 7
+
+**Resultado.** La Fase 6 queda cerrada: borradores de factura de venta con líneas de producto, cuenta contable y
+comentario, grupos e IVA congelados, liberar/reabrir y serie `FV-BORR` (Task 6.2); documento legal posteado
+(`FacturasVenta`, `LineasFacturaVenta`, `LineasIvaFacturaVenta`), libro de clientes con detalle (`MovimientosCliente`,
+`MovimientosClienteDetalle`) con saldo e importe restante derivados, y `CalculadoraIvaFactura` pura con el IVA agrupado
+por identificador (Task 6.3); motor de posteo atómico `PostearFacturaVenta` — deriva todas las cuentas antes de escribir,
+número `FV` sin huecos, salidas de inventario por `IRegistroMovimientosInventario`, movimiento de cliente, asiento por
+`IRegistroContable` (CxC / Ventas por grupo con ajuste de redondeo / IVA por grupo / cuentas de línea) y borrado del
+borrador — más la guarda de borrado de socios heredada de la Fase 5 (Task 6.4); cobros con asiento caja/CxC, serie
+`COBRO` y aplicación a facturas con bloqueo de ambos movimientos (Task 6.5); y páginas Static SSR de borradores, facturas
+posteadas y cobros, con el saldo en la ficha del cliente (Task 6.6). Las cinco Review Focus de la fase tienen test
+dedicado y pasan.
+
+La cadena de migraciones se verificó en ambos sentidos con un contenedor `postgres:17-alpine` temporal (puerto 65467,
+`DOCKER_CONTEXT=default`, borrado al terminar):
+
+1. **BD vacía → HEAD** (34 migraciones, `InitialApplicationDb` … `AddSerieCobro`): aplica limpio.
+2. **BD en el estado final de la Fase 5 con datos → HEAD**: migrada hasta `20260926152707_PermitirContabilizacionCosto`
+   (30 migraciones) y sembrada por SQL con un almacén, un producto (`BIENES/ITBIS18/GENERAL`), un socio
+   (`NACIONAL/ITBIS18/GENERAL`), un movimiento de producto y uno de valor de apertura (`TipoOrigen = 99`, 100 UND a 8.00,
+   ya contabilizado) y un asiento contable cuadrado (1301 / 5201 por 800.00, serie `CONTAB` en `00000001`). Tras
+   `dotnet ef database update` a HEAD (las 4 migraciones de la Fase 6), comprobado por SQL: las 7 tablas nuevas
+   (`FacturasVentaBorrador`, `LineasFacturaVentaBorrador`, `FacturasVenta`, `LineasFacturaVenta`, `LineasIvaFacturaVenta`,
+   `MovimientosCliente`, `MovimientosClienteDetalle`); los 10 triggers `TR_<tabla>_AppendOnly`/`TR_<tabla>_NoTruncate`
+   de las cinco tablas append-only con `tgenabled = 'O'` sobre `libro_inventario_append_only()` (un `TRUNCATE` de
+   `FacturasVenta` y de `MovimientosCliente` se rechaza); series `FV-BORR` (con huecos), `FV` y `COBRO` (sin huecos)
+   sembradas en `00000000`; los CHECK de la 6.3/6.4 (`CK_FacturasVenta_Total`, `CK_FacturasVenta_Redondeo`,
+   `CK_LineasFacturaVenta_MovimientoProducto`, `_Cantidad`, `_Referencia`, `_Tipo`, `CK_MovimientosCliente_TipoDocumento`,
+   `CK_MovimientosClienteDetalle_Aplicado`, `_TipoMovimiento` y los de borradores) y los índices únicos de las redes de la
+   6.4 (`IX_FacturasVenta_RegistroContableId`, `IX_MovimientosCliente_TipoDocumento_NumeroDocumento`,
+   `IX_FacturasVenta_NumeroBorrador`, `IX_FacturasVentaBorrador_Numero`). El esquema de la Fase 6 es idéntico al de la BD
+   migrada desde vacía, y la huella (md5 por tabla) de los datos previos no cambia.
+3. **Down a `PermitirContabilizacionCosto`** (Down completo de la Fase 6, quedan 30 migraciones): las 7 tablas, sus
+   triggers y las series `FV-BORR`/`FV`/`COBRO` desaparecen; el resultado es byte a byte la misma salida de verificación
+   que antes de subir (mismas huellas de almacenes, productos, socios, movimientos de producto y valor, registros y
+   movimientos contables, cuentas; `CONTAB` sigue en `00000001`; 13 triggers, los de la Fase 5).
+4. **Up de nuevo a HEAD**: salida de verificación idéntica a la del paso 2 (sin duplicados de `HasData`).
+
+Resto de la verificación: `dotnet build test.slnx --no-incremental` con 0 errores y solo los 6 avisos CS0618
+preexistentes (se corrigieron 3 avisos de nulabilidad CS8602/CS8629 que había dejado la ronda de arreglos de la Task 6.6
+en `FacturasVentaBorradores.razor`/`FacturaVentaBorrador.razor`, sin cambio de comportamiento); `ApplicationDbContextModelTests`
+en verde; sonda `ProbeFase67` con `Up()`/`Down()` vacíos y el repositorio sin cambios (borrada);
+`dotnet ef migrations has-pending-model-changes` → "No changes have been made to the model since the last migration.";
+`grep -rnwE "TODO|FIXME|HACK|XXX"` sobre `src/`/`tests/` sin marcadores reales (solo "TODO" como énfasis en comentarios y
+el código de prueba `HACK-1`). Suite completa (`DOCKER_CONTEXT=default dotnet test test.slnx`): **1185/1185** (sin tests nuevos: task de verificación y documentación), ~15 min.
+
+**Limitaciones conocidas que hereda la Fase 7:**
+
+- **Sin patas de costo al facturar.** `PosteoAutomaticoCosto` sigue sin implementarse: el asiento de la factura tiene solo
+  CxC, Ventas, IVA y cuentas de línea. El costo de la venta lo contabiliza el batch manual de la Fase 5 (`POST
+  api/contabilidad/postear-costo-inventario`); hasta que se ejecute, el libro contable no refleja el costo de ventas de las
+  facturas. El posteo exige igualmente el setup de inventario para que el batch pueda contabilizarlas después.
+- **Descuento de línea neto, sin cuenta de descuento.** `ImporteLinea` va neto y Ventas se acredita neto;
+  `CuentaDescuentoVentas` (y `CuentaDescuentoVentasAsync` del derivador) sigue sin usarse.
+- **Números sin prefijo.** Las facturas se numeran `00000001`, `00000002`… (formato de siembra de las series), igual que
+  borradores y cobros; `FV`/`COBRO` solo aparecen en el código de la serie, no en el número. Un número de factura y uno de
+  cobro pueden coincidir: se distinguen por `TipoDocumento` (el índice único de `MovimientosCliente` es por
+  `(TipoDocumento, NumeroDocumento)`).
+- **Serie con huecos serializada.** `FV-BORR` permite huecos, pero el generador de números la bloquea igual que las series
+  sin huecos, así que las altas de borradores concurrentes se serializan (aceptado: el alta es corta).
+- **Guardas check-then-act aceptadas.** Las guardas de uso nuevas o ampliadas (borrado de socios con documentos,
+  `SocioNegocioUsoService`; grupos y cuentas usados por borradores/facturas, `GrupoContableUsoService` y
+  `CuentaContableUsoService`) son consultas sin bloqueo antes del borrado lógico, el mismo patrón de
+  las fases anteriores; el posteo revalida todo bajo lock y rechaza con error explícito, nunca escribe a medias. El alta y
+  la edición de borradores tampoco toman `FOR SHARE` del socio (Ruling DF-4, pendiente de la fix wave final).
+- **Unidad de línea siempre la base del producto (en la UI).** La página del borrador envía siempre la unidad base del
+  producto (factor 1) y no ofrece unidades alternativas. La API acepta `UnidadMedidaId` opcional (por defecto la base) y
+  congela el factor de conversión como en los diarios, pero ese camino no tiene UI ni runtime verificado en esta fase.
+- **HALLAZGO pendiente de la fix wave final (NO resuelto): cantidades con más decimales que la unidad base se redondean en
+  inventario.** Una línea de 2.5 UND (unidad con `Decimales = 0`) se factura por 2.5, pero `ConversionUnidadMedidaService`
+  redondea la cantidad base a 3, así que el documento y el libro de inventario no coinciden. Afecta también a las líneas
+  de diario (Fase 4). Decisión (Ruling DJ): rechazar, no redondear, en `LineaFacturaVentaBorradorReglas`,
+  `LineaDiarioReglas`, la revalidación del posteo de facturas y diarios, y en `RegistrarAsync` como red final. Las vistas
+  de la Fase 7 mostrarán las discrepancias que existan hasta que se aplique.
+- **Otros pendientes de la fix wave final:** guarda de mismo socio en `AplicarPagoCommandHandler` antes del bloqueo de
+  socios y su test de API; campo vacío en `cobro.serie_invalida`; `Campo` de los errores de `IRegistroContable`
+  reescrito; saltar en la derivación las líneas que ya tienen error; test de concurrencia con productos distintos
+  (contienda real de la serie `FV`); tests de cuentas de IVA distintas, facturar-a bloqueado y unidad borrada; documentar el
+  orden global de locks en las desviaciones de la Fase 6. Diferidos menores: N+1 en `RecalcularIvaLineasAsync`, número de
+  `COBRO` con la fecha de hoy, búsqueda de productos en cada GET de la página de borrador, mensajes "no encontrado" cuando
+  lo que falló fue la carga, duplicación de campos de línea/buscador con los diarios, modo oscuro.
+- **Mensaje del trigger ante `TRUNCATE`** (preexistente, Fase 3): `libro_inventario_append_only()` responde "UPDATE no
+  permitido" también a un `TRUNCATE` (no distingue `TG_OP = 'TRUNCATE'`). El rechazo es correcto; solo el texto confunde.
+- **Down destructivo.** El `Down` de `AddFacturasVentaYLibroClientes` borra facturas posteadas y libro de clientes, y no
+  revierte lo que el posteo escribió en inventario ni en el libro contable (que pertenecen a fases anteriores).
+
+**Lo que la Fase 7 (vistas de movimientos) debe reutilizar, no reinventar:**
+
+- **Facturas posteadas:** `IFacturaVentaReadRepository` (`ListAsync` paginado con `FacturaVentaSearchCriteria`,
+  `GetByNumeroAsync` con líneas y líneas de IVA) detrás de `GET api/facturas-venta` y `GET api/facturas-venta/{numero}`.
+- **Movimientos y saldo de cliente:** `IMovimientoClienteReadRepository` — `ListAsync` paginado con importe restante
+  derivado y marca de abierto (filtros desde/hasta/soloAbiertos), `ListAbiertosAsync` y `GetSaldoAsync` — expuestos en
+  `GET api/clientes/{id}/movimientos`, `/movimientos-abiertos` y `/saldo`. `MovimientosCliente.FechaVencimiento` ya está
+  en el libro: el estado de cuenta por tramos de antigüedad se puede derivar de restante × vencimiento sin tocar esquema.
+- **Movimientos contables:** `IContabilidadReadRepository.ListMovimientosAsync` / `ListRegistrosAsync` (paginados, `GET
+  api/contabilidad/movimientos` y `/registros`); el balance de comprobación es una agregación de `MovimientosContables`
+  por cuenta (`Debito`/`Credito`/`Importe` ya separados por el CHECK `CK_MovimientosContables_DebitoCredito`).
+- **Libro de inventario:** `IConsultaInventario` (`ExistenciaAsync`, `ExistenciasPorAlmacenAsync`, `CostoPromedioAsync`)
+  y `GET api/productos/{id}/existencias`, con los índices del libro de `AddIndicesLibroInventario` y
+  `AddIndiceExistenciaProducto`. No hay aún un listado paginado de `MovimientosProducto`/`MovimientosValor`: la
+  Fase 7 lo crea con el mismo patrón de repositorio Dapper.
+- **Patrón de listados:** repositorios Dapper con `PageRequest`/`PagedResult`, `ColumnasPermitidas` (lista blanca de
+  columnas de orden/filtro, citadas sin alias sobre una subconsulta aplanada) y `FilterExpressionBuilder`; en Blazor,
+  filtros GET por query string con `[SupplyParameterFromQuery]` (`int?` para enums, orden explícito porque
+  `PageRequest.Descendente` es `true` por defecto), como `FacturasVenta.razor` y `DiariosInventario.razor`.

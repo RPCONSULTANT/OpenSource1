@@ -227,7 +227,7 @@
 @if (MuestraDialogoBorrar)
 {
     <ConfirmDialog Title="Confirmar eliminación" Message="Se eliminará el borrador seleccionado con todas sus líneas. Esta acción no se puede deshacer." Variant="danger" CancelHref="@BuildListUrl()">
-        <p class="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-mono text-red-900">@(borradorAEliminar is null ? DeleteId.Value.ToString() : $"{borradorAEliminar.Numero} — {borradorAEliminar.NombreFacturacion} ({borradorAEliminar.NumeroLineas} línea(s))")</p>
+        <p class="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-mono text-red-900">@(borradorAEliminar is null ? DeleteId?.ToString() : $"{borradorAEliminar.Numero} — {borradorAEliminar.NombreFacturacion} ({borradorAEliminar.NumeroLineas} línea(s))")</p>
         <EditForm Model="DeleteInput" FormName="delete-borrador" OnValidSubmit="DeleteAsync" class="mt-4">
             <input type="hidden" name="DeleteInput.Id" value="@DeleteId" />
             <button type="submit" class="btn-press rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-700">Sí, eliminar</button>

@@ -321,7 +321,7 @@ else
             {
                 <div class="mb-4" data-testid="errores-posteo"><MessageBox Type="warning" Message="@posteoError" Errors="@posteoErrores" /></div>
             }
-            <p class="rounded-xl border border-brand-100 bg-brand-50 px-4 py-3 text-sm text-brand-900">@borrador.Numero — @borrador.NombreFacturacion (@lineas.Count línea(s))@(totales is null ? "" : $" · Total {VentasOpciones.Importe(totales.ImporteTotal)}")</p>
+            <p class="rounded-xl border border-brand-100 bg-brand-50 px-4 py-3 text-sm text-brand-900">@borrador?.Numero — @borrador?.NombreFacturacion (@lineas.Count línea(s))@(totales is null ? "" : $" · Total {VentasOpciones.Importe(totales.ImporteTotal)}")</p>
             <EditForm Model="PostearInput" FormName="confirm-postear" OnValidSubmit="PostearAsync" class="mt-4">
                 <button type="submit" class="btn-press rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700">Sí, postear</button>
                 <a href="@UrlBase" class="btn-press ml-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Cancelar</a>
@@ -332,7 +332,7 @@ else
     @if (MuestraDialogoBorrarLinea)
     {
         <ConfirmDialog Title="Confirmar eliminación" Message="Esta acción eliminará la línea seleccionada del borrador." Variant="danger" CancelHref="@UrlBase">
-            <p class="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-900">@(lineaAEliminar is null ? DeleteLineaId.Value.ToString() : $"Línea {lineaAEliminar.NumeroLinea} — {VentasOpciones.TipoLinea(lineaAEliminar.Tipo)}: {lineaAEliminar.Descripcion}")</p>
+            <p class="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-900">@(lineaAEliminar is null ? DeleteLineaId?.ToString() : $"Línea {lineaAEliminar.NumeroLinea} — {VentasOpciones.TipoLinea(lineaAEliminar.Tipo)}: {lineaAEliminar.Descripcion}")</p>
             <EditForm Model="DeleteInputLinea" FormName="delete-linea" OnValidSubmit="DeleteLineaAsync" class="mt-4">
                 <input type="hidden" name="DeleteInputLinea.Id" value="@DeleteLineaId" />
                 <button type="submit" class="btn-press rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-700">Sí, eliminar</button>
