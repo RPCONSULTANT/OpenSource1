@@ -1107,6 +1107,24 @@ Todas sobre repositorios Dapper paginados, con allow-list de columnas de ordenac
 
 ---
 
+## Fase 8 — Notas de crédito, reglas de importe, fechas permitidas y limpieza
+
+Fase añadida tras cerrar la Fase 7, a petición del usuario (2026-09-27). Plan: `2026-09-30-fase-8-notas-credito.md`.
+
+- **Notas de crédito de venta** siempre ligadas a una factura posteada: cantidades ≤ lo facturado menos lo ya
+  acreditado; precio, descuento, IVA y grupos copiados de la línea original; devolución de inventario opcional por línea
+  al costo unitario de la salida original; `MovimientoCliente` NotaCredito aplicado automáticamente a la factura; asiento
+  inverso al de la factura (débito Ventas e IVA, crédito la CxC congelada de la factura). Series `NC-BORR` (con huecos) y
+  `NC` (sin huecos). Documento posteado append-only.
+- **Regla de importes:** precio unitario 0 bloqueado e importe de línea 0 bloqueado, salvo 100 % de descuento. Una factura
+  de total 0 (todas sus líneas al 100 %) se postea con documento e inventario, sin movimiento de cliente ni asiento.
+- **`Producto.CostoUnitario`** se actualiza con cada movimiento de inventario al promedio vigente a la última fecha.
+- **Fechas de registro permitidas:** rango general y excepciones por usuario (el administrador las asigna); se validan en
+  todos los posteos de documentos, cobros y aplicaciones (`registro.fecha_no_permitida`), no en los procesos del sistema.
+- **Limpieza:** se retiran definitivamente los módulos de prueba Entradas y AppSettings, incluidas sus tablas.
+
+---
+
 ## Estrategia de verificación
 
 Cada fase termina con `dotnet build test.slnx` verde y sus tests propios.
