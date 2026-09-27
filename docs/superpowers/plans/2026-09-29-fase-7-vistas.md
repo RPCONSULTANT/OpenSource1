@@ -171,6 +171,22 @@ tablas obsoletas vuelven vacías, con sus columnas en otro orden) y vuelve a HEA
 `has-pending-model-changes` → "No changes have been made to the model since the last migration."; sonda con `Up()` vacío;
 `dotnet build test.slnx --no-incremental` con 0 errores y **0 avisos**; suite completa: **1359/1359**, 19 min 44 s.
 
+Revisión final de la rama (`b661b62..1f25046`) y ola de arreglos (`f97a1d8`, suite **1361/1361**): el validador de fechas
+**falla cerrado** si falta la fila general sembrada (también para usuarios con excepción propia; el posteo termina en 500
+sin escribir nada), comentarios obsoletos corregidos y limpiezas de UI. Residuales aceptados en esa revisión:
+- Una línea con cantidad pendiente pero importe restante 0 (residuo de redondeo por debajo del céntimo) no puede
+  acreditarse sin devolución y queda pendiente para siempre (la ficha sigue ofreciendo "Crear nota" y "copiar todo lo
+  pendiente" falla). Nunca acredita de más; cambiar la regla es decisión del usuario.
+- Una devolución no se revalúa si el costo de la venta original se ajusta después de la nota (las entradas no se revalúan).
+- `PostearNotaCreditoVenta` bloquea la factura con `FOR UPDATE` (bastaría `FOR NO KEY UPDATE`).
+- Sin guarda en la migración para las series sembradas `NC`/`NC-BORR`: se prefiere que el `Up` falle con claridad a adoptar
+  en silencio una serie creada a mano (mismo criterio que `FV`, `COBRO` y `CONTAB`).
+- Sin `xmin` en la API de configuración de fechas (una fila, solo Administrador, gana la última escritura); borrado de línea
+  de borrador de nota sin `xmin` (el posteo revalida bajo bloqueo).
+- Duplicación entre el handler de la nota y el de la factura; validación de fecha duplicada en los formularios de la nota;
+  el borrador de nota enmascara un fallo de carga como "no encontrado"; la lista de notas muestra todo 400 como
+  "desde > hasta"; `HttpClient` compartido y mutado en tests de API.
+
 ### Resumen del proyecto (Fases 0-8)
 
 - **Fase 0 — Saneamiento:** secretos fuera del repositorio (`appsettings.Example.json`, User Secrets), vulnerabilidad de

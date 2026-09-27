@@ -174,3 +174,24 @@ Reglas:
   que se borran); Down y vuelta a HEAD.
 - [x] `ApplicationDbContextModelTests`, `has-pending-model-changes`, build con 0 avisos, suite completa.
 - [x] Actualizar la sección de pendientes del proyecto (plan de la Fase 7) marcando lo resuelto en esta fase.
+
+---
+
+## Resultado de la Fase 8
+
+Commits: `1e406cf` (plan y spec), `68e1481` (8.2), `c790a51` y `e70914a` (8.3), `8fe7ba0` (8.4), `2e4c348` (8.5),
+`437161b` y `998a7b2` (8.6), `7ebfc4e` (8.7), `1f25046` (8.8), `f97a1d8` (ola de arreglos final). Suite 1361/1361,
+build con 0 avisos. Residuales: sección "Resultado de la Fase 8" del plan de la Fase 7.
+
+Decisiones tomadas durante la ejecución:
+- **FA:** el grep de aceptación de la retirada también encuentra la migración y el vocabulario de inventario; aceptado.
+- **FB:** `CostoUnitario` = V/Q sobre todo el libro; se conserva con Q ≤ 0 o fuera de [0, 1e14); tests ajustados.
+- **FC:** el ajuste de costo usa como respaldo el último promedio ajustado cuando Q ≤ 0.
+- **FD:** la API conserva el precio por defecto del producto si no se envía (rechazado si es 0); la UI lo exige.
+- **FE:** una nota de crédito de total 0 solo se permite si todas sus líneas devuelven inventario.
+- **FF:** aplicación sin fecha valida hoy (UTC); las sesiones Blazor previas obtienen `CanAdministrar` al volver a entrar.
+- **FG/FJ/FL:** el validador de fechas falla cerrado si falta la fila general (también con excepción de usuario; 500).
+- **FH:** diseño de la nota: `FOR UPDATE` de la factura, costo de devolución = costo de la salida + ajustes, IVA y CxC
+  congelados de la factura, nota no anterior a su factura, socio bloqueado impide postear.
+- **FI:** topes: nunca acreditar de más en importe, IVA ni costo; la nota que agota la factura toma el remanente exacto.
+- **FK:** residuales de la revisión final aceptados y documentados.
