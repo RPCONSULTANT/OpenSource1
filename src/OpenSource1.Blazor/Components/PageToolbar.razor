@@ -85,6 +85,8 @@
     [Parameter] public RenderFragment? ChildContent { get; set; }
     /// <summary>Permisos ya cargados por la página (opcional); si es null la barra los carga del usuario en cascada.</summary>
     [Parameter] public PermisosPagina? Permisos { get; set; }
+    /// <summary>URL local de esta página (lista con filtros y selección, o ficha): las acciones con LlevaRetorno la llevan como returnUrl.</summary>
+    [Parameter] public string? RetornoUrl { get; set; }
     [CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
 
     private IReadOnlyList<AccionPagina> crear = [];
@@ -129,7 +131,7 @@
         }
         else
         {
-            <a href="@accion.UrlConId(SeleccionId)" class="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-700/60">@Icono(accion.Icono) @accion.Etiqueta</a>
+            <a href="@accion.Href(SeleccionId, RetornoUrl)" class="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-700/60">@Icono(accion.Icono) @accion.Etiqueta</a>
         }
     };
 

@@ -8,6 +8,8 @@ using OpenSource1.Application.Features.FacturasVenta.Posteadas;
 using OpenSource1.Application.Features.FacturasVenta.Posteadas.Dtos;
 using OpenSource1.Application.Features.MovimientosCliente.Dtos;
 using OpenSource1.Application.Features.NotasCreditoVenta.Borradores.Dtos;
+using OpenSource1.Application.Features.NotasCreditoVenta.Posteadas;
+using OpenSource1.Application.Features.NotasCreditoVenta.Posteadas.Dtos;
 using OpenSource1.Application.Features.SociosNegocio.Dtos;
 using OpenSource1.Application.Features.TerminosPago.Dtos;
 using OpenSource1.Core.Common;
@@ -35,7 +37,8 @@ public sealed class AccionesFacturasTests
         api.Verify(c => c.ListFacturasAsync(It.Is<FacturaVentaSearchCriteria?>(f => f!.SocioNegocioId == IdCliente), It.IsAny<PageRequest?>(), It.IsAny<CancellationToken>()), Times.AtLeastOnce);
         Assert.Contains("data-testid=\"page-toolbar\"", html);
         Assert.Contains("href=\"/facturas-venta/nueva", html);
-        Assert.Contains("href=\"/facturas-venta/FV0001?crearNota=true\"", html);
+        // Puerta C: la nota desde la lista lleva la lista (cliente y selección) como returnUrl.
+        Assert.Contains($"href=\"/facturas-venta/FV0001?crearNota=true&returnUrl={Uri.EscapeDataString($"/facturas-venta?socioId={IdCliente}&sel=FV0001")}\"", html);
         Assert.Contains($"href=\"/ventas/movimientos-cliente?socioId={IdCliente}\"", html);
         Assert.Contains("C0001 — Comercial Uno", html);
         Assert.Contains($"<input type=\"hidden\" name=\"socioId\" value=\"{IdCliente}\"", html);
@@ -50,7 +53,7 @@ public sealed class AccionesFacturasTests
 
         var html = await HtmlSsr.HtmlAsync(app.Cliente(), "/facturas-venta?sel=FV9999");
 
-        Assert.DoesNotContain("href=\"/facturas-venta/FV9999?crearNota=true\"", html);
+        Assert.DoesNotContain("href=\"/facturas-venta/FV9999?crearNota=true", html);
         Assert.Contains("aria-disabled=\"true\"", html);
     }
 
@@ -70,8 +73,51 @@ public sealed class AccionesFacturasTests
         var html = await HtmlSsr.HtmlAsync(app.Cliente(), "/facturas-venta/FV0001");
 
         Assert.Contains("data-testid=\"page-toolbar\"", html);
-        Assert.Contains("href=\"/facturas-venta/FV0001?crearNota=true\"", html);
+        // Una sola entrada para crear la nota (la de Crear ▾), con la propia factura como vuelta.
+        Assert.Single(System.Text.RegularExpressions.Regex.Matches(html, "\\?crearNota=true"));
+        Assert.Contains("href=\"/facturas-venta/FV0001?crearNota=true&returnUrl=%2Ffacturas-venta%2FFV0001\"", html);
+        Assert.DoesNotContain("data-testid=\"crear-nota\"", html);
         Assert.Contains($"href=\"/ventas/movimientos-cliente?socioId={IdCliente}\"", html);
+    }
+
+    [Fact]
+    public async Task FacturaDetalle_AcreditadaPorCompleto_SinCrearNota()
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+        app.Simular<IFacturaVentaApiClient>()
+            .Setup(c => c.GetFacturaAsync("FV0001", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new FacturaVentaDetalleResponse(
+                new FacturaVentaResponse { Numero = "FV0001", SocioNegocioId = IdCliente, NombreFacturacion = "Comercial Uno" }, [], []));
+        app.Simular<INotaCreditoVentaApiClient>()
+            .Setup(c => c.ListNotasAsync(It.IsAny<NotaCreditoVentaSearchCriteria?>(), It.IsAny<PageRequest?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PagedResult<NotaCreditoVentaResponse>([], 1, 50, 0));
+
+        var html = await HtmlSsr.HtmlAsync(app.Cliente(), "/facturas-venta/FV0001");
+
+        Assert.Contains("Factura acreditada por completo.", html);
+        Assert.DoesNotContain("crearNota=true", html);
+        Assert.DoesNotContain("Nota de crédito de la factura", html);
+    }
+
+    [Fact]
+    public async Task FacturaDetalle_DialogoNota_CancelarVuelveAlOrigen()
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+        app.Simular<IFacturaVentaApiClient>()
+            .Setup(c => c.GetFacturaAsync("FV0001", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new FacturaVentaDetalleResponse(
+                new FacturaVentaResponse { Numero = "FV0001", SocioNegocioId = IdCliente, NombreFacturacion = "Comercial Uno" }, [], []));
+        var origen = Uri.EscapeDataString($"/facturas-venta?socioId={IdCliente}&sel=FV0001");
+
+        var conOrigen = await HtmlSsr.HtmlAsync(app.Cliente(), $"/facturas-venta/FV0001?crearNota=true&returnUrl={origen}");
+        var sinOrigen = await HtmlSsr.HtmlAsync(app.Cliente(), "/facturas-venta/FV0001?crearNota=true");
+        var hostil = await HtmlSsr.HtmlAsync(app.Cliente(), "/facturas-venta/FV0001?crearNota=true&returnUrl=%2F%2Fevil.com");
+
+        Assert.Contains($"href=\"/facturas-venta?socioId={IdCliente}&sel=FV0001\"", conOrigen);
+        Assert.Contains($"href=\"/facturas-venta/FV0001?crearNota=true&returnUrl={origen}\"", conOrigen);
+        Assert.Contains("href=\"/facturas-venta/FV0001\"", sinOrigen);
+        Assert.DoesNotContain("href=\"//evil.com", hostil);
+        Assert.Contains("href=\"/facturas-venta/FV0001\" class=\"rounded-lg", hostil);
     }
 
     [Fact]
@@ -138,6 +184,73 @@ public sealed class AccionesFacturasTests
         Assert.DoesNotContain("value=\"PAG-0001\"", html);
         Assert.DoesNotContain("value=\"FV0002\"", html);
         Assert.Equal($"/notas-credito-venta/borradores/{nota}?ok=creado", FormulariosSsr.Destino(respuesta));
+    }
+
+    [Fact]
+    public async Task NuevaFactura_SocioOcultoManipulado_UsaElClienteDeLaQuery()
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+        var api = app.Simular<IFacturaVentaApiClient>();
+        api.Setup(c => c.CreateBorradorAsync(It.IsAny<BorradorCabeceraInput>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new VentaOperationResult<FacturaVentaBorradorResponse>(true, "ok", new FacturaVentaBorradorResponse { Id = Guid.NewGuid() }));
+        var otro = Guid.NewGuid();
+
+        await FormulariosSsr.EnviarAsync(app.Cliente(), $"/facturas-venta/nueva?socioId={IdCliente}", "add-borrador",
+            new Dictionary<string, string> { ["AddInput.SocioNegocioId"] = otro.ToString(), ["AddInput.FechaRegistroTexto"] = "2026-09-28" });
+
+        api.Verify(c => c.CreateBorradorAsync(It.Is<BorradorCabeceraInput>(i => i.SocioNegocioId == IdCliente), It.IsAny<CancellationToken>()), Times.Once);
+        api.Verify(c => c.CreateBorradorAsync(It.Is<BorradorCabeceraInput>(i => i.SocioNegocioId == otro), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Theory]
+    [InlineData("/facturas-venta/nueva")]
+    [InlineData("/notas-credito-venta/nueva")]
+    public async Task AltaDesdeElCliente_CancelarVuelveAlCliente(string ruta)
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+
+        var html = await HtmlSsr.HtmlAsync(app.Cliente(), $"{ruta}?socioId={IdCliente}&returnUrl={Uri.EscapeDataString($"/clientes/{IdCliente}")}");
+
+        Assert.Contains($"href=\"/clientes/{IdCliente}\" data-testid=\"cancelar\"", html);
+    }
+
+    [Fact]
+    public async Task NotaCreditoNueva_ClienteNoEncontrado_SinCuadroDeFacturasNiGuid()
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+        var inexistente = Guid.NewGuid();
+
+        var html = await HtmlSsr.HtmlAsync(app.Cliente(), $"/notas-credito-venta/nueva?socioId={inexistente}");
+
+        Assert.Contains("No se encontró el cliente indicado", html);
+        Assert.DoesNotContain("no tiene facturas posteadas con importe pendiente", html);
+        Assert.DoesNotContain(inexistente.ToString(), html.Replace($"socioId={inexistente}", string.Empty, StringComparison.Ordinal));
+        Assert.Contains("href=\"/notas-credito-venta/nueva\"", html);
+    }
+
+    [Fact]
+    public async Task NotaCreditoNueva_SubtituloAclaraElClienteDeFacturacion()
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+
+        var html = await HtmlSsr.HtmlAsync(app.Cliente(), $"/notas-credito-venta/nueva?socioId={IdCliente}");
+
+        Assert.Contains("facturadas a este cliente", html);
+    }
+
+    [Fact]
+    public async Task NotaCreditoNueva_FacturaQueNoEsDelCliente_AvisaSinLlamarALaApi()
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+        var api = app.Simular<INotaCreditoVentaApiClient>();
+
+        var respuesta = await FormulariosSsr.EnviarAsync(app.Cliente(), $"/notas-credito-venta/nueva?socioId={IdCliente}", "nueva-nota-socio",
+            new Dictionary<string, string> { ["NotaInput.FacturaVentaNumero"] = "FV0002", ["NotaInput.CopiarLineas"] = "true" });
+        var html = HtmlSsr.Decodificar(await respuesta.Content.ReadAsStringAsync());
+
+        Assert.Equal(System.Net.HttpStatusCode.OK, respuesta.StatusCode);
+        Assert.Contains("La factura FV0002 no está entre las facturas pendientes de este cliente", html);
+        api.Verify(c => c.CreateBorradorAsync(It.IsAny<NotaCreditoBorradorInput>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]

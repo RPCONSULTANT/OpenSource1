@@ -54,7 +54,7 @@
                     <label class="block text-xs font-semibold text-slate-500 mb-1" for="socioId">Cliente</label>
                     <select id="socioId" name="socioId" class="@FiltroCss">
                         <option value="" selected="@(SocioId is null)">— Seleccione —</option>
-                        @OpcionSocioVigente(SocioId)
+                        @OpcionSocioVigente(SocioId, socios.Items, socioActual)
                         @foreach (var s in socios.Items)
                         {
                             <option value="@s.Id" selected="@(s.Id == SocioId)">@s.Codigo — @s.NombreComercial</option>
@@ -323,9 +323,13 @@ else
         }
     }
 
-    private RenderFragment OpcionSocioVigente(Guid? seleccion) => __builder =>
+    /// <summary>
+    /// Opción del cliente elegido cuando no está entre los primeros de la lista (p. ej. llegó por ?socioId=): se muestra con su
+    /// código si se cargó (<paramref name="actual"/>) o como "Cliente seleccionado". La comparten /cobros y /cobros/nuevo.
+    /// </summary>
+    public static RenderFragment OpcionSocioVigente(Guid? seleccion, IReadOnlyList<SocioNegocioResponse> items, SocioNegocioResponse? socioActual) => __builder =>
     {
-        if (seleccion is { } id && socios.Items.All(s => s.Id != id))
+        if (seleccion is { } id && items.All(s => s.Id != id))
         {
             <option value="@id" selected="selected">@(socioActual?.Id == id ? $"{socioActual.Codigo} — {socioActual.NombreComercial}" : $"Cliente seleccionado ({id})")</option>
         }

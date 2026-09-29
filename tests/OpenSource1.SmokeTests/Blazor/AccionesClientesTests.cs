@@ -23,10 +23,13 @@ public sealed class AccionesClientesTests
         using var app = Configurar(new BlazorSsrFactory());
 
         var html = await HtmlSsr.HtmlAsync(app.Cliente(), $"/clientes?view=list&sel={IdCliente}");
+        // Puerta C: las acciones Crear llevan la lista (filtros y selección) como returnUrl; las Ver no.
+        var retorno = Uri.EscapeDataString($"/clientes?view=list&sel={IdCliente}");
 
         foreach (var destino in new[]
                  {
-                     $"/facturas-venta/nueva?socioId={IdCliente}", $"/notas-credito-venta/nueva?socioId={IdCliente}", $"/cobros/nuevo?socioId={IdCliente}",
+                     $"/facturas-venta/nueva?socioId={IdCliente}&returnUrl={retorno}", $"/notas-credito-venta/nueva?socioId={IdCliente}&returnUrl={retorno}",
+                     $"/cobros/nuevo?socioId={IdCliente}&returnUrl={retorno}",
                      $"/clientes/{IdCliente}", $"/ventas/movimientos-cliente?socioId={IdCliente}", $"/ventas/estado-cuenta?socioId={IdCliente}",
                      $"/cobros?socioId={IdCliente}", $"/facturas-venta?socioId={IdCliente}",
                  })
@@ -45,9 +48,12 @@ public sealed class AccionesClientesTests
 
         var html = await HtmlSsr.HtmlAsync(app.Cliente(), "/clientes?view=list");
 
-        Assert.DoesNotContain($"href=\"/cobros/nuevo?socioId={IdCliente}\"", html);
-        Assert.Contains("data-testid=\"menu-crear\"", html);
-        Assert.Contains($"title=\"{(BlazorApp::OpenSource1.Blazor.Components.PageToolbar.SinSeleccion)}\"", html);
+        Assert.DoesNotContain($"href=\"/cobros/nuevo?socioId={IdCliente}", html);
+        // El aviso se comprueba DENTRO del menú Crear (Editar/Eliminar de la barra también lo llevan).
+        var menu = System.Text.RegularExpressions.Regex.Match(html, "<details[^>]*data-testid=\"menu-crear\".*?</details>", System.Text.RegularExpressions.RegexOptions.Singleline);
+        Assert.True(menu.Success);
+        Assert.Contains($"<span aria-disabled=\"true\" tabindex=\"0\" title=\"{(BlazorApp::OpenSource1.Blazor.Components.PageToolbar.SinSeleccion)}\"", menu.Value);
+        Assert.DoesNotContain("<a href=", menu.Value);
     }
 
     [Fact]
@@ -57,9 +63,9 @@ public sealed class AccionesClientesTests
 
         var html = await HtmlSsr.HtmlAsync(app.Cliente("Supervisor"), $"/clientes?view=list&sel={IdCliente}");
 
-        Assert.DoesNotContain($"href=\"/facturas-venta/nueva?socioId={IdCliente}\"", html);
-        Assert.DoesNotContain($"href=\"/notas-credito-venta/nueva?socioId={IdCliente}\"", html);
-        Assert.Contains($"href=\"/cobros/nuevo?socioId={IdCliente}\"", html);
+        Assert.DoesNotContain($"href=\"/facturas-venta/nueva?socioId={IdCliente}", html);
+        Assert.DoesNotContain($"href=\"/notas-credito-venta/nueva?socioId={IdCliente}", html);
+        Assert.Contains($"href=\"/cobros/nuevo?socioId={IdCliente}&returnUrl=", html);
     }
 
     [Fact]
@@ -69,8 +75,8 @@ public sealed class AccionesClientesTests
 
         var html = await HtmlSsr.HtmlAsync(app.Cliente("Ejecutor"), $"/clientes?view=list&sel={IdCliente}");
 
-        Assert.Contains($"href=\"/facturas-venta/nueva?socioId={IdCliente}\"", html);
-        Assert.DoesNotContain($"href=\"/cobros/nuevo?socioId={IdCliente}\"", html);
+        Assert.Contains($"href=\"/facturas-venta/nueva?socioId={IdCliente}&returnUrl=", html);
+        Assert.DoesNotContain($"href=\"/cobros/nuevo?socioId={IdCliente}", html);
     }
 
     [Fact]
@@ -81,11 +87,11 @@ public sealed class AccionesClientesTests
         var tarjetas = await HtmlSsr.HtmlAsync(app.Cliente(), "/clientes?view=grid");
         var ficha = await HtmlSsr.HtmlAsync(app.Cliente(), $"/clientes/{IdCliente}");
 
-        Assert.Contains($"href=\"/facturas-venta/nueva?socioId={IdCliente}\"", tarjetas);
-        Assert.Contains($"href=\"/cobros/nuevo?socioId={IdCliente}\"", tarjetas);
+        Assert.Contains($"href=\"/facturas-venta/nueva?socioId={IdCliente}&returnUrl=", tarjetas);
+        Assert.Contains($"href=\"/cobros/nuevo?socioId={IdCliente}&returnUrl=", tarjetas);
         Assert.Contains($"href=\"/ventas/estado-cuenta?socioId={IdCliente}\"", tarjetas);
         Assert.Contains("data-testid=\"page-toolbar\"", ficha);
-        Assert.Contains($"href=\"/facturas-venta/nueva?socioId={IdCliente}\"", ficha);
+        Assert.Contains($"href=\"/facturas-venta/nueva?socioId={IdCliente}&returnUrl=", ficha);
         Assert.Contains($"href=\"/ventas/estado-cuenta?socioId={IdCliente}\"", ficha);
         Assert.Contains($"<a data-testid=\"accion-editar\" href=\"/clientes/{IdCliente}/editar?returnUrl=", ficha);
         Assert.Contains($"<a data-testid=\"accion-eliminar\" href=\"/clientes/{IdCliente}?delete=true\"", ficha);
@@ -113,6 +119,16 @@ public sealed class AccionesClientesTests
         Assert.Contains($"<option value=\"{IdCaja}\" selected", html);
         Assert.Contains($"href=\"/cobros?socioId={IdCliente}\" data-testid=\"cancelar\"", html);
         Assert.Equal($"/cobros?socioId={IdCliente}&ok=pago&numero=PAG-0001", FormulariosSsr.Destino(respuesta));
+    }
+
+    [Fact]
+    public async Task CobroNuevo_DesdeElCliente_CancelarVuelveAlCliente()
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+
+        var html = await HtmlSsr.HtmlAsync(app.Cliente(), $"/cobros/nuevo?socioId={IdCliente}&returnUrl={Uri.EscapeDataString($"/clientes/{IdCliente}")}");
+
+        Assert.Contains($"href=\"/clientes/{IdCliente}\" data-testid=\"cancelar\"", html);
     }
 
     [Fact]

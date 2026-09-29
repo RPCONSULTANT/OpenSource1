@@ -216,7 +216,11 @@ else
         }
         else if (EsPaginaEdicion && vigente is null)
         {
-            <MessageBox Type="warning" Message="No se encontró el setup seleccionado. Puede haber sido eliminado por otro usuario." />
+            @* Si la carga falló no se sabe si existe: solo el aviso de fallo (Mensaje), no el de "no encontrado". *@
+            @if (!edicionCargaFallida)
+            {
+                <MessageBox Type="warning" Message="No se encontró el setup seleccionado. Puede haber sido eliminado por otro usuario." />
+            }
         }
         else
         {
@@ -321,6 +325,8 @@ else
     private TiposSetupContable.Descriptor Descriptor => TiposSetupContable.De(Tipo);
     private IReadOnlyList<Ranura> Ranuras => RanurasPorTipo[Tipo];
     private bool tipoInvalido;
+    /// <summary>La carga de la fila a modificar falló (API caída): no se sabe si existe, así que no se dice "no encontrado".</summary>
+    private bool edicionCargaFallida;
 
     private bool EsPaginaAlta => Nav.ToBaseRelativePath(Nav.Uri).Split('?', '#')[0].TrimEnd('/').EndsWith("setups-contables/nuevo", StringComparison.OrdinalIgnoreCase);
     private bool EsPaginaEdicion => Id.HasValue;
@@ -430,6 +436,7 @@ else
         catch (Exception ex)
         {
             Logger.LogWarning(ex, "Could not load setup contable {Id} from API.", id);
+            edicionCargaFallida = true;
             Show("danger", "No fue posible cargar el setup a modificar.");
         }
     }

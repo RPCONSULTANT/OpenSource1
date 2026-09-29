@@ -28,7 +28,11 @@
     }
     else if (EsEdicion && !encontrado)
     {
-        <MessageBox Type="warning" Message="No se encontró el grupo seleccionado. Puede haber sido eliminado por otro usuario." />
+        @* Si la carga falló no se sabe si existe: solo el aviso de fallo (Mensaje), no el de "no encontrado". *@
+        @if (!cargaFallida)
+        {
+            <MessageBox Type="warning" Message="No se encontró el grupo seleccionado. Puede haber sido eliminado por otro usuario." />
+        }
     }
     else if (EsEdicion)
     {
@@ -81,6 +85,7 @@
 
     private PermisosPagina? permisos;
     private bool encontrado;
+    private bool cargaFallida;
     private string? message;
     private string messageType = "warning";
     private IReadOnlyList<string> errores = [];
@@ -123,6 +128,7 @@
             catch (Exception ex)
             {
                 Logger.LogWarning(ex, "Could not load grupo contable {Id} from API.", id);
+                cargaFallida = true;
                 Show("danger", "No fue posible cargar el grupo a modificar.");
             }
         }

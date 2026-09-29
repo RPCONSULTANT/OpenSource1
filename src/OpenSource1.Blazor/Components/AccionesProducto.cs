@@ -12,7 +12,7 @@ public static class AccionesProducto
 {
     public static IReadOnlyList<AccionPagina> Crear { get; } =
     [
-        new("Ajuste en diario de inventario", IconosModulo.Lista, id => $"/diarios-inventario/nuevo?productoId={id}", ApplicationPolicies.CanAdd, RequiereSeleccion: true),
+        new("Ajuste en diario de inventario", IconosModulo.Lista, id => $"/diarios-inventario/nuevo?productoId={id}", ApplicationPolicies.CanAdd, RequiereSeleccion: true, LlevaRetorno: true),
     ];
 
     public static IReadOnlyList<AccionPagina> Ver { get; } =

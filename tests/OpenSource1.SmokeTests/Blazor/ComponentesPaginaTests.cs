@@ -231,6 +231,74 @@ public sealed class ComponentesPaginaTests
         Assert.DoesNotContain("accion-eliminar", html);
     }
 
+    [Fact]
+    public async Task PermisosPagina_CanConsultCacheado_UnaEvaluacionPorPagina()
+    {
+        await using var servicios = Servicios();
+        var contador = new AutorizacionContada(servicios.GetRequiredService<IAuthorizationService>());
+        var permisos = await PermisosPagina.CargarAsync(contador, Task.FromResult(new AuthenticationState(PermisosTestAuthHandler.Principal("Supervisor"))));
+        var trasCargar = contador.Llamadas;
+
+        // 50 tarjetas × 3 acciones Ver con CanConsult: sin caché serían 150 autorizaciones más.
+        var ver = Enumerable.Range(0, 150).Select(i => new AccionPagina($"V{i}", "d", id => $"/v/{id}", ApplicationPolicies.CanConsult)).ToList();
+        var filtradas = await permisos.FiltrarAsync(ver);
+
+        Assert.True(permisos.CanConsult);
+        Assert.Equal(150, filtradas.Count);
+        Assert.Equal(4, trasCargar);
+        Assert.Equal(trasCargar, contador.Llamadas);
+        Assert.False((await CargarPermisosAsync(PermisosTestAuthHandler.Principal("Supervisor", permisos: ""))).CanConsult);
+    }
+
+    [Fact]
+    public async Task Toolbar_Y_Tarjeta_RetornoUrl_SoloEnAccionesQueLoLlevan()
+    {
+        IReadOnlyList<AccionPagina> crear =
+        [
+            new("Alta", "d", id => $"/alta?socioId={id}", RequiereSeleccion: true, LlevaRetorno: true),
+            new("Consulta", "d", id => $"/consulta?socioId={id}", RequiereSeleccion: true),
+        ];
+        var usuario = PermisosTestAuthHandler.Principal("Administrador");
+
+        var barra = await RenderAsync<PageToolbar>(usuario, new Dictionary<string, object?>
+        {
+            ["Titulo"] = "T", ["SeleccionId"] = "abc", ["Crear"] = crear, ["RetornoUrl"] = "/lista?sel=abc&ok=created",
+        });
+        var tarjeta = await RenderAsync<TarjetaAcciones>(usuario, new Dictionary<string, object?>
+        {
+            ["Id"] = "abc", ["Resto"] = crear, ["RetornoUrl"] = "/lista?view=grid",
+        });
+        var sinRetorno = await RenderAsync<PageToolbar>(usuario, new Dictionary<string, object?>
+        {
+            ["Titulo"] = "T", ["SeleccionId"] = "abc", ["Crear"] = crear,
+        });
+
+        // Sin transitorios (ok) en la vuelta; las acciones sin LlevaRetorno no cambian.
+        Assert.Contains("href=\"/alta?socioId=abc&returnUrl=%2Flista%3Fsel%3Dabc\"", barra);
+        Assert.Contains("href=\"/consulta?socioId=abc\"", barra);
+        Assert.Contains("href=\"/alta?socioId=abc&returnUrl=%2Flista%3Fview%3Dgrid\"", tarjeta);
+        Assert.Contains("href=\"/consulta?socioId=abc\"", tarjeta);
+        Assert.Contains("href=\"/alta?socioId=abc\"", sinRetorno);
+    }
+
+    /// <summary>Decorador que cuenta las evaluaciones de políticas.</summary>
+    private sealed class AutorizacionContada(IAuthorizationService interno) : IAuthorizationService
+    {
+        public int Llamadas { get; private set; }
+
+        public Task<AuthorizationResult> AuthorizeAsync(ClaimsPrincipal user, object? resource, IEnumerable<IAuthorizationRequirement> requirements)
+        {
+            Llamadas++;
+            return interno.AuthorizeAsync(user, resource, requirements);
+        }
+
+        public Task<AuthorizationResult> AuthorizeAsync(ClaimsPrincipal user, object? resource, string policyName)
+        {
+            Llamadas++;
+            return interno.AuthorizeAsync(user, resource, policyName);
+        }
+    }
+
     private static ServiceProvider Servicios()
     {
         var coleccion = new ServiceCollection();

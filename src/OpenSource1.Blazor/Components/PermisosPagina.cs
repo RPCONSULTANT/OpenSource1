@@ -6,7 +6,7 @@ using OpenSource1.Application.Security;
 namespace OpenSource1.Blazor.Components;
 
 /// <summary>
-/// Permisos coarse de una página (Fix-Features B1, ruling R6): CanAdd / CanModify / CanDelete evaluados UNA vez con
+/// Permisos coarse de una página (Fix-Features B1, ruling R6): CanConsult / CanAdd / CanModify / CanDelete evaluados UNA vez con
 /// <see cref="IAuthorizationService"/> y el usuario del <see cref="AuthenticationState"/> en cascada. Lo usan
 /// <see cref="PageToolbar"/> (o se le pasa ya cargado en su parámetro <c>Permisos</c>) y los editores de B2/C para decidir
 /// si muestran el formulario o "No tiene permiso para realizar esta acción.". Sin estado de autenticación no permite nada.
@@ -15,16 +15,19 @@ public sealed class PermisosPagina
 {
     private readonly IAuthorizationService autorizacion;
 
-    private PermisosPagina(IAuthorizationService autorizacion, ClaimsPrincipal usuario, bool canAdd, bool canModify, bool canDelete)
+    private PermisosPagina(IAuthorizationService autorizacion, ClaimsPrincipal usuario, bool canConsult, bool canAdd, bool canModify, bool canDelete)
     {
         this.autorizacion = autorizacion;
         Usuario = usuario;
+        CanConsult = canConsult;
         CanAdd = canAdd;
         CanModify = canModify;
         CanDelete = canDelete;
     }
 
     public ClaimsPrincipal Usuario { get; }
+    /// <summary>Cacheado (Puerta C): las acciones Ver ▾ de cada tarjeta lo piden; sin caché eran ~3 autorizaciones por tarjeta.</summary>
+    public bool CanConsult { get; }
     public bool CanAdd { get; }
     public bool CanModify { get; }
     public bool CanDelete { get; }
@@ -40,17 +43,19 @@ public sealed class PermisosPagina
         new(
             autorizacion,
             usuario,
+            await AccionesPermitidas.PuedeAsync(autorizacion, usuario, ApplicationPolicies.CanConsult),
             await AccionesPermitidas.PuedeAsync(autorizacion, usuario, ApplicationPolicies.CanAdd),
             await AccionesPermitidas.PuedeAsync(autorizacion, usuario, ApplicationPolicies.CanModify),
             await AccionesPermitidas.PuedeAsync(autorizacion, usuario, ApplicationPolicies.CanDelete));
 
     /// <summary>
-    /// ¿Puede el usuario la política <paramref name="permiso"/>? null = sin restricción; las tres políticas cargadas se
+    /// ¿Puede el usuario la política <paramref name="permiso"/>? null = sin restricción; las cuatro políticas cargadas se
     /// responden sin volver a evaluar; cualquier otra (CanConsult, CanAdministrar…) se evalúa contra el mismo usuario.
     /// </summary>
     public Task<bool> PuedeAsync(string? permiso) => permiso switch
     {
         null => Task.FromResult(true),
+        ApplicationPolicies.CanConsult => Task.FromResult(CanConsult),
         ApplicationPolicies.CanAdd => Task.FromResult(CanAdd),
         ApplicationPolicies.CanModify => Task.FromResult(CanModify),
         ApplicationPolicies.CanDelete => Task.FromResult(CanDelete),

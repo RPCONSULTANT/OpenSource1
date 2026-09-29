@@ -16,7 +16,7 @@
 <PageToolbar Titulo="@(producto?.Nombre ?? "Producto")" Subtitulo="@(producto is null ? null : $"Código {producto.Codigo}")"
              Migas="@migas" Permisos="@permisos"
              SeleccionId="@(producto?.Id.ToString())"
-             Crear="@AccionesProducto.Crear" Ver="@AccionesProducto.VerDesdeFicha"
+             Crear="@AccionesProducto.Crear" Ver="@AccionesProducto.VerDesdeFicha" RetornoUrl="@($"/productos/{Id}")"
              EditarUrl="@(_ => UrlEditar)"
              EliminarUrl="@(_ => BuildDetailUrl(delete: true))" />
 @if (!string.IsNullOrWhiteSpace(message) || errores.Count > 0){<div class="mb-6">@(messageType == "success" ? (RenderFragment)(@<ActionFeedback Type="success" Message="@message" />) : @<MessageBox Type="@messageType" Message="@message" Errors="@errores" />)</div>}

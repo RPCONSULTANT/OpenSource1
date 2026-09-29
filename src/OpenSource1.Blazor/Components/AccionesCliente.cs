@@ -6,13 +6,13 @@ namespace OpenSource1.Blazor.Components;
 /// <summary>Acciones contextuales de un cliente (Fix-Features C1): las mismas en la lista, la tarjeta y la ficha.</summary>
 public static class AccionesCliente
 {
-    /// <summary>Crear ▾: documentos nuevos con el cliente precargado.</summary>
+    /// <summary>Crear ▾: documentos nuevos con el cliente precargado; llevan returnUrl para que Cancelar vuelva al origen.</summary>
     public static IReadOnlyList<AccionPagina> Crear { get; } =
     [
-        new("Factura", IconosModulo.Documento, id => $"/facturas-venta/nueva?socioId={id}", ApplicationPolicies.CanAdd, RequiereSeleccion: true),
-        new("Nota de crédito", IconosModulo.Documento, id => $"/notas-credito-venta/nueva?socioId={id}", ApplicationPolicies.CanAdd, RequiereSeleccion: true),
+        new("Factura", IconosModulo.Documento, id => $"/facturas-venta/nueva?socioId={id}", ApplicationPolicies.CanAdd, RequiereSeleccion: true, LlevaRetorno: true),
+        new("Nota de crédito", IconosModulo.Documento, id => $"/notas-credito-venta/nueva?socioId={id}", ApplicationPolicies.CanAdd, RequiereSeleccion: true, LlevaRetorno: true),
         // Registrar pagos exige CanModify en la API (CobrosController).
-        new("Cobro", IconosModulo.Tarjeta, id => $"/cobros/nuevo?socioId={id}", ApplicationPolicies.CanModify, RequiereSeleccion: true),
+        new("Cobro", IconosModulo.Tarjeta, id => $"/cobros/nuevo?socioId={id}", ApplicationPolicies.CanModify, RequiereSeleccion: true, LlevaRetorno: true),
     ];
 
     /// <summary>Ver ▾: consultas del cliente. La primera ("Ficha") se omite donde ya es la página o una acción rápida.</summary>

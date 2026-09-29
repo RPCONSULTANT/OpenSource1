@@ -27,7 +27,7 @@ public sealed class AccionesProductosTests
 
         foreach (var destino in new[]
                  {
-                     $"/diarios-inventario/nuevo?productoId={IdProducto}", $"/inventario/existencias?productoId={IdProducto}",
+                     $"/inventario/existencias?productoId={IdProducto}",
                      $"/inventario/movimientos-producto?productoId={IdProducto}", $"/inventario/movimientos-valor?productoId={IdProducto}",
                  })
         {
@@ -35,6 +35,12 @@ public sealed class AccionesProductosTests
             Assert.Contains($"href=\"{destino}\"", ficha);
             Assert.Contains($"href=\"{destino}\"", tarjetas);
         }
+
+        // Puerta C: el ajuste (Crear ▾) lleva la página de origen como returnUrl para que Cancelar vuelva a ella.
+        var ajuste = $"/diarios-inventario/nuevo?productoId={IdProducto}&returnUrl=";
+        Assert.Contains($"href=\"{ajuste}{Uri.EscapeDataString($"/productos?view=list&sel={IdProducto}")}\"", lista);
+        Assert.Contains($"href=\"{ajuste}{Uri.EscapeDataString("/productos?view=grid")}\"", tarjetas);
+        Assert.Contains($"href=\"{ajuste}{Uri.EscapeDataString($"/productos/{IdProducto}")}\"", ficha);
 
         Assert.Contains("data-testid=\"menu-crear\"", lista);
         Assert.Contains("data-testid=\"menu-ver\"", lista);
@@ -56,7 +62,7 @@ public sealed class AccionesProductosTests
 
         var lista = await HtmlSsr.HtmlAsync(app.Cliente(), "/productos?view=list");
 
-        Assert.DoesNotContain($"href=\"/diarios-inventario/nuevo?productoId={IdProducto}\"", lista.Split("data-testid=\"menu-crear\"")[1].Split("</details>")[0]);
+        Assert.DoesNotContain($"href=\"/diarios-inventario/nuevo?productoId={IdProducto}", lista.Split("data-testid=\"menu-crear\"")[1].Split("</details>")[0]);
         Assert.Contains("Ajuste en diario de inventario", lista);
     }
 
@@ -106,6 +112,61 @@ public sealed class AccionesProductosTests
 
         Assert.Contains("Al crear el lote se abrirá con una línea para P0001 — Tornillo.", html);
         Assert.Equal($"/diarios-inventario/{lote}?addProductoId={IdProducto}", FormulariosSsr.Destino(respuesta));
+    }
+
+    [Fact]
+    public async Task Ficha_DialogoDeBorrar_SoloConCanDelete_YConservaExistencias()
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+
+        var admin = await HtmlSsr.HtmlAsync(app.Cliente(), $"/productos/{IdProducto}?delete=true");
+        var ejecutor = await HtmlSsr.HtmlAsync(app.Cliente("Ejecutor"), $"/productos/{IdProducto}?delete=true");
+
+        Assert.Contains("Esta acción eliminará el producto desde su ficha", admin);
+        Assert.Contains("value=\"producto-delete\"", admin);
+        Assert.Contains("Existencia por almacén", admin);
+        Assert.DoesNotContain("Esta acción eliminará el producto desde su ficha", ejecutor);
+        Assert.Contains("Existencia por almacén", ejecutor);
+    }
+
+    [Theory]
+    [InlineData("/diarios-inventario/nuevo?productoId=abc")]
+    [InlineData("/diarios-inventario/nuevo?productoId=")]
+    public async Task NuevoLote_ProductoIdInvalido_SeIgnora(string ruta)
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+
+        var respuesta = await app.Cliente().GetAsync(ruta);
+        var html = HtmlSsr.Decodificar(await respuesta.Content.ReadAsStringAsync());
+
+        Assert.Equal(System.Net.HttpStatusCode.OK, respuesta.StatusCode);
+        Assert.Contains("data-testid=\"entity-form-page\"", html);
+        Assert.DoesNotContain("Al crear el lote se abrirá con una línea", html);
+    }
+
+    [Fact]
+    public async Task Lote_AddProductoIdInvalido_SeIgnora()
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+        var lote = Guid.NewGuid();
+        app.Simular<IDiarioInventarioApiClient>().Setup(c => c.GetLoteByIdAsync(lote, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new LoteDiarioResponse { Id = lote, Codigo = "AJ-01", Nombre = "Ajuste" });
+
+        var respuesta = await app.Cliente().GetAsync($"/diarios-inventario/{lote}?addProductoId=no-es-guid");
+
+        Assert.Equal(System.Net.HttpStatusCode.OK, respuesta.StatusCode);
+        Assert.Contains("AJ-01", HtmlSsr.Decodificar(await respuesta.Content.ReadAsStringAsync()));
+    }
+
+    [Fact]
+    public async Task AjusteDesdeElProducto_CancelarVuelveAlOrigen()
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+        var origen = $"/productos?view=list&sel={IdProducto}";
+
+        var html = await HtmlSsr.HtmlAsync(app.Cliente(), $"/diarios-inventario/nuevo?productoId={IdProducto}&returnUrl={Uri.EscapeDataString(origen)}");
+
+        Assert.Contains($"href=\"{origen}\" data-testid=\"cancelar\"", html);
     }
 
     [Fact]

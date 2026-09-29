@@ -114,6 +114,29 @@ public sealed class ConversionContabilidadTests
         Assert.DoesNotContain("data-testid=\"guardar\"", html);
     }
 
+    /// <summary>Puerta C (B2b residual): si la carga falla no se sabe si el registro existe: solo el aviso de fallo, no "No se encontró".</summary>
+    [Theory]
+    [InlineData("/cuentas-contables/{0}/editar", "No fue posible cargar la cuenta contable a modificar.")]
+    [InlineData("/grupos-contables/{0}/editar?tipo=producto", "No fue posible cargar el grupo a modificar.")]
+    [InlineData("/grupos-cliente-contable/{0}/editar", "No fue posible cargar el grupo a modificar.")]
+    [InlineData("/setups-contables/{0}/editar", "No fue posible cargar el setup a modificar.")]
+    public async Task Editar_CargaFallida_SoloAvisaDelFallo_SinNoEncontrado(string ruta, string mensaje)
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+        var id = Guid.NewGuid();
+        var fallo = new HttpRequestException("API caída");
+        app.Simular<ICuentaContableApiClient>().Setup(c => c.GetByIdAsync(id, It.IsAny<CancellationToken>())).ThrowsAsync(fallo);
+        app.Simular<IGrupoContableApiClient>().Setup(c => c.GetByIdAsync(It.IsAny<TipoGrupoContable>(), id, It.IsAny<CancellationToken>())).ThrowsAsync(fallo);
+        app.Simular<IGrupoClienteContableApiClient>().Setup(c => c.GetByIdAsync(id, It.IsAny<CancellationToken>())).ThrowsAsync(fallo);
+        app.Simular<ISetupContableApiClient>().Setup(c => c.GetByIdAsync<SetupGeneralResponse>(It.IsAny<TipoSetupContable>(), id, It.IsAny<CancellationToken>())).ThrowsAsync(fallo);
+
+        var html = await HtmlAsync(app.Cliente(), string.Format(System.Globalization.CultureInfo.InvariantCulture, ruta, id));
+
+        Assert.Contains(mensaje, html);
+        Assert.DoesNotContain("No se encontró", html);
+        Assert.DoesNotContain("data-testid=\"guardar\"", html);
+    }
+
     [Fact]
     public async Task CuentaContable_Editar_EnviaElXminLeido()
     {

@@ -16,7 +16,7 @@
 
 @* Alta de un borrador de nota de crédito por cliente (Fix-Features C3): se elige el cliente y después una de sus facturas
    posteadas con importe pendiente (movimientos abiertos de tipo Factura con restante > 0). La API valida el resto. *@
-<EntityFormPage Titulo="Nueva nota de crédito" Subtitulo="Elija una factura posteada del cliente con importe pendiente."
+<EntityFormPage Titulo="Nueva nota de crédito" Subtitulo="Elija una factura posteada con importe pendiente. Se listan las facturas facturadas a este cliente (cliente de facturación), que es a quien se acredita."
                 Migas="@Migas" Mensaje="@message" TipoMensaje="@messageType" Errores="@errores">
     @if (!canAdd)
     {
@@ -56,11 +56,21 @@
     }
     else
     {
-        <p class="mb-4 text-sm text-slate-600 dark:text-slate-300" data-testid="cliente-nota">
-            Cliente: <strong>@(socio is null ? SocioId.ToString() : $"{socio.Codigo} — {socio.NombreComercial}")</strong>
-            · <a href="@CambiarClienteHref" class="font-semibold text-brand-600 hover:text-brand-700">Cambiar cliente</a>
-        </p>
-        @if (!cargaFallida && facturas.Count == 0)
+        @if (socio is null)
+        {
+            @* Cliente no encontrado (o sin cargar): el aviso va en el mensaje; aquí solo el enlace para elegir otro, sin el id crudo. *@
+            <p class="mb-4 text-sm text-slate-600 dark:text-slate-300" data-testid="cliente-nota">
+                <a href="@CambiarClienteHref" class="font-semibold text-brand-600 hover:text-brand-700">Elegir otro cliente</a>
+            </p>
+        }
+        else
+        {
+            <p class="mb-4 text-sm text-slate-600 dark:text-slate-300" data-testid="cliente-nota">
+                Cliente: <strong>@socio.Codigo — @socio.NombreComercial</strong>
+                · <a href="@CambiarClienteHref" class="font-semibold text-brand-600 hover:text-brand-700">Cambiar cliente</a>
+            </p>
+        }
+        @if (socio is not null && !cargaFallida && facturas.Count == 0)
         {
             <MessageBox Type="info" Message="El cliente no tiene facturas posteadas con importe pendiente." />
         }
@@ -190,6 +200,14 @@
     private async Task CrearAsync()
     {
         var f = NotaInput!;
+        // Con permiso y la lista cargada, la factura enviada debe ser una de las listadas (POST obsoleto o manipulado): mensaje
+        // claro sin llamar a la API. Sin permiso o con la carga fallida el POST sigue llegando a la API (mensaje real, 403/400).
+        if (canAdd && !cargaFallida && !facturas.Any(m => string.Equals(m.NumeroDocumento, f.FacturaVentaNumero.Trim(), StringComparison.Ordinal)))
+        {
+            Show("warning", $"La factura {f.FacturaVentaNumero.Trim()} no está entre las facturas pendientes de este cliente; elija una de la lista.");
+            return;
+        }
+
         // R17: la navegación va FUERA del try (NavigateTo puede lanzar NavigationException y el catch se la tragaría).
         string? destino = null;
         try

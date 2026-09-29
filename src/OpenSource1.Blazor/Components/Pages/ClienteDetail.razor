@@ -18,7 +18,7 @@
 <PageToolbar Titulo="@(cliente?.NombreComercial ?? "Cliente")" Subtitulo="@(cliente is null ? null : $"Código {cliente.Codigo}")"
              Migas="@migas" Permisos="@permisos"
              SeleccionId="@(cliente?.Id.ToString())"
-             Crear="@AccionesCliente.Crear" Ver="@AccionesCliente.VerSinFicha"
+             Crear="@AccionesCliente.Crear" Ver="@AccionesCliente.VerSinFicha" RetornoUrl="@($"/clientes/{Id}")"
              EditarUrl="@(_ => UrlEditar)"
              EliminarUrl="@(_ => BuildDetailUrl(delete: true))" />
 

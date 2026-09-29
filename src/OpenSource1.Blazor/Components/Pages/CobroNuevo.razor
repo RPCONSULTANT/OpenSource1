@@ -48,10 +48,7 @@
                     <label class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300" for="PagoInput_SocioNegocioId">Cliente <span class="text-red-500">*</span></label>
                     <select id="PagoInput_SocioNegocioId" name="PagoInput.SocioNegocioId" class="@InputCss">
                         <option value="" selected="@(PagoInput!.SocioNegocioId is null)">— Seleccione —</option>
-                        @if (PagoInput.SocioNegocioId is { } elegido && socios.Items.All(s => s.Id != elegido))
-                        {
-                            <option value="@elegido" selected="selected">@(socioActual?.Id == elegido ? $"{socioActual.Codigo} — {socioActual.NombreComercial}" : $"Cliente seleccionado ({elegido})")</option>
-                        }
+                        @Cobros.OpcionSocioVigente(PagoInput.SocioNegocioId, socios.Items, socioActual)
                         @foreach (var s in socios.Items)
                         {
                             <option value="@s.Id" selected="@(s.Id == PagoInput.SocioNegocioId)">@s.Codigo — @s.NombreComercial</option>

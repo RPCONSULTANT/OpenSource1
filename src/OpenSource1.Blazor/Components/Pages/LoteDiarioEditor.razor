@@ -80,7 +80,9 @@
     [Parameter] public Guid? Id { get; set; }
     [SupplyParameterFromQuery(Name = "returnUrl")] private string? ReturnUrl { get; set; }
     // Ajuste en diario desde un producto (Fix-Features C2): el EditForm publica en la misma URL, así que llega también en el POST.
-    [SupplyParameterFromQuery(Name = "productoId")] private Guid? ProductoId { get; set; }
+    // String tolerante (C2 minor): el binder lanza con un Guid? no interpretable; un id inválido se ignora (alta normal).
+    [SupplyParameterFromQuery(Name = "productoId")] private string? ProductoIdTexto { get; set; }
+    private Guid? ProductoId => InventarioVistasOpciones.ParseGuid(ProductoIdTexto);
     [SupplyParameterFromForm(FormName = "save-lote-diario")] private DiariosInventario.LoteForm? SaveInput { get; set; }
     [SupplyParameterFromForm(FormName = "update-lote-diario")] private DiariosInventario.LoteForm? UpdateInput { get; set; }
     [CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }

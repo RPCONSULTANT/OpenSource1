@@ -53,7 +53,7 @@ public sealed class NavMenuTests
 
         Assert.Matches(new Regex($"<details data-grupo=\"{grupo}\" open"), html);
         Assert.Matches(new Regex($"<a href=\"{Regex.Escape(marcado)}\"[^>]*aria-current=\"page\""), html);
-        Assert.Equal(1, Regex.Matches(html, "<a href=\"[^\"]*\" class=\"[^\"]*\" aria-current=\"page\"").Count);
+        Assert.Single(Regex.Matches(html, "<a href=\"[^\"]*\" class=\"[^\"]*\" aria-current=\"page\""));
     }
 
     [Fact]

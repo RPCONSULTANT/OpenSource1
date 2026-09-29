@@ -27,7 +27,11 @@
     }
     else if (EsEdicion && !encontrado)
     {
-        <MessageBox Type="warning" Message="No se encontró el grupo seleccionado. Puede haber sido eliminado por otro usuario." />
+        @* Si la carga falló no se sabe si existe: solo el aviso de fallo (Mensaje), no el de "no encontrado". *@
+        @if (!cargaFallida)
+        {
+            <MessageBox Type="warning" Message="No se encontró el grupo seleccionado. Puede haber sido eliminado por otro usuario." />
+        }
     }
     else
     {
@@ -87,6 +91,7 @@
 
     private PermisosPagina? permisos;
     private bool encontrado;
+    private bool cargaFallida;
     // Grupo en edición tal como está guardado: rotula sus cuentas vigentes aunque ya no sean elegibles (bloqueadas, no de posteo).
     private GrupoClienteContableResponse? grupoEnEdicion;
     // Cuentas elegibles: de Posteo y no bloqueadas (las únicas que la API acepta al asignar o cambiar una cuenta).
@@ -132,6 +137,7 @@
             catch (Exception ex)
             {
                 Logger.LogWarning(ex, "Could not load grupo cliente contable {Id} from API.", id);
+                cargaFallida = true;
                 Show("danger", "No fue posible cargar el grupo a modificar.");
             }
         }
