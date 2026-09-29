@@ -8973,6 +8973,7 @@ esta rama).
 | D3 E2E y capturas | `f575a69`, `526eafd` |
 | D4 Documento Word, presentación y guion | `4ad9f33`, `4a980f9` |
 | Z Cierre | este commit (`docs: resultado y cierre de la rama Fix-Features`) |
+| Ola final (revisión final, Minors 1–5, 7, 8, 10) | `b2a8780` (código y tests); plan actualizado en el commit `docs` siguiente |
 
 ### Decisiones tomadas durante la ejecución
 
@@ -9013,18 +9014,45 @@ Decisiones del controlador (ledger):
   códigos sin dígitos, RNC corto, `FV-0001`).
 - Indicadores de grupo: `WaitAsync` no cancela la llamada subyacente si el cliente ignora el token; setter público de
   `TiempoMaximoPorIndicador` solo para tests.
-- Paleta: `role=presentation` en vez de `group` en el listbox; `json()` tras una redirección HTML; `VisiblesAsync` dos
-  veces por render.
+- Paleta: `VisiblesAsync` dos veces por render.
 - Menú: `NavMenu` recalcula los grupos en lugar de reutilizar `GruposVisiblesAsync`.
-- Editores B2b: no distinguen carga fallida de registro no encontrado.
 - Barra de Clientes/Almacenes se parte en dos líneas a 1440 px.
-- Tests de selección y POST forzado solo en la entidad representativa de cada lote (R10).
+- Tests de selección solo en la entidad representativa de cada lote (R10); el POST forzado de borrado ya cubre las 12
+  páginas de maestros (ola final).
+- `?deleteId=`, `?editId=`, `?pagina=` y el `?socioId=` de `Cobros` (preexistentes) siguen tipados `Guid?`/`int`: un valor
+  ilegible da la página de error (la ola final solo corrigió los `?sel=`/`?socioId=` nuevos de la rama).
 - Fase C: comentario de `PuedeAsync`; `?crearNota=true` manual en una factura ya acreditada abre el diálogo (la API lo
   rechaza); la ficha pasa su propia ruta como `RetornoUrl` y pierde el `returnUrl` previo a la lista.
 - E2E: la captura 20 (búsqueda por estado) no tiene exclusión porque crear existencia es irreversible (se explica en el
-  pie); las capturas 25, 26 y 28 dependen de los datos; el spec 04 usa un usuario efímero con clave fija que se borra al
-  terminar.
+  pie); las capturas 25, 26 y 28 dependen de los datos; el spec 04 usa un usuario efímero con clave fija (se borra
+  también si la prueba falla, ola final).
 - Documento: sin autor en el `.docx` por la decisión "sin portada" (pendiente de confirmar con el usuario).
+
+### Ola final de arreglos (revisión final)
+
+Commit `b2a8780`. Suite xUnit **1704/1704 verdes**, build `-warnaserror` con 0 avisos, `node --check` de
+`app.search.js` correcto y spec E2E 04 en verde contra el stack Docker (más una ejecución con fallo forzado que
+comprobó la limpieza del usuario).
+
+| Minor | Estado | Arreglo |
+|---|---|---|
+| 1 Formularios de borrado fuera del árbol | Resuelto (`b2a8780`) | EditForm vacío con el mismo `FormName` en los 12 listados/fichas; en Clientes/Productos y sus fichas, sin diálogo, el mensaje de la API va al aviso de la página. Theory `BorradoForzadoTests` (12 casos). |
+| 2 `?sel=`/`?socioId=` como `Guid?` | Resuelto (`b2a8780`) | `string` + `InventarioVistasOpciones.ParseGuid` en 13 listados (`sel`) y 4 páginas (`socioId`); tests con `?sel=abc` y `?socioId=abc`. |
+| 3 Editores B2b: carga fallida vs. no encontrado | Ya resuelto en G-C (`9200fa1`) | Verificado con `ConversionContabilidadTests.Editar_CargaFallida_SoloAvisaDelFallo_SinNoEncontrado` (cuentas, grupos, grupos de cliente y setups). |
+| 4 `/buscar/sugerencias` sin `no-store` | Resuelto (`b2a8780`) | `Cache-Control: no-store` en el endpoint (ya lo ponía el middleware global para usuarios autenticados; ahora no depende de él). Test en éxito y en 502. |
+| 5 Paleta con sesión caducada | Resuelto (`b2a8780`) | Respuesta redirigida o sin JSON → "La sesión expiró; vuelva a iniciar sesión.". |
+| 6 Residual `role=presentation` obsoleto | Resuelto (este commit) | Retirado de los residuales. |
+| 7 `SinTransitorios` sensible a mayúsculas | Resuelto (`b2a8780`) | `OrdinalIgnoreCase` en `EsClave`; casos `?OK=`, `?DeleteId=`, `?EDITID=`. |
+| 8 Host de pruebas vs. producción al navegar | Documentado (`b2a8780`) | Ver nota siguiente y el comentario de `BlazorSsrFactory`. |
+| 9 Tests de fuente frágiles | Residual | Sin cambios (fuera de esta ola). |
+| 10 Limpieza del usuario E2E | Resuelto (`b2a8780`) | `try/finally` con borrado desde la ficha si la prueba falla. |
+
+**Navegación en el host de pruebas (Minor 8).** Producción fija `BlazorDisableThrowNavigationException=true` en
+`OpenSource1.Blazor.csproj`. Esa propiedad solo llega al runtimeconfig del host; los tests corren con el de
+`OpenSource1.SmokeTests`, que no la tiene. Por eso, en los tests, `Nav.NavigateTo` lanza `NavigationException`, y en
+producción no lanza. R17 deja el código correcto en los dos casos: el destino se calcula dentro del `try`, y
+`NavigateTo` va después del `try/catch`, seguido de `return`. Límite conocido: los tests no detectan un `return` olvidado
+tras `NavigateTo`, porque aquí la excepción corta el flujo igualmente. Ese punto se revisa en el código.
 
 ### Datos de prueba que quedan en la base de desarrollo
 
