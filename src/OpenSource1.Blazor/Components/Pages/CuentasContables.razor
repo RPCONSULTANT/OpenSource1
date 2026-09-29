@@ -14,11 +14,11 @@
 
 <PageTitle>Plan de Cuentas – AxionERP</PageTitle>
 
-<div class="mb-6">
-    <p class="text-xs font-bold tracking-widest uppercase text-brand-600 mb-1">Contabilidad</p>
-    <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">Plan de Cuentas</h1>
-    <p class="text-sm text-slate-500 mt-1">Catálogo de cuentas contables para el libro contable.</p>
-</div>
+<PageToolbar Titulo="Plan de Cuentas" Subtitulo="Catálogo de cuentas contables para el libro contable." Migas="@Migas" Permisos="@permisos"
+             NuevoHref="@RetornoLocal.ConRetorno("/cuentas-contables/nuevo", UrlActual)"
+             SeleccionId="@SeleccionValida?.ToString()"
+             EditarUrl="@(id => EditarUrl(Guid.Parse(id)))"
+             EliminarUrl="@(id => BuildListUrl(deleteId: Guid.Parse(id)))" />
 
 @if (!string.IsNullOrWhiteSpace(message))
 {
@@ -105,6 +105,7 @@
         <table class="min-w-full divide-y divide-slate-100 text-sm">
             <thead class="bg-slate-50">
                 <tr>
+                    <th class="px-4 py-3"><span class="sr-only">Seleccionar</span></th>
                     <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Número / Nombre</th>
                     <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Tipo</th>
                     <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Resultado</th>
@@ -117,7 +118,7 @@
                 @if (cuentas.Count == 0)
                 {
                     <tr>
-                        <td colspan="6" class="px-6 py-8 text-center text-slate-400 text-sm">
+                        <td colspan="7" class="px-6 py-8 text-center text-slate-400 text-sm">
                             No hay cuentas contables registradas con esos criterios.
                         </td>
                     </tr>
@@ -126,7 +127,9 @@
                 {
                     @foreach (var cuenta in cuentas)
                     {
-                        <tr @key="cuenta.Id" class="hover:bg-slate-50 transition-colors">
+                        var marcada = cuenta.Id == SeleccionValida;
+                        <tr @key="cuenta.Id" class="@SeleccionFila.ClaseFila transition-colors @(marcada ? SeleccionFila.ClaseFilaSeleccionada : null)">
+                            <td class="px-4 py-3"><SeleccionFila Href="@BuildListUrl(sel: cuenta.Id)" Seleccionada="@marcada" Etiqueta="@cuenta.Numero" /></td>
                             <td class="px-6 py-3">
                                 <div style="padding-left: @(cuenta.Sangria * 1.25)rem;">
                                     <span class="font-mono text-xs font-semibold text-brand-700">@cuenta.Numero</span>
@@ -158,7 +161,7 @@
                                 <div class="flex items-center justify-end gap-2">
                                     @if (canModify)
                                     {
-                                        <a href="@BuildListUrl(editId: cuenta.Id)" class="btn-press inline-flex items-center justify-center size-8 rounded-lg border border-amber-200 bg-amber-50 text-amber-600 hover:bg-amber-100" title="Editar cuenta">
+                                        <a href="@EditarUrl(cuenta.Id)" class="btn-press inline-flex items-center justify-center size-8 rounded-lg border border-amber-200 bg-amber-50 text-amber-600 hover:bg-amber-100" title="Editar cuenta">
                                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Z" /></svg>
                                         </a>
                                     }
@@ -194,92 +197,19 @@
     }
 </div>
 
-<!-- ── Formularios de operación ── -->
-<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-
-    <!-- Agregar -->
-    @if (canAdd)
-    {
-        <div id="agregar" class="rounded-2xl border border-green-200 bg-white shadow-sm overflow-hidden">
-            <div class="px-6 py-4 bg-green-50 border-b border-green-100 flex items-center gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-5 text-green-600">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                </svg>
-                <h2 class="text-sm font-bold text-green-800">Agregar cuenta contable</h2>
-            </div>
-            <div class="px-6 py-5">
-                <EditForm Model="SaveInput" FormName="save-cuenta-contable" OnValidSubmit="CreateAsync" Enhance="true">
-                    <DataAnnotationsValidator />
-                    <CuentaContableFields Model="SaveInput!" Prefix="SaveInput" />
-                    <div class="mt-5">
-                        <button type="submit"
-                                class="btn-press flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 transition-colors shadow-sm">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                            </svg>
-                            Agregar
-                        </button>
-                    </div>
-                </EditForm>
-            </div>
-        </div>
-    }
-
-    <!-- Modificar -->
-    @if (canModify)
-    {
-        <div id="modificar" class="rounded-2xl border border-amber-200 bg-white shadow-sm overflow-hidden">
-            <div class="px-6 py-4 bg-amber-50 border-b border-amber-100 flex items-center gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-5 text-amber-600">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
-                </svg>
-                <h2 class="text-sm font-bold text-amber-800">Modificar cuenta contable</h2>
-            </div>
-            <div class="px-6 py-5">
-                @if (EditId.HasValue && UpdateInput?.Id != EditId)
-                {
-                    <MessageBox Type="warning" Message="No se encontró la cuenta contable seleccionada. Puede haber sido eliminada por otro usuario." />
-                }
-                <EditForm Model="UpdateInput" FormName="update-cuenta-contable" OnValidSubmit="UpdateAsync" Enhance="true">
-                    <DataAnnotationsValidator />
-                    <input type="hidden" name="UpdateInput.Id" value="@UpdateInput!.Id" />
-                    <input type="hidden" name="UpdateInput.Xmin" value="@UpdateInput.Xmin" />
-                    <CuentaContableFields Model="UpdateInput!" Prefix="UpdateInput" />
-                    <div class="mt-5">
-                        <button type="submit"
-                                class="btn-press flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-600 transition-colors shadow-sm">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125" />
-                            </svg>
-                            Guardar cambios
-                        </button>
-                    </div>
-                </EditForm>
-            </div>
-        </div>
-    }
-
-</div>
-
 @if (DeleteId.HasValue && canDelete)
 {
-    <ConfirmDialog Title="Confirmar eliminación" Message="Esta acción eliminará la cuenta contable seleccionada y no se puede deshacer." Variant="danger" CancelHref="/cuentas-contables">
+    <ConfirmDialog Title="Confirmar eliminación" Message="Esta acción eliminará la cuenta contable seleccionada y no se puede deshacer." Variant="danger" CancelHref="@UrlActual">
         <p class="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-mono text-red-900">@((itemToDelete is null) ? DeleteId.Value.ToString() : $"{itemToDelete.Numero} — {itemToDelete.Nombre}")</p>
         <EditForm Model="DeleteInput" FormName="delete-cuenta-contable" OnValidSubmit="DeleteAsync" class="mt-4">
             <input type="hidden" name="DeleteInput.Id" value="@DeleteId" />
             <button type="submit" class="btn-press rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-700">Sí, eliminar</button>
-            <a href="/cuentas-contables" class="btn-press ml-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Cancelar</a>
+            <a href="@UrlActual" class="btn-press ml-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Cancelar</a>
         </EditForm>
     </ConfirmDialog>
 }
 
 @code {
-    [SupplyParameterFromForm(FormName = "save-cuenta-contable")]
-    private CuentaContableForm? SaveInput { get; set; }
-
-    [SupplyParameterFromForm(FormName = "update-cuenta-contable")]
-    private CuentaContableForm? UpdateInput { get; set; }
-
     [SupplyParameterFromForm(FormName = "delete-cuenta-contable")]
     private DeleteForm? DeleteInput { get; set; }
 
@@ -306,8 +236,12 @@
     [SupplyParameterFromQuery(Name = "bloqueada")]
     private bool? SearchBloqueada { get; set; }
 
+    // Solo para redirigir la ruta antigua ?editId= al editor en página propia.
     [SupplyParameterFromQuery(Name = "editId")]
     private Guid? EditId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "sel")]
+    private Guid? Sel { get; set; }
 
     [SupplyParameterFromQuery(Name = "deleteId")]
     private Guid? DeleteId { get; set; }
@@ -327,28 +261,32 @@
     private string messageType = "info";
     private IReadOnlyList<string> errores = [];
 
-    // Permisos computados sincrónicamente en OnInitializedAsync
-    private bool canAdd;
+    private PermisosPagina? permisos;
     private bool canModify;
     private bool canDelete;
+
+    private static readonly IReadOnlyList<Miga> Migas = [new("Contabilidad", "/modulos/contabilidad"), new("Plan de cuentas")];
+
+    // Selección obsoleta (no está en la página cargada) => null: la barra deshabilita Editar/Eliminar.
+    private Guid? SeleccionValida => Sel is { } s && cuentas.Any(c => c.Id == s) ? s : null;
+    private string UrlActual => RetornoLocal.SinTransitorios(BuildListUrl());
+    private string EditarUrl(Guid id) => RetornoLocal.ConRetorno($"/cuentas-contables/{id}/editar", UrlActual);
 
     [CascadingParameter]
     private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
-        SaveInput ??= new();
-        UpdateInput ??= new();
-        DeleteInput ??= new();
-
-        if (AuthenticationStateTask is not null)
+        if (EditId is { } editId)
         {
-            var authState = await AuthenticationStateTask;
-            var user = authState.User;
-            canAdd = (await AuthorizationService.AuthorizeAsync(user, ApplicationPolicies.CanAdd)).Succeeded;
-            canModify = (await AuthorizationService.AuthorizeAsync(user, ApplicationPolicies.CanModify)).Succeeded;
-            canDelete = (await AuthorizationService.AuthorizeAsync(user, ApplicationPolicies.CanDelete)).Succeeded;
+            Nav.NavigateTo(RetornoLocal.ConRetorno($"/cuentas-contables/{editId}/editar", UrlActual), replace: true);
+            return;
         }
+
+        DeleteInput ??= new();
+        permisos = await PermisosPagina.CargarAsync(AuthorizationService, AuthenticationStateTask);
+        canModify = permisos.CanModify;
+        canDelete = permisos.CanDelete;
 
         await LoadAsync();
 
@@ -372,31 +310,6 @@
             catch (Exception ex)
             {
                 Logger.LogWarning(ex, "Could not load cuenta contable {DeleteId} from API.", DeleteId);
-            }
-        }
-
-        if (EditId.HasValue && UpdateInput.Id == Guid.Empty)
-        {
-            try
-            {
-                var cuenta = await CuentaContableApiClient.GetByIdAsync(EditId.Value);
-                if (cuenta is not null)
-                {
-                    UpdateInput.Id = cuenta.Id;
-                    UpdateInput.Numero = cuenta.Numero;
-                    UpdateInput.Nombre = cuenta.Nombre;
-                    UpdateInput.TipoCuenta = cuenta.TipoCuenta;
-                    UpdateInput.TipoResultado = cuenta.TipoResultado;
-                    UpdateInput.PosteoDirecto = cuenta.PosteoDirecto;
-                    UpdateInput.Bloqueada = cuenta.Bloqueada;
-                    UpdateInput.Sangria = cuenta.Sangria;
-                    UpdateInput.Xmin = cuenta.Xmin;
-                }
-            }
-            catch (Exception ex)
-            {
-                Logger.LogWarning(ex, "Could not load cuenta contable {EditId} from API.", EditId);
-                Show("danger", "No fue posible cargar la cuenta contable a modificar.");
             }
         }
     }
@@ -435,7 +348,7 @@
         }
     }
 
-    private string BuildListUrl(int? pagina = null, Guid? editId = null, Guid? deleteId = null)
+    private string BuildListUrl(int? pagina = null, Guid? sel = null, Guid? deleteId = null)
     {
         var parameters = new List<string>();
         AddParameter(parameters, "numero", SearchNumero);
@@ -445,7 +358,7 @@
         if (SearchBloqueada.HasValue) parameters.Add($"bloqueada={(SearchBloqueada.Value ? "true" : "false")}");
         var paginaEfectiva = pagina ?? Pagina;
         if (paginaEfectiva > 1) parameters.Add($"pagina={paginaEfectiva}");
-        if (editId.HasValue) parameters.Add($"editId={editId.Value}");
+        if ((sel ?? Sel) is { } seleccion) parameters.Add($"sel={seleccion}");
         if (deleteId.HasValue) parameters.Add($"deleteId={deleteId.Value}");
         return parameters.Count == 0 ? "/cuentas-contables" : $"/cuentas-contables?{string.Join("&", parameters)}";
     }
@@ -455,29 +368,19 @@
         if (!string.IsNullOrWhiteSpace(value)) parameters.Add($"{key}={Uri.EscapeDataString(value)}");
     }
 
-    private async Task CreateAsync() => await ExecuteAsync(() => CuentaContableApiClient.CreateAsync(ToInput(SaveInput!)), "created");
-
-    private async Task UpdateAsync()
-    {
-        if (UpdateInput!.Id == Guid.Empty)
-        {
-            Show("warning", "Seleccione primero un registro a modificar desde la tabla.");
-            return;
-        }
-
-        await ExecuteAsync(() => CuentaContableApiClient.UpdateAsync(UpdateInput.Id, ToInput(UpdateInput), UpdateInput.Xmin), "updated");
-    }
-
     private async Task DeleteAsync() => await ExecuteAsync(() => CuentaContableApiClient.DeleteAsync(DeleteInput!.Id), "deleted");
 
     private async Task ExecuteAsync(Func<Task<CuentaContableOperationResult>> operation, string successCode)
     {
+        // La navegación va FUERA del try: si NavigateTo lanza NavigationException (SSR sin el switch que la desactiva),
+        // el catch genérico no debe tragársela como un fallo de la operación.
+        string? destino = null;
         try
         {
             var result = await operation();
             if (result.Succeeded)
             {
-                Nav.NavigateTo($"/cuentas-contables?ok={successCode}");
+                destino = RetornoLocal.ConParametro(UrlActual, "ok", successCode);
             }
             else
             {
@@ -490,18 +393,14 @@
             Logger.LogWarning(ex, "Could not complete cuenta contable operation.");
             Show("danger", "No fue posible completar la operación.");
         }
+
+        if (destino is not null)
+        {
+            Nav.NavigateTo(destino);
+        }
     }
 
     private void Show(string type, string text) { messageType = type; message = text; }
-
-    private static CuentaContableInput ToInput(CuentaContableForm form) => new(
-        form.Numero.Trim(),
-        form.Nombre.Trim(),
-        form.TipoCuenta,
-        form.TipoResultado,
-        form.PosteoDirecto,
-        form.Bloqueada,
-        form.Sangria);
 
     private static string? EmptyAsNull(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 

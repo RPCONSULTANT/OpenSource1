@@ -1,0 +1,179 @@
+@page "/cuentas-contables/nuevo"
+@page "/cuentas-contables/{Id:guid}/editar"
+@attribute [Authorize(Policy = ApplicationPolicies.CanConsult)]
+@using Microsoft.AspNetCore.Authorization
+@using OpenSource1.Blazor.Services
+@inject ICuentaContableApiClient CuentaContableApiClient
+@inject IAuthorizationService AuthorizationService
+@inject ILogger<CuentaContableEditor> Logger
+@inject NavigationManager Nav
+
+@*
+    Alta y edición de una cuenta contable en página propia (Fix-Features B2b). Los dos EditForm (save/update) están SIEMPRE en
+    el árbol —vacíos si el permiso o la rama los ocultan— para que un POST forzado llegue al handler y muestre el mensaje real
+    de la API (403/404), no el 400 genérico de Blazor.
+*@
+
+<EntityFormPage Titulo="@Titulo" Subtitulo="Catálogo de cuentas contables para el libro contable." Migas="@Migas"
+                Mensaje="@message" TipoMensaje="@messageType" Errores="@errores">
+    @if (!Permitido)
+    {
+        <MessageBox Type="warning" Message="@SinPermiso" />
+    }
+    else if (EsEdicion && !encontrado)
+    {
+        <MessageBox Type="warning" Message="No se encontró la cuenta contable seleccionada. Puede haber sido eliminada por otro usuario." />
+    }
+    else if (EsEdicion)
+    {
+        <EditForm Model="UpdateInput" FormName="update-cuenta-contable" OnValidSubmit="UpdateAsync" Enhance="true">
+            <DataAnnotationsValidator />
+            <input type="hidden" name="UpdateInput.Id" value="@UpdateInput!.Id" />
+            <input type="hidden" name="UpdateInput.Xmin" value="@UpdateInput.Xmin" />
+            <CuentaContableFields Model="UpdateInput!" Prefix="UpdateInput" />
+            <FormularioAcciones CancelarHref="@Volver" LimpiarHref="@Nav.Uri" TextoGuardar="Guardar cambios" />
+        </EditForm>
+    }
+    else
+    {
+        <EditForm Model="SaveInput" FormName="save-cuenta-contable" OnValidSubmit="CreateAsync" Enhance="true">
+            <DataAnnotationsValidator />
+            <CuentaContableFields Model="SaveInput!" Prefix="SaveInput" />
+            <FormularioAcciones CancelarHref="@Volver" LimpiarHref="@Nav.Uri" />
+        </EditForm>
+    }
+</EntityFormPage>
+
+@if (!MuestraAlta)
+{
+    <EditForm Model="SaveInput" FormName="save-cuenta-contable" OnValidSubmit="CreateAsync"></EditForm>
+}
+@if (!MuestraEdicion)
+{
+    <EditForm Model="UpdateInput" FormName="update-cuenta-contable" OnValidSubmit="UpdateAsync"></EditForm>
+}
+
+@code {
+    private const string SinPermiso = "No tiene permiso para realizar esta acción.";
+
+    [Parameter] public Guid? Id { get; set; }
+
+    [SupplyParameterFromQuery(Name = "returnUrl")]
+    private string? ReturnUrl { get; set; }
+
+    [SupplyParameterFromForm(FormName = "save-cuenta-contable")]
+    private CuentasContables.CuentaContableForm? SaveInput { get; set; }
+
+    [SupplyParameterFromForm(FormName = "update-cuenta-contable")]
+    private CuentasContables.CuentaContableForm? UpdateInput { get; set; }
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+    private PermisosPagina? permisos;
+    private bool encontrado;
+    private string? message;
+    private string messageType = "warning";
+    private IReadOnlyList<string> errores = [];
+
+    private bool EsEdicion => Id.HasValue;
+    private bool Permitido => EsEdicion ? permisos?.CanModify == true : permisos?.CanAdd == true;
+    private bool MuestraAlta => !EsEdicion && Permitido;
+    private bool MuestraEdicion => EsEdicion && Permitido && encontrado;
+    private string Volver => RetornoLocal.Volver(ReturnUrl, "/cuentas-contables");
+    private string Titulo => EsEdicion ? "Modificar cuenta contable" : "Nueva cuenta contable";
+    private IReadOnlyList<Miga> Migas =>
+        [new("Contabilidad", "/modulos/contabilidad"), new("Plan de cuentas", Volver), new(EsEdicion ? "Modificar" : "Nueva")];
+
+    protected override async Task OnInitializedAsync()
+    {
+        SaveInput ??= new();
+        UpdateInput ??= new();
+        permisos = await PermisosPagina.CargarAsync(AuthorizationService, AuthenticationStateTask);
+
+        if (Id is { } id && permisos.CanModify)
+        {
+            try
+            {
+                var cuenta = await CuentaContableApiClient.GetByIdAsync(id);
+                encontrado = cuenta is not null;
+                // Solo se rellena con lo guardado cuando NO llegó un formulario de modificación.
+                if (cuenta is not null && UpdateInput.Id == Guid.Empty)
+                {
+                    UpdateInput.Id = cuenta.Id;
+                    UpdateInput.Numero = cuenta.Numero;
+                    UpdateInput.Nombre = cuenta.Nombre;
+                    UpdateInput.TipoCuenta = cuenta.TipoCuenta;
+                    UpdateInput.TipoResultado = cuenta.TipoResultado;
+                    UpdateInput.PosteoDirecto = cuenta.PosteoDirecto;
+                    UpdateInput.Bloqueada = cuenta.Bloqueada;
+                    UpdateInput.Sangria = cuenta.Sangria;
+                    UpdateInput.Xmin = cuenta.Xmin;
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Could not load cuenta contable {Id} from API.", id);
+                Show("danger", "No fue posible cargar la cuenta contable a modificar.");
+            }
+        }
+    }
+
+    private Task CreateAsync() => ExecuteAsync(() => CuentaContableApiClient.CreateAsync(ToInput(SaveInput!)), "created");
+
+    private async Task UpdateAsync()
+    {
+        if (Id is not { } id)
+        {
+            Show("warning", "Seleccione primero un registro a modificar desde la tabla.");
+            return;
+        }
+
+        await ExecuteAsync(() => CuentaContableApiClient.UpdateAsync(id, ToInput(UpdateInput!), UpdateInput!.Xmin), "updated");
+    }
+
+    private async Task ExecuteAsync(Func<Task<CuentaContableOperationResult>> operation, string successCode)
+    {
+        // La navegación va FUERA del try: si NavigateTo lanza NavigationException (SSR sin el switch que la desactiva),
+        // el catch genérico no debe tragársela como un fallo de la operación.
+        string? destino = null;
+        try
+        {
+            var result = await operation();
+            if (result.Succeeded)
+            {
+                destino = RetornoLocal.ConParametro(Volver, "ok", successCode);
+            }
+            else
+            {
+                Show("warning", result.Message, result.Errors);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not complete cuenta contable operation.");
+            Show("danger", "No fue posible completar la operación.");
+        }
+
+        if (destino is not null)
+        {
+            Nav.NavigateTo(destino);
+        }
+    }
+
+    private void Show(string type, string? text, IReadOnlyList<string>? errors = null)
+    {
+        messageType = type;
+        message = text;
+        errores = errors ?? [];
+    }
+
+    private static CuentaContableInput ToInput(CuentasContables.CuentaContableForm form) => new(
+        form.Numero.Trim(),
+        form.Nombre.Trim(),
+        form.TipoCuenta,
+        form.TipoResultado,
+        form.PosteoDirecto,
+        form.Bloqueada,
+        form.Sangria);
+}

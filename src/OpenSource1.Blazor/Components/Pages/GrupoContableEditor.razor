@@ -1,0 +1,175 @@
+@page "/grupos-contables/nuevo"
+@page "/grupos-contables/{Id:guid}/editar"
+@attribute [Authorize(Policy = ApplicationPolicies.CanConsult)]
+@using Microsoft.AspNetCore.Authorization
+@using OpenSource1.Application.Features.GruposContables
+@using OpenSource1.Blazor.Services
+@using OpenSource1.Core.Enums
+@inject IGrupoContableApiClient GrupoContableApiClient
+@inject IAuthorizationService AuthorizationService
+@inject ILogger<GrupoContableEditor> Logger
+@inject NavigationManager Nav
+
+@*
+    Alta y edición de un grupo contable simple en página propia (Fix-Features B2b). El tipo viaja en ?tipo=<ruta> (texto, no
+    enum) en todas las URL, y el POST va a la URL vigente, así que el tipo lo acompaña sin campo oculto. Los dos EditForm están
+    SIEMPRE en el árbol (vacíos si el permiso o la rama los ocultan): un POST forzado recibe el mensaje real de la API.
+*@
+
+<EntityFormPage Titulo="@Titulo" Subtitulo="@Descriptor.NombrePlural" Migas="@Migas"
+                Mensaje="@message" TipoMensaje="@messageType" Errores="@errores">
+    @if (!Permitido)
+    {
+        <MessageBox Type="warning" Message="@SinPermiso" />
+    }
+    else if (EsEdicion && !encontrado)
+    {
+        <MessageBox Type="warning" Message="No se encontró el grupo seleccionado. Puede haber sido eliminado por otro usuario." />
+    }
+    else if (EsEdicion)
+    {
+        <EditForm Model="UpdateInput" FormName="update-grupo-contable" OnValidSubmit="UpdateAsync" Enhance="true">
+            <DataAnnotationsValidator />
+            <input type="hidden" name="UpdateInput.Id" value="@UpdateInput!.Id" />
+            <input type="hidden" name="UpdateInput.Xmin" value="@UpdateInput.Xmin" />
+            <GrupoContableFields Model="UpdateInput!" Prefix="UpdateInput" />
+            <FormularioAcciones CancelarHref="@Volver" LimpiarHref="@Nav.Uri" TextoGuardar="Guardar cambios" />
+        </EditForm>
+    }
+    else
+    {
+        <EditForm Model="SaveInput" FormName="save-grupo-contable" OnValidSubmit="CreateAsync" Enhance="true">
+            <DataAnnotationsValidator />
+            <GrupoContableFields Model="SaveInput!" Prefix="SaveInput" />
+            <FormularioAcciones CancelarHref="@Volver" LimpiarHref="@Nav.Uri" />
+        </EditForm>
+    }
+</EntityFormPage>
+
+@if (!MuestraAlta)
+{
+    <EditForm Model="SaveInput" FormName="save-grupo-contable" OnValidSubmit="CreateAsync"></EditForm>
+}
+@if (!MuestraEdicion)
+{
+    <EditForm Model="UpdateInput" FormName="update-grupo-contable" OnValidSubmit="UpdateAsync"></EditForm>
+}
+
+@code {
+    private const string SinPermiso = "No tiene permiso para realizar esta acción.";
+
+    [Parameter] public Guid? Id { get; set; }
+
+    [SupplyParameterFromQuery(Name = "tipo")]
+    private string? TipoRuta { get; set; }
+
+    [SupplyParameterFromQuery(Name = "returnUrl")]
+    private string? ReturnUrl { get; set; }
+
+    [SupplyParameterFromForm(FormName = "save-grupo-contable")]
+    private GrupoContableForm? SaveInput { get; set; }
+
+    [SupplyParameterFromForm(FormName = "update-grupo-contable")]
+    private GrupoContableForm? UpdateInput { get; set; }
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+    private PermisosPagina? permisos;
+    private bool encontrado;
+    private string? message;
+    private string messageType = "warning";
+    private IReadOnlyList<string> errores = [];
+
+    // Tipo vigente: el de ?tipo= si existe; si falta o no existe, el primero (Negocio), igual que el listado.
+    private TipoGrupoContable Tipo => TiposGrupoContable.DesdeRuta(TipoRuta) ?? TipoGrupoContable.Negocio;
+    private TiposGrupoContable.Descriptor Descriptor => TiposGrupoContable.De(Tipo);
+    private bool EsEdicion => Id.HasValue;
+    private bool Permitido => EsEdicion ? permisos?.CanModify == true : permisos?.CanAdd == true;
+    private bool MuestraAlta => !EsEdicion && Permitido;
+    private bool MuestraEdicion => EsEdicion && Permitido && encontrado;
+    private string Volver => RetornoLocal.Volver(ReturnUrl, $"/grupos-contables?tipo={Descriptor.Ruta}");
+    private string Titulo => EsEdicion ? $"Modificar {Descriptor.Nombre.ToLowerInvariant()}" : $"Nuevo {Descriptor.Nombre.ToLowerInvariant()}";
+    private IReadOnlyList<Miga> Migas =>
+        [new("Configuración", "/modulos/configuracion"), new(Descriptor.NombrePlural, Volver), new(EsEdicion ? "Modificar" : "Nuevo")];
+
+    protected override async Task OnInitializedAsync()
+    {
+        SaveInput ??= new();
+        UpdateInput ??= new();
+        permisos = await PermisosPagina.CargarAsync(AuthorizationService, AuthenticationStateTask);
+
+        if (Id is { } id && permisos.CanModify)
+        {
+            try
+            {
+                var grupo = await GrupoContableApiClient.GetByIdAsync(Tipo, id);
+                encontrado = grupo is not null;
+                // Solo se rellena con lo guardado cuando NO llegó un formulario de modificación.
+                if (grupo is not null && UpdateInput.Id == Guid.Empty)
+                {
+                    UpdateInput.Id = grupo.Id;
+                    UpdateInput.Codigo = grupo.Codigo;
+                    UpdateInput.Descripcion = grupo.Descripcion;
+                    UpdateInput.Xmin = grupo.Xmin;
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Could not load grupo contable {Id} from API.", id);
+                Show("danger", "No fue posible cargar el grupo a modificar.");
+            }
+        }
+    }
+
+    private Task CreateAsync() => ExecuteAsync(() => GrupoContableApiClient.CreateAsync(Tipo, ToInput(SaveInput!)), "created");
+
+    private async Task UpdateAsync()
+    {
+        if (Id is not { } id)
+        {
+            Show("warning", "Seleccione primero un registro a modificar desde la tabla.");
+            return;
+        }
+
+        await ExecuteAsync(() => GrupoContableApiClient.UpdateAsync(Tipo, id, ToInput(UpdateInput!), UpdateInput!.Xmin), "updated");
+    }
+
+    private async Task ExecuteAsync(Func<Task<GrupoOperationResult>> operation, string successCode)
+    {
+        // La navegación va FUERA del try: si NavigateTo lanza NavigationException (SSR sin el switch que la desactiva),
+        // el catch genérico no debe tragársela como un fallo de la operación.
+        string? destino = null;
+        try
+        {
+            var result = await operation();
+            if (result.Succeeded)
+            {
+                destino = RetornoLocal.ConParametro(Volver, "ok", successCode);
+            }
+            else
+            {
+                Show("warning", result.Message, result.Errors);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not complete grupo contable operation.");
+            Show("danger", "No fue posible completar la operación.");
+        }
+
+        if (destino is not null)
+        {
+            Nav.NavigateTo(destino);
+        }
+    }
+
+    private void Show(string type, string? text, IReadOnlyList<string>? errors = null)
+    {
+        messageType = type;
+        message = text;
+        errores = errors ?? [];
+    }
+
+    private static GrupoContableInput ToInput(GrupoContableForm form) => new(form.Codigo.Trim(), form.Descripcion.Trim());
+}
