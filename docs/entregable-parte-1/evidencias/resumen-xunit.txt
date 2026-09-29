@@ -1,0 +1,15 @@
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+  OpenSource1.Core -> /home/ray/test/src/OpenSource1.Core/bin/Debug/net10.0/OpenSource1.Core.dll
+  OpenSource1.Application -> /home/ray/test/src/OpenSource1.Application/bin/Debug/net10.0/OpenSource1.Application.dll
+  OpenSource1.Infrastructure -> /home/ray/test/src/OpenSource1.Infrastructure/bin/Debug/net10.0/OpenSource1.Infrastructure.dll
+  OpenSource1.Api -> /home/ray/test/src/OpenSource1.Api/bin/Debug/net10.0/OpenSource1.Api.dll
+  OpenSource1.Blazor -> /home/ray/test/src/OpenSource1.Blazor/bin/Debug/net10.0/OpenSource1.Blazor.dll
+  OpenSource1.SmokeTests -> /home/ray/test/tests/OpenSource1.SmokeTests/bin/Debug/net10.0/OpenSource1.SmokeTests.dll
+Test run for /home/ray/test/tests/OpenSource1.SmokeTests/bin/Debug/net10.0/OpenSource1.SmokeTests.dll (.NETCoreApp,Version=v10.0)
+VSTest version 18.0.2-dev (x64)
+
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+
+Passed!  - Failed:     0, Passed:  1684, Skipped:     0, Total:  1684, Duration: 23 m 1 s - OpenSource1.SmokeTests.dll (net10.0)
