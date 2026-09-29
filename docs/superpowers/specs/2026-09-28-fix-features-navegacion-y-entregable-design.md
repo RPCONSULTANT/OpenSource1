@@ -115,3 +115,23 @@ Cambios de dominio contable o de posteo; nuevo diseño de marca; i18n; paleta co
 ## Confirmado por el usuario
 
 - Documento sin portada, solo en Word (`.docx`).
+
+## Resultado
+
+Implementado en la rama `Fix-Features` (`8e81a41..HEAD`, commits locales) según el plan
+[`2026-09-28-fix-features.md`](../plans/2026-09-28-fix-features.md), cuya sección "Resultado de Fix-Features" recoge
+los commits por task, las decisiones de ejecución (R1–R17, FFA–FFI) y los residuales aceptados.
+
+- **Fase A:** registro único de módulos y grupos con visibilidad por permiso; menú lateral por grupos; barra superior
+  con búsqueda en servidor (`/buscar`, módulos y registros, API de solo lectura con Dapper); paleta Ctrl+K progresiva;
+  inicio compacto con tarjetas de grupo y `/modulos/{grupo}` con indicadores; navegación sin destello azul.
+- **Fase B:** barra de acciones (`+ Nuevo`, `Crear ▾`, `Ver ▾`, `Editar`, `Eliminar`), selección de fila con `?sel=`,
+  página-tarjeta de alta y edición con `returnUrl` local validado, aplicadas a todos los listados de mantenimiento.
+- **Fase C:** acciones contextuales de clientes (nueva factura precargada, nota de crédito, facturas filtradas, cobro
+  en página propia `/cobros/nuevo`), productos (filtro por existencia, ajuste en diario precargado) y documentos.
+- **Fase D:** documento técnico (`.docx`, sin portada, justificado), presentación de 9 diapositivas, guion, diagramas y
+  ER generados del esquema real, suite E2E Playwright con capturas y generadores versionados.
+- **Verificación de cierre:** suite xUnit 1684/1684, build con 0 avisos, E2E 14 passed + `@api-caida` skipped (verde
+  aparte), stack Docker sano; sin interactividad añadida, sin cambios de `appsettings*.json` ni migraciones.
+- **Pendiente para el usuario:** rotar y retirar del repositorio la contraseña semilla versionada (hallazgo
+  preexistente) y decidir si el `.docx` lleva autor.

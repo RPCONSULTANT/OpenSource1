@@ -8930,3 +8930,113 @@ git commit -m "docs: resultado y cierre de la rama Fix-Features"
 | 18 | ER de dos bases (App e Identity) | Un ER "núcleo" con las tablas de la correspondencia (incluye `AspNetUsers/Roles/UserRoles`) y un ER completo de `AxionERP_App`. |
 | 19 | Atajo `/` de la paleta | Se ignora cuando el foco está en un campo editable. |
 | 20 | A6 en paralelo con A5 (ambos tocan el inicio) | El hero lo retira A5 (y su test lo cubre); el test de A6 excluye `Home.razor`. |
+
+---
+
+## Resultado de Fix-Features
+
+Rama `Fix-Features` desde `8e81a41` (commits locales, sin merge ni push). Suite xUnit final: **1684/1684 verdes** (partida
+1361), `dotnet build test.slnx -warnaserror` con **0 avisos y 0 errores**. Runtime sobre Docker Compose
+(`proyecto-opensource1`, `POSTGRES_PORT=5433` de `.env`, publicado en `0.0.0.0:5433`): `postgres` healthy, `api` y
+`blazor` en marcha, `/account/login` → 200. E2E Playwright (`tests/e2e`): **14 passed, 1 skipped** (`@api-caida`, se
+ejecuta aparte con `docker compose stop api`; verde en D3). Restricciones: la rama no añade ningún `@bind`, `@onclick`
+ni `@rendermode` (`git diff main...HEAD -G'@bind|@onclick|@rendermode' -- 'src/**/*.razor'` solo muestra comentarios
+añadidos y tres `@bind-Value` retirados de `UserManagement.razor`); desde `8e81a41` no hay cambios en
+`appsettings*.json` ni en migraciones (el `main...HEAD` sí los muestra porque incluye las Fases 0–8, anteriores a
+esta rama).
+
+### Commits por task
+
+| Task | Commits |
+|---|---|
+| Spec y plan | `5ce0647`, `a4c6f41`, `8c36e2a` |
+| D1 Documento técnico, pasos 1–5 | `20e7328` |
+| D2 Diagramas y ER | `de2a987`, `77961b2` |
+| A1 Registro de módulos | `6e942aa` |
+| A2 Menú lateral por grupos | `32c5765`, `0eedc32` |
+| A3a Búsqueda global en la API | `b0d544b` |
+| A3b Barra superior y `/buscar` | `49dbb01` |
+| A4 Paleta Ctrl+K | `ff53779`, `7288e08` |
+| A5 Inicio y páginas de grupo | `436353c` |
+| A6 Sin destello azul | `17a6eaf` |
+| Puerta G-A | `2f7f7d7`, `2f7a64d` |
+| B1 Componentes compartidos | `3765cbe`, `68fd97e` |
+| B2a Maestros | `864600d` |
+| B2b Maestros contables | `3d75c5c` |
+| B2c Clientes y productos | `9d1556f` |
+| B2d Lotes, cabeceras y usuarios | `ca629c1` |
+| Puerta G-B | `591d151`, `d069eea`, `4247623`, `7d19223`, `b1c26b9` |
+| C1 Clientes y cobros | `0edac17` |
+| C2 Productos | `571a8cd` |
+| C3 Facturas y notas de crédito | `999c8bd` |
+| Puerta G-C | `b54b3a8`, `9200fa1` |
+| D3 E2E y capturas | `f575a69`, `526eafd` |
+| D4 Documento Word, presentación y guion | `4ad9f33`, `4a980f9` |
+| Z Cierre | este commit (`docs: resultado y cierre de la rama Fix-Features`) |
+
+### Decisiones tomadas durante la ejecución
+
+Rulings del pre-flight (vinculantes para los implementadores):
+- **R1:** helper `HtmlSsr` único; los tests afirman texto sobre HTML decodificado.
+- **R2:** `AccionesFacturasTests` configura un almacén en `IAlmacenApiClient.ListAsync`.
+- **R3:** `BlazorSsrFactory` apunta la API a una dirección muerta (`http://127.0.0.1:9/`); aplicado sobre la sección real `Api:BaseAddress`.
+- **R4:** A6 en worktree aislado y `git add` solo de sus archivos.
+- **R5:** un solo helper público `RaizRepositorio` en TestInfrastructure.
+- **R6:** helper `PermisosPagina` (CanAdd/CanModify/CanDelete una vez por página) para barra y editores.
+- **R7:** en facturas, Editar/Eliminar se anulan solo con borrador seleccionado no Abierto; sin selección, deshabilitados con `title`.
+- **R8:** el código se localiza por símbolo, no por número de línea del plan.
+- **R9:** se retira la aserción vacía `DoesNotContain("@bind")`; el Administrador sí ve `/admin/users`; las evidencias aseveran texto visible antes de capturar.
+- **R10:** tests de selección y POST forzado solo en la entidad representativa de cada lote B2, más render + envío de las cabeceras de borradores.
+- **R11:** `verificar-documento.mjs` se actualiza con los ER parciales en el mismo commit.
+- **R12:** el manejador `beforeunload` también respeta el retardo de 150 ms.
+- **R13:** la fila entera es seleccionable (enlace "stretched"); Usuarios con `?sel=` y Editar, sin Eliminar (se desactivan en su ficha).
+- **R14:** globs entrecomillados (fish) y comprobación de interactividad limitada al diff de la rama.
+- **R15:** el contrato de B1 (listado, selección/URL, editor) prevalece sobre el código de ejemplo de los briefs de B2/C.
+- **R16:** los selectores E2E de menús usan `getByTestId('menu-crear'|'menu-ver').getByRole('link', …)`.
+- **R17:** en el host de pruebas `Nav.NavigateTo` va después del `try/catch` (destino guardado dentro del `try`).
+
+Decisiones del controlador (ledger):
+- **FFA:** las tareas de código paralelas corren en worktrees aislados y se integran con cherry-pick en la misma rama.
+- **FFB:** D1/D2 (solo `docs/` y `tests/e2e/`) corren en el árbol principal junto a un implementador de código, cada uno con `git add` de sus rutas.
+- **FFC:** se acepta retirar gráficos, actividad y guías del inicio (siguen en `/dashboard/*`); el coste de carga se corrigió en la puerta G-A.
+- **FFD:** B2 esperó a la revisión de B1 (cuatro lotes dependían de su contrato).
+- **FFE:** tras crear o modificar una cabecera de borrador se va al borrador (sus líneas).
+- **FFF:** C3 cambia "Modificar cabecera" de factura/nota a `/…/{id}/editar?returnUrl=/…/borradores/{id}`.
+- **FFG:** Usuarios en tarjetas con marcador de fila y `Sel` de tipo `string`.
+- **FFH:** el alta de clientes/productos exige `CanConsult` y avisa sin `CanAdd` (el POST forzado recibe el 403 de la API); vuelve a la lista con `ok=created`.
+- **FFI:** los generadores del entregable (`md2docx.cjs`, `deck.cjs`, `resolver.py`, `tpl.md`) se versionan en `tests/e2e/scripts/entregable/`.
+
+### Residuales aceptados
+
+- Búsqueda: notas de crédito solo por número; sin `unaccent` ni `pg_trgm`; borrado lógico probado solo en socios; los
+  listados interpretan `*`, `||`, `&&` como sintaxis; "Ver todos" elige el campo por la forma de `q` (casos límite:
+  códigos sin dígitos, RNC corto, `FV-0001`).
+- Indicadores de grupo: `WaitAsync` no cancela la llamada subyacente si el cliente ignora el token; setter público de
+  `TiempoMaximoPorIndicador` solo para tests.
+- Paleta: `role=presentation` en vez de `group` en el listbox; `json()` tras una redirección HTML; `VisiblesAsync` dos
+  veces por render.
+- Menú: `NavMenu` recalcula los grupos en lugar de reutilizar `GruposVisiblesAsync`.
+- Editores B2b: no distinguen carga fallida de registro no encontrado.
+- Barra de Clientes/Almacenes se parte en dos líneas a 1440 px.
+- Tests de selección y POST forzado solo en la entidad representativa de cada lote (R10).
+- Fase C: comentario de `PuedeAsync`; `?crearNota=true` manual en una factura ya acreditada abre el diálogo (la API lo
+  rechaza); la ficha pasa su propia ruta como `RetornoUrl` y pierde el `returnUrl` previo a la lista.
+- E2E: la captura 20 (búsqueda por estado) no tiene exclusión porque crear existencia es irreversible (se explica en el
+  pie); las capturas 25, 26 y 28 dependen de los datos; el spec 04 usa un usuario efímero con clave fija que se borra al
+  terminar.
+- Documento: sin autor en el `.docx` por la decisión "sin portada" (pendiente de confirmar con el usuario).
+
+### Datos de prueba que quedan en la base de desarrollo
+
+- Factura `00000002`, cobro `00000002` y cliente `000005` "GC Puerta C Cliente" (creados en la puerta G-C; no se pueden
+  borrar por las reglas contables).
+- Filas con prefijo `E2E` creadas por la suite Playwright: la suite las elimina, pero las entidades con borrado lógico
+  quedan marcadas como eliminadas en la base.
+
+### Hallazgo de seguridad (preexistente, fuera del alcance de la rama)
+
+La contraseña semilla (`AUTH_SEED_DEFAULT_PASSWORD`) está versionada en `README.md`, `auth.http`,
+`docs/superpowers/plans/2026-09-13-fase-2-dominio-maestro.md` y cinco archivos de `tests/OpenSource1.SmokeTests`
+(`AuthPermissionsApiTests.cs`, `ConfiguracionFechasRegistroApiTests.cs`, `ImagePathApiTests.cs`, `UsersApiTests.cs`,
+`TestInfrastructure/PostgresTestFixture.cs`). Hay que **rotarla** en todos los entornos y **retirarla** del repositorio
+(leerla de variables de entorno o `.env`, como ya hace la suite E2E). Este documento no la reproduce.
