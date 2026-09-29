@@ -14,20 +14,13 @@
 
 <PageTitle>Ficha cliente – AxionERP</PageTitle>
 
-<div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-    <div>
-        <p class="text-xs font-bold tracking-widest uppercase text-brand-600 mb-1">Ficha</p>
-        <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight dark:text-slate-100">Cliente</h1>
-        <p class="text-sm text-slate-500 mt-1 dark:text-slate-400">Vista detallada y eliminación desde ficha.</p>
-    </div>
-    <div class="flex items-center gap-3">
-        <a href="/clientes" class="btn-press rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700/60">Volver al listado</a>
-        @if (cliente is not null && canModify)
-        {
-            <a href="@UrlEditar" class="btn-press inline-flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-amber-600">Editar</a>
-        }
-    </div>
-</div>
+@* Fix-Features C1: barra común con Crear ▾ / Ver ▾ del cliente (las mismas acciones que la lista y la tarjeta), Editar y Eliminar. *@
+<PageToolbar Titulo="@(cliente?.NombreComercial ?? "Cliente")" Subtitulo="@(cliente is null ? null : $"Código {cliente.Codigo}")"
+             Migas="@migas" Permisos="@permisos"
+             SeleccionId="@(cliente?.Id.ToString())"
+             Crear="@AccionesCliente.Crear" Ver="@AccionesCliente.VerSinFicha"
+             EditarUrl="@(_ => UrlEditar)"
+             EliminarUrl="@(_ => BuildDetailUrl(delete: true))" />
 
 @if (!string.IsNullOrWhiteSpace(message) || errores.Count > 0)
 {
@@ -49,16 +42,6 @@ else
             <div>
                 <h2 class="text-xl font-extrabold text-slate-900 dark:text-slate-100">@cliente.NombreComercial</h2>
                 <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Código: <span class="font-semibold text-slate-700 dark:text-slate-300">@cliente.Codigo</span> · ID: <span class="font-semibold text-slate-700 dark:text-slate-300">@cliente.Id</span></p>
-            </div>
-            <div class="flex items-center gap-2">
-                @if (canModify)
-                {
-                    <a href="@UrlEditar" class="btn-press inline-flex items-center justify-center size-9 rounded-lg border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100" title="Editar ficha"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z" /></svg></a>
-                }
-                @if (canDelete)
-                {
-                    <a href="@BuildDetailUrl(delete: true)" class="btn-press inline-flex items-center justify-center size-9 rounded-lg border border-red-200 bg-red-50 text-red-700 hover:bg-red-100" title="Eliminar cliente"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79" /></svg></a>
-                }
             </div>
         </div>
         <div class="px-6 py-6">
@@ -127,8 +110,9 @@ else
     private IReadOnlyList<string> errores = [];
     private string? loadError;
     private string? deleteError;
-    private bool canModify;
-    private bool canDelete;
+    private PermisosPagina? permisos;
+    private bool canDelete => permisos?.CanDelete == true;
+    private static readonly IReadOnlyList<Miga> migas = [new("Clientes", "/modulos/clientes"), new("Clientes", "/clientes"), new("Ficha")];
     // Lista de términos (en la ficha no se carga: el nombre del término vigente se pide por su id) y nombre del término vigente.
     private TerminoPagoOpciones terminos = TerminoPagoOpciones.SinCargar;
     private string? terminoActualNombre;
@@ -147,12 +131,7 @@ else
         }
 
         DeleteInput ??= new();
-        if (AuthenticationStateTask is not null)
-        {
-            var user = (await AuthenticationStateTask).User;
-            canModify = (await AuthorizationService.AuthorizeAsync(user, ApplicationPolicies.CanModify)).Succeeded;
-            canDelete = (await AuthorizationService.AuthorizeAsync(user, ApplicationPolicies.CanDelete)).Succeeded;
-        }
+        permisos = await PermisosPagina.CargarAsync(AuthorizationService, AuthenticationStateTask);
         await LoadAsync();
         if (cliente is not null)
         {

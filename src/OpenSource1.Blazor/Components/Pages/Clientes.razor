@@ -17,6 +17,7 @@
 <PageToolbar Titulo="Clientes" Subtitulo="Listado principal con búsqueda, filtros y reportería." Migas="@migas" Permisos="@permisos"
              NuevoHref="@RetornoLocal.ConRetorno("/clientes/nuevo", UrlActual)"
              SeleccionId="@SeleccionValida?.ToString()"
+             Crear="@AccionesCliente.Crear" Ver="@AccionesCliente.Ver"
              EditarUrl="@(id => RetornoLocal.ConRetorno($"/clientes/{id}/editar", UrlActual))"
              EliminarUrl="@(id => BuildListUrl(deleteId: Guid.Parse(id)))">
         <a href="@BuildListUrl(view: "grid")" title="Vista cuadrícula" class="btn-press inline-flex items-center justify-center size-10 rounded-lg border shadow-sm @(IsListView ?"border-slate-300 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700/60" : "border-brand-200 bg-brand-50 text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-400")">
@@ -441,13 +442,15 @@
         catch (Exception ex) { Logger.LogWarning(ex, "Could not load clientes from API."); message = "No fue posible cargar los clientes."; messageType = "danger"; }
     }
     private async Task DeleteAsync(){if(!DeleteId.HasValue){modalError="No se pudo identificar el cliente. Intente de nuevo."; return;} var result=await SocioNegocioApiClient.DeleteAsync(DeleteId.Value); if(result.Succeeded) Nav.NavigateTo(RetornoLocal.ConParametro(UrlActual, "ok", "deleted")); else modalError=result.Message;}
-    // Acciones de cada tarjeta (vista Tarjetas). Fix-Features C1 añade aquí las acciones de Crear/Ver del cliente.
+    // Acciones de cada tarjeta (vista Tarjetas): Ficha y Editar visibles; en ⋯ las de Crear/Ver del cliente (Fix-Features C1,
+    // las mismas que la barra y la ficha; "Ficha" ya es acción rápida) y Eliminar.
     private RenderFragment TarjetaAccionesDe(SocioNegocioResponse c) => __builder =>
     {
         <TarjetaAcciones Id="@c.Id.ToString()" Permisos="@permisos"
                          Rapidas="@([new AccionPagina("Ficha", IconosModulo.Persona, id => $"/clientes/{id}"),
                                     new AccionPagina("Editar", IconosModulo.Lista, id => RetornoLocal.ConRetorno($"/clientes/{id}/editar", UrlActual), ApplicationPolicies.CanModify)])"
-                         Resto="@([new AccionPagina("Eliminar", IconosModulo.Lista, id => BuildListUrl(deleteId: Guid.Parse(id!)), ApplicationPolicies.CanDelete)])" />
+                         Resto="@([.. AccionesCliente.Crear, .. AccionesCliente.VerSinFicha,
+                                  new AccionPagina("Eliminar", IconosModulo.Lista, id => BuildListUrl(deleteId: Guid.Parse(id!)), ApplicationPolicies.CanDelete)])" />
     };
     private string? GetActiveValue(string key, string? value) => ActiveFilterFields.Contains(key) ? EmptyAsNull(value) : null;
     // Tipo: solo si el campo está activo y el valor es un tipo válido (1, 2 o 3); un valor inválido no se envía a la API.
