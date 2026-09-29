@@ -84,7 +84,7 @@ Todos los listados con alta pasan a `+ Nuevo` → `/x/nuevo` y `Editar` → `/x/
 
 ## Fase D — Entregable Parte 1 (en paralelo)
 
-Carpeta `docs/entregable-parte-1/`, en el estilo del entregable 3 existente (sin portada salvo indicación, texto en español, párrafos justificados en Word):
+Carpeta `docs/entregable-parte-1/`, en el estilo del entregable 3 existente (**sin portada**, texto en español, párrafos justificados):
 
 | Paso | Contenido y fuente |
 |---|---|
@@ -98,7 +98,7 @@ Carpeta `docs/entregable-parte-1/`, en el estilo del entregable 3 existente (sin
 | 9 Pruebas | Suite xUnit (≥1361) + suite E2E Playwright con capturas: altas, modificaciones, eliminación, validaciones, búsquedas, errores (API caída, 403, 404). |
 | 10 Entrega | Índice de código fuente, documento, diagramas, capturas, presentación corta y guion de demostración. |
 
-Artefactos: `documento-tecnico.md` → `.docx` (texto justificado) → `.pdf` (LibreOffice); `presentacion.pptx` (8–10 diapositivas); `diagramas/arquitectura.svg|png`, `diagramas/modelo-er.svg|png`; `capturas/*.png` (Playwright, 1440×900, claro y una muestra en oscuro); `evidencias/` (resumen de tests, reporte E2E); `guion-demo.md`.
+Artefactos: `documento-tecnico.md` (fuente) → `documento-tecnico.docx` (único formato de entrega, texto justificado); `presentacion.pptx` (8–10 diapositivas); `diagramas/arquitectura.svg|png`, `diagramas/modelo-er.svg|png`; `capturas/*.png` (Playwright, 1440×900, claro y una muestra en oscuro); `evidencias/` (resumen de tests, reporte E2E); `guion-demo.md`.
 
 E2E: `tests/e2e/` (Node + `@playwright/test`, fuera de `test.slnx`) contra el stack de Docker (`POSTGRES_PORT` configurable); credenciales solo por variables de entorno; genera capturas y reporte HTML. Las capturas finales se toman al cerrar la Fase C; los textos (Pasos 1–5), diagramas y ER pueden hacerse desde el inicio.
 
@@ -112,7 +112,6 @@ E2E: `tests/e2e/` (Node + `@playwright/test`, fuera de `test.slnx`) contra el st
 
 Cambios de dominio contable o de posteo; nuevo diseño de marca; i18n; paleta con acciones (solo navegación y registros).
 
-## Pendiente de confirmar
+## Confirmado por el usuario
 
-1. Datos que deben figurar en el documento (integrantes, matrícula, asignatura/sección) o si se mantiene sin portada como el entregable 3.
-2. Formato final: Word y PDF ambos (propuesto) o solo uno.
+- Documento sin portada, solo en Word (`.docx`).
