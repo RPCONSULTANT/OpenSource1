@@ -10,7 +10,8 @@ namespace OpenSource1.SmokeTests.TestInfrastructure;
 /// <summary>
 /// Autenticación de prueba del host Blazor. A diferencia de <see cref="TestAuthHandler"/> (API), las políticas del host
 /// exigen el claim <c>permission</c> (CanConsult, CanAdd…), igual que la cookie real que crea Login.razor. Sin
-/// "X-Test-Permisos" se emiten los permisos coarse del rol, con la misma tabla que <c>AuthService.GetPermissions</c>.
+/// "X-Test-Permisos" se emiten los permisos coarse del rol (ver <see cref="PermisosDeRol"/>); con el valor
+/// <see cref="SinPermisos"/> no se emite ninguno.
 /// </summary>
 public sealed class PermisosTestAuthHandler(
     IOptionsMonitor<AuthenticationSchemeOptions> options,
@@ -22,6 +23,13 @@ public sealed class PermisosTestAuthHandler(
     public const string CabeceraRoles = "X-Test-Roles";
     public const string CabeceraPermisos = "X-Test-Permisos";
 
+    /// <summary>Centinela de "X-Test-Permisos" para cero permisos (una cabecera vacía no llega al servidor).</summary>
+    public const string SinPermisos = "-";
+
+    /// <summary>
+    /// Solo las 5 políticas coarse de la tabla de <c>AuthService.GetPermissions</c>, con nombres de rol exactos (sensibles a
+    /// mayúsculas). No incluye los permisos finos de <c>PermisosPorRol.ParaRol</c> ni la comparación sin mayúsculas de producción.
+    /// </summary>
     public static string PermisosDeRol(string roles)
     {
         var permisos = new HashSet<string>(StringComparer.Ordinal);
@@ -70,6 +78,11 @@ public sealed class PermisosTestAuthHandler(
 
         var roles = Request.Headers.TryGetValue(CabeceraRoles, out var r) ? r.ToString() : ApplicationRoles.Administrator;
         string? permisos = Request.Headers.TryGetValue(CabeceraPermisos, out var p) ? p.ToString() : null;
+        if (permisos == SinPermisos)
+        {
+            permisos = string.Empty;
+        }
+
         var principal = Principal(roles, permisos, Scheme.Name);
         return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(principal, Scheme.Name)));
     }

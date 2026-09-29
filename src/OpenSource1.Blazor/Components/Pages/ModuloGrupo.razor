@@ -59,6 +59,7 @@
 @code {
     [Parameter] public string Grupo { get; set; } = string.Empty;
     [CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+    [CascadingParameter] private HttpContext? HttpContext { get; set; }
 
     private GrupoModulo? grupo;
     private IReadOnlyList<Modulo> modulos = [];
@@ -83,7 +84,7 @@
         modulos = (await Registro.VisiblesAsync(usuario)).Where(m => m.Grupo == grupo.Clave).ToList();
         if (modulos.Count > 0)
         {
-            indicadores = await Indicadores.ObtenerAsync(grupo.Clave, usuario);
+            indicadores = await Indicadores.ObtenerAsync(grupo.Clave, usuario, HttpContext?.RequestAborted ?? CancellationToken.None);
         }
     }
 }

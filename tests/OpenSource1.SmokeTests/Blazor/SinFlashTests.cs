@@ -43,11 +43,52 @@ public sealed class SinFlashTests
     public void BeforeUnload_RespetaElRetardo()
     {
         var js = LeerJs();
-        var manejador = Regex.Match(js, "addEventListener\\('beforeunload',\\s*\\(\\)\\s*=>\\s*\\{(?<cuerpo>[^}]*)\\}").Groups["cuerpo"].Value;
+        var manejador = CuerpoTrasMarcador(js, "addEventListener('beforeunload'");
 
         Assert.False(string.IsNullOrWhiteSpace(manejador), "No se encontró el manejador beforeunload.");
         Assert.DoesNotContain("showLoading()", manejador);
         Assert.Contains("scheduleShowLoading()", manejador);
+    }
+
+    [Fact]
+    public void CuerpoTrasMarcador_BalanceaLlaves()
+    {
+        // Un showLoading() tras un bloque anidado debe quedar dentro del cuerpo extraído (antes se cortaba en la primera "}").
+        const string js = "x.addEventListener('beforeunload', () => {\n  if (a) { scheduleShowLoading(); }\n  showLoading();\n});\nfuera();";
+
+        var cuerpo = CuerpoTrasMarcador(js, "addEventListener('beforeunload'");
+
+        Assert.Contains("showLoading();\n", cuerpo);
+        Assert.Contains("scheduleShowLoading()", cuerpo);
+        Assert.DoesNotContain("fuera()", cuerpo);
+    }
+
+    /// <summary>Cuerpo (sin las llaves exteriores) del primer bloque <c>{…}</c> tras <paramref name="marcador"/>, con llaves balanceadas.</summary>
+    private static string CuerpoTrasMarcador(string fuente, string marcador)
+    {
+        var inicio = fuente.IndexOf(marcador, StringComparison.Ordinal);
+        if (inicio < 0)
+        {
+            return string.Empty;
+        }
+
+        var apertura = fuente.IndexOf('{', inicio);
+        if (apertura < 0)
+        {
+            return string.Empty;
+        }
+
+        var profundidad = 0;
+        for (var i = apertura; i < fuente.Length; i++)
+        {
+            profundidad += fuente[i] switch { '{' => 1, '}' => -1, _ => 0 };
+            if (profundidad == 0)
+            {
+                return fuente[(apertura + 1)..i];
+            }
+        }
+
+        return string.Empty;
     }
 
     private static string LeerJs() =>

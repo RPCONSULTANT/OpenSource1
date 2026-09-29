@@ -73,20 +73,30 @@
     if (controlador) controlador.abort();
   }
 
-  function encabezado(lista, texto) {
+  // Cada sección del listbox es un role="group" con aria-label que contiene sus opciones (ARIA: listbox > group > option).
+  // El título visible no se repite al lector de pantalla: el nombre del grupo ya lo da aria-label.
+  function grupo(lista, texto) {
     const li = document.createElement('li');
-    li.setAttribute('role', 'presentation');
-    li.className = 'px-3 pt-3 pb-1 text-[10px] font-bold uppercase tracking-widest text-slate-400';
-    li.textContent = texto;
+    li.setAttribute('role', 'group');
+    li.setAttribute('aria-label', texto);
+    const titulo = document.createElement('div');
+    titulo.setAttribute('aria-hidden', 'true');
+    titulo.className = 'px-3 pt-3 pb-1 text-[10px] font-bold uppercase tracking-widest text-slate-400';
+    titulo.textContent = texto;
+    const opcionesGrupo = document.createElement('ul');
+    opcionesGrupo.setAttribute('role', 'none');
+    li.append(titulo, opcionesGrupo);
     lista.appendChild(li);
+    return opcionesGrupo;
   }
 
-  function aviso(lista, texto) {
+  // Aviso dentro de un grupo (sin coincidencias, cargando, error): texto de estado, no una opción seleccionable.
+  function aviso(contenedor, texto) {
     const li = document.createElement('li');
-    li.setAttribute('role', 'presentation');
+    li.setAttribute('role', 'none');
     li.className = 'px-3 py-2 text-xs text-slate-500';
     li.textContent = texto;
-    lista.appendChild(li);
+    contenedor.appendChild(li);
   }
 
   function opcion(lista, datos) {
@@ -124,16 +134,16 @@
     el.input.removeAttribute('aria-activedescendant');
 
     const encontrados = filtrarModulos(consulta);
-    encabezado(el.lista, 'Módulos');
-    if (encontrados.length === 0) aviso(el.lista, 'Ningún módulo coincide.');
-    encontrados.forEach((m) => opcion(el.lista, { href: m.ruta, texto: m.titulo, detalle: m.grupo }));
+    const grupoModulos = grupo(el.lista, 'Módulos');
+    if (encontrados.length === 0) aviso(grupoModulos, 'Ningún módulo coincide.');
+    encontrados.forEach((m) => opcion(grupoModulos, { href: m.ruta, texto: m.titulo, detalle: m.grupo }));
 
     if (consulta.trim().length < MIN_CARACTERES) return;
-    if (cargando) { encabezado(el.lista, 'Registros'); aviso(el.lista, 'Buscando…'); return; }
-    if (error) { encabezado(el.lista, 'Registros'); aviso(el.lista, error); return; }
+    if (cargando) { aviso(grupo(el.lista, 'Registros'), 'Buscando…'); return; }
+    if (error) { aviso(grupo(el.lista, 'Registros'), error); return; }
     (grupos || []).filter((g) => Array.isArray(g.items) && g.items.length > 0).forEach((g) => {
-      encabezado(el.lista, g.titulo);
-      g.items.forEach((r) => opcion(el.lista, { href: r.ruta, texto: r.titulo, detalle: r.subtitulo }));
+      const contenedor = grupo(el.lista, g.titulo);
+      g.items.forEach((r) => opcion(contenedor, { href: r.ruta, texto: r.titulo, detalle: r.subtitulo }));
     });
   }
 

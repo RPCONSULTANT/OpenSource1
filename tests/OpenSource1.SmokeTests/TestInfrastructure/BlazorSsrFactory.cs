@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Moq;
 
 namespace OpenSource1.SmokeTests.TestInfrastructure;
@@ -36,7 +37,7 @@ public sealed class BlazorSsrFactory : WebApplicationFactory<BlazorApp::Program>
 
         if (_iniciado)
         {
-            throw new InvalidOperationException("Simular<T>() debe llamarse antes de crear el primer cliente.");
+            throw new InvalidOperationException("Simular<T>() debe llamarse antes de construir el host (primer Cliente() o Services).");
         }
 
         var mock = new Mock<T>();
@@ -44,6 +45,10 @@ public sealed class BlazorSsrFactory : WebApplicationFactory<BlazorApp::Program>
         return mock;
     }
 
+    /// <summary>
+    /// Cliente del host. <paramref name="permisos"/>: <see langword="null"/> = los permisos coarse del rol
+    /// (<see cref="PermisosTestAuthHandler.PermisosDeRol"/>); <c>""</c> = ningún permiso; si no, la lista separada por comas.
+    /// </summary>
     public HttpClient Cliente(string roles = "Administrador", string? permisos = null, bool anonimo = false)
     {
         _iniciado = true;
@@ -54,8 +59,19 @@ public sealed class BlazorSsrFactory : WebApplicationFactory<BlazorApp::Program>
         }
 
         cliente.DefaultRequestHeaders.Add(PermisosTestAuthHandler.CabeceraRoles, roles);
-        cliente.DefaultRequestHeaders.Add(PermisosTestAuthHandler.CabeceraPermisos, permisos ?? PermisosTestAuthHandler.PermisosDeRol(roles));
+        // HttpClient no envía una cabecera con valor vacío: "" viaja como el centinela explícito de "sin permisos".
+        var valorPermisos = permisos ?? PermisosTestAuthHandler.PermisosDeRol(roles);
+        cliente.DefaultRequestHeaders.Add(
+            PermisosTestAuthHandler.CabeceraPermisos,
+            valorPermisos.Length == 0 ? PermisosTestAuthHandler.SinPermisos : valorPermisos);
         return cliente;
+    }
+
+    /// <summary>El host se construye aquí (primer cliente o primer acceso a <c>Services</c>): a partir de ahí no se admiten simulaciones.</summary>
+    protected override IHost CreateHost(IHostBuilder builder)
+    {
+        _iniciado = true;
+        return base.CreateHost(builder);
     }
 
     /// <summary>

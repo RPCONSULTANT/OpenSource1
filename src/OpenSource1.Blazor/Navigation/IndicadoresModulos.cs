@@ -23,6 +23,9 @@ public sealed class IndicadoresModulos(
     // Solo el total: una página de un elemento basta para leer PagedResult.Total.
     private static readonly PageRequest Uno = new(1, 1);
 
+    /// <summary>Tiempo máximo por indicador: si vence, el indicador se omite como el que falla (la página no espera más).</summary>
+    public TimeSpan TiempoMaximoPorIndicador { get; set; } = TimeSpan.FromSeconds(5);
+
     public async Task<IReadOnlyList<Indicador>> ObtenerAsync(string grupo, ClaimsPrincipal usuario, CancellationToken cancellationToken = default)
     {
         if (!(await autorizacion.AuthorizeAsync(usuario, ApplicationPolicies.CanConsult)).Succeeded)
@@ -31,11 +34,15 @@ public sealed class IndicadoresModulos(
         }
 
         var resultado = new List<Indicador>();
-        foreach (var (titulo, ruta, contar) in Definiciones(grupo, cancellationToken).Take(3))
+        foreach (var (titulo, ruta, contar) in Definiciones(grupo).Take(3))
         {
             try
             {
-                resultado.Add(new Indicador(titulo, (await contar()).ToString("N0", CultureInfo.InvariantCulture), ruta));
+                using var limite = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                limite.CancelAfter(TiempoMaximoPorIndicador);
+                // WaitAsync: el tiempo máximo se cumple aunque el cliente no atienda el token.
+                var total = await contar(limite.Token).WaitAsync(limite.Token);
+                resultado.Add(new Indicador(titulo, total.ToString("N0", CultureInfo.InvariantCulture), ruta));
             }
             catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
             {
@@ -46,36 +53,36 @@ public sealed class IndicadoresModulos(
         return resultado;
     }
 
-    private List<(string Titulo, string? Ruta, Func<Task<long>> Contar)> Definiciones(string grupo, CancellationToken ct) => grupo switch
+    private List<(string Titulo, string? Ruta, Func<CancellationToken, Task<long>> Contar)> Definiciones(string grupo) => grupo switch
     {
         "clientes" =>
         [
-            ("Clientes registrados", "/clientes", async () => (await socios.ListAsync(null, Uno, ct)).Total),
+            ("Clientes registrados", "/clientes", async ct => (await socios.ListAsync(null, Uno, ct)).Total),
         ],
         "productos" =>
         [
-            ("Productos", "/productos", async () => (await productos.ListAsync(null, Uno, ct)).Total),
-            ("Sin existencia", "/productos", async () => (await productos.ListAsync(new ProductoSearchFilter(null, null, null, null, null, null, null, null, "without"), Uno, ct)).Total),
-            ("Categorías", "/categorias-producto", async () => (await categorias.ListAsync(null, Uno, ct)).Total),
+            ("Productos", "/productos", async ct => (await productos.ListAsync(null, Uno, ct)).Total),
+            ("Sin existencia", "/productos?estado=without", async ct => (await productos.ListAsync(new ProductoSearchFilter(null, null, null, null, null, null, null, null, "without"), Uno, ct)).Total),
+            ("Categorías", "/categorias-producto", async ct => (await categorias.ListAsync(null, Uno, ct)).Total),
         ],
         "inventario" =>
         [
-            ("Almacenes", "/almacenes", async () => (await almacenes.ListAsync(null, Uno, ct)).Total),
+            ("Almacenes", "/almacenes", async ct => (await almacenes.ListAsync(null, Uno, ct)).Total),
         ],
         "facturacion" =>
         [
-            ("Borradores abiertos", "/facturas-venta/borradores?estado=1", async () => (await facturas.ListBorradoresAsync(new FacturaVentaBorradorFiltro(null, null, null, 1), Uno, ct)).Total),
-            ("Facturas posteadas", "/facturas-venta", async () => (await facturas.ListFacturasAsync(null, Uno, ct)).Total),
-            ("Borradores de nota de crédito", "/notas-credito-venta/borradores", async () => (await notas.ListBorradoresAsync(null, Uno, ct)).Total),
+            ("Borradores abiertos", "/facturas-venta/borradores?estado=1", async ct => (await facturas.ListBorradoresAsync(new FacturaVentaBorradorFiltro(null, null, null, 1), Uno, ct)).Total),
+            ("Facturas posteadas", "/facturas-venta", async ct => (await facturas.ListFacturasAsync(null, Uno, ct)).Total),
+            ("Borradores de nota de crédito", "/notas-credito-venta/borradores", async ct => (await notas.ListBorradoresAsync(null, Uno, ct)).Total),
         ],
         "contabilidad" =>
         [
-            ("Cuentas contables", "/cuentas-contables", async () => (await cuentas.ListAsync(null, Uno, ct)).Total),
+            ("Cuentas contables", "/cuentas-contables", async ct => (await cuentas.ListAsync(null, Uno, ct)).Total),
         ],
         "configuracion" =>
         [
-            ("Términos de pago", "/terminos-pago", async () => (await terminos.ListAsync(null, Uno, ct)).Total),
-            ("Unidades de medida", "/unidades-medida", async () => (await unidades.ListAsync(null, Uno, ct)).Total),
+            ("Términos de pago", "/terminos-pago", async ct => (await terminos.ListAsync(null, Uno, ct)).Total),
+            ("Unidades de medida", "/unidades-medida", async ct => (await unidades.ListAsync(null, Uno, ct)).Total),
         ],
         _ => [],
     };

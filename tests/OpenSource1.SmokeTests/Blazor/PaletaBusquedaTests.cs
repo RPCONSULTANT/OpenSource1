@@ -80,6 +80,10 @@ public sealed class PaletaBusquedaTests
         Assert.Equal(HttpStatusCode.Redirect, sinPermiso.StatusCode);
         Assert.StartsWith("/access-denied", FormulariosSsr.Destino(sinPermiso));
 
+        var ningunPermiso = await app.Cliente("Supervisor", permisos: "").GetAsync("/buscar/sugerencias?q=abc");
+        Assert.Equal(HttpStatusCode.Redirect, ningunPermiso.StatusCode);
+        Assert.StartsWith("/access-denied", FormulariosSsr.Destino(ningunPermiso));
+
         // Ni la consulta corta ni los rechazos de autorización llegan a llamar a la API.
         api.Verify(c => c.BuscarAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
     }
@@ -95,6 +99,20 @@ public sealed class PaletaBusquedaTests
         Assert.Matches(new Regex(@"if \(!el \|\| cableados\.has\(el\.input\)\) return;\s*cableados\.add\(el\.input\);"), fuente);
         Assert.DoesNotContain("dataset.", fuente);
         Assert.Contains("window.Blazor.addEventListener('enhancedload'", fuente);
+    }
+
+    [Fact]
+    public void Script_EncabezadosDeGrupo_SonGruposConEtiqueta()
+    {
+        // Dentro del listbox cada sección es role="group" con aria-label y contiene sus opciones; el título visible no se
+        // repite al lector de pantalla (aria-hidden) y nada del listbox usa role="presentation".
+        var fuente = File.ReadAllText(Path.Combine(BlazorSsrFactory.RaizRepositorio(), "src", "OpenSource1.Blazor", "wwwroot", "app.search.js"));
+        var funcion = Regex.Match(fuente, @"function grupo\(lista, texto\) \{(?<cuerpo>.*?)\n  \}", RegexOptions.Singleline).Groups["cuerpo"].Value;
+
+        Assert.Contains("setAttribute('role', 'group')", funcion);
+        Assert.Contains("setAttribute('aria-label', texto)", funcion);
+        Assert.Contains("setAttribute('aria-hidden', 'true')", funcion);
+        Assert.DoesNotContain("'presentation'", fuente);
     }
 
     [Fact]

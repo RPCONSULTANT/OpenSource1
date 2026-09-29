@@ -4,6 +4,9 @@ using BlazorApp::OpenSource1.Blazor.Components.Pages;
 using BlazorApp::OpenSource1.Blazor.Services;
 using Moq;
 using OpenSource1.Application.Features.Busqueda.Dtos;
+using OpenSource1.Application.Features.Productos.Dtos;
+using OpenSource1.Application.Features.SociosNegocio.Dtos;
+using OpenSource1.Core.Common;
 using OpenSource1.SmokeTests.TestInfrastructure;
 using static OpenSource1.SmokeTests.TestInfrastructure.HtmlSsr;
 
@@ -94,16 +97,60 @@ public sealed class BuscarPaginaTests
     }
 
     [Theory]
+    // Clientes: código (serie SOCIOS, 6 dígitos) / RNC o cédula (7+ dígitos, guiones admitidos) / nombre (con o sin dígitos).
     [InlineData(TiposResultadoBusqueda.Clientes, "ana", "/clientes?nombre=ana")]
+    [InlineData(TiposResultadoBusqueda.Clientes, "000012", "/clientes?codigo=000012&filters=codigo")]
+    [InlineData(TiposResultadoBusqueda.Clientes, "12", "/clientes?codigo=12&filters=codigo")]
+    [InlineData(TiposResultadoBusqueda.Clientes, "131246789", "/clientes?documento=131246789&filters=documento")]
+    [InlineData(TiposResultadoBusqueda.Clientes, "001-1234567-8", "/clientes?documento=001-1234567-8&filters=documento")]
+    [InlineData(TiposResultadoBusqueda.Clientes, "Tienda 24", "/clientes?nombre=Tienda%2024")]
+    // Productos: una sola palabra con dígitos = código; si no, nombre.
     [InlineData(TiposResultadoBusqueda.Productos, "tor", "/productos?nombre=tor")]
-    [InlineData(TiposResultadoBusqueda.Facturas, "FV01", "/facturas-venta?numero=FV01")]
+    [InlineData(TiposResultadoBusqueda.Productos, "P-001", "/productos?codigo=P-001&filters=codigo")]
+    [InlineData(TiposResultadoBusqueda.Productos, "tornillo 3/4", "/productos?nombre=tornillo%203%2F4")]
+    // Facturas y borradores: número solo si la consulta son dígitos; si no, nombre de facturación.
+    [InlineData(TiposResultadoBusqueda.Facturas, "00000012", "/facturas-venta?numero=00000012")]
+    [InlineData(TiposResultadoBusqueda.Facturas, "FV01", "/facturas-venta?nombre=FV01")]
+    [InlineData(TiposResultadoBusqueda.Facturas, "Tienda 24", "/facturas-venta?nombre=Tienda%2024")]
     [InlineData(TiposResultadoBusqueda.Facturas, "comercial", "/facturas-venta?nombre=comercial")]
-    [InlineData(TiposResultadoBusqueda.BorradoresFactura, "B 1", "/facturas-venta/borradores?numero=B%201")]
+    [InlineData(TiposResultadoBusqueda.BorradoresFactura, "0001", "/facturas-venta/borradores?numero=0001")]
+    [InlineData(TiposResultadoBusqueda.BorradoresFactura, "B 1", "/facturas-venta/borradores?nombre=B%201")]
     [InlineData(TiposResultadoBusqueda.NotasCredito, "NC", "/notas-credito-venta?numero=NC")]
     [InlineData(TiposResultadoBusqueda.BorradoresNotaCredito, "NC", "/notas-credito-venta/borradores?numero=NC")]
     public void VerTodosUrl_ApuntaAlListadoFiltrado(string tipo, string q, string esperado)
     {
         Assert.Equal(esperado, Buscar.VerTodosUrl(tipo, q));
+    }
+
+    [Theory]
+    [InlineData("000012", "codigo")]
+    [InlineData("131246789", "documento")]
+    public async Task VerTodosUrl_Clientes_ElListadoEnviaElFiltroALaApi(string q, string campo)
+    {
+        using var app = new BlazorSsrFactory();
+        var socios = app.Simular<ISocioNegocioApiClient>();
+        socios.Setup(c => c.ListAsync(It.IsAny<SocioNegocioSearchFilter?>(), It.IsAny<PageRequest?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PagedResult<SocioNegocioResponse>([], 1, PageRequest.TamanoPorDefecto, 0));
+
+        await HtmlAsync(app.Cliente(), Buscar.VerTodosUrl(TiposResultadoBusqueda.Clientes, q));
+
+        socios.Verify(c => c.ListAsync(
+            It.Is<SocioNegocioSearchFilter?>(f => f != null && f.NombreComercial == null
+                && (campo == "codigo" ? f.Codigo == q && f.NumeroDocumentoFiscal == null : f.NumeroDocumentoFiscal == q && f.Codigo == null)),
+            It.IsAny<PageRequest?>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task VerTodosUrl_Productos_PorCodigo_ElListadoEnviaElFiltroALaApi()
+    {
+        using var app = new BlazorSsrFactory();
+        var productos = app.Simular<IProductoApiClient>();
+        productos.Setup(c => c.ListAsync(It.IsAny<ProductoSearchFilter?>(), It.IsAny<PageRequest?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PagedResult<ProductoResponse>([], 1, PageRequest.TamanoPorDefecto, 0));
+
+        await HtmlAsync(app.Cliente(), Buscar.VerTodosUrl(TiposResultadoBusqueda.Productos, "TOR-38"));
+
+        productos.Verify(c => c.ListAsync(It.Is<ProductoSearchFilter?>(f => f != null && f.Codigo == "TOR-38" && f.Nombre == null), It.IsAny<PageRequest?>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     /// <summary>Desde la sección de módulos hasta el final (excluye el menú lateral, que va antes en el layout).</summary>

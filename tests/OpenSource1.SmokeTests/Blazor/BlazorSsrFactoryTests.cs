@@ -46,6 +46,33 @@ public sealed class BlazorSsrFactoryTests : IDisposable
     }
 
     [Fact]
+    public async Task PermisosVacios_SignificaSinNingunPermiso_RedirigeAAccessDenied()
+    {
+        // permisos: "" = cero permisos (no los del rol): Supervisor sin CanConsult no entra a /clientes.
+        var respuesta = await _factory.Cliente("Supervisor", permisos: "").GetAsync("/clientes");
+
+        Assert.Equal(HttpStatusCode.Found, respuesta.StatusCode);
+        Assert.StartsWith("/access-denied", FormulariosSsr.Destino(respuesta));
+    }
+
+    [Fact]
+    public async Task PermisosNulos_UsaLosPermisosDelRol()
+    {
+        var respuesta = await _factory.Cliente("Supervisor").GetAsync("/modulos/clientes");
+
+        Assert.Equal(HttpStatusCode.OK, respuesta.StatusCode);
+    }
+
+    [Fact]
+    public void Simular_TrasConstruirElHost_Lanza()
+    {
+        // El host puede construirse sin Cliente() (p. ej. al leer Services): un Simular<T>() posterior no tendría efecto.
+        _ = _factory.Services;
+
+        Assert.Throws<InvalidOperationException>(() => _factory.Simular<IRegistroModulos>());
+    }
+
+    [Fact]
     public void RaizRepositorio_ContieneLaSolucion()
     {
         Assert.True(File.Exists(Path.Combine(BlazorSsrFactory.RaizRepositorio(), "test.slnx")));

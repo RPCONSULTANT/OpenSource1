@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using OpenSource1.Application.Features.FacturasVenta.Borradores.Dtos;
 using OpenSource1.Application.Features.FacturasVenta.Posteadas;
+using OpenSource1.Application.Features.FacturasVenta.Posteadas.Dtos;
 using OpenSource1.Application.Features.NotasCreditoVenta.Borradores.Dtos;
 using OpenSource1.Application.Features.Productos.Dtos;
 using OpenSource1.Application.Features.SociosNegocio.Dtos;
@@ -26,9 +27,7 @@ public sealed class InicioYGruposTests
     public async Task Inicio_SinHeroNiAnimaciones_ConKpisYTarjetasDeGrupo()
     {
         using var app = new BlazorSsrFactory();
-        app.Simular<ISocioNegocioApiClient>().Setup(c => c.ListAllAsync(It.IsAny<SocioNegocioSearchFilter?>(), It.IsAny<CancellationToken>())).ReturnsAsync([new SocioNegocioResponse { NombreComercial = "A" }]);
-        app.Simular<IProductoApiClient>().Setup(c => c.ListAllAsync(It.IsAny<ProductoSearchFilter?>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync([new ProductoResponse { Nombre = "P", Existencia = 0 }, new ProductoResponse { Nombre = "Q", Existencia = 3 }]);
+        var (socios, productos) = SimularTotales(app, clientes: 12, productos: 30, sinExistencia: 4);
 
         var html = await HtmlAsync(app.Cliente("Administrador"), "/");
 
@@ -37,6 +36,67 @@ public sealed class InicioYGruposTests
         Assert.Contains("data-testid=\"kpis-inicio\"", html);
         Assert.Contains("href=\"/modulos/facturacion\"", html);
         Assert.Contains("href=\"/modulos/administracion\"", html);
+    }
+
+    [Fact]
+    public async Task Inicio_Kpis_UnaPaginaDeUnElementoPorIndicador_NuncaListasCompletas()
+    {
+        using var app = new BlazorSsrFactory();
+        var (socios, productos) = SimularTotales(app, clientes: 12, productos: 30, sinExistencia: 4);
+
+        var html = await HtmlAsync(app.Cliente("Administrador"), "/");
+        var kpis = html[html.IndexOf("data-testid=\"kpis-inicio\"", StringComparison.Ordinal)..html.IndexOf("data-testid=\"grupos-inicio\"", StringComparison.Ordinal)];
+
+        Assert.Matches("href=\"/clientes\"[^>]*>\\s*<p[^>]*>Clientes</p>\\s*<p[^>]*>12</p>", kpis);
+        Assert.Matches("href=\"/productos\"[^>]*>\\s*<p[^>]*>Productos</p>\\s*<p[^>]*>30</p>", kpis);
+        Assert.Matches("href=\"/productos\\?estado=without\"[^>]*>\\s*<p[^>]*>Sin existencia</p>\\s*<p[^>]*>4</p>", kpis);
+        Assert.DoesNotContain("Existencia baja", html);
+
+        socios.Verify(c => c.ListAsync(It.IsAny<SocioNegocioSearchFilter?>(), It.Is<PageRequest?>(p => p != null && p.Pagina == 1 && p.TamanoPagina == 1), It.IsAny<CancellationToken>()), Times.Once);
+        productos.Verify(c => c.ListAsync(It.Is<ProductoSearchFilter?>(f => f == null || f.StockState == null), It.Is<PageRequest?>(p => p != null && p.Pagina == 1 && p.TamanoPagina == 1), It.IsAny<CancellationToken>()), Times.Once);
+        productos.Verify(c => c.ListAsync(It.Is<ProductoSearchFilter?>(f => f != null && f.StockState == "without"), It.Is<PageRequest?>(p => p != null && p.Pagina == 1 && p.TamanoPagina == 1), It.IsAny<CancellationToken>()), Times.Once);
+        socios.Verify(c => c.ListAllAsync(It.IsAny<SocioNegocioSearchFilter?>(), It.IsAny<CancellationToken>()), Times.Never);
+        productos.Verify(c => c.ListAllAsync(It.IsAny<ProductoSearchFilter?>(), It.IsAny<CancellationToken>()), Times.Never);
+        Assert.Single(socios.Invocations);
+        Assert.Equal(2, productos.Invocations.Count);
+    }
+
+    [Theory]
+    [InlineData("without", "without")]
+    [InlineData("with", "with")]
+    [InlineData("raro", null)]
+    public async Task Productos_ParametroEstado_FiltraPorExistencia_YSeConservaEnLosEnlaces(string estado, string? esperado)
+    {
+        using var app = new BlazorSsrFactory();
+        var (_, productos) = SimularTotales(app, clientes: 0, productos: 0, sinExistencia: 0);
+
+        var html = await HtmlAsync(app.Cliente("Administrador"), $"/productos?estado={estado}");
+
+        productos.Verify(c => c.ListAsync(It.Is<ProductoSearchFilter?>(f => f != null && f.StockState == esperado), It.IsAny<PageRequest?>(), It.IsAny<CancellationToken>()), Times.Once);
+        if (esperado is null)
+        {
+            Assert.DoesNotContain("data-testid=\"filtro-existencia\"", html);
+        }
+        else
+        {
+            Assert.Contains("data-testid=\"filtro-existencia\"", html);
+            // Los enlaces de la lista (vista, filtros, paginación) conservan el filtro.
+            Assert.Matches($"href=\"/productos\\?[^\"]*estado={esperado}", html);
+        }
+    }
+
+    private static (Mock<ISocioNegocioApiClient> Socios, Mock<IProductoApiClient> Productos) SimularTotales(
+        BlazorSsrFactory app, long clientes, long productos, long sinExistencia)
+    {
+        var socios = app.Simular<ISocioNegocioApiClient>();
+        socios.Setup(c => c.ListAsync(It.IsAny<SocioNegocioSearchFilter?>(), It.IsAny<PageRequest?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PagedResult<SocioNegocioResponse>([], 1, 1, clientes));
+        var mockProductos = app.Simular<IProductoApiClient>();
+        mockProductos.Setup(c => c.ListAsync(It.IsAny<ProductoSearchFilter?>(), It.IsAny<PageRequest?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PagedResult<ProductoResponse>([], 1, 1, productos));
+        mockProductos.Setup(c => c.ListAsync(It.Is<ProductoSearchFilter?>(f => f != null && f.StockState == "without"), It.IsAny<PageRequest?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PagedResult<ProductoResponse>([], 1, 1, sinExistencia));
+        return (socios, mockProductos);
     }
 
     [Fact]
@@ -54,8 +114,7 @@ public sealed class InicioYGruposTests
     public async Task Inicio_Ejecutor_SoloGruposConModulosVisibles()
     {
         using var app = new BlazorSsrFactory();
-        app.Simular<ISocioNegocioApiClient>().Setup(c => c.ListAllAsync(It.IsAny<SocioNegocioSearchFilter?>(), It.IsAny<CancellationToken>())).ReturnsAsync([]);
-        app.Simular<IProductoApiClient>().Setup(c => c.ListAllAsync(It.IsAny<ProductoSearchFilter?>(), It.IsAny<CancellationToken>())).ReturnsAsync([]);
+        SimularTotales(app, clientes: 0, productos: 0, sinExistencia: 0);
 
         var html = await HtmlAsync(app.Cliente("Ejecutor"), "/");
 
@@ -63,19 +122,28 @@ public sealed class InicioYGruposTests
         Assert.DoesNotContain("href=\"/modulos/administracion\"", html);
     }
 
-    [Fact]
-    public async Task Inicio_SinCanConsult_SinKpisNiLlamadasALaApi()
+    [Theory]
+    [InlineData("Administrador", "CanModify")]
+    [InlineData("Ejecutor", "")]
+    public async Task Inicio_SinCanConsult_AvisoRestringido_SinKpisNiLlamadasALaApi(string rol, string permisos)
     {
         using var app = new BlazorSsrFactory();
         var socios = app.Simular<ISocioNegocioApiClient>();
         var productos = app.Simular<IProductoApiClient>();
 
-        // "CanModify" no concede consulta (permisos: "" no llega como cabecera: ver brief A5).
-        var html = await HtmlAsync(app.Cliente("Administrador", permisos: "CanModify"), "/");
+        var html = await HtmlAsync(app.Cliente(rol, permisos: permisos), "/");
 
         Assert.DoesNotContain("data-testid=\"kpis-inicio\"", html);
-        socios.Verify(c => c.ListAllAsync(It.IsAny<SocioNegocioSearchFilter?>(), It.IsAny<CancellationToken>()), Times.Never);
-        productos.Verify(c => c.ListAllAsync(It.IsAny<ProductoSearchFilter?>(), It.IsAny<CancellationToken>()), Times.Never);
+        Assert.Contains("Acceso operativo restringido", html);
+        if (permisos.Length == 0)
+        {
+            // Ejecutor sin ningún permiso no ve módulos: ni tarjetas ni un encabezado "Módulos" vacío. (Administrador
+            // conserva los módulos restringidos solo por rol, p. ej. Administración.)
+            Assert.DoesNotContain("data-testid=\"grupos-inicio\"", html);
+            Assert.DoesNotContain(">Módulos</h2>", html);
+        }
+        Assert.Empty(socios.Invocations);
+        Assert.Empty(productos.Invocations);
     }
 
     [Fact]
@@ -119,6 +187,34 @@ public sealed class InicioYGruposTests
     }
 
     [Fact]
+    public async Task Indicadores_ElQueSuperaElTiempoMaximo_SeOmite_YRecibeUnTokenCancelable()
+    {
+        using var app = new BlazorSsrFactory();
+        var facturas = app.Simular<IFacturaVentaApiClient>();
+        var tokens = new List<CancellationToken>();
+        // Un indicador que nunca termina (ni siquiera atiende el token) no debe colgar la página.
+        facturas.Setup(c => c.ListBorradoresAsync(It.IsAny<FacturaVentaBorradorFiltro?>(), It.IsAny<PageRequest?>(), It.IsAny<CancellationToken>()))
+            .Callback<FacturaVentaBorradorFiltro?, PageRequest?, CancellationToken>((_, _, ct) => tokens.Add(ct))
+            .Returns(new TaskCompletionSource<PagedResult<FacturaVentaBorradorResponse>>().Task);
+        facturas.Setup(c => c.ListFacturasAsync(It.IsAny<FacturaVentaSearchCriteria?>(), It.IsAny<PageRequest?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PagedResult<FacturaVentaResponse>([], 1, 1, 5));
+        app.Simular<INotaCreditoVentaApiClient>()
+            .Setup(c => c.ListBorradoresAsync(It.IsAny<NotaCreditoVentaBorradorFiltro?>(), It.IsAny<PageRequest?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PagedResult<NotaCreditoVentaBorradorResponse>([], 1, 1, 2));
+        _ = app.Cliente();
+
+        using var scope = app.Services.CreateScope();
+        var indicadores = (IndicadoresModulos)scope.ServiceProvider.GetRequiredService<IIndicadoresModulos>();
+        indicadores.TiempoMaximoPorIndicador = TimeSpan.FromMilliseconds(100);
+        var reloj = System.Diagnostics.Stopwatch.StartNew();
+        var resultado = await indicadores.ObtenerAsync("facturacion", PermisosTestAuthHandler.Principal("Administrador"));
+
+        Assert.True(reloj.Elapsed < TimeSpan.FromSeconds(5), $"Tardó {reloj.Elapsed}.");
+        Assert.Equal(["Facturas posteadas", "Borradores de nota de crédito"], resultado.Select(i => i.Titulo));
+        Assert.True(Assert.Single(tokens).IsCancellationRequested);
+    }
+
+    [Fact]
     public async Task Indicadores_SinCanConsult_NingunoYSinLlamadas()
     {
         using var app = new BlazorSsrFactory();
@@ -128,8 +224,10 @@ public sealed class InicioYGruposTests
         using var scope = app.Services.CreateScope();
         var indicadores = scope.ServiceProvider.GetRequiredService<IIndicadoresModulos>();
         var resultado = await indicadores.ObtenerAsync("facturacion", PermisosTestAuthHandler.Principal("Administrador", "CanModify"));
+        var ninguno = await indicadores.ObtenerAsync("facturacion", PermisosTestAuthHandler.Principal("Administrador", ""));
 
         Assert.Empty(resultado);
+        Assert.Empty(ninguno);
         Assert.Empty(facturas.Invocations);
     }
 

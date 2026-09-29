@@ -116,20 +116,50 @@ else
         }
     }
 
-    /// <summary>"Ver todos": el listado del tipo filtrado por la consulta (número si la consulta tiene dígitos, si no nombre).</summary>
+    /// <summary>
+    /// "Ver todos": el listado del tipo filtrado por el campo que más probablemente produjo el acierto, para no llevar a una
+    /// lista vacía. La búsqueda global compara con varios campos a la vez (código, RNC, nombre…) y los listados filtran por uno:
+    /// <list type="bullet">
+    /// <item>Clientes: solo dígitos → código (serie SOCIOS, hasta 6 dígitos) o documento fiscal (RNC/cédula, 7+ dígitos, con
+    /// guiones); si no, nombre.</item>
+    /// <item>Productos: una sola palabra con dígitos → código; si no, nombre.</item>
+    /// <item>Facturas y borradores de factura: solo dígitos → número; si no, nombre de facturación.</item>
+    /// <item>Notas de crédito (y sus borradores): la búsqueda solo compara el número.</item>
+    /// </list>
+    /// </summary>
     public static string VerTodosUrl(string tipo, string q)
     {
         var valor = Uri.EscapeDataString(q);
-        var campo = q.Any(char.IsDigit) ? "numero" : "nombre";
         return tipo switch
         {
-            TiposResultadoBusqueda.Clientes => $"/clientes?nombre={valor}",
-            TiposResultadoBusqueda.Productos => $"/productos?nombre={valor}",
-            TiposResultadoBusqueda.Facturas => $"/facturas-venta?{campo}={valor}",
-            TiposResultadoBusqueda.BorradoresFactura => $"/facturas-venta/borradores?{campo}={valor}",
+            TiposResultadoBusqueda.Clientes => CampoCliente(q) switch
+            {
+                "codigo" => $"/clientes?codigo={valor}&filters=codigo",
+                "documento" => $"/clientes?documento={valor}&filters=documento",
+                _ => $"/clientes?nombre={valor}",
+            },
+            TiposResultadoBusqueda.Productos => EsPalabraConDigitos(q) ? $"/productos?codigo={valor}&filters=codigo" : $"/productos?nombre={valor}",
+            TiposResultadoBusqueda.Facturas => $"/facturas-venta?{CampoFactura(q)}={valor}",
+            TiposResultadoBusqueda.BorradoresFactura => $"/facturas-venta/borradores?{CampoFactura(q)}={valor}",
             TiposResultadoBusqueda.NotasCredito => $"/notas-credito-venta?numero={valor}",
             TiposResultadoBusqueda.BorradoresNotaCredito => $"/notas-credito-venta/borradores?numero={valor}",
             _ => $"/buscar?q={valor}",
         };
     }
+
+    private const int DigitosCodigoSocio = 6;
+
+    private static string CampoCliente(string q)
+    {
+        if (!q.All(c => char.IsAsciiDigit(c) || c == '-') || !q.Any(char.IsAsciiDigit))
+        {
+            return "nombre";
+        }
+
+        return q.Contains('-') || q.Count(char.IsAsciiDigit) > DigitosCodigoSocio ? "documento" : "codigo";
+    }
+
+    private static bool EsPalabraConDigitos(string q) => q.Any(char.IsAsciiDigit) && !q.Any(char.IsWhiteSpace);
+
+    private static string CampoFactura(string q) => q.All(char.IsAsciiDigit) ? "numero" : "nombre";
 }
