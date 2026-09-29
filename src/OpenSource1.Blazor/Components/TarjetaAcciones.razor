@@ -1,5 +1,6 @@
 @* TarjetaAcciones — acciones de una tarjeta en la vista Tarjetas (Fix-Features B1): las 2 primeras rápidas permitidas
-   visibles y el resto (rápidas sobrantes + Resto) en un menú ⋯ con <details data-menu>. *@
+   visibles y el resto (rápidas sobrantes + Resto) en un menú ⋯ con <details data-menu>. El menú se abre HACIA ARRIBA, alineado a la derecha (z-50): la tarjeta
+   contenedora NO debe usar overflow-hidden (si la imagen necesita recorte, recorta solo su envoltorio). *@
 @inject IAuthorizationService AuthorizationService
 
 <div class="flex shrink-0 items-center gap-2" data-testid="tarjeta-acciones">
@@ -11,10 +12,10 @@
     {
         <details class="relative" data-menu>
             <summary aria-label="Más acciones" class="btn-press inline-flex cursor-pointer list-none items-center rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 [&::-webkit-details-marker]:hidden">⋯</summary>
-            <div role="menu" class="absolute right-0 z-30 mt-1 min-w-52 rounded-xl border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-800">
+            <div class="absolute bottom-full right-0 z-50 mb-1 min-w-52 rounded-xl border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-800">
                 @foreach (var accion in enMenu)
                 {
-                    <a role="menuitem" href="@accion.UrlConId(Id)" class="block px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-700/60">@accion.Etiqueta</a>
+                    <a href="@accion.UrlConId(Id)" class="block px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-700/60">@accion.Etiqueta</a>
                 }
             </div>
         </details>

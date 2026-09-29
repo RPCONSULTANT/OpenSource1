@@ -240,3 +240,27 @@
 @keyframes spin {
     to { transform: rotate(360deg); }
 }
+
+/* ── Fila seleccionable (Fix-Features B1, R13) ───────────────────────────────────────────────────────────
+   <tr class="fila-seleccionable"> + <SeleccionFila> (enlace .seleccion-fila-enlace en la primera celda): el ::after
+   del enlace cubre la fila entera, así que un clic en cualquier celda selecciona. Los controles propios de la fila
+   quedan por encima sin marcarlos a mano. */
+.fila-seleccionable {
+    position: relative;
+}
+
+.fila-seleccionable .seleccion-fila-enlace::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+}
+
+.fila-seleccionable :is(a, button, input, select, textarea, label, form, summary, details):not(.seleccion-fila-enlace) {
+    position: relative;
+    z-index: 1;
+}
+
+/* Un menú <details> abierto dentro de la fila debe quedar sobre los controles (z-index 1) de las filas siguientes. */
+.fila-seleccionable details[open] {
+    z-index: 20;
+}

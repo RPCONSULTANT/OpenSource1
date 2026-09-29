@@ -66,7 +66,9 @@ public sealed class ComponentesPaginaTests
         var supervisor = await ToolbarAsync("Supervisor", "S1", crear, ver);
 
         Assert.Contains("data-testid=\"menu-crear\"", adminSinSeleccion);
-        Assert.Contains("<span role=\"menuitem\" aria-disabled=\"true\"", adminSinSeleccion);
+        Assert.Contains($"<span aria-disabled=\"true\" tabindex=\"0\" title=\"{PageToolbar.SinSeleccion}\"", adminSinSeleccion);
+        Assert.DoesNotContain("role=\"menu", adminSinSeleccion);
+        Assert.DoesNotContain("role=\"toolbar\"", adminSinSeleccion);
         Assert.Contains("href=\"/dashboard/clientes\"", adminSinSeleccion);
         Assert.Contains("href=\"/facturas-venta/nueva?socioId=S1\"", adminConSeleccion);
         Assert.Contains("href=\"/clientes/S1\"", adminConSeleccion);
@@ -142,17 +144,43 @@ public sealed class ComponentesPaginaTests
     }
 
     [Fact]
-    public async Task SeleccionFila_EsUnEnlaceEstirado_QueCubreLaFila()
+    public async Task SeleccionFila_EmiteElMarcadorDelEnlace_YLaFilaElDeLaRegla()
     {
         var html = await RenderAsync<SeleccionFila>(
             PermisosTestAuthHandler.Principal("Administrador"),
             new Dictionary<string, object?> { ["Href"] = "/x?sel=1", ["Etiqueta"] = "KG" });
 
-        // R13: el enlace de la primera celda se estira con ::after sobre la fila (que lleva SeleccionFila.ClaseFila = relative).
-        Assert.Contains("after:absolute", html);
-        Assert.Contains("after:inset-0", html);
-        Assert.Contains("relative", SeleccionFila.ClaseFila);
-        Assert.Contains("z-10", SeleccionFila.ClaseEncima);
+        // R13: el enlace lleva el marcador cuyo ::after cubre la fila; la fila, el marcador con position:relative.
+        Assert.Matches("<a [^>]*class=\"seleccion-fila-enlace ", html);
+        Assert.StartsWith("fila-seleccionable ", SeleccionFila.ClaseFila);
+        Assert.DoesNotContain("after:", html);
+    }
+
+    [Fact]
+    public void AppCss_ContieneLaReglaDeFilaSeleccionable()
+    {
+        var css = File.ReadAllText(Path.Combine(BlazorSsrFactory.RaizRepositorio(), "src", "OpenSource1.Blazor", "wwwroot", "app.css"));
+        var compacto = System.Text.RegularExpressions.Regex.Replace(css, @"\s+", " ");
+
+        Assert.Contains(".fila-seleccionable { position: relative; }", compacto);
+        Assert.Contains(".fila-seleccionable .seleccion-fila-enlace::after { content: \"\"; position: absolute; inset: 0; }", compacto);
+        Assert.Contains(
+            ".fila-seleccionable :is(a, button, input, select, textarea, label, form, summary, details):not(.seleccion-fila-enlace) { position: relative; z-index: 1; }",
+            compacto);
+    }
+
+    [Fact]
+    public async Task TarjetaAcciones_MenuSeAbreHaciaArriba_SinRolesDeMenu()
+    {
+        IReadOnlyList<AccionPagina> rapidas = [new("A", IconosModulo.Lista, id => $"/a/{id}"), new("B", IconosModulo.Lista, id => $"/b/{id}")];
+        IReadOnlyList<AccionPagina> resto = [new("C", IconosModulo.Lista, id => $"/c/{id}")];
+        var html = await RenderAsync<TarjetaAcciones>(
+            PermisosTestAuthHandler.Principal("Administrador"),
+            new Dictionary<string, object?> { ["Id"] = "1", ["Rapidas"] = rapidas, ["Resto"] = resto });
+
+        Assert.Contains("bottom-full", html);
+        Assert.Contains("z-50", html);
+        Assert.DoesNotContain("role=\"menu", html);
     }
 
     [Theory]
