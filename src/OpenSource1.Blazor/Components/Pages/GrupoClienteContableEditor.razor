@@ -111,11 +111,6 @@
         UpdateInput ??= new();
         permisos = await PermisosPagina.CargarAsync(AuthorizationService, AuthenticationStateTask);
 
-        if (Permitido)
-        {
-            await CargarCuentasAsync();
-        }
-
         if (Id is { } id && permisos.CanModify)
         {
             try
@@ -139,6 +134,12 @@
                 Logger.LogWarning(ex, "Could not load grupo cliente contable {Id} from API.", id);
                 Show("danger", "No fue posible cargar el grupo a modificar.");
             }
+        }
+
+        // Las cuentas se piden solo si hay formulario que mostrar: en una edición cuyo grupo no existe no hacen falta.
+        if (Permitido && (!EsEdicion || encontrado))
+        {
+            await CargarCuentasAsync();
         }
     }
 

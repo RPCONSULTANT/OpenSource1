@@ -18,6 +18,10 @@
 
 <EntityFormPage Titulo="@Titulo" Subtitulo="@Descriptor.NombrePlural" Migas="@Migas"
                 Mensaje="@message" TipoMensaje="@messageType" Errores="@errores">
+    @if (TipoInvalido)
+    {
+        <div class="mb-4"><MessageBox Type="warning" Message="@($"El tipo de grupo '{TipoRuta}' no existe; se usan los {Descriptor.NombrePlural.ToLowerInvariant()}.")" /></div>
+    }
     @if (!Permitido)
     {
         <MessageBox Type="warning" Message="@SinPermiso" />
@@ -84,6 +88,8 @@
     // Tipo vigente: el de ?tipo= si existe; si falta o no existe, el primero (Negocio), igual que el listado.
     private TipoGrupoContable Tipo => TiposGrupoContable.DesdeRuta(TipoRuta) ?? TipoGrupoContable.Negocio;
     private TiposGrupoContable.Descriptor Descriptor => TiposGrupoContable.De(Tipo);
+    // Como el listado: un ?tipo= que no existe se avisa en vez de caer en silencio al tipo por defecto.
+    private bool TipoInvalido => !string.IsNullOrWhiteSpace(TipoRuta) && TiposGrupoContable.DesdeRuta(TipoRuta) is null;
     private bool EsEdicion => Id.HasValue;
     private bool Permitido => EsEdicion ? permisos?.CanModify == true : permisos?.CanAdd == true;
     private bool MuestraAlta => !EsEdicion && Permitido;

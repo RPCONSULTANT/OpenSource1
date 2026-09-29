@@ -4,6 +4,8 @@ using System.Net;
 using BlazorApp::OpenSource1.Blazor.Services;
 using Moq;
 using OpenSource1.Application.Features.CuentasContables.Dtos;
+using OpenSource1.Application.Features.GruposContables.Dtos;
+using OpenSource1.Application.Features.SetupsContables.Dtos;
 using OpenSource1.Core.Common;
 using OpenSource1.Core.Enums;
 using OpenSource1.SmokeTests.TestInfrastructure;
@@ -173,6 +175,91 @@ public sealed class ConversionContabilidadTests
         var html = await HtmlAsync(app.Cliente(), "/setups-contables/nuevo?tipo=inventario&returnUrl=%2F%2Fevil.com");
 
         Assert.Contains("href=\"/setups-contables?tipo=inventario\" data-testid=\"cancelar\"", html);
+    }
+
+    [Theory]
+    [InlineData("/grupos-contables/nuevo?tipo=xyz", "El tipo de grupo 'xyz' no existe")]
+    [InlineData("/setups-contables/nuevo?tipo=xyz", "El tipo de setup 'xyz' no existe")]
+    public async Task Tarjeta_TipoInvalido_Avisa(string ruta, string aviso)
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+
+        var html = await HtmlAsync(app.Cliente(), ruta);
+
+        Assert.Contains("data-testid=\"entity-form-page\"", html);
+        Assert.Contains(aviso, html);
+    }
+
+    [Fact]
+    public async Task SetupContable_Tarjeta_SinPermiso_NoCargaOpciones()
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+        var grupos = app.Simular<IGrupoContableApiClient>();
+        var cuentas = app.Simular<ICuentaContableApiClient>();
+
+        var html = await HtmlAsync(app.Cliente("Supervisor"), "/setups-contables/nuevo?tipo=general");
+
+        Assert.Contains("No tiene permiso para realizar esta acción.", html);
+        Assert.Contains("value=\"save-setup-contable\"", html);
+        grupos.Verify(c => c.ListAllAsync(It.IsAny<TipoGrupoContable>(), It.IsAny<CancellationToken>()), Times.Never);
+        cuentas.Verify(c => c.ListAsync(It.IsAny<CuentaContableSearchFilter?>(), It.IsAny<PageRequest?>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task GrupoClienteContable_Editar_NoEncontrado_NoCargaCuentas()
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+        var cuentas = app.Simular<ICuentaContableApiClient>();
+
+        var html = await HtmlAsync(app.Cliente(), $"/grupos-cliente-contable/{Guid.NewGuid()}/editar");
+
+        Assert.Contains("No se encontró el grupo", html);
+        cuentas.Verify(c => c.ListAsync(It.IsAny<CuentaContableSearchFilter?>(), It.IsAny<PageRequest?>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task SetupContable_EditarIva_CargaLoGuardado_YGuardaConXmin()
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+        var idSetup = Guid.Parse("7b000000-0000-0000-0000-0000000000c1");
+        var idIvaNegocio = Guid.Parse("7b000000-0000-0000-0000-0000000000c2");
+        var idIvaProducto = Guid.Parse("7b000000-0000-0000-0000-0000000000c3");
+        var grupos = app.Simular<IGrupoContableApiClient>();
+        grupos.Setup(c => c.ListAllAsync(TipoGrupoContable.IvaNegocio, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([new GrupoContableResponse { Id = idIvaNegocio, Codigo = "NAC", Descripcion = "Nacional" }]);
+        grupos.Setup(c => c.ListAllAsync(TipoGrupoContable.IvaProducto, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([new GrupoContableResponse { Id = idIvaProducto, Codigo = "ITBIS18", Descripcion = "ITBIS 18" }]);
+        var setups = app.Simular<ISetupContableApiClient>();
+        setups.Setup(c => c.GetByIdAsync<SetupIvaResponse>(TipoSetupContable.Iva, idSetup, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SetupIvaResponse
+            {
+                Id = idSetup, Xmin = 9, GrupoIvaNegocioId = idIvaNegocio, GrupoIvaNegocioCodigo = "NAC", GrupoIvaProductoId = idIvaProducto,
+                GrupoIvaProductoCodigo = "ITBIS18", PorcentajeIva = 18m, CuentaIvaVentasId = IdCuenta, CuentaIvaVentasNumero = "1101",
+                CuentaIvaVentasNombre = "Caja", IdentificadorIva = "ITBIS18",
+            });
+        setups.Setup(c => c.UpdateAsync(TipoSetupContable.Iva, idSetup, It.IsAny<object>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new GrupoOperationResult(true, "ok"));
+        var url = $"/setups-contables/{idSetup}/editar?tipo=iva&returnUrl=%2Fsetups-contables%3Ftipo%3Diva";
+
+        var html = await HtmlAsync(app.Cliente(), url);
+        var respuesta = await FormulariosSsr.EnviarAsync(app.Cliente(), url, "update-setup-contable", new Dictionary<string, string>
+        {
+            ["UpdateInput.Id"] = idSetup.ToString(), ["UpdateInput.Xmin"] = "9", ["UpdateInput.SecundarioId"] = idIvaNegocio.ToString(),
+            ["UpdateInput.PrincipalId"] = idIvaProducto.ToString(), ["UpdateInput.Cuenta1Id"] = IdCuenta.ToString(),
+            ["UpdateInput.PorcentajeIvaTexto"] = "16.00", ["UpdateInput.IdentificadorIva"] = "ITBIS16", ["UpdateInput.TipoCalculoIva"] = "1",
+        });
+
+        Assert.Contains("data-testid=\"entity-form-page\"", html);
+        Assert.Contains("name=\"_handler\" value=\"update-setup-contable\"", html);
+        Assert.Contains("name=\"UpdateInput.Xmin\" value=\"9\"", html);
+        Assert.Contains("value=\"ITBIS18\"", html);
+        Assert.Contains("href=\"/setups-contables?tipo=iva\" data-testid=\"cancelar\"", html);
+        Assert.Equal(HttpStatusCode.Redirect, respuesta.StatusCode);
+        Assert.Equal("/setups-contables?tipo=iva&ok=updated", FormulariosSsr.Destino(respuesta));
+        setups.Verify(c => c.UpdateAsync(TipoSetupContable.Iva, idSetup,
+            It.Is<object>(o => (long)o.GetType().GetProperty("Xmin")!.GetValue(o)! == 9
+                && (string)o.GetType().GetProperty("IdentificadorIva")!.GetValue(o)! == "ITBIS16"),
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 
     private static BlazorSsrFactory Configurar(BlazorSsrFactory app)

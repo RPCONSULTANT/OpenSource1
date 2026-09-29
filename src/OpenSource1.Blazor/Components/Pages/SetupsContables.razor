@@ -206,6 +206,10 @@ else
     <EntityFormPage Titulo="@(EsPaginaEdicion ? $"Modificar fila del {Descriptor.NombrePlural.ToLowerInvariant()}" : $"Agregar fila al {Descriptor.NombrePlural.ToLowerInvariant()}")"
                     Migas="@([new("Configuración", "/modulos/configuracion"), new(Descriptor.NombrePlural, Volver), new(EsPaginaEdicion ? "Modificar" : "Nueva")])"
                     Mensaje="@message" TipoMensaje="@messageType" Errores="@errores">
+        @if (tipoInvalido)
+        {
+            <div class="mb-4"><MessageBox Type="warning" Message="@($"El tipo de setup '{TipoRuta}' no existe; se usa el {Descriptor.NombrePlural.ToLowerInvariant()}.")" /></div>
+        }
         @if (EsPaginaEdicion ? !canModify : !canAdd)
         {
             <MessageBox Type="warning" Message="No tiene permiso para realizar esta acción." />
@@ -367,7 +371,12 @@ else
         canModify = permisos.CanModify;
         canDelete = permisos.CanDelete;
 
-        await CargarOpcionesAsync();
+        // En la página-tarjeta sin permiso solo se muestra el aviso: no se piden opciones (el POST forzado no las necesita).
+        if (!EsPaginaTarjeta || (EsPaginaEdicion ? canModify : canAdd))
+        {
+            await CargarOpcionesAsync();
+        }
+
         if (EsPaginaTarjeta)
         {
             await CargarEdicionAsync();
