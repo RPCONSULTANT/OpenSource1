@@ -1,0 +1,44 @@
+erDiagram
+  SociosNegocio {
+    uuid Id PK
+    uuid TerminoPagoId FK
+    uuid GrupoClienteContableId FK
+    uuid GrupoIvaNegocioId FK
+    uuid GrupoNegocioId FK
+  }
+  Productos {
+    uuid Id PK
+    uuid CategoriaId FK
+    uuid UnidadMedidaBaseId FK
+    uuid GrupoInventarioId FK
+    uuid GrupoIvaProductoId FK
+    uuid GrupoProductoId FK
+  }
+  NotasCreditoVenta {
+    character_varying Numero PK
+    character_varying FacturaVentaNumero FK
+    uuid SocioNegocioId FK
+    uuid SocioNegocioFacturarAId FK
+    uuid GrupoNegocioId FK
+    uuid GrupoIvaNegocioId FK
+    uuid GrupoClienteContableId FK
+    uuid CuentaCxCId FK
+    bigint RegistroContableId FK
+  }
+  LineasNotaCreditoVenta {
+    bigint Id PK
+    character_varying NotaCreditoVentaNumero FK
+    bigint LineaFacturaVentaId FK
+    uuid ProductoId FK
+    uuid CuentaContableId FK
+    uuid AlmacenId FK
+    uuid UnidadMedidaId FK
+    uuid GrupoProductoId FK
+    uuid GrupoIvaProductoId FK
+    uuid GrupoInventarioId FK
+    bigint MovimientoProductoId FK
+  }
+  SociosNegocio ||--o{ NotasCreditoVenta : "SocioNegocioFacturarAId"
+  SociosNegocio ||--o{ NotasCreditoVenta : "SocioNegocioId"
+  NotasCreditoVenta ||--o{ LineasNotaCreditoVenta : "NotaCreditoVentaNumero"
+  Productos ||--o{ LineasNotaCreditoVenta : "ProductoId"

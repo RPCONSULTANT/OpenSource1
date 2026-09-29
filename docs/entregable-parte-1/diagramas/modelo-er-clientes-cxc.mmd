@@ -1,0 +1,26 @@
+erDiagram
+  TerminosPago {
+    uuid Id PK
+  }
+  SociosNegocio {
+    uuid Id PK
+    uuid TerminoPagoId FK
+    uuid GrupoClienteContableId FK
+    uuid GrupoIvaNegocioId FK
+    uuid GrupoNegocioId FK
+  }
+  MovimientosCliente {
+    bigint Id PK
+    uuid SocioNegocioId FK
+    uuid GrupoClienteContableId FK
+    uuid CuentaCxCId FK
+  }
+  MovimientosClienteDetalle {
+    bigint Id PK
+    bigint MovimientoClienteId FK
+    bigint MovimientoClienteAplicadoId FK
+  }
+  TerminosPago ||--o{ SociosNegocio : "TerminoPagoId"
+  SociosNegocio ||--o{ MovimientosCliente : "SocioNegocioId"
+  MovimientosCliente ||--o{ MovimientosClienteDetalle : "MovimientoClienteAplicadoId"
+  MovimientosCliente ||--o{ MovimientosClienteDetalle : "MovimientoClienteId"

@@ -1,0 +1,44 @@
+erDiagram
+  CategoriasProducto {
+    uuid Id PK
+    uuid CategoriaPadreId FK
+  }
+  UnidadesMedida {
+    uuid Id PK
+  }
+  Productos {
+    uuid Id PK
+    uuid CategoriaId FK
+    uuid UnidadMedidaBaseId FK
+    uuid GrupoInventarioId FK
+    uuid GrupoIvaProductoId FK
+    uuid GrupoProductoId FK
+  }
+  Almacenes {
+    uuid Id PK
+  }
+  MovimientosProducto {
+    bigint Id PK
+    uuid ProductoId FK
+    uuid AlmacenId FK
+    uuid UnidadMedidaId FK
+    uuid SocioNegocioId FK
+  }
+  MovimientosValor {
+    bigint Id PK
+    bigint MovimientoProductoId FK
+    uuid ProductoId FK
+    uuid AlmacenId FK
+    uuid GrupoInventarioId FK
+    uuid GrupoNegocioId FK
+    uuid GrupoProductoId FK
+  }
+  CategoriasProducto ||--o{ CategoriasProducto : "CategoriaPadreId"
+  CategoriasProducto ||--o{ Productos : "CategoriaId"
+  UnidadesMedida ||--o{ Productos : "UnidadMedidaBaseId"
+  Almacenes ||--o{ MovimientosProducto : "AlmacenId"
+  Productos ||--o{ MovimientosProducto : "ProductoId"
+  UnidadesMedida ||--o{ MovimientosProducto : "UnidadMedidaId"
+  Almacenes ||--o{ MovimientosValor : "AlmacenId"
+  MovimientosProducto ||--o{ MovimientosValor : "MovimientoProductoId"
+  Productos ||--o{ MovimientosValor : "ProductoId"

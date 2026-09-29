@@ -5,10 +5,13 @@
   "description": "E2E (Playwright) y tooling del entregable de AxionERP. Fuera de test.slnx.",
   "scripts": {
     "test": "playwright test",
-    "diagramas": "node scripts/render-mermaid.mjs ../../docs/entregable-parte-1/diagramas/arquitectura.mmd ../../docs/entregable-parte-1/diagramas/arquitectura && node scripts/render-mermaid.mjs ../../docs/entregable-parte-1/diagramas/modelo-er.mmd ../../docs/entregable-parte-1/diagramas/modelo-er && node scripts/render-mermaid.mjs ../../docs/entregable-parte-1/diagramas/modelo-er-maestros-inventario.mmd ../../docs/entregable-parte-1/diagramas/modelo-er-maestros-inventario && node scripts/render-mermaid.mjs ../../docs/entregable-parte-1/diagramas/modelo-er-ventas-cxc.mmd ../../docs/entregable-parte-1/diagramas/modelo-er-ventas-cxc"
+    "diagramas": "node scripts/render-mermaid.mjs ../../docs/entregable-parte-1/diagramas/arquitectura.mmd ../../docs/entregable-parte-1/diagramas/arquitectura && node scripts/render-mermaid.mjs ../../docs/entregable-parte-1/diagramas/modelo-er.mmd ../../docs/entregable-parte-1/diagramas/modelo-er && node scripts/render-mermaid.mjs ../../docs/entregable-parte-1/diagramas/modelo-er-maestros-inventario.mmd ../../docs/entregable-parte-1/diagramas/modelo-er-maestros-inventario && node scripts/render-mermaid.mjs ../../docs/entregable-parte-1/diagramas/modelo-er-ventas-cxc.mmd ../../docs/entregable-parte-1/diagramas/modelo-er-ventas-cxc && node scripts/render-mermaid.mjs ../../docs/entregable-parte-1/diagramas/modelo-er-usuarios-roles.mmd ../../docs/entregable-parte-1/diagramas/modelo-er-usuarios-roles && node scripts/render-mermaid.mjs ../../docs/entregable-parte-1/diagramas/modelo-er-productos-inventario.mmd ../../docs/entregable-parte-1/diagramas/modelo-er-productos-inventario && node scripts/render-mermaid.mjs ../../docs/entregable-parte-1/diagramas/modelo-er-clientes-cxc.mmd ../../docs/entregable-parte-1/diagramas/modelo-er-clientes-cxc && node scripts/render-mermaid.mjs ../../docs/entregable-parte-1/diagramas/modelo-er-ventas-borradores.mmd ../../docs/entregable-parte-1/diagramas/modelo-er-ventas-borradores && node scripts/render-mermaid.mjs ../../docs/entregable-parte-1/diagramas/modelo-er-ventas-facturas.mmd ../../docs/entregable-parte-1/diagramas/modelo-er-ventas-facturas && node scripts/render-mermaid.mjs ../../docs/entregable-parte-1/diagramas/modelo-er-ventas-notas-credito.mmd ../../docs/entregable-parte-1/diagramas/modelo-er-ventas-notas-credito",
+    "entregable": "python3 scripts/entregable/resolver.py && node scripts/entregable/md2docx.cjs && node scripts/entregable/deck.cjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.55.0",
-    "mermaid": "^11.4.0"
+    "docx": "^9.8.1",
+    "mermaid": "^11.4.0",
+    "pptxgenjs": "^4.0.1"
   }
 }

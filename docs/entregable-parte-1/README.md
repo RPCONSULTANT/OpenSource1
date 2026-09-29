@@ -10,10 +10,11 @@ el `.md` es su fuente.
 | `presentacion.pptx` | Presentación breve del proyecto (9 diapositivas). |
 | `guion-demo.md` | Guion de la demostración en vivo (unos 9 minutos) con usuarios, URL y requisitos. |
 | `diagramas/arquitectura.*` | Diagrama de arquitectura (Mermaid `.mmd`, `.svg`, `.png`). |
-| `diagramas/modelo-er*.*` | Modelo entidad-relación generado del esquema real: completo y vistas parciales (maestros e inventario; ventas y CxC). |
-| `diagramas/diccionario-datos.md` | Diccionario de datos: tablas, columnas, tipos, claves primarias y foráneas. |
+| `diagramas/modelo-er*.*` | Modelo entidad-relación generado del esquema real: completo, vistas parciales y seis vistas de claves por dominio (usuarios y roles, productos e inventario, clientes y CxC, borradores, facturas, notas de crédito). |
+| `diagramas/diccionario-datos.md` | Diccionario de datos del núcleo: columnas, tipo con longitud/precisión, nulo, PK y FK (el documento incluye el de las entidades del enunciado). |
 | `capturas/` | Capturas 1440×900 generadas por la suite E2E (numeradas; ver `evidencias/resumen-e2e.md`). |
 | `evidencias/resumen-xunit.txt` | Salida de `dotnet test test.slnx` (suite xUnit completa). |
+| `evidencias/resumen-build.txt` | Salida de `dotnet build test.slnx --no-incremental -warnaserror` (0 avisos, 0 errores). |
 | `evidencias/resumen-e2e.md` | Resultados de la suite E2E y descripción de cada captura. |
 | `evidencias/reporte-e2e/`, `evidencias/reporte-e2e-api-caida/` | Reportes HTML de Playwright (ejecución principal y con la API detenida). |
 
@@ -39,5 +40,5 @@ node tests/e2e/scripts/verificar-documento.mjs --completo
 python3 tests/e2e/scripts/verificar-office.py
 ```
 
-El `.docx` y el `.pptx` se generan a partir de `documento-tecnico.md` y del contenido del documento con las skills de
-Office (`docx` y `pptx`) de Claude Code; tras cambiar el `.md` hay que volver a generarlos.
+El `.md`, el `.docx` y el `.pptx` se generan con `cd tests/e2e && npm run entregable` a partir de
+`tests/e2e/scripts/entregable/tpl.md` (ver `tests/e2e/scripts/entregable/README.md`); no se editan a mano.

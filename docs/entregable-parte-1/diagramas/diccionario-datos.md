@@ -7,30 +7,30 @@ Generado desde `information_schema` por `tests/e2e/scripts/esquema_a_mermaid.py`
 | Columna | Tipo | Nulo | Clave |
 | - | - | - | - |
 | Id | uuid | No | PK |
-| Email | character varying | Sí |  |
-| Telefono | character varying | Sí |  |
+| Email | character varying(256) | Sí |  |
+| Telefono | character varying(50) | Sí |  |
 | CreatedAtUtc | timestamp with time zone | No |  |
-| CreatedBy | character varying | No |  |
+| CreatedBy | character varying(100) | No |  |
 | UpdatedAtUtc | timestamp with time zone | Sí |  |
-| UpdatedBy | character varying | Sí |  |
-| ImagePath | character varying | Sí |  |
-| DireccionLinea1 | character varying | Sí |  |
-| DireccionLinea2 | character varying | Sí |  |
-| PaisCodigo | character varying | Sí |  |
-| PaisNombre | character varying | Sí |  |
-| Sector | character varying | Sí |  |
+| UpdatedBy | character varying(100) | Sí |  |
+| ImagePath | character varying(500) | Sí |  |
+| DireccionLinea1 | character varying(300) | Sí |  |
+| DireccionLinea2 | character varying(300) | Sí |  |
+| PaisCodigo | character varying(2) | Sí |  |
+| PaisNombre | character varying(100) | Sí |  |
+| Sector | character varying(100) | Sí |  |
 | DeletedAtUtc | timestamp with time zone | Sí |  |
-| DeletedBy | character varying | Sí |  |
+| DeletedBy | character varying(100) | Sí |  |
 | IsDeleted | boolean | No |  |
-| Codigo | character varying | No |  |
+| Codigo | character varying(20) | No |  |
 | Tipo | smallint | No |  |
-| NombreComercial | character varying | No |  |
-| RazonSocial | character varying | Sí |  |
+| NombreComercial | character varying(200) | No |  |
+| RazonSocial | character varying(200) | Sí |  |
 | TipoDocumentoFiscal | smallint | No |  |
-| NumeroDocumentoFiscal | character varying | Sí |  |
-| Ciudad | character varying | Sí |  |
+| NumeroDocumentoFiscal | character varying(20) | Sí |  |
+| Ciudad | character varying(100) | Sí |  |
 | TerminoPagoId | uuid | Sí | FK → TerminosPago.Id |
-| LimiteCredito | numeric | No |  |
+| LimiteCredito | numeric(18,4) | No |  |
 | Bloqueado | smallint | No |  |
 | GrupoClienteContableId | uuid | Sí | FK → GruposClienteContable.Id |
 | GrupoIvaNegocioId | uuid | Sí | FK → GruposIvaNegocio.Id |
@@ -41,40 +41,40 @@ Generado desde `information_schema` por `tests/e2e/scripts/esquema_a_mermaid.py`
 | Columna | Tipo | Nulo | Clave |
 | - | - | - | - |
 | Id | uuid | No | PK |
-| Codigo | character varying | No |  |
-| Descripcion | character varying | No |  |
+| Codigo | character varying(20) | No |  |
+| Descripcion | character varying(200) | No |  |
 | DiasVencimiento | integer | No |  |
 | DiasDescuento | integer | No |  |
-| PorcentajeDescuento | numeric | No |  |
+| PorcentajeDescuento | numeric(9,5) | No |  |
 | CreatedAtUtc | timestamp with time zone | No |  |
-| CreatedBy | character varying | No |  |
+| CreatedBy | character varying(100) | No |  |
 | UpdatedAtUtc | timestamp with time zone | Sí |  |
-| UpdatedBy | character varying | Sí |  |
+| UpdatedBy | character varying(100) | Sí |  |
 | IsDeleted | boolean | No |  |
 | DeletedAtUtc | timestamp with time zone | Sí |  |
-| DeletedBy | character varying | Sí |  |
+| DeletedBy | character varying(100) | Sí |  |
 
 ### Productos
 
 | Columna | Tipo | Nulo | Clave |
 | - | - | - | - |
 | Id | uuid | No | PK |
-| Codigo | character varying | No |  |
-| Nombre | character varying | No |  |
-| PrecioVenta | numeric | No |  |
+| Codigo | character varying(50) | No |  |
+| Nombre | character varying(200) | No |  |
+| PrecioVenta | numeric(18,4) | No |  |
 | CreatedAtUtc | timestamp with time zone | No |  |
-| CreatedBy | character varying | No |  |
+| CreatedBy | character varying(100) | No |  |
 | UpdatedAtUtc | timestamp with time zone | Sí |  |
-| UpdatedBy | character varying | Sí |  |
-| ImagePath | character varying | Sí |  |
+| UpdatedBy | character varying(100) | Sí |  |
+| ImagePath | character varying(500) | Sí |  |
 | DeletedAtUtc | timestamp with time zone | Sí |  |
-| DeletedBy | character varying | Sí |  |
+| DeletedBy | character varying(100) | Sí |  |
 | IsDeleted | boolean | No |  |
 | CategoriaId | uuid | No | FK → CategoriasProducto.Id |
 | UnidadMedidaBaseId | uuid | No | FK → UnidadesMedida.Id |
 | MetodoCosteo | smallint | No |  |
-| CostoUnitario | numeric | No |  |
-| CostoEstandar | numeric | No |  |
+| CostoUnitario | numeric(18,4) | No |  |
+| CostoEstandar | numeric(18,4) | No |  |
 | CostoAjustado | boolean | No |  |
 | Bloqueado | smallint | No |  |
 | GrupoInventarioId | uuid | Sí | FK → GruposInventario.Id |
@@ -86,53 +86,53 @@ Generado desde `information_schema` por `tests/e2e/scripts/esquema_a_mermaid.py`
 | Columna | Tipo | Nulo | Clave |
 | - | - | - | - |
 | Id | uuid | No | PK |
-| Codigo | character varying | No |  |
-| Nombre | character varying | No |  |
+| Codigo | character varying(30) | No |  |
+| Nombre | character varying(100) | No |  |
 | CategoriaPadreId | uuid | Sí | FK → CategoriasProducto.Id |
 | CreatedAtUtc | timestamp with time zone | No |  |
-| CreatedBy | character varying | No |  |
+| CreatedBy | character varying(100) | No |  |
 | UpdatedAtUtc | timestamp with time zone | Sí |  |
-| UpdatedBy | character varying | Sí |  |
+| UpdatedBy | character varying(100) | Sí |  |
 | IsDeleted | boolean | No |  |
 | DeletedAtUtc | timestamp with time zone | Sí |  |
-| DeletedBy | character varying | Sí |  |
+| DeletedBy | character varying(100) | Sí |  |
 
 ### UnidadesMedida
 
 | Columna | Tipo | Nulo | Clave |
 | - | - | - | - |
 | Id | uuid | No | PK |
-| Codigo | character varying | No |  |
-| Nombre | character varying | No |  |
+| Codigo | character varying(10) | No |  |
+| Nombre | character varying(50) | No |  |
 | Decimales | smallint | No |  |
 | CreatedAtUtc | timestamp with time zone | No |  |
-| CreatedBy | character varying | No |  |
+| CreatedBy | character varying(100) | No |  |
 | UpdatedAtUtc | timestamp with time zone | Sí |  |
-| UpdatedBy | character varying | Sí |  |
+| UpdatedBy | character varying(100) | Sí |  |
 | IsDeleted | boolean | No |  |
 | DeletedAtUtc | timestamp with time zone | Sí |  |
-| DeletedBy | character varying | Sí |  |
+| DeletedBy | character varying(100) | Sí |  |
 
 ### Almacenes
 
 | Columna | Tipo | Nulo | Clave |
 | - | - | - | - |
 | Id | uuid | No | PK |
-| Codigo | character varying | No |  |
-| Nombre | character varying | No |  |
-| DireccionLinea1 | character varying | Sí |  |
-| DireccionLinea2 | character varying | Sí |  |
-| Ciudad | character varying | Sí |  |
-| PaisCodigo | character varying | Sí |  |
+| Codigo | character varying(10) | No |  |
+| Nombre | character varying(100) | No |  |
+| DireccionLinea1 | character varying(300) | Sí |  |
+| DireccionLinea2 | character varying(300) | Sí |  |
+| Ciudad | character varying(100) | Sí |  |
+| PaisCodigo | character varying(2) | Sí |  |
 | Bloqueado | boolean | No |  |
 | EsPredeterminado | boolean | No |  |
 | CreatedAtUtc | timestamp with time zone | No |  |
-| CreatedBy | character varying | No |  |
+| CreatedBy | character varying(100) | No |  |
 | UpdatedAtUtc | timestamp with time zone | Sí |  |
-| UpdatedBy | character varying | Sí |  |
+| UpdatedBy | character varying(100) | Sí |  |
 | IsDeleted | boolean | No |  |
 | DeletedAtUtc | timestamp with time zone | Sí |  |
-| DeletedBy | character varying | Sí |  |
+| DeletedBy | character varying(100) | Sí |  |
 
 ### MovimientosProducto
 
@@ -143,20 +143,20 @@ Generado desde `information_schema` por `tests/e2e/scripts/esquema_a_mermaid.py`
 | AlmacenId | uuid | No | FK → Almacenes.Id |
 | TipoMovimiento | smallint | No |  |
 | TipoDocumento | smallint | No |  |
-| NumeroDocumento | character varying | Sí |  |
+| NumeroDocumento | character varying(20) | Sí |  |
 | NumeroLineaDocumento | integer | No |  |
 | FechaRegistro | date | No |  |
 | FechaDocumento | date | No |  |
-| Cantidad | numeric | No |  |
-| CantidadRestante | numeric | Sí |  |
-| CantidadFacturada | numeric | No |  |
+| Cantidad | numeric(18,6) | No |  |
+| CantidadRestante | numeric(18,6) | Sí |  |
+| CantidadFacturada | numeric(18,6) | No |  |
 | UnidadMedidaId | uuid | No | FK → UnidadesMedida.Id |
-| CantidadPorUnidadMedida | numeric | No |  |
+| CantidadPorUnidadMedida | numeric(18,6) | No |  |
 | SocioNegocioId | uuid | Sí | FK → SociosNegocio.Id |
 | TipoOrigen | smallint | No |  |
-| ClaveOrigen | character varying | No |  |
+| ClaveOrigen | character varying(50) | No |  |
 | CreatedAtUtc | timestamp with time zone | No |  |
-| CreatedBy | character varying | No |  |
+| CreatedBy | character varying(100) | No |  |
 | UsuarioId | uuid | Sí |  |
 
 ### MovimientosValor
@@ -170,23 +170,23 @@ Generado desde `information_schema` por `tests/e2e/scripts/esquema_a_mermaid.py`
 | TipoValor | smallint | No |  |
 | TipoMovimiento | smallint | No |  |
 | FechaRegistro | date | No |  |
-| CantidadValorada | numeric | No |  |
-| CantidadFacturada | numeric | No |  |
-| ImporteCosto | numeric | No |  |
-| CostoPorUnidad | numeric | No |  |
-| ImporteVenta | numeric | No |  |
-| ImporteCostoPosteadoContabilidad | numeric | No |  |
+| CantidadValorada | numeric(18,6) | No |  |
+| CantidadFacturada | numeric(18,6) | No |  |
+| ImporteCosto | numeric(18,4) | No |  |
+| CostoPorUnidad | numeric(18,4) | No |  |
+| ImporteVenta | numeric(18,4) | No |  |
+| ImporteCostoPosteadoContabilidad | numeric(18,4) | No |  |
 | Ajuste | boolean | No |  |
 | TipoDocumento | smallint | No |  |
-| NumeroDocumento | character varying | Sí |  |
+| NumeroDocumento | character varying(20) | Sí |  |
 | NumeroLineaDocumento | integer | No |  |
 | GrupoInventarioId | uuid | Sí | FK → GruposInventario.Id |
 | GrupoNegocioId | uuid | Sí | FK → GruposNegocio.Id |
 | GrupoProductoId | uuid | Sí | FK → GruposProducto.Id |
 | TipoOrigen | smallint | No |  |
-| ClaveOrigen | character varying | No |  |
+| ClaveOrigen | character varying(50) | No |  |
 | CreatedAtUtc | timestamp with time zone | No |  |
-| CreatedBy | character varying | No |  |
+| CreatedBy | character varying(100) | No |  |
 | UsuarioId | uuid | Sí |  |
 
 ### FacturasVentaBorrador
@@ -194,17 +194,17 @@ Generado desde `information_schema` por `tests/e2e/scripts/esquema_a_mermaid.py`
 | Columna | Tipo | Nulo | Clave |
 | - | - | - | - |
 | Id | uuid | No | PK |
-| Numero | character varying | No |  |
+| Numero | character varying(20) | No |  |
 | SocioNegocioId | uuid | No | FK → SociosNegocio.Id |
 | SocioNegocioFacturarAId | uuid | No | FK → SociosNegocio.Id |
-| NombreFacturacion | character varying | No |  |
-| RazonSocialFacturacion | character varying | Sí |  |
+| NombreFacturacion | character varying(200) | No |  |
+| RazonSocialFacturacion | character varying(200) | Sí |  |
 | TipoDocumentoFiscal | smallint | No |  |
-| NumeroDocumentoFiscal | character varying | Sí |  |
-| DireccionFacturacionLinea1 | character varying | Sí |  |
-| DireccionFacturacionLinea2 | character varying | Sí |  |
-| CiudadFacturacion | character varying | Sí |  |
-| PaisCodigoFacturacion | character varying | Sí |  |
+| NumeroDocumentoFiscal | character varying(20) | Sí |  |
+| DireccionFacturacionLinea1 | character varying(300) | Sí |  |
+| DireccionFacturacionLinea2 | character varying(300) | Sí |  |
+| CiudadFacturacion | character varying(100) | Sí |  |
+| PaisCodigoFacturacion | character varying(2) | Sí |  |
 | FechaRegistro | date | No |  |
 | FechaDocumento | date | No |  |
 | FechaVencimiento | date | No |  |
@@ -214,15 +214,15 @@ Generado desde `information_schema` por `tests/e2e/scripts/esquema_a_mermaid.py`
 | GrupoClienteContableId | uuid | No | FK → GruposClienteContable.Id |
 | AlmacenId | uuid | No | FK → Almacenes.Id |
 | Estado | smallint | No |  |
-| Moneda | character varying | No |  |
-| Descripcion | character varying | Sí |  |
+| Moneda | character varying(3) | No |  |
+| Descripcion | character varying(200) | Sí |  |
 | CreatedAtUtc | timestamp with time zone | No |  |
-| CreatedBy | character varying | No |  |
+| CreatedBy | character varying(100) | No |  |
 | UpdatedAtUtc | timestamp with time zone | Sí |  |
-| UpdatedBy | character varying | Sí |  |
+| UpdatedBy | character varying(100) | Sí |  |
 | IsDeleted | boolean | No |  |
 | DeletedAtUtc | timestamp with time zone | Sí |  |
-| DeletedBy | character varying | Sí |  |
+| DeletedBy | character varying(100) | Sí |  |
 
 ### LineasFacturaVentaBorrador
 
@@ -234,44 +234,44 @@ Generado desde `information_schema` por `tests/e2e/scripts/esquema_a_mermaid.py`
 | Tipo | smallint | No |  |
 | ProductoId | uuid | Sí | FK → Productos.Id |
 | CuentaContableId | uuid | Sí | FK → CuentasContables.Id |
-| Descripcion | character varying | Sí |  |
+| Descripcion | character varying(200) | Sí |  |
 | AlmacenId | uuid | Sí | FK → Almacenes.Id |
 | UnidadMedidaId | uuid | Sí | FK → UnidadesMedida.Id |
-| CantidadPorUnidadMedida | numeric | No |  |
-| Cantidad | numeric | No |  |
-| PrecioUnitario | numeric | No |  |
-| PorcentajeDescuentoLinea | numeric | No |  |
-| ImporteDescuentoLinea | numeric | No |  |
-| ImporteLinea | numeric | No |  |
+| CantidadPorUnidadMedida | numeric(18,6) | No |  |
+| Cantidad | numeric(18,6) | No |  |
+| PrecioUnitario | numeric(18,4) | No |  |
+| PorcentajeDescuentoLinea | numeric(9,5) | No |  |
+| ImporteDescuentoLinea | numeric(18,4) | No |  |
+| ImporteLinea | numeric(18,4) | No |  |
 | GrupoProductoId | uuid | Sí | FK → GruposProducto.Id |
 | GrupoIvaProductoId | uuid | Sí | FK → GruposIvaProducto.Id |
 | GrupoInventarioId | uuid | Sí | FK → GruposInventario.Id |
-| IdentificadorIva | character varying | Sí |  |
-| PorcentajeIva | numeric | No |  |
+| IdentificadorIva | character varying(20) | Sí |  |
+| PorcentajeIva | numeric(9,5) | No |  |
 | CreatedAtUtc | timestamp with time zone | No |  |
-| CreatedBy | character varying | No |  |
+| CreatedBy | character varying(100) | No |  |
 | UpdatedAtUtc | timestamp with time zone | Sí |  |
-| UpdatedBy | character varying | Sí |  |
+| UpdatedBy | character varying(100) | Sí |  |
 | IsDeleted | boolean | No |  |
 | DeletedAtUtc | timestamp with time zone | Sí |  |
-| DeletedBy | character varying | Sí |  |
+| DeletedBy | character varying(100) | Sí |  |
 
 ### FacturasVenta
 
 | Columna | Tipo | Nulo | Clave |
 | - | - | - | - |
-| Numero | character varying | No | PK |
-| NumeroBorrador | character varying | No |  |
+| Numero | character varying(20) | No | PK |
+| NumeroBorrador | character varying(20) | No |  |
 | SocioNegocioId | uuid | No | FK → SociosNegocio.Id |
 | SocioNegocioFacturarAId | uuid | No | FK → SociosNegocio.Id |
-| NombreFacturacion | character varying | No |  |
-| RazonSocialFacturacion | character varying | Sí |  |
+| NombreFacturacion | character varying(200) | No |  |
+| RazonSocialFacturacion | character varying(200) | Sí |  |
 | TipoDocumentoFiscal | smallint | No |  |
-| NumeroDocumentoFiscal | character varying | Sí |  |
-| DireccionFacturacionLinea1 | character varying | Sí |  |
-| DireccionFacturacionLinea2 | character varying | Sí |  |
-| CiudadFacturacion | character varying | Sí |  |
-| PaisCodigoFacturacion | character varying | Sí |  |
+| NumeroDocumentoFiscal | character varying(20) | Sí |  |
+| DireccionFacturacionLinea1 | character varying(300) | Sí |  |
+| DireccionFacturacionLinea2 | character varying(300) | Sí |  |
+| CiudadFacturacion | character varying(100) | Sí |  |
+| PaisCodigoFacturacion | character varying(2) | Sí |  |
 | FechaRegistro | date | No |  |
 | FechaDocumento | date | No |  |
 | FechaVencimiento | date | No |  |
@@ -280,14 +280,14 @@ Generado desde `information_schema` por `tests/e2e/scripts/esquema_a_mermaid.py`
 | GrupoIvaNegocioId | uuid | No | FK → GruposIvaNegocio.Id |
 | GrupoClienteContableId | uuid | No | FK → GruposClienteContable.Id |
 | AlmacenId | uuid | No | FK → Almacenes.Id |
-| Moneda | character varying | No |  |
-| Descripcion | character varying | Sí |  |
-| ImporteSinIva | numeric | No |  |
-| ImporteIva | numeric | No |  |
-| ImporteTotal | numeric | No |  |
+| Moneda | character varying(3) | No |  |
+| Descripcion | character varying(200) | Sí |  |
+| ImporteSinIva | numeric(18,4) | No |  |
+| ImporteIva | numeric(18,4) | No |  |
+| ImporteTotal | numeric(18,4) | No |  |
 | RegistroContableId | bigint | Sí | FK → RegistrosContables.Id |
 | CreatedAtUtc | timestamp with time zone | No |  |
-| CreatedBy | character varying | No |  |
+| CreatedBy | character varying(100) | No |  |
 | UsuarioId | uuid | Sí |  |
 
 ### LineasFacturaVenta
@@ -295,25 +295,25 @@ Generado desde `information_schema` por `tests/e2e/scripts/esquema_a_mermaid.py`
 | Columna | Tipo | Nulo | Clave |
 | - | - | - | - |
 | Id | bigint | No | PK |
-| FacturaVentaNumero | character varying | No | FK → FacturasVenta.Numero |
+| FacturaVentaNumero | character varying(20) | No | FK → FacturasVenta.Numero |
 | NumeroLinea | integer | No |  |
 | Tipo | smallint | No |  |
 | ProductoId | uuid | Sí | FK → Productos.Id |
 | CuentaContableId | uuid | Sí | FK → CuentasContables.Id |
-| Descripcion | character varying | Sí |  |
+| Descripcion | character varying(200) | Sí |  |
 | AlmacenId | uuid | Sí | FK → Almacenes.Id |
 | UnidadMedidaId | uuid | Sí | FK → UnidadesMedida.Id |
-| CantidadPorUnidadMedida | numeric | No |  |
-| Cantidad | numeric | No |  |
-| PrecioUnitario | numeric | No |  |
-| PorcentajeDescuentoLinea | numeric | No |  |
-| ImporteDescuentoLinea | numeric | No |  |
-| ImporteLinea | numeric | No |  |
+| CantidadPorUnidadMedida | numeric(18,6) | No |  |
+| Cantidad | numeric(18,6) | No |  |
+| PrecioUnitario | numeric(18,4) | No |  |
+| PorcentajeDescuentoLinea | numeric(9,5) | No |  |
+| ImporteDescuentoLinea | numeric(18,4) | No |  |
+| ImporteLinea | numeric(18,4) | No |  |
 | GrupoProductoId | uuid | Sí | FK → GruposProducto.Id |
 | GrupoIvaProductoId | uuid | Sí | FK → GruposIvaProducto.Id |
 | GrupoInventarioId | uuid | Sí | FK → GruposInventario.Id |
-| IdentificadorIva | character varying | Sí |  |
-| PorcentajeIva | numeric | No |  |
+| IdentificadorIva | character varying(20) | Sí |  |
+| PorcentajeIva | numeric(9,5) | No |  |
 | MovimientoProductoId | bigint | Sí | FK → MovimientosProducto.Id |
 
 ### LineasIvaFacturaVenta
@@ -321,44 +321,44 @@ Generado desde `information_schema` por `tests/e2e/scripts/esquema_a_mermaid.py`
 | Columna | Tipo | Nulo | Clave |
 | - | - | - | - |
 | Id | bigint | No | PK |
-| FacturaVentaNumero | character varying | No | FK → FacturasVenta.Numero |
-| IdentificadorIva | character varying | No |  |
-| PorcentajeIva | numeric | No |  |
-| BaseImponible | numeric | No |  |
-| ImporteIva | numeric | No |  |
+| FacturaVentaNumero | character varying(20) | No | FK → FacturasVenta.Numero |
+| IdentificadorIva | character varying(20) | No |  |
+| PorcentajeIva | numeric(9,5) | No |  |
+| BaseImponible | numeric(18,4) | No |  |
+| ImporteIva | numeric(18,4) | No |  |
 | CuentaIvaId | uuid | No | FK → CuentasContables.Id |
 
 ### NotasCreditoVenta
 
 | Columna | Tipo | Nulo | Clave |
 | - | - | - | - |
-| Numero | character varying | No | PK |
-| NumeroBorrador | character varying | No |  |
-| FacturaVentaNumero | character varying | No | FK → FacturasVenta.Numero |
+| Numero | character varying(20) | No | PK |
+| NumeroBorrador | character varying(20) | No |  |
+| FacturaVentaNumero | character varying(20) | No | FK → FacturasVenta.Numero |
 | SocioNegocioId | uuid | No | FK → SociosNegocio.Id |
 | SocioNegocioFacturarAId | uuid | No | FK → SociosNegocio.Id |
-| NombreFacturacion | character varying | No |  |
-| RazonSocialFacturacion | character varying | Sí |  |
+| NombreFacturacion | character varying(200) | No |  |
+| RazonSocialFacturacion | character varying(200) | Sí |  |
 | TipoDocumentoFiscal | smallint | No |  |
-| NumeroDocumentoFiscal | character varying | Sí |  |
-| DireccionFacturacionLinea1 | character varying | Sí |  |
-| DireccionFacturacionLinea2 | character varying | Sí |  |
-| CiudadFacturacion | character varying | Sí |  |
-| PaisCodigoFacturacion | character varying | Sí |  |
+| NumeroDocumentoFiscal | character varying(20) | Sí |  |
+| DireccionFacturacionLinea1 | character varying(300) | Sí |  |
+| DireccionFacturacionLinea2 | character varying(300) | Sí |  |
+| CiudadFacturacion | character varying(100) | Sí |  |
+| PaisCodigoFacturacion | character varying(2) | Sí |  |
 | FechaRegistro | date | No |  |
 | FechaDocumento | date | No |  |
 | GrupoNegocioId | uuid | No | FK → GruposNegocio.Id |
 | GrupoIvaNegocioId | uuid | No | FK → GruposIvaNegocio.Id |
 | GrupoClienteContableId | uuid | No | FK → GruposClienteContable.Id |
 | CuentaCxCId | uuid | Sí | FK → CuentasContables.Id |
-| Moneda | character varying | No |  |
-| Descripcion | character varying | Sí |  |
-| ImporteSinIva | numeric | No |  |
-| ImporteIva | numeric | No |  |
-| ImporteTotal | numeric | No |  |
+| Moneda | character varying(3) | No |  |
+| Descripcion | character varying(200) | Sí |  |
+| ImporteSinIva | numeric(18,4) | No |  |
+| ImporteIva | numeric(18,4) | No |  |
+| ImporteTotal | numeric(18,4) | No |  |
 | RegistroContableId | bigint | Sí | FK → RegistrosContables.Id |
 | CreatedAtUtc | timestamp with time zone | No |  |
-| CreatedBy | character varying | No |  |
+| CreatedBy | character varying(100) | No |  |
 | UsuarioId | uuid | Sí |  |
 
 ### LineasNotaCreditoVenta
@@ -366,26 +366,26 @@ Generado desde `information_schema` por `tests/e2e/scripts/esquema_a_mermaid.py`
 | Columna | Tipo | Nulo | Clave |
 | - | - | - | - |
 | Id | bigint | No | PK |
-| NotaCreditoVentaNumero | character varying | No | FK → NotasCreditoVenta.Numero |
+| NotaCreditoVentaNumero | character varying(20) | No | FK → NotasCreditoVenta.Numero |
 | NumeroLinea | integer | No |  |
 | LineaFacturaVentaId | bigint | No | FK → LineasFacturaVenta.Id |
 | Tipo | smallint | No |  |
 | ProductoId | uuid | Sí | FK → Productos.Id |
 | CuentaContableId | uuid | Sí | FK → CuentasContables.Id |
-| Descripcion | character varying | Sí |  |
+| Descripcion | character varying(200) | Sí |  |
 | AlmacenId | uuid | Sí | FK → Almacenes.Id |
 | UnidadMedidaId | uuid | Sí | FK → UnidadesMedida.Id |
-| CantidadPorUnidadMedida | numeric | No |  |
-| Cantidad | numeric | No |  |
-| PrecioUnitario | numeric | No |  |
-| PorcentajeDescuentoLinea | numeric | No |  |
-| ImporteDescuentoLinea | numeric | No |  |
-| ImporteLinea | numeric | No |  |
+| CantidadPorUnidadMedida | numeric(18,6) | No |  |
+| Cantidad | numeric(18,6) | No |  |
+| PrecioUnitario | numeric(18,4) | No |  |
+| PorcentajeDescuentoLinea | numeric(9,5) | No |  |
+| ImporteDescuentoLinea | numeric(18,4) | No |  |
+| ImporteLinea | numeric(18,4) | No |  |
 | GrupoProductoId | uuid | Sí | FK → GruposProducto.Id |
 | GrupoIvaProductoId | uuid | Sí | FK → GruposIvaProducto.Id |
 | GrupoInventarioId | uuid | Sí | FK → GruposInventario.Id |
-| IdentificadorIva | character varying | Sí |  |
-| PorcentajeIva | numeric | No |  |
+| IdentificadorIva | character varying(20) | Sí |  |
+| PorcentajeIva | numeric(9,5) | No |  |
 | DevolverInventario | boolean | No |  |
 | MovimientoProductoId | bigint | Sí | FK → MovimientosProducto.Id |
 
@@ -399,15 +399,15 @@ Generado desde `information_schema` por `tests/e2e/scripts/esquema_a_mermaid.py`
 | FechaDocumento | date | No |  |
 | FechaVencimiento | date | No |  |
 | TipoDocumento | smallint | No |  |
-| NumeroDocumento | character varying | No |  |
-| Descripcion | character varying | Sí |  |
-| ImporteOriginal | numeric | No |  |
+| NumeroDocumento | character varying(20) | No |  |
+| Descripcion | character varying(200) | Sí |  |
+| ImporteOriginal | numeric(18,4) | No |  |
 | GrupoClienteContableId | uuid | No | FK → GruposClienteContable.Id |
 | CuentaCxCId | uuid | No | FK → CuentasContables.Id |
 | TipoOrigen | smallint | No |  |
-| ClaveOrigen | character varying | No |  |
+| ClaveOrigen | character varying(50) | No |  |
 | CreatedAtUtc | timestamp with time zone | No |  |
-| CreatedBy | character varying | No |  |
+| CreatedBy | character varying(100) | No |  |
 | UsuarioId | uuid | Sí |  |
 
 ### MovimientosClienteDetalle
@@ -417,13 +417,13 @@ Generado desde `information_schema` por `tests/e2e/scripts/esquema_a_mermaid.py`
 | Id | bigint | No | PK |
 | MovimientoClienteId | bigint | No | FK → MovimientosCliente.Id |
 | TipoMovimiento | smallint | No |  |
-| Importe | numeric | No |  |
+| Importe | numeric(18,4) | No |  |
 | FechaRegistro | date | No |  |
 | MovimientoClienteAplicadoId | bigint | Sí | FK → MovimientosCliente.Id |
 | TipoOrigen | smallint | No |  |
-| ClaveOrigen | character varying | No |  |
+| ClaveOrigen | character varying(50) | No |  |
 | CreatedAtUtc | timestamp with time zone | No |  |
-| CreatedBy | character varying | No |  |
+| CreatedBy | character varying(100) | No |  |
 | UsuarioId | uuid | Sí |  |
 
 ### AspNetUsers
@@ -431,14 +431,14 @@ Generado desde `information_schema` por `tests/e2e/scripts/esquema_a_mermaid.py`
 | Columna | Tipo | Nulo | Clave |
 | - | - | - | - |
 | Id | text | No | PK |
-| FullName | character varying | Sí |  |
+| FullName | character varying(200) | Sí |  |
 | IsActive | boolean | No |  |
 | CreatedAtUtc | timestamp with time zone | No |  |
 | UpdatedAtUtc | timestamp with time zone | Sí |  |
-| UserName | character varying | Sí |  |
-| NormalizedUserName | character varying | Sí |  |
-| Email | character varying | Sí |  |
-| NormalizedEmail | character varying | Sí |  |
+| UserName | character varying(256) | Sí |  |
+| NormalizedUserName | character varying(256) | Sí |  |
+| Email | character varying(256) | Sí |  |
+| NormalizedEmail | character varying(256) | Sí |  |
 | EmailConfirmed | boolean | No |  |
 | PasswordHash | text | Sí |  |
 | SecurityStamp | text | Sí |  |
@@ -449,15 +449,15 @@ Generado desde `information_schema` por `tests/e2e/scripts/esquema_a_mermaid.py`
 | LockoutEnd | timestamp with time zone | Sí |  |
 | LockoutEnabled | boolean | No |  |
 | AccessFailedCount | integer | No |  |
-| ProfileImagePath | character varying | Sí |  |
+| ProfileImagePath | character varying(500) | Sí |  |
 
 ### AspNetRoles
 
 | Columna | Tipo | Nulo | Clave |
 | - | - | - | - |
 | Id | text | No | PK |
-| Name | character varying | Sí |  |
-| NormalizedName | character varying | Sí |  |
+| Name | character varying(256) | Sí |  |
+| NormalizedName | character varying(256) | Sí |  |
 | ConcurrencyStamp | text | Sí |  |
 
 ### AspNetUserRoles

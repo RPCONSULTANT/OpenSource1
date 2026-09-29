@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verifica el .docx (justificado, sin portada, con imágenes) y el .pptx (8–10 diapositivas) del entregable (D4)."""
+"""Verifica el .docx (cuerpo justificado, sin portada, con imágenes) y el .pptx (8–10 diapositivas) del entregable (D4)."""
 import re
 import sys
 import zipfile
@@ -12,7 +12,9 @@ docx = RAIZ / "documento-tecnico.docx"
 with zipfile.ZipFile(docx) as z:
     xml = z.read("word/document.xml").decode("utf-8")
     medios = [n for n in z.namelist() if n.startswith("word/media/")]
-parrafos = re.findall(r"<w:p[ >].*?</w:p>", xml, flags=re.S)
+# Las celdas de tabla van alineadas a la izquierda (revisión D4, ronda 1): la regla del justificado se aplica al cuerpo.
+cuerpo = re.sub(r"<w:tbl>.*?</w:tbl>", "", xml, flags=re.S)
+parrafos = re.findall(r"<w:p[ >].*?</w:p>", cuerpo, flags=re.S)
 con_texto = [p for p in parrafos if "<w:t" in p]
 justificados = [p for p in con_texto if 'w:jc w:val="both"' in p]
 if len(justificados) < len(con_texto) * 0.5:

@@ -25,7 +25,7 @@ if (!texto.startsWith('# AxionERP')) fallos.push('El documento debe empezar por 
 for (const termino of ['AxionERP', 'Administrador', 'Supervisor', 'Ejecutor', 'Blazor', 'PostgreSQL', 'MediatR', 'Dapper', 'SociosNegocio', 'AspNetUsers']) {
   if (!texto.includes(termino)) fallos.push(`No aparece "${termino}"`);
 }
-for (const imagen of ['diagramas/arquitectura.png', 'diagramas/modelo-er-maestros-inventario.png', 'diagramas/modelo-er-ventas-cxc.png']) {
+for (const imagen of ['diagramas/arquitectura.png', 'diagramas/modelo-er-usuarios-roles.png', 'diagramas/modelo-er-productos-inventario.png', 'diagramas/modelo-er-clientes-cxc.png', 'diagramas/modelo-er-ventas-facturas.png']) {
   if (!texto.includes(imagen)) fallos.push(`No se referencia ${imagen}`);
 }
 if (completo) {

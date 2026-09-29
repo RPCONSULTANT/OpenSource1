@@ -125,11 +125,11 @@ el servidor Blazor lo guarda en una sesión de servidor asociada a una cookie Ht
 
 ## 3. Arquitectura del sistema
 
-La figura 1 resume los componentes del sistema y el sentido de las dependencias entre ellos.
+La figura {arquitectura} resume los componentes del sistema y el sentido de las dependencias entre ellos.
 
 ![Arquitectura de AxionERP](diagramas/arquitectura.png)
 
-*Figura 1. Arquitectura de AxionERP: navegador, host Blazor Static SSR, API REST, capas de aplicación e infraestructura y PostgreSQL.*
+*Figura {arquitectura}. Arquitectura de AxionERP: navegador, host Blazor Static SSR, API REST, capas de aplicación e infraestructura y PostgreSQL.*
 
 ### 3.1 Flujo de una petición
 
@@ -237,34 +237,34 @@ de datos. Los importes monetarios, precios y costos se almacenan como `numeric(1
 propios de los tipos de coma flotante. Las tablas editables incorporan además la columna de sistema `xmin` de PostgreSQL
 como token de concurrencia; al ser una columna de sistema, no figura en el diccionario.
 
-Las figuras 2 a 7 muestran el modelo por dominios. Cada vista incluye solo las columnas que forman parte de una
+Las figuras {modelo-er-usuarios-roles} a {modelo-er-ventas-notas-credito} muestran el modelo por dominios. Cada vista incluye solo las columnas que forman parte de una
 clave (PK o FK) y las relaciones entre las tablas de la vista; las claves foráneas hacia tablas de otros dominios (por
 ejemplo, los grupos contables) aparecen como columna FK sin su tabla destino. `SociosNegocio` y `Productos` se repiten
 en varias vistas como anclas de las relaciones.
 
 ![ER: usuarios y roles](diagramas/modelo-er-usuarios-roles.png)
 
-*Figura 2. Vista ER de usuarios y roles (base `AxionERP_Identity`): la tabla de unión `AspNetUserRoles` relaciona usuarios y roles.*
+*Figura {modelo-er-usuarios-roles}. Vista ER de usuarios y roles (base `AxionERP_Identity`): la tabla de unión `AspNetUserRoles` relaciona usuarios y roles.*
 
 ![ER: productos, categorías e inventario](diagramas/modelo-er-productos-inventario.png)
 
-*Figura 3. Vista ER de productos, categorías, unidades, almacenes y libros de inventario (cantidades y valor).*
+*Figura {modelo-er-productos-inventario}. Vista ER de productos, categorías, unidades, almacenes y libros de inventario (cantidades y valor).*
 
 ![ER: clientes y cuentas por cobrar](diagramas/modelo-er-clientes-cxc.png)
 
-*Figura 4. Vista ER de clientes, términos de pago y cuentas por cobrar (movimientos de cliente y sus aplicaciones).*
+*Figura {modelo-er-clientes-cxc}. Vista ER de clientes, términos de pago y cuentas por cobrar (movimientos de cliente y sus aplicaciones).*
 
 ![ER: borradores de factura](diagramas/modelo-er-ventas-borradores.png)
 
-*Figura 5. Vista ER de los borradores de factura y sus líneas.*
+*Figura {modelo-er-ventas-borradores}. Vista ER de los borradores de factura y sus líneas.*
 
 ![ER: facturas de venta](diagramas/modelo-er-ventas-facturas.png)
 
-*Figura 6. Vista ER de las facturas de venta posteadas, sus líneas y sus líneas de IVA.*
+*Figura {modelo-er-ventas-facturas}. Vista ER de las facturas de venta posteadas, sus líneas y sus líneas de IVA.*
 
 ![ER: notas de crédito](diagramas/modelo-er-ventas-notas-credito.png)
 
-*Figura 7. Vista ER de las notas de crédito de venta y sus líneas.*
+*Figura {modelo-er-ventas-notas-credito}. Vista ER de las notas de crédito de venta y sus líneas.*
 
 ### 4.4 Diccionario de datos de las entidades solicitadas
 
@@ -274,363 +274,7 @@ primaria (PK) o de una clave foránea (FK, con la tabla y la columna referenciad
 defecto ni restricciones de comprobación. El diccionario completo del núcleo, que añade las tablas de soporte, está en
 `diagramas/diccionario-datos.md`.
 
-#### Tabla `AspNetUsers`
-
-| Columna | Tipo | Nulo | Clave |
-| - | - | - | - |
-| Id | text | No | PK |
-| FullName | character varying(200) | Sí |  |
-| IsActive | boolean | No |  |
-| CreatedAtUtc | timestamp with time zone | No |  |
-| UpdatedAtUtc | timestamp with time zone | Sí |  |
-| UserName | character varying(256) | Sí |  |
-| NormalizedUserName | character varying(256) | Sí |  |
-| Email | character varying(256) | Sí |  |
-| NormalizedEmail | character varying(256) | Sí |  |
-| EmailConfirmed | boolean | No |  |
-| PasswordHash | text | Sí |  |
-| SecurityStamp | text | Sí |  |
-| ConcurrencyStamp | text | Sí |  |
-| PhoneNumber | text | Sí |  |
-| PhoneNumberConfirmed | boolean | No |  |
-| TwoFactorEnabled | boolean | No |  |
-| LockoutEnd | timestamp with time zone | Sí |  |
-| LockoutEnabled | boolean | No |  |
-| AccessFailedCount | integer | No |  |
-| ProfileImagePath | character varying(500) | Sí |  |
-
-#### Tabla `AspNetRoles`
-
-| Columna | Tipo | Nulo | Clave |
-| - | - | - | - |
-| Id | text | No | PK |
-| Name | character varying(256) | Sí |  |
-| NormalizedName | character varying(256) | Sí |  |
-| ConcurrencyStamp | text | Sí |  |
-
-#### Tabla `AspNetUserRoles`
-
-| Columna | Tipo | Nulo | Clave |
-| - | - | - | - |
-| UserId | text | No | PK, FK → AspNetUsers.Id |
-| RoleId | text | No | PK, FK → AspNetRoles.Id |
-
-#### Tabla `SociosNegocio`
-
-| Columna | Tipo | Nulo | Clave |
-| - | - | - | - |
-| Id | uuid | No | PK |
-| Email | character varying(256) | Sí |  |
-| Telefono | character varying(50) | Sí |  |
-| CreatedAtUtc | timestamp with time zone | No |  |
-| CreatedBy | character varying(100) | No |  |
-| UpdatedAtUtc | timestamp with time zone | Sí |  |
-| UpdatedBy | character varying(100) | Sí |  |
-| ImagePath | character varying(500) | Sí |  |
-| DireccionLinea1 | character varying(300) | Sí |  |
-| DireccionLinea2 | character varying(300) | Sí |  |
-| PaisCodigo | character varying(2) | Sí |  |
-| PaisNombre | character varying(100) | Sí |  |
-| Sector | character varying(100) | Sí |  |
-| DeletedAtUtc | timestamp with time zone | Sí |  |
-| DeletedBy | character varying(100) | Sí |  |
-| IsDeleted | boolean | No |  |
-| Codigo | character varying(20) | No |  |
-| Tipo | smallint | No |  |
-| NombreComercial | character varying(200) | No |  |
-| RazonSocial | character varying(200) | Sí |  |
-| TipoDocumentoFiscal | smallint | No |  |
-| NumeroDocumentoFiscal | character varying(20) | Sí |  |
-| Ciudad | character varying(100) | Sí |  |
-| TerminoPagoId | uuid | Sí | FK → TerminosPago.Id |
-| LimiteCredito | numeric(18,4) | No |  |
-| Bloqueado | smallint | No |  |
-| GrupoClienteContableId | uuid | Sí | FK → GruposClienteContable.Id |
-| GrupoIvaNegocioId | uuid | Sí | FK → GruposIvaNegocio.Id |
-| GrupoNegocioId | uuid | Sí | FK → GruposNegocio.Id |
-
-#### Tabla `CategoriasProducto`
-
-| Columna | Tipo | Nulo | Clave |
-| - | - | - | - |
-| Id | uuid | No | PK |
-| Codigo | character varying(30) | No |  |
-| Nombre | character varying(100) | No |  |
-| CategoriaPadreId | uuid | Sí | FK → CategoriasProducto.Id |
-| CreatedAtUtc | timestamp with time zone | No |  |
-| CreatedBy | character varying(100) | No |  |
-| UpdatedAtUtc | timestamp with time zone | Sí |  |
-| UpdatedBy | character varying(100) | Sí |  |
-| IsDeleted | boolean | No |  |
-| DeletedAtUtc | timestamp with time zone | Sí |  |
-| DeletedBy | character varying(100) | Sí |  |
-
-#### Tabla `Productos`
-
-| Columna | Tipo | Nulo | Clave |
-| - | - | - | - |
-| Id | uuid | No | PK |
-| Codigo | character varying(50) | No |  |
-| Nombre | character varying(200) | No |  |
-| PrecioVenta | numeric(18,4) | No |  |
-| CreatedAtUtc | timestamp with time zone | No |  |
-| CreatedBy | character varying(100) | No |  |
-| UpdatedAtUtc | timestamp with time zone | Sí |  |
-| UpdatedBy | character varying(100) | Sí |  |
-| ImagePath | character varying(500) | Sí |  |
-| DeletedAtUtc | timestamp with time zone | Sí |  |
-| DeletedBy | character varying(100) | Sí |  |
-| IsDeleted | boolean | No |  |
-| CategoriaId | uuid | No | FK → CategoriasProducto.Id |
-| UnidadMedidaBaseId | uuid | No | FK → UnidadesMedida.Id |
-| MetodoCosteo | smallint | No |  |
-| CostoUnitario | numeric(18,4) | No |  |
-| CostoEstandar | numeric(18,4) | No |  |
-| CostoAjustado | boolean | No |  |
-| Bloqueado | smallint | No |  |
-| GrupoInventarioId | uuid | Sí | FK → GruposInventario.Id |
-| GrupoIvaProductoId | uuid | Sí | FK → GruposIvaProducto.Id |
-| GrupoProductoId | uuid | Sí | FK → GruposProducto.Id |
-
-#### Tabla `Almacenes`
-
-| Columna | Tipo | Nulo | Clave |
-| - | - | - | - |
-| Id | uuid | No | PK |
-| Codigo | character varying(10) | No |  |
-| Nombre | character varying(100) | No |  |
-| DireccionLinea1 | character varying(300) | Sí |  |
-| DireccionLinea2 | character varying(300) | Sí |  |
-| Ciudad | character varying(100) | Sí |  |
-| PaisCodigo | character varying(2) | Sí |  |
-| Bloqueado | boolean | No |  |
-| EsPredeterminado | boolean | No |  |
-| CreatedAtUtc | timestamp with time zone | No |  |
-| CreatedBy | character varying(100) | No |  |
-| UpdatedAtUtc | timestamp with time zone | Sí |  |
-| UpdatedBy | character varying(100) | Sí |  |
-| IsDeleted | boolean | No |  |
-| DeletedAtUtc | timestamp with time zone | Sí |  |
-| DeletedBy | character varying(100) | Sí |  |
-
-#### Tabla `MovimientosProducto`
-
-| Columna | Tipo | Nulo | Clave |
-| - | - | - | - |
-| Id | bigint | No | PK |
-| ProductoId | uuid | No | FK → Productos.Id |
-| AlmacenId | uuid | No | FK → Almacenes.Id |
-| TipoMovimiento | smallint | No |  |
-| TipoDocumento | smallint | No |  |
-| NumeroDocumento | character varying(20) | Sí |  |
-| NumeroLineaDocumento | integer | No |  |
-| FechaRegistro | date | No |  |
-| FechaDocumento | date | No |  |
-| Cantidad | numeric(18,6) | No |  |
-| CantidadRestante | numeric(18,6) | Sí |  |
-| CantidadFacturada | numeric(18,6) | No |  |
-| UnidadMedidaId | uuid | No | FK → UnidadesMedida.Id |
-| CantidadPorUnidadMedida | numeric(18,6) | No |  |
-| SocioNegocioId | uuid | Sí | FK → SociosNegocio.Id |
-| TipoOrigen | smallint | No |  |
-| ClaveOrigen | character varying(50) | No |  |
-| CreatedAtUtc | timestamp with time zone | No |  |
-| CreatedBy | character varying(100) | No |  |
-| UsuarioId | uuid | Sí |  |
-
-#### Tabla `MovimientosValor`
-
-| Columna | Tipo | Nulo | Clave |
-| - | - | - | - |
-| Id | bigint | No | PK |
-| MovimientoProductoId | bigint | Sí | FK → MovimientosProducto.Id |
-| ProductoId | uuid | No | FK → Productos.Id |
-| AlmacenId | uuid | No | FK → Almacenes.Id |
-| TipoValor | smallint | No |  |
-| TipoMovimiento | smallint | No |  |
-| FechaRegistro | date | No |  |
-| CantidadValorada | numeric(18,6) | No |  |
-| CantidadFacturada | numeric(18,6) | No |  |
-| ImporteCosto | numeric(18,4) | No |  |
-| CostoPorUnidad | numeric(18,4) | No |  |
-| ImporteVenta | numeric(18,4) | No |  |
-| ImporteCostoPosteadoContabilidad | numeric(18,4) | No |  |
-| Ajuste | boolean | No |  |
-| TipoDocumento | smallint | No |  |
-| NumeroDocumento | character varying(20) | Sí |  |
-| NumeroLineaDocumento | integer | No |  |
-| GrupoInventarioId | uuid | Sí | FK → GruposInventario.Id |
-| GrupoNegocioId | uuid | Sí | FK → GruposNegocio.Id |
-| GrupoProductoId | uuid | Sí | FK → GruposProducto.Id |
-| TipoOrigen | smallint | No |  |
-| ClaveOrigen | character varying(50) | No |  |
-| CreatedAtUtc | timestamp with time zone | No |  |
-| CreatedBy | character varying(100) | No |  |
-| UsuarioId | uuid | Sí |  |
-
-#### Tabla `FacturasVentaBorrador`
-
-| Columna | Tipo | Nulo | Clave |
-| - | - | - | - |
-| Id | uuid | No | PK |
-| Numero | character varying(20) | No |  |
-| SocioNegocioId | uuid | No | FK → SociosNegocio.Id |
-| SocioNegocioFacturarAId | uuid | No | FK → SociosNegocio.Id |
-| NombreFacturacion | character varying(200) | No |  |
-| RazonSocialFacturacion | character varying(200) | Sí |  |
-| TipoDocumentoFiscal | smallint | No |  |
-| NumeroDocumentoFiscal | character varying(20) | Sí |  |
-| DireccionFacturacionLinea1 | character varying(300) | Sí |  |
-| DireccionFacturacionLinea2 | character varying(300) | Sí |  |
-| CiudadFacturacion | character varying(100) | Sí |  |
-| PaisCodigoFacturacion | character varying(2) | Sí |  |
-| FechaRegistro | date | No |  |
-| FechaDocumento | date | No |  |
-| FechaVencimiento | date | No |  |
-| TerminoPagoId | uuid | Sí | FK → TerminosPago.Id |
-| GrupoNegocioId | uuid | No | FK → GruposNegocio.Id |
-| GrupoIvaNegocioId | uuid | No | FK → GruposIvaNegocio.Id |
-| GrupoClienteContableId | uuid | No | FK → GruposClienteContable.Id |
-| AlmacenId | uuid | No | FK → Almacenes.Id |
-| Estado | smallint | No |  |
-| Moneda | character varying(3) | No |  |
-| Descripcion | character varying(200) | Sí |  |
-| CreatedAtUtc | timestamp with time zone | No |  |
-| CreatedBy | character varying(100) | No |  |
-| UpdatedAtUtc | timestamp with time zone | Sí |  |
-| UpdatedBy | character varying(100) | Sí |  |
-| IsDeleted | boolean | No |  |
-| DeletedAtUtc | timestamp with time zone | Sí |  |
-| DeletedBy | character varying(100) | Sí |  |
-
-#### Tabla `LineasFacturaVentaBorrador`
-
-| Columna | Tipo | Nulo | Clave |
-| - | - | - | - |
-| Id | uuid | No | PK |
-| FacturaVentaBorradorId | uuid | No | FK → FacturasVentaBorrador.Id |
-| NumeroLinea | integer | No |  |
-| Tipo | smallint | No |  |
-| ProductoId | uuid | Sí | FK → Productos.Id |
-| CuentaContableId | uuid | Sí | FK → CuentasContables.Id |
-| Descripcion | character varying(200) | Sí |  |
-| AlmacenId | uuid | Sí | FK → Almacenes.Id |
-| UnidadMedidaId | uuid | Sí | FK → UnidadesMedida.Id |
-| CantidadPorUnidadMedida | numeric(18,6) | No |  |
-| Cantidad | numeric(18,6) | No |  |
-| PrecioUnitario | numeric(18,4) | No |  |
-| PorcentajeDescuentoLinea | numeric(9,5) | No |  |
-| ImporteDescuentoLinea | numeric(18,4) | No |  |
-| ImporteLinea | numeric(18,4) | No |  |
-| GrupoProductoId | uuid | Sí | FK → GruposProducto.Id |
-| GrupoIvaProductoId | uuid | Sí | FK → GruposIvaProducto.Id |
-| GrupoInventarioId | uuid | Sí | FK → GruposInventario.Id |
-| IdentificadorIva | character varying(20) | Sí |  |
-| PorcentajeIva | numeric(9,5) | No |  |
-| CreatedAtUtc | timestamp with time zone | No |  |
-| CreatedBy | character varying(100) | No |  |
-| UpdatedAtUtc | timestamp with time zone | Sí |  |
-| UpdatedBy | character varying(100) | Sí |  |
-| IsDeleted | boolean | No |  |
-| DeletedAtUtc | timestamp with time zone | Sí |  |
-| DeletedBy | character varying(100) | Sí |  |
-
-#### Tabla `FacturasVenta`
-
-| Columna | Tipo | Nulo | Clave |
-| - | - | - | - |
-| Numero | character varying(20) | No | PK |
-| NumeroBorrador | character varying(20) | No |  |
-| SocioNegocioId | uuid | No | FK → SociosNegocio.Id |
-| SocioNegocioFacturarAId | uuid | No | FK → SociosNegocio.Id |
-| NombreFacturacion | character varying(200) | No |  |
-| RazonSocialFacturacion | character varying(200) | Sí |  |
-| TipoDocumentoFiscal | smallint | No |  |
-| NumeroDocumentoFiscal | character varying(20) | Sí |  |
-| DireccionFacturacionLinea1 | character varying(300) | Sí |  |
-| DireccionFacturacionLinea2 | character varying(300) | Sí |  |
-| CiudadFacturacion | character varying(100) | Sí |  |
-| PaisCodigoFacturacion | character varying(2) | Sí |  |
-| FechaRegistro | date | No |  |
-| FechaDocumento | date | No |  |
-| FechaVencimiento | date | No |  |
-| TerminoPagoId | uuid | Sí | FK → TerminosPago.Id |
-| GrupoNegocioId | uuid | No | FK → GruposNegocio.Id |
-| GrupoIvaNegocioId | uuid | No | FK → GruposIvaNegocio.Id |
-| GrupoClienteContableId | uuid | No | FK → GruposClienteContable.Id |
-| AlmacenId | uuid | No | FK → Almacenes.Id |
-| Moneda | character varying(3) | No |  |
-| Descripcion | character varying(200) | Sí |  |
-| ImporteSinIva | numeric(18,4) | No |  |
-| ImporteIva | numeric(18,4) | No |  |
-| ImporteTotal | numeric(18,4) | No |  |
-| RegistroContableId | bigint | Sí | FK → RegistrosContables.Id |
-| CreatedAtUtc | timestamp with time zone | No |  |
-| CreatedBy | character varying(100) | No |  |
-| UsuarioId | uuid | Sí |  |
-
-#### Tabla `LineasFacturaVenta`
-
-| Columna | Tipo | Nulo | Clave |
-| - | - | - | - |
-| Id | bigint | No | PK |
-| FacturaVentaNumero | character varying(20) | No | FK → FacturasVenta.Numero |
-| NumeroLinea | integer | No |  |
-| Tipo | smallint | No |  |
-| ProductoId | uuid | Sí | FK → Productos.Id |
-| CuentaContableId | uuid | Sí | FK → CuentasContables.Id |
-| Descripcion | character varying(200) | Sí |  |
-| AlmacenId | uuid | Sí | FK → Almacenes.Id |
-| UnidadMedidaId | uuid | Sí | FK → UnidadesMedida.Id |
-| CantidadPorUnidadMedida | numeric(18,6) | No |  |
-| Cantidad | numeric(18,6) | No |  |
-| PrecioUnitario | numeric(18,4) | No |  |
-| PorcentajeDescuentoLinea | numeric(9,5) | No |  |
-| ImporteDescuentoLinea | numeric(18,4) | No |  |
-| ImporteLinea | numeric(18,4) | No |  |
-| GrupoProductoId | uuid | Sí | FK → GruposProducto.Id |
-| GrupoIvaProductoId | uuid | Sí | FK → GruposIvaProducto.Id |
-| GrupoInventarioId | uuid | Sí | FK → GruposInventario.Id |
-| IdentificadorIva | character varying(20) | Sí |  |
-| PorcentajeIva | numeric(9,5) | No |  |
-| MovimientoProductoId | bigint | Sí | FK → MovimientosProducto.Id |
-
-#### Tabla `MovimientosCliente`
-
-| Columna | Tipo | Nulo | Clave |
-| - | - | - | - |
-| Id | bigint | No | PK |
-| SocioNegocioId | uuid | No | FK → SociosNegocio.Id |
-| FechaRegistro | date | No |  |
-| FechaDocumento | date | No |  |
-| FechaVencimiento | date | No |  |
-| TipoDocumento | smallint | No |  |
-| NumeroDocumento | character varying(20) | No |  |
-| Descripcion | character varying(200) | Sí |  |
-| ImporteOriginal | numeric(18,4) | No |  |
-| GrupoClienteContableId | uuid | No | FK → GruposClienteContable.Id |
-| CuentaCxCId | uuid | No | FK → CuentasContables.Id |
-| TipoOrigen | smallint | No |  |
-| ClaveOrigen | character varying(50) | No |  |
-| CreatedAtUtc | timestamp with time zone | No |  |
-| CreatedBy | character varying(100) | No |  |
-| UsuarioId | uuid | Sí |  |
-
-#### Tabla `MovimientosClienteDetalle`
-
-| Columna | Tipo | Nulo | Clave |
-| - | - | - | - |
-| Id | bigint | No | PK |
-| MovimientoClienteId | bigint | No | FK → MovimientosCliente.Id |
-| TipoMovimiento | smallint | No |  |
-| Importe | numeric(18,4) | No |  |
-| FechaRegistro | date | No |  |
-| MovimientoClienteAplicadoId | bigint | Sí | FK → MovimientosCliente.Id |
-| TipoOrigen | smallint | No |  |
-| ClaveOrigen | character varying(50) | No |  |
-| CreatedAtUtc | timestamp with time zone | No |  |
-| CreatedBy | character varying(100) | No |  |
-| UsuarioId | uuid | Sí |  |
+<!-- DICCIONARIO -->
 
 ## 5. Persistencia de datos
 
@@ -728,126 +372,126 @@ de lo que el navegador muestre.
 
 El mantenimiento de clientes opera sobre la tabla `SociosNegocio`. El alta se realiza en `/clientes/nuevo` con los
 datos generales (nombre comercial, razón social, documento fiscal, contacto y dirección) y los datos comerciales
-(término de pago, límite de crédito y grupos contables); el código se asigna de forma correlativa. La figura 8 muestra el
+(término de pago, límite de crédito y grupos contables); el código se asigna de forma correlativa. La figura {11-cliente-alta} muestra el
 formulario de alta completado.
 
 ![Alta de cliente](capturas/11-cliente-alta.png)
 
-*Figura 8. Formulario de nuevo cliente (`/clientes/nuevo`) con los datos del registro.*
+*Figura {11-cliente-alta}. Formulario de nuevo cliente (`/clientes/nuevo`) con los datos del registro.*
 
 Las reglas de validación se definen con FluentValidation en la capa de aplicación y se reflejan en el formulario. Si el
 usuario intenta guardar sin un dato obligatorio, el formulario se vuelve a mostrar con los valores introducidos y el
-mensaje correspondiente junto al campo, como se aprecia en la figura 9.
+mensaje correspondiente junto al campo, como se aprecia en la figura {10-cliente-validacion}.
 
 ![Validación del alta de cliente](capturas/10-cliente-validacion.png)
 
-*Figura 9. Validación del alta: el nombre comercial es obligatorio.*
+*Figura {10-cliente-validacion}. Validación del alta: el nombre comercial es obligatorio.*
 
 La consulta se hace en el listado `/clientes`, que admite filtros por varios campos, orden y paginación. Al seleccionar
-una fila, la barra habilita las acciones que dependen del registro (figura 10). Tras modificar el cliente en
-`/clientes/{id}/editar`, el sistema vuelve al listado con un aviso de confirmación y la fila actualizada (figura 11).
+una fila, la barra habilita las acciones que dependen del registro (figura {12-cliente-seleccion-acciones}). Tras modificar el cliente en
+`/clientes/{id}/editar`, el sistema vuelve al listado con un aviso de confirmación y la fila actualizada (figura {14-cliente-modificado}).
 
 ![Selección de un cliente en el listado](capturas/12-cliente-seleccion-acciones.png)
 
-*Figura 10. Listado de clientes con una fila seleccionada y las acciones Editar y Eliminar habilitadas.*
+*Figura {12-cliente-seleccion-acciones}. Listado de clientes con una fila seleccionada y las acciones Editar y Eliminar habilitadas.*
 
 ![Cliente modificado](capturas/14-cliente-modificado.png)
 
-*Figura 11. Aviso «Cliente modificado» y fila con el teléfono actualizado.*
+*Figura {14-cliente-modificado}. Aviso «Cliente modificado» y fila con el teléfono actualizado.*
 
-La eliminación exige confirmación explícita mediante un diálogo (figura 12). Para no romper la trazabilidad de los
+La eliminación exige confirmación explícita mediante un diálogo (figura {15-cliente-eliminar-confirmacion}). Para no romper la trazabilidad de los
 documentos que referencian al cliente, el borrado es lógico: el registro se marca con `IsDeleted` y deja de aparecer en
 los listados, pero se conserva en la base de datos.
 
 ![Confirmación de eliminación](capturas/15-cliente-eliminar-confirmacion.png)
 
-*Figura 12. Diálogo de confirmación antes de eliminar un cliente.*
+*Figura {15-cliente-eliminar-confirmacion}. Diálogo de confirmación antes de eliminar un cliente.*
 
 Una vez confirmada la eliminación, el listado vuelve a mostrarse con el aviso correspondiente y el cliente ya no figura
-en él: la figura 13 repite la búsqueda por su nombre y no obtiene resultados.
+en él: la figura {42-cliente-eliminado} repite la búsqueda por su nombre y no obtiene resultados.
 
 ![Cliente eliminado](capturas/42-cliente-eliminado.png)
 
-*Figura 13. Aviso «Cliente eliminado» y búsqueda del cliente sin resultados.*
+*Figura {42-cliente-eliminado}. Aviso «Cliente eliminado» y búsqueda del cliente sin resultados.*
 
 ### 6.4 Productos
 
 El mantenimiento de productos (`/productos/nuevo` y `/productos/{id}/editar`) registra el código, el nombre, la
 categoría, la unidad de medida base, el precio de venta, el método de costeo y los grupos contables. La existencia y el
 costo unitario no se editan en el formulario: se derivan del libro de movimientos de inventario, lo que garantiza que
-coincidan siempre con los documentos registrados. La figura 14 muestra el alta de un producto; la figura
-15 muestra el listado tras modificarlo, y la figura 16 la confirmación previa a su
+coincidan siempre con los documentos registrados. La figura {33-producto-alta} muestra el alta de un producto; la figura
+{34-producto-modificado} muestra el listado tras modificarlo, y la figura {35-producto-eliminar} la confirmación previa a su
 eliminación, que, como en los clientes, es lógica. El listado de productos es, además, el ejemplo principal de búsqueda
 por varios criterios, que se describe en la sección 7.
 
 ![Alta de producto](capturas/33-producto-alta.png)
 
-*Figura 14. Formulario de nuevo producto (`/productos/nuevo`).*
+*Figura {33-producto-alta}. Formulario de nuevo producto (`/productos/nuevo`).*
 
 ![Producto modificado](capturas/34-producto-modificado.png)
 
-*Figura 15. Aviso «Producto modificado» con el nuevo precio de venta (130.00) y el panel de detalle.*
+*Figura {34-producto-modificado}. Aviso «Producto modificado» con el nuevo precio de venta (130.00) y el panel de detalle.*
 
-![Confirmación de eliminación de un producto](capturas/35-producto-eliminar-confirmacion.png)
+![Confirmación de eliminación de un producto](capturas/35-producto-eliminar.png)
 
-*Figura 16. Confirmación antes de eliminar un producto.*
+*Figura {35-producto-eliminar}. Confirmación antes de eliminar un producto.*
 
 ### 6.5 Categorías de producto
 
 Las categorías (`/categorias-producto`) forman una jerarquía mediante la categoría padre y se gestionan con el mismo
-patrón de listado y tarjeta. La figura 17 muestra el listado, que sirve de pantalla de consulta; la
-figura 18, el formulario de alta; la figura 19, el resultado de una modificación, y
-la figura 20, la confirmación de la eliminación.
+patrón de listado y tarjeta. La figura {36-categorias-listado} muestra el listado, que sirve de pantalla de consulta; la
+figura {21-categoria-alta}, el formulario de alta; la figura {37-categoria-modificada}, el resultado de una modificación, y
+la figura {38-categoria-eliminar}, la confirmación de la eliminación.
 
 ![Listado de categorías de producto](capturas/36-categorias-listado.png)
 
-*Figura 17. Listado de categorías de producto filtrado por el código de la categoría de prueba.*
+*Figura {36-categorias-listado}. Listado de categorías de producto filtrado por el código de la categoría de prueba.*
 
 ![Alta de categoría de producto](capturas/21-categoria-alta.png)
 
-*Figura 18. Formulario de nueva categoría de producto.*
+*Figura {21-categoria-alta}. Formulario de nueva categoría de producto.*
 
 ![Categoría modificada](capturas/37-categoria-modificada.png)
 
-*Figura 19. Aviso «Categoría modificada» con el nombre editado.*
+*Figura {37-categoria-modificada}. Aviso «Categoría modificada» con el nombre editado.*
 
-![Confirmación de eliminación de una categoría](capturas/38-categoria-eliminar-confirmacion.png)
+![Confirmación de eliminación de una categoría](capturas/38-categoria-eliminar.png)
 
-*Figura 20. Confirmación antes de eliminar una categoría de producto.*
+*Figura {38-categoria-eliminar}. Confirmación antes de eliminar una categoría de producto.*
 
 ### 6.6 Usuarios
 
 La gestión de usuarios está reservada al Administrador (`CanAdministrar`). El alta se hace en una página propia,
 `/admin/users/nuevo`, en la que se indican el nombre, el correo, el nombre de usuario, la contraseña inicial y el rol
-(figura 21). Al guardar, el sistema vuelve al listado de usuarios con el aviso correspondiente (figura
-22).
+(figura {22-usuario-alta}). Al guardar, el sistema vuelve al listado de usuarios con el aviso correspondiente (figura
+{23-usuarios-listado}).
 
 ![Alta de usuario](capturas/22-usuario-alta.png)
 
-*Figura 21. Alta de usuario en su página propia (`/admin/users/nuevo`).*
+*Figura {22-usuario-alta}. Alta de usuario en su página propia (`/admin/users/nuevo`).*
 
 ![Listado de usuarios](capturas/23-usuarios-listado.png)
 
-*Figura 22. Gestión de usuarios con el aviso de usuario creado.*
+*Figura {23-usuarios-listado}. Gestión de usuarios con el aviso de usuario creado.*
 
 A diferencia de los demás mantenimientos, la lista de usuarios no ofrece la acción Eliminar en la barra: por diseño,
-las operaciones sobre una cuenta se hacen desde su ficha (`/admin/users/{id}`, figura 23), que reúne sus
-datos y permite modificar el rol y el estado de la cuenta. La desactivación (figura 24) es la forma
+las operaciones sobre una cuenta se hacen desde su ficha (`/admin/users/{id}`, figura {39-usuario-perfil}), que reúne sus
+datos y permite modificar el rol y el estado de la cuenta. La desactivación (figura {40-usuario-rol-estado}) es la forma
 recomendada de retirar el acceso, porque impide iniciar sesión y conserva el historial de la bitácora asociado al
 usuario. La eliminación definitiva también se hace desde la ficha y, como el resto de eliminaciones, requiere
-confirmación (figura 25).
+confirmación (figura {41-usuario-eliminar}).
 
 ![Ficha de usuario](capturas/39-usuario-perfil.png)
 
-*Figura 23. Ficha de un usuario (`/admin/users/{id}`).*
+*Figura {39-usuario-perfil}. Ficha de un usuario (`/admin/users/{id}`).*
 
-![Cambio de rol y estado de un usuario](capturas/40-usuario-rol-o-estado-cambiado.png)
+![Cambio de rol y estado de un usuario](capturas/40-usuario-rol-estado.png)
 
-*Figura 24. Aviso «Cuenta desactivada»: estado inactivo, asignación de rol y opción de reactivarla.*
+*Figura {40-usuario-rol-estado}. Aviso «Cuenta desactivada»: estado inactivo, asignación de rol y opción de reactivarla.*
 
-![Eliminación o desactivación de un usuario](capturas/41-usuario-eliminar-o-desactivar.png)
+![Eliminación o desactivación de un usuario](capturas/41-usuario-eliminar.png)
 
-*Figura 25. Confirmación de la eliminación definitiva de un usuario desde su ficha.*
+*Figura {41-usuario-eliminar}. Confirmación de la eliminación definitiva de un usuario desde su ficha.*
 
 ## 7. Búsquedas y consultas
 
@@ -855,10 +499,10 @@ confirmación (figura 25).
 
 Cada listado dispone de un panel de filtros que se envía por GET, de modo que los criterios quedan en la URL y la
 consulta puede repetirse, compartirse o paginarse sin perder el contexto. El listado de productos admite filtrar por
-código, nombre, categoría, precio de venta y estado de existencia; las figuras 26 a 30 muestran cada uno de estos
+código, nombre, categoría, precio de venta y estado de existencia; las figuras {16-producto-busqueda-codigo} a {20-producto-busqueda-estado} muestran cada uno de estos
 criterios aplicados. Para que la evidencia demuestre también la exclusión, la prueba automatizada crea dos productos
 (A, de 125.50 en la categoría GENERAL, y B, de 99.00 en otra categoría) y comprueba en cada búsqueda que aparece A y no
-aparece B; la única excepción es el estado de existencia, explicada en el pie de la figura 30.
+aparece B; la única excepción es el estado de existencia, explicada en el pie de la figura {20-producto-busqueda-estado}.
 
 Los filtros de texto aceptan una sintaxis sencilla y documentada: el asterisco `*` actúa como comodín (`CAB*` busca los
 códigos que empiezan por «CAB»), `||` combina alternativas (`tornillo||tuerca`) y `&&` exige que se cumplan varias
@@ -870,40 +514,40 @@ existencia de los que no la tienen.
 
 ![Búsqueda de productos por código](capturas/16-producto-busqueda-codigo.png)
 
-*Figura 26. Productos filtrados por código.*
+*Figura {16-producto-busqueda-codigo}. Productos filtrados por código.*
 
 ![Búsqueda de productos por nombre](capturas/17-producto-busqueda-nombre.png)
 
-*Figura 27. Productos filtrados por nombre.*
+*Figura {17-producto-busqueda-nombre}. Productos filtrados por nombre.*
 
 ![Búsqueda de productos por categoría](capturas/18-producto-busqueda-categoria.png)
 
-*Figura 28. Productos filtrados por categoría.*
+*Figura {18-producto-busqueda-categoria}. Productos filtrados por categoría.*
 
 ![Búsqueda de productos por precio](capturas/19-producto-busqueda-precio.png)
 
-*Figura 29. Productos filtrados por precio de venta.*
+*Figura {19-producto-busqueda-precio}. Productos filtrados por precio de venta.*
 
 ![Búsqueda de productos por estado de existencia](capturas/20-producto-busqueda-estado.png)
 
-*Figura 30. Productos filtrados por estado «Sin existencia». Los dos productos de prueba aparecen porque ninguno tiene existencia: darles existencia exigiría postear un diario de inventario, que es irreversible.*
+*Figura {20-producto-busqueda-estado}. Productos filtrados por estado «Sin existencia». Los dos productos de prueba aparecen porque ninguno tiene existencia: darles existencia exigiría postear un diario de inventario, que es irreversible.*
 
 ### 7.2 Búsqueda global y paleta Ctrl+K
 
 Además de los filtros de cada listado, el sistema ofrece una búsqueda global accesible desde la barra superior. Sin
 JavaScript, la caja de búsqueda es un formulario GET que abre `/buscar?q=…`, una página renderizada en el servidor que
-muestra los módulos coincidentes y los registros encontrados (figura 32). Con JavaScript disponible, la misma caja se
+muestra los módulos coincidentes y los registros encontrados (figura {25-buscar-resultados}). Con JavaScript disponible, la misma caja se
 convierte en una paleta de comandos que se abre con Ctrl+K (o con la tecla `/`), sugiere módulos mientras se escribe y
-permite navegar con las flechas, Enter y Esc (figura 31). Esta estrategia de mejora progresiva garantiza que la función
+permite navegar con las flechas, Enter y Esc (figura {24-paleta-modulos}). Esta estrategia de mejora progresiva garantiza que la función
 existe siempre y que el script solo la hace más cómoda.
 
 ![Paleta de búsqueda Ctrl+K](capturas/24-paleta-modulos.png)
 
-*Figura 31. Paleta Ctrl+K sugiriendo el módulo Categorías de producto.*
+*Figura {24-paleta-modulos}. Paleta Ctrl+K sugiriendo el módulo Categorías de producto.*
 
 ![Resultados de la búsqueda global](capturas/25-buscar-resultados.png)
 
-*Figura 32. Página `/buscar?q=cliente` con módulos, clientes y facturas.*
+*Figura {25-buscar-resultados}. Página `/buscar?q=cliente` con módulos, clientes y facturas.*
 
 Los módulos se filtran sin distinguir mayúsculas ni acentos (por ejemplo, «categoria» encuentra «Categorías de
 producto») y solo se ofrecen los que el usuario puede abrir. Los registros (clientes, productos, facturas, borradores de
@@ -917,16 +561,16 @@ página `/buscar` siguen mostrando los módulos junto con un aviso para los regi
 
 ### 8.1 Acceso e inicio
 
-El acceso se realiza desde la pantalla de inicio de sesión (figura 33). Tras autenticarse, el usuario llega a la página
-de inicio, que presenta indicadores y una tarjeta por cada grupo de módulos al que tiene acceso (figura 34).
+El acceso se realiza desde la pantalla de inicio de sesión (figura {01-login}). Tras autenticarse, el usuario llega a la página
+de inicio, que presenta indicadores y una tarjeta por cada grupo de módulos al que tiene acceso (figura {02-inicio}).
 
 ![Inicio de sesión](capturas/01-login.png)
 
-*Figura 33. Pantalla de inicio de sesión.*
+*Figura {01-login}. Pantalla de inicio de sesión.*
 
 ![Página de inicio del administrador](capturas/02-inicio.png)
 
-*Figura 34. Inicio del administrador con indicadores y tarjetas de los grupos de módulos.*
+*Figura {02-inicio}. Inicio del administrador con indicadores y tarjetas de los grupos de módulos.*
 
 ### 8.2 Menú por grupos
 
@@ -936,55 +580,55 @@ El menú lateral, la página de inicio, las páginas de grupo, la búsqueda glob
 registro, y una prueba automatizada comprueba que cada listado con ruta propia está registrado y que cada ruta
 registrada existe. Así se evita que el menú y las páginas diverjan con el tiempo.
 
-El menú lateral muestra abierto el grupo al que pertenece la página actual (figura 35), y cada grupo tiene una página
-propia en `/modulos/{grupo}` con sus indicadores y sus módulos (figura 36). La visibilidad depende del rol: el Ejecutor,
-por ejemplo, no ve el grupo Administración (figura 37, que muestra además el modo oscuro, cuya preferencia se conserva
+El menú lateral muestra abierto el grupo al que pertenece la página actual (figura {03-menu-grupos}), y cada grupo tiene una página
+propia en `/modulos/{grupo}` con sus indicadores y sus módulos (figura {04-grupo-facturacion}). La visibilidad depende del rol: el Ejecutor,
+por ejemplo, no ve el grupo Administración (figura {05-inicio-ejecutor-oscuro}, que muestra además el modo oscuro, cuya preferencia se conserva
 entre sesiones).
 
 ![Menú lateral por grupos](capturas/03-menu-grupos.png)
 
-*Figura 35. Menú lateral por grupos, con Configuración abierto en Unidades de medida.*
+*Figura {03-menu-grupos}. Menú lateral por grupos, con Configuración abierto en Unidades de medida.*
 
 ![Página del grupo Facturación](capturas/04-grupo-facturacion.png)
 
-*Figura 36. Página del grupo Facturación (`/modulos/facturacion`) con indicadores y módulos.*
+*Figura {04-grupo-facturacion}. Página del grupo Facturación (`/modulos/facturacion`) con indicadores y módulos.*
 
 ![Inicio del ejecutor en modo oscuro](capturas/05-inicio-ejecutor-oscuro.png)
 
-*Figura 37. Inicio del Ejecutor en modo oscuro, sin el grupo Administración.*
+*Figura {05-inicio-ejecutor-oscuro}. Inicio del Ejecutor en modo oscuro, sin el grupo Administración.*
 
 ### 8.3 Acciones contextuales
 
 La barra `PageToolbar` agrupa las acciones relacionadas con el registro seleccionado en dos menús desplegables nativos
 (`<details>`), que funcionan sin JavaScript. `Crear ▾` inicia documentos a partir del registro: desde un cliente se puede
-crear una factura, una nota de crédito o un cobro (figura 38), y la nueva factura se abre con el cliente, su término de
-pago y la fecha de hoy ya cargados (figura 39). `Ver ▾` lleva a la información relacionada: desde un producto, su ficha,
-sus existencias y sus movimientos (figura 40); desde un cliente, sus facturas, que se muestran filtradas con un
-indicador del filtro aplicado (figura 41).
+crear una factura, una nota de crédito o un cobro (figura {13-cliente-menu-crear}), y la nueva factura se abre con el cliente, su término de
+pago y la fecha de hoy ya cargados (figura {26-nueva-factura-precargada}). `Ver ▾` lleva a la información relacionada: desde un producto, su ficha,
+sus existencias y sus movimientos (figura {27-producto-menu-ver}); desde un cliente, sus facturas, que se muestran filtradas con un
+indicador del filtro aplicado (figura {28-facturas}).
 
 ![Menú Crear de un cliente](capturas/13-cliente-menu-crear.png)
 
-*Figura 38. Menú Crear ▾ de un cliente: Factura, Nota de crédito y Cobro.*
+*Figura {13-cliente-menu-crear}. Menú Crear ▾ de un cliente: Factura, Nota de crédito y Cobro.*
 
 ![Nueva factura con el cliente precargado](capturas/26-nueva-factura-precargada.png)
 
-*Figura 39. Nueva factura abierta desde un cliente, con el cliente precargado.*
+*Figura {26-nueva-factura-precargada}. Nueva factura abierta desde un cliente, con el cliente precargado.*
 
 ![Menú Ver de un producto](capturas/27-producto-menu-ver.png)
 
-*Figura 40. Menú Ver ▾ de un producto seleccionado: Ficha, Existencias y Movimientos.*
+*Figura {27-producto-menu-ver}. Menú Ver ▾ de un producto seleccionado: Ficha, Existencias y Movimientos.*
 
 ![Facturas filtradas por cliente](capturas/28-facturas.png)
 
-*Figura 41. Facturas filtradas por cliente, con el indicador del filtro aplicado.*
+*Figura {28-facturas}. Facturas filtradas por cliente, con el indicador del filtro aplicado.*
 
 Por último, la navegación entre páginas utiliza la navegación mejorada de Blazor, que sustituye solo el contenido que
-cambia. Se corrigió además el destello visual que producía la recarga de estilos en cada navegación; la figura 42
+cambia. Se corrigió además el destello visual que producía la recarga de estilos en cada navegación; la figura {32-navegacion-sin-flash}
 muestra una página alcanzada por navegación mejorada ya estabilizada.
 
 ![Navegación sin destello](capturas/32-navegacion-sin-flash.png)
 
-*Figura 42. Términos de pago tras una navegación mejorada, sin destello.*
+*Figura {32-navegacion-sin-flash}. Términos de pago tras una navegación mejorada, sin destello.*
 
 ## 9. Pruebas
 
@@ -1014,15 +658,15 @@ resume los resultados; el detalle está en `evidencias/resumen-e2e.md` y en los 
 
 | Área | Qué se comprueba | Resultado | Figuras |
 | - | - | - | - |
-| Acceso y menú | Login, inicio con grupos, menú por rol, modo oscuro | Superada | 33–37 |
-| Clientes | Agregar, consultar, modificar, eliminar y validación | Superada | 8–13 |
-| Productos | Alta y búsquedas por código, nombre, categoría, precio y estado | Superada | 26–30 |
-| Productos (mantenimiento) | Alta, modificación y eliminación | Superada | 14–16 |
-| Categorías y usuarios | Categorías: alta, consulta, modificación y eliminación; usuarios: alta, ficha, desactivación y eliminación | Superada | 17–25 |
-| Búsqueda global | Paleta Ctrl+K (teclado) y página `/buscar` | Superada | 31–32 |
-| Acciones contextuales | Crear ▾ Factura precargada, Ver ▾ y facturas por cliente | Superada | 38–41 |
-| Errores | 403 del Ejecutor, 404 de grupo inexistente, API caída | Superada | 43–45 |
-| Navegación | Navegación mejorada sin destello | Superada | 42 |
+| Acceso y menú | Login, inicio con grupos, menú por rol, modo oscuro | Superada | {01-login}–{05-inicio-ejecutor-oscuro} |
+| Clientes | Agregar, consultar, modificar, eliminar y validación | Superada | {11-cliente-alta}–{42-cliente-eliminado} |
+| Productos | Alta y búsquedas por código, nombre, categoría, precio y estado | Superada | {16-producto-busqueda-codigo}–{20-producto-busqueda-estado} |
+| Productos (mantenimiento) | Alta, modificación y eliminación | Superada | {33-producto-alta}–{35-producto-eliminar} |
+| Categorías y usuarios | Categorías: alta, consulta, modificación y eliminación; usuarios: alta, ficha, desactivación y eliminación | Superada | {36-categorias-listado}–{41-usuario-eliminar} |
+| Búsqueda global | Paleta Ctrl+K (teclado) y página `/buscar` | Superada | {24-paleta-modulos}–{25-buscar-resultados} |
+| Acciones contextuales | Crear ▾ Factura precargada, Ver ▾ y facturas por cliente | Superada | {13-cliente-menu-crear}–{28-facturas} |
+| Errores | 403 del Ejecutor, 404 de grupo inexistente, API caída | Superada | {29-error-403}–{31-error-api-caida} |
+| Navegación | Navegación mejorada sin destello | Superada | {32-navegacion-sin-flash} |
 
 La ejecución principal terminó con 14 pruebas superadas y una omitida por diseño (el caso de API caída), que se ejecuta
 aparte con la API detenida y también resultó superada.
@@ -1030,21 +674,21 @@ aparte con la API detenida y también resultó superada.
 ### 9.3 Manejo de errores
 
 Las pruebas de errores verifican que el sistema falla de manera controlada. Cuando el Ejecutor intenta abrir la gestión
-de usuarios, recibe la página de acceso denegado (figura 43); una ruta inexistente devuelve un código 404 con una página
-informativa (figura 44); y, si la API no está disponible, la pantalla de acceso informa de que el servicio de
-autenticación no responde, en lugar de mostrar un error técnico (figura 45).
+de usuarios, recibe la página de acceso denegado (figura {29-error-403}); una ruta inexistente devuelve un código 404 con una página
+informativa (figura {30-error-404}); y, si la API no está disponible, la pantalla de acceso informa de que el servicio de
+autenticación no responde, en lugar de mostrar un error técnico (figura {31-error-api-caida}).
 
 ![Acceso denegado](capturas/29-error-403.png)
 
-*Figura 43. Acceso denegado (403) del Ejecutor a la gestión de usuarios.*
+*Figura {29-error-403}. Acceso denegado (403) del Ejecutor a la gestión de usuarios.*
 
 ![Página no encontrada](capturas/30-error-404.png)
 
-*Figura 44. Página no encontrada (404) para un grupo inexistente.*
+*Figura {30-error-404}. Página no encontrada (404) para un grupo inexistente.*
 
 ![API no disponible](capturas/31-error-api-caida.png)
 
-*Figura 45. Inicio de sesión con la API detenida: aviso de servicio no disponible.*
+*Figura {31-error-api-caida}. Inicio de sesión con la API detenida: aviso de servicio no disponible.*
 
 ## 10. Entrega
 
@@ -1077,11 +721,11 @@ la carpeta `docs/entregable-parte-1/`:
 | - | - | - |
 | 1. Planteamiento del problema | 1 | Tabla de roles y permisos |
 | 2. Tecnología y lenguaje | 2 | Proyectos de la solución (`test.slnx`) |
-| 3. Arquitectura | 3 | Figura 1 (`diagramas/arquitectura.png`), tabla de capas MVC (3.2) |
-| 4. Base de datos | 4 | Figuras 2–7, diccionario de datos (4.4) |
+| 3. Arquitectura | 3 | Figura {arquitectura} (`diagramas/arquitectura.png`), tabla de capas MVC (3.2) |
+| 4. Base de datos | 4 | Figuras {modelo-er-usuarios-roles}–{modelo-er-ventas-notas-credito}, diccionario de datos (4.4) |
 | 5. Persistencia | 5 | 38 migraciones en `Data/Migrations/Application` |
-| 6. Mantenimientos (CRUD) | 6 | Figuras 8–25; suite E2E (specs 02, 03 y 04) |
-| 7. Búsquedas | 7 | Figuras 26–32; suite E2E (specs 03 y 05) |
-| 8. Menú | 8 | Figuras 33–42; suite E2E (specs 01, 06 y 08) |
-| 9. Pruebas | 9 | `evidencias/resumen-xunit.txt`, `evidencias/resumen-e2e.md`, suite E2E (spec 07-errores), figuras 43–45 |
+| 6. Mantenimientos (CRUD) | 6 | Figuras {11-cliente-alta}–{41-usuario-eliminar}; suite E2E (specs 02, 03 y 04) |
+| 7. Búsquedas | 7 | Figuras {16-producto-busqueda-codigo}–{25-buscar-resultados}; suite E2E (specs 03 y 05) |
+| 8. Menú | 8 | Figuras {01-login}–{32-navegacion-sin-flash}; suite E2E (specs 01, 06 y 08) |
+| 9. Pruebas | 9 | `evidencias/resumen-xunit.txt`, `evidencias/resumen-e2e.md`, suite E2E (spec 07-errores), figuras {29-error-403}–{31-error-api-caida} |
 | 10. Entrega | 10 | `presentacion.pptx`, `guion-demo.md` |

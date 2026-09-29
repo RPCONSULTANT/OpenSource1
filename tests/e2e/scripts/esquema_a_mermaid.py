@@ -4,7 +4,8 @@
 Uso (desde la raíz del repositorio, con el stack de Docker levantado):
     python3 tests/e2e/scripts/esquema_a_mermaid.py --salida docs/entregable-parte-1/diagramas
 
-Genera modelo-er.mmd (núcleo), el núcleo partido en dos vistas legibles (GRUPOS_ER), modelo-er-completo.mmd
+Genera modelo-er.mmd (núcleo), el núcleo partido en dos vistas (GRUPOS_ER), una vista de claves por dominio
+(GRUPOS_ER_DOMINIO, legible a 16 cm), modelo-er-completo.mmd
 (todas las tablas de AxionERP_App) y diccionario-datos.md.
 """
 import argparse
@@ -37,9 +38,23 @@ GRUPOS_ER = {
     ],
 }
 
+# Vistas legibles a ancho de página (16 cm): una por dominio, solo con las columnas clave (PK/FK); el detalle de todas
+# las columnas va en diccionario-datos.md. SociosNegocio y Productos se repiten como anclas de las relaciones.
+GRUPOS_ER_DOMINIO = {
+    "modelo-er-usuarios-roles": ["AspNetUsers", "AspNetRoles", "AspNetUserRoles"],
+    "modelo-er-productos-inventario": [
+        "CategoriasProducto", "UnidadesMedida", "Productos", "Almacenes", "MovimientosProducto", "MovimientosValor",
+    ],
+    "modelo-er-clientes-cxc": ["TerminosPago", "SociosNegocio", "MovimientosCliente", "MovimientosClienteDetalle"],
+    "modelo-er-ventas-borradores": ["SociosNegocio", "Productos", "FacturasVentaBorrador", "LineasFacturaVentaBorrador"],
+    "modelo-er-ventas-facturas": ["SociosNegocio", "Productos", "FacturasVenta", "LineasFacturaVenta", "LineasIvaFacturaVenta"],
+    "modelo-er-ventas-notas-credito": ["SociosNegocio", "Productos", "NotasCreditoVenta", "LineasNotaCreditoVenta"],
+}
+
 SQL_COLUMNAS = """
 SELECT coalesce(json_agg(t ORDER BY t.table_name, t.ordinal_position), '[]')
-FROM (SELECT table_name, column_name, data_type, is_nullable, ordinal_position
+FROM (SELECT table_name, column_name, data_type, is_nullable, ordinal_position,
+             character_maximum_length, numeric_precision, numeric_scale
       FROM information_schema.columns WHERE table_schema = 'public') t;
 """
 
@@ -77,7 +92,16 @@ def _tipo(data_type):
     return data_type.replace(" ", "_").replace("(", "").replace(")", "")
 
 
-def construir_mermaid(columnas, restricciones, tablas):
+def _tipo_completo(c):
+    """Tipo con longitud o precisión cuando la tiene: character varying(200), numeric(18,4)."""
+    if c.get("character_maximum_length"):
+        return f'{c["data_type"]}({c["character_maximum_length"]})'
+    if c["data_type"] == "numeric" and c.get("numeric_precision"):
+        return f'numeric({c["numeric_precision"]},{c.get("numeric_scale") or 0})'
+    return c["data_type"]
+
+
+def construir_mermaid(columnas, restricciones, tablas, solo_claves=False):
     incluidas = list(dict.fromkeys(tablas))
     conjunto = set(incluidas)
     claves = _claves(restricciones)
@@ -88,6 +112,8 @@ def construir_mermaid(columnas, restricciones, tablas):
             continue
         lineas.append(f"  {tabla} {{")
         for c in filas:
+            if solo_claves and (tabla, c["column_name"]) not in claves:
+                continue
             marcas = sorted(claves.get((tabla, c["column_name"]), set()), key=lambda m: 0 if m == "PK" else 1)
             sufijo = f" {', '.join(marcas)}" if marcas else ""
             lineas.append(f"    {_tipo(c['data_type'])} {c['column_name']}{sufijo}")
@@ -121,7 +147,7 @@ def construir_diccionario(columnas, restricciones, tablas):
         for c in filas:
             nulo = "Sí" if c["is_nullable"] == "YES" else "No"
             clave = ", ".join(sorted(set(claves.get((tabla, c["column_name"]), [])), key=lambda k: 0 if k == "PK" else 1))
-            partes.append(f'| {c["column_name"]} | {c["data_type"]} | {nulo} | {clave} |')
+            partes.append(f'| {c["column_name"]} | {_tipo_completo(c)} | {nulo} | {clave} |')
         partes.append("")
     return "\n".join(partes)
 
@@ -141,10 +167,14 @@ def main():
     (args.salida / "modelo-er.mmd").write_text(construir_mermaid(columnas, restricciones, nucleo), encoding="utf-8")
     for nombre, tablas in GRUPOS_ER.items():
         (args.salida / f"{nombre}.mmd").write_text(construir_mermaid(columnas, restricciones, tablas), encoding="utf-8")
+    for nombre, tablas in GRUPOS_ER_DOMINIO.items():
+        (args.salida / f"{nombre}.mmd").write_text(
+            construir_mermaid(columnas, restricciones, tablas, solo_claves=True), encoding="utf-8")
     todas_app = sorted({c["table_name"] for c in consultar("AxionERP_App", SQL_COLUMNAS)} - {"__EFMigrationsHistory"})
     (args.salida / "modelo-er-completo.mmd").write_text(construir_mermaid(columnas, restricciones, todas_app), encoding="utf-8")
     (args.salida / "diccionario-datos.md").write_text(construir_diccionario(columnas, restricciones, nucleo), encoding="utf-8")
-    print(f"OK: {args.salida}/modelo-er.mmd, {', '.join(GRUPOS_ER)}, modelo-er-completo.mmd y diccionario-datos.md")
+    print(f"OK: {args.salida}/modelo-er.mmd, {', '.join([*GRUPOS_ER, *GRUPOS_ER_DOMINIO])}, modelo-er-completo.mmd y "
+          "diccionario-datos.md")
 
 
 if __name__ == "__main__":

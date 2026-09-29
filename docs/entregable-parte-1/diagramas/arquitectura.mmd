@@ -1,4 +1,4 @@
-flowchart LR
+flowchart TB
   U["Usuario<br/>(navegador)"] -->|"GET/POST HTML<br/>cookie HttpOnly"| B["Interfaz<br/>OpenSource1.Blazor<br/>Blazor Static SSR + Tailwind"]
   B -->|"HttpClient tipado<br/>JWT en sesión de servidor"| A["Controladores<br/>OpenSource1.Api<br/>ASP.NET Core MVC (REST)"]
   A -->|"MediatR ISender"| L["Lógica de negocio<br/>OpenSource1.Application<br/>Commands · Queries · Behaviors"]
