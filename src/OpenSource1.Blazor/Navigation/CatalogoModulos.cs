@@ -66,4 +66,15 @@ public static class CatalogoModulos
 
         new("usuarios", "administracion", "Usuarios", "Cuentas, roles y estado de los usuarios.", "/admin/users", IconosModulo.Personas, null, Admin, ["roles", "cuentas"]),
     ];
+
+    /// <summary>
+    /// Rutas que no cuelgan del listado de su módulo pero lo marcan en el menú (Puerta C): el alta de una factura o de una
+    /// nota de crédito crea un BORRADOR, así que marca los borradores y no el listado de documentos posteados (que por
+    /// prefijo ganaría). Se comparan como prefijo por segmentos, igual que <see cref="Modulo.Ruta"/>.
+    /// </summary>
+    public static IReadOnlyDictionary<string, string> RutasAsociadas { get; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["/facturas-venta/nueva"] = "borradores-factura",
+        ["/notas-credito-venta/nueva"] = "borradores-nota-credito",
+    };
 }

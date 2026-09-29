@@ -16,6 +16,9 @@ public interface IRegistroModulos
 
     GrupoModulo? BuscarGrupo(string? clave);
 
-    /// <summary>Módulo cuya ruta es el prefijo (por segmentos) más largo de <paramref name="ruta"/>; query ignorada.</summary>
+    /// <summary>
+    /// Módulo cuya ruta (o una de <see cref="CatalogoModulos.RutasAsociadas"/>) es el prefijo (por segmentos) más largo de
+    /// <paramref name="ruta"/>; query ignorada.
+    /// </summary>
     Modulo? ModuloDeRuta(string? ruta);
 }

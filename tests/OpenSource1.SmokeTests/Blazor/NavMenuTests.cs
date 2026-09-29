@@ -40,6 +40,22 @@ public sealed class NavMenuTests
         Assert.DoesNotMatch(new Regex("<a href=\"/\"[^>]*aria-current=\"page\""), html);
     }
 
+    /// <summary>Puerta C: las altas de documentos marcan sus borradores (no el listado de posteados) y abren Facturación.</summary>
+    [Theory]
+    [InlineData("/facturas-venta/nueva", "/facturas-venta/borradores", "facturacion")]
+    [InlineData("/notas-credito-venta/nueva", "/notas-credito-venta/borradores", "facturacion")]
+    [InlineData("/cobros/nuevo", "/cobros", "ventas")]
+    [InlineData("/unidades-medida/nuevo", "/unidades-medida", "configuracion")]
+    public async Task AltaDeDocumento_MarcaSuModuloEnElMenu(string ruta, string marcado, string grupo)
+    {
+        using var app = new BlazorSsrFactory();
+        var html = await HtmlAsync(app.Cliente("Administrador"), ruta);
+
+        Assert.Matches(new Regex($"<details data-grupo=\"{grupo}\" open"), html);
+        Assert.Matches(new Regex($"<a href=\"{Regex.Escape(marcado)}\"[^>]*aria-current=\"page\""), html);
+        Assert.Equal(1, Regex.Matches(html, "<a href=\"[^\"]*\" class=\"[^\"]*\" aria-current=\"page\"").Count);
+    }
+
     [Fact]
     public async Task Ejecutor_NoVeAdministracionFechasNiBitacora()
     {

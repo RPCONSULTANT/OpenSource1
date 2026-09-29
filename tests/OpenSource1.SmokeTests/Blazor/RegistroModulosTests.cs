@@ -106,6 +106,58 @@ public sealed class RegistroModulosTests
         Assert.Equal(clave, Registro().ModuloDeRuta(ruta)?.Clave);
     }
 
+    /// <summary>
+    /// Puerta C: las páginas de alta y edición marcan el módulo de su listado; las altas de documentos (factura y nota de
+    /// crédito) marcan los borradores, que es donde se crean, no el listado de documentos posteados.
+    /// </summary>
+    [Theory]
+    [InlineData("/notas-credito-venta/nueva", "borradores-nota-credito")]
+    [InlineData("/notas-credito-venta/nueva?socioId=3f2b8c1e-0000-0000-0000-000000000001", "borradores-nota-credito")]
+    [InlineData("/facturas-venta/nueva", "borradores-factura")]
+    [InlineData("/facturas-venta/nueva/?socioId=3f2b8c1e-0000-0000-0000-000000000001", "borradores-factura")]
+    [InlineData("/notas-credito-venta/NC000001", "notas-credito")]
+    [InlineData("/facturas-venta/nuevax", "facturas")]
+    [InlineData("/cobros/nuevo?socioId=3f2b8c1e-0000-0000-0000-000000000001", "cobros")]
+    [InlineData("/clientes/nuevo", "clientes")]
+    [InlineData("/productos/3f2b8c1e-0000-0000-0000-000000000001/editar", "productos")]
+    [InlineData("/diarios-inventario/nuevo?productoId=3f2b8c1e-0000-0000-0000-000000000001", "diarios-inventario")]
+    [InlineData("/diarios-inventario/3f2b8c1e-0000-0000-0000-000000000001/editar", "diarios-inventario")]
+    [InlineData("/unidades-medida/nuevo", "unidades-medida")]
+    [InlineData("/terminos-pago/3f2b8c1e-0000-0000-0000-000000000001/editar", "terminos-pago")]
+    [InlineData("/categorias-producto/nuevo", "categorias-producto")]
+    [InlineData("/almacenes/3f2b8c1e-0000-0000-0000-000000000001/editar", "almacenes")]
+    [InlineData("/cuentas-contables/nuevo", "plan-cuentas")]
+    [InlineData("/grupos-contables/nuevo?tipo=iva", "grupos-contables")]
+    [InlineData("/grupos-cliente-contable/3f2b8c1e-0000-0000-0000-000000000001/editar", "grupos-cliente-contable")]
+    [InlineData("/setups-contables/nuevo", "setups-contables")]
+    [InlineData("/admin/users/nuevo", "usuarios")]
+    [InlineData("/admin/users/abc/editar", "usuarios")]
+    [InlineData("/facturas-venta/borradores/3f2b8c1e-0000-0000-0000-000000000001/editar", "borradores-factura")]
+    [InlineData("/notas-credito-venta/borradores/3f2b8c1e-0000-0000-0000-000000000001/editar", "borradores-nota-credito")]
+    public void ModuloDeRuta_AltasYEdiciones_MarcanSuModulo(string ruta, string clave)
+    {
+        Assert.Equal(clave, Registro().ModuloDeRuta(ruta)?.Clave);
+    }
+
+    [Fact]
+    public void ModuloDeRuta_CadaAltaYEdicionTieneModulo()
+    {
+        var plantillas = typeof(BlazorApp::OpenSource1.Blazor.Components.App).Assembly.GetTypes()
+            .SelectMany(t => t.GetCustomAttributes<RouteAttribute>())
+            .Select(a => "/" + a.Template.Trim('/'))
+            .Where(p => p.EndsWith("/nuevo", StringComparison.OrdinalIgnoreCase)
+                        || p.EndsWith("/nueva", StringComparison.OrdinalIgnoreCase)
+                        || p.EndsWith("/editar", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        Assert.NotEmpty(plantillas);
+        foreach (var plantilla in plantillas)
+        {
+            var ruta = System.Text.RegularExpressions.Regex.Replace(plantilla, "\\{[^}]+\\}", "3f2b8c1e-0000-0000-0000-000000000001");
+            Assert.True(Registro().ModuloDeRuta(ruta) is not null, $"La ruta {plantilla} no marca ningún módulo.");
+        }
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("/")]

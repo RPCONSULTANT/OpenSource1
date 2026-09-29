@@ -59,10 +59,17 @@ public sealed class RegistroModulos(IAuthorizationService autorizacion) : IRegis
             return null;
         }
 
-        return Todos
-            .Where(m => string.Equals(camino, m.Ruta, StringComparison.OrdinalIgnoreCase)
-                        || camino.StartsWith(m.Ruta + "/", StringComparison.OrdinalIgnoreCase))
-            .OrderByDescending(m => m.Ruta.Length)
+        // Candidatos: la ruta de cada módulo y las rutas asociadas (altas de documentos); gana el prefijo más largo.
+        var candidatos = Todos.Select(m => (m.Ruta, Modulo: (Modulo?)m))
+            .Concat(CatalogoModulos.RutasAsociadas.Select(a => (Ruta: a.Key, Modulo: Todos.FirstOrDefault(m => m.Clave == a.Value))));
+        return candidatos
+            .Where(c => c.Modulo is not null && EsPrefijo(c.Ruta, camino))
+            .OrderByDescending(c => c.Ruta.Length)
+            .Select(c => c.Modulo)
             .FirstOrDefault();
     }
+
+    private static bool EsPrefijo(string ruta, string camino) =>
+        string.Equals(camino, ruta, StringComparison.OrdinalIgnoreCase)
+        || camino.StartsWith(ruta + "/", StringComparison.OrdinalIgnoreCase);
 }
