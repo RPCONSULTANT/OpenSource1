@@ -29,6 +29,18 @@ public sealed class NavMenuTests
     }
 
     [Fact]
+    public async Task RutaConQuery_SeResuelveRelativaALaBase_YAbreSuGrupo()
+    {
+        using var app = new BlazorSsrFactory();
+        var html = await HtmlAsync(app.Cliente("Administrador"), "/reporteria/?formato=pdf&x=%2Fclientes");
+
+        Assert.Matches(new Regex("<details data-grupo=\"reportes\" open"), html);
+        Assert.DoesNotMatch(new Regex("<details data-grupo=\"clientes\" open"), html);
+        Assert.Matches(new Regex("<a href=\"/reporteria\"[^>]*aria-current=\"page\""), html);
+        Assert.DoesNotMatch(new Regex("<a href=\"/\"[^>]*aria-current=\"page\""), html);
+    }
+
+    [Fact]
     public async Task Ejecutor_NoVeAdministracionFechasNiBitacora()
     {
         using var app = new BlazorSsrFactory();

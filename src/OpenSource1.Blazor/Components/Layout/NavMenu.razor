@@ -46,11 +46,11 @@
 
     protected override async Task OnParametersSetAsync()
     {
-        var ruta = Nav.ToBaseRelativePath(Nav.Uri);
-        var camino = ruta.Split('?', '#')[0].Trim('/');
+        // ModuloDeRuta espera la ruta relativa a la base ("/reporteria"), no la URI absoluta: se quitan query y fragmento.
+        var camino = Nav.ToBaseRelativePath(Nav.Uri).Split('?', '#')[0].Trim('/');
         esInicio = camino.Length == 0;
 
-        var modulo = Registro.ModuloDeRuta(ruta);
+        var modulo = Registro.ModuloDeRuta("/" + camino);
         moduloActual = modulo?.Clave;
         grupoActual = modulo?.Grupo
             ?? (camino.StartsWith("modulos/", StringComparison.OrdinalIgnoreCase) ? camino["modulos/".Length..].ToLowerInvariant() : null);
