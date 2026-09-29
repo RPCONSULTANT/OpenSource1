@@ -93,7 +93,9 @@
 @code {
     private const string InputCss = "block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200";
 
-    [SupplyParameterFromQuery(Name = "socioId")] private Guid? SocioId { get; set; }
+    // Tolerante (ola final Fix-Features): un ?socioId= ilegible se ignora; con Guid? el binder lanzaría (página de error).
+    [SupplyParameterFromQuery(Name = "socioId")] private string? SocioIdTexto { get; set; }
+    private Guid? SocioId => InventarioVistasOpciones.ParseGuid(SocioIdTexto);
     [SupplyParameterFromQuery(Name = "socioQuery")] private string? SocioQuery { get; set; }
     [SupplyParameterFromQuery(Name = "returnUrl")] private string? ReturnUrl { get; set; }
     [SupplyParameterFromForm(FormName = "registrar-pago")] private Cobros.PagoForm? PagoInput { get; set; }

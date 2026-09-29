@@ -407,7 +407,9 @@ else
     [SupplyParameterFromQuery(Name = "registro")] private string? Registro { get; set; }
     [SupplyParameterFromQuery(Name = "crearNota")] private bool CrearNota { get; set; }
     [SupplyParameterFromQuery(Name = "returnUrl")] private string? ReturnUrl { get; set; }
-    [SupplyParameterFromQuery(Name = "socioId")] private Guid? SocioId { get; set; }
+    // Tolerante (ola final Fix-Features): un ?socioId= ilegible se ignora; con Guid? el binder lanzaría (página de error).
+    [SupplyParameterFromQuery(Name = "socioId")] private string? SocioIdTexto { get; set; }
+    private Guid? SocioId => InventarioVistasOpciones.ParseGuid(SocioIdTexto);
     [SupplyParameterFromQuery(Name = "sel")] private string? Sel { get; set; }
 
     [SupplyParameterFromForm(FormName = "crear-nota")] private CrearNotaForm? CrearNotaInput { get; set; }

@@ -8,6 +8,7 @@
   const MIN_CARACTERES = 2;
   const MAX_MODULOS = 8;
   const ERROR_REGISTROS = 'No fue posible buscar registros en este momento.';
+  const SESION_EXPIRADA = 'La sesión expiró; vuelva a iniciar sesión.';
 
   let modulos = [];
   let opciones = [];
@@ -178,6 +179,9 @@
         signal: controlador.signal,
       });
       if (consulta !== ultimaConsulta) return;
+      // Sesión caducada: el desafío de la cookie (302) lleva al login y fetch recibe su HTML; no es JSON.
+      const tipo = respuesta.headers.get('content-type') || '';
+      if (respuesta.redirected || (respuesta.ok && !tipo.includes('json'))) { pintar(consulta, [], SESION_EXPIRADA, false); return; }
       if (!respuesta.ok) { pintar(consulta, [], ERROR_REGISTROS, false); return; }
       const datos = await respuesta.json();
       pintar(consulta, datos.grupos || [], null, false);

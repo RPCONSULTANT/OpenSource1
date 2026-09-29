@@ -163,6 +163,12 @@
         </EditForm>
     </ConfirmDialog>
 }
+else
+{
+    @* Diálogo oculto (sin CanDelete o sin deleteId): EditForm vacío con el MISMO FormName para que un POST obsoleto o
+       forzado llegue al handler y reciba el mensaje real de la API, no el 400 genérico de Blazor. *@
+    <EditForm Model="DeleteInput" FormName="delete-grupo-contable" OnValidSubmit="DeleteAsync"></EditForm>
+}
 
 @code {
     [SupplyParameterFromForm(FormName = "delete-grupo-contable")]
@@ -181,8 +187,10 @@
     [SupplyParameterFromQuery(Name = "editId")]
     private Guid? EditId { get; set; }
 
+    // Tolerante (ola final Fix-Features): un ?sel= ilegible se ignora como selección vacía; con Guid? el binder lanzaría.
     [SupplyParameterFromQuery(Name = "sel")]
-    private Guid? Sel { get; set; }
+    private string? SelTexto { get; set; }
+    private Guid? Sel => InventarioVistasOpciones.ParseGuid(SelTexto);
 
     [SupplyParameterFromQuery(Name = "deleteId")]
     private Guid? DeleteId { get; set; }

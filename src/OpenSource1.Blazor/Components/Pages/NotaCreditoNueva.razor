@@ -130,7 +130,9 @@
 }
 
 @code {
-    [SupplyParameterFromQuery(Name = "socioId")] private Guid? SocioId { get; set; }
+    // Tolerante (ola final Fix-Features): un ?socioId= ilegible se ignora; con Guid? el binder lanzaría (página de error).
+    [SupplyParameterFromQuery(Name = "socioId")] private string? SocioIdTexto { get; set; }
+    private Guid? SocioId => InventarioVistasOpciones.ParseGuid(SocioIdTexto);
     [SupplyParameterFromQuery(Name = "socioQuery")] private string? SocioQuery { get; set; }
     [SupplyParameterFromQuery(Name = "returnUrl")] private string? ReturnUrl { get; set; }
     [SupplyParameterFromForm(FormName = "nueva-nota-socio")] private NuevaNotaForm? NotaInput { get; set; }

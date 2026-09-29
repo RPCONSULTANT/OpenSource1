@@ -94,6 +94,12 @@ else
         </EditForm>
     </ConfirmDialog>
 }
+else
+{
+    @* Diálogo oculto (sin CanDelete, sin ?delete=true o sin ficha): EditForm vacío con el MISMO FormName para que un POST
+       obsoleto o forzado llegue al handler y reciba el mensaje real de la API (arriba, en el aviso de la ficha). *@
+    <EditForm Model="DeleteInput" FormName="cliente-delete" OnValidSubmit="DeleteAsync"></EditForm>
+}
 
 @code {
     [Parameter] public Guid Id { get; set; }
@@ -175,7 +181,8 @@ else
     {
         var result = await SocioNegocioApiClient.DeleteAsync(Id);
         if (result.Succeeded) { Nav.NavigateTo("/clientes?ok=deleted"); return; }
-        deleteError = result.Message;
+        if (DeleteMode && cliente is not null && canDelete) deleteError = result.Message;
+        else { messageType = "warning"; message = result.Message; }
     }
 
     private string BuildDetailUrl(bool delete = false, string? ok = null)

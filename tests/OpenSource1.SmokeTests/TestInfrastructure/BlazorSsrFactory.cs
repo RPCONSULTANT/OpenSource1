@@ -16,6 +16,15 @@ namespace OpenSource1.SmokeTests.TestInfrastructure;
 /// Host real de OpenSource1.Blazor (pipeline, router, layout, antiforgery) sin API ni Postgres: los clientes tipados que la
 /// prueba necesita se sustituyen por <see cref="Mock{T}"/>. Llamar a <see cref="Simular{T}"/> ANTES del primer
 /// <see cref="Cliente"/> (el host se construye con la primera petición). Sin Docker.
+/// <para>
+/// Navegación (R17): producción fija <c>BlazorDisableThrowNavigationException=true</c> en OpenSource1.Blazor.csproj, pero esa
+/// propiedad MSBuild solo llega al runtimeconfig del propio host; este proceso de pruebas corre con el runtimeconfig de
+/// OpenSource1.SmokeTests, sin el switch, así que aquí <c>Nav.NavigateTo</c> en SSR LANZA <c>NavigationException</c> (el camino
+/// antiguo) y en producción no lanza (redirige al terminar el render). R17 hace el código correcto en ambos: el destino se
+/// calcula dentro del try, <c>NavigateTo</c> va DESPUÉS del try/catch (un catch no convierte la redirección en error) y va
+/// seguido de <c>return</c> (sin lanzar, el código siguiente se ejecutaría). Límite conocido: estos tests no detectan un
+/// <c>return</c> olvidado tras <c>NavigateTo</c>, porque aquí la excepción corta el flujo igualmente; se revisa en código.
+/// </para>
 /// </summary>
 public sealed class BlazorSsrFactory : WebApplicationFactory<BlazorApp::Program>
 {

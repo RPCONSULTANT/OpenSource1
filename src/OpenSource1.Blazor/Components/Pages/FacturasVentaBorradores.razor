@@ -174,7 +174,9 @@
     // [SupplyParameterFromQuery] no admite enums: el estado viaja como entero (1 = Abierta, 2 = Liberada).
     [SupplyParameterFromQuery(Name = "estado")] private int? SearchEstado { get; set; }
     [SupplyParameterFromQuery(Name = "pagina")] private int Pagina { get; set; } = 1;
-    [SupplyParameterFromQuery(Name = "sel")] private Guid? Sel { get; set; }
+    // Tolerante (ola final Fix-Features): un ?sel= ilegible se ignora como selección vacía; con Guid? el binder lanzaría.
+    [SupplyParameterFromQuery(Name = "sel")] private string? SelTexto { get; set; }
+    private Guid? Sel => InventarioVistasOpciones.ParseGuid(SelTexto);
     // Solo para redirigir la ruta antigua (?editId=) a /facturas-venta/borradores/{id}/editar.
     [SupplyParameterFromQuery(Name = "editId")] private Guid? EditId { get; set; }
     [SupplyParameterFromQuery(Name = "deleteId")] private Guid? DeleteId { get; set; }

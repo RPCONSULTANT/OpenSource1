@@ -64,6 +64,26 @@ public sealed class PaletaBusquedaTests
         Assert.Equal("/productos/1", raiz.GetProperty("grupos")[0].GetProperty("items")[0].GetProperty("ruta").GetString());
     }
 
+    // Ola final (Minor 4): las sugerencias traen nombres y RNC/cédula de clientes: nunca se guardan en caché.
+    [Fact]
+    public async Task Sugerencias_CacheControlNoStore_EnExitoYEnFallo()
+    {
+        using var app = new BlazorSsrFactory();
+        var api = app.Simular<IBusquedaApiClient>();
+        api.Setup(c => c.BuscarAsync("torn", 5, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ConsultaResultado<BusquedaGlobalResponse>(true, string.Empty, new BusquedaGlobalResponse([])));
+        api.Setup(c => c.BuscarAsync("fallo", 5, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ConsultaResultado<BusquedaGlobalResponse>(false, "No fue posible cargar los resultados de la búsqueda."));
+
+        var exito = await app.Cliente().GetAsync("/buscar/sugerencias?q=torn");
+        var fallo = await app.Cliente().GetAsync("/buscar/sugerencias?q=fallo");
+
+        Assert.Equal(HttpStatusCode.OK, exito.StatusCode);
+        Assert.True(exito.Headers.CacheControl?.NoStore, $"Cache-Control: {exito.Headers.CacheControl}");
+        Assert.Equal(HttpStatusCode.BadGateway, fallo.StatusCode);
+        Assert.True(fallo.Headers.CacheControl?.NoStore, $"Cache-Control: {fallo.Headers.CacheControl}");
+    }
+
     [Fact]
     public async Task Sugerencias_QCorta_400_Anonimo_Login_SinCanConsult_Prohibido()
     {
@@ -99,6 +119,21 @@ public sealed class PaletaBusquedaTests
         Assert.Matches(new Regex(@"if \(!el \|\| cableados\.has\(el\.input\)\) return;\s*cableados\.add\(el\.input\);"), fuente);
         Assert.DoesNotContain("dataset.", fuente);
         Assert.Contains("window.Blazor.addEventListener('enhancedload'", fuente);
+    }
+
+    [Fact]
+    public void Script_SesionCaducada_AvisaEnVezDelErrorGenerico()
+    {
+        // Ola final (Minor 5): con la sesión caducada el fetch sigue el 302 al login y recibe HTML; la paleta lo detecta
+        // (respuesta redirigida o sin JSON) antes de json() y pide volver a iniciar sesión.
+        var fuente = File.ReadAllText(Path.Combine(BlazorSsrFactory.RaizRepositorio(), "src", "OpenSource1.Blazor", "wwwroot", "app.search.js"));
+        var funcion = Regex.Match(fuente, @"async function buscarRegistros\(consulta\) \{(?<cuerpo>.*?)\n  \}", RegexOptions.Singleline).Groups["cuerpo"].Value;
+
+        Assert.Contains("La sesión expiró; vuelva a iniciar sesión.", fuente);
+        Assert.Contains("respuesta.redirected", funcion);
+        Assert.Contains("content-type", funcion);
+        Assert.True(funcion.IndexOf("SESION_EXPIRADA", StringComparison.Ordinal) < funcion.IndexOf("respuesta.json()", StringComparison.Ordinal),
+            "La comprobación de sesión debe ir antes de respuesta.json().");
     }
 
     [Fact]

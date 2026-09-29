@@ -48,6 +48,9 @@ public sealed class RetornoLocalTests
     [InlineData("/clientes?editId=e1#tabla", "/clientes#tabla")]
     [InlineData("/clientes?okey=1&xeditId=2", "/clientes?okey=1&xeditId=2")]
     [InlineData("/clientes", "/clientes")]
+    // Ola final (Minor 7): [SupplyParameterFromQuery] ignora mayúsculas; SinTransitorios también.
+    [InlineData("/clientes?OK=created&DeleteId=d1&EDITID=e1&Sel=s1", "/clientes?Sel=s1")]
+    [InlineData("/clientes?Ok&OKEY=1", "/clientes?OKEY=1")]
     public void SinTransitorios_QuitaOkDeleteIdYEditId(string url, string esperado) =>
         Assert.Equal(esperado, RetornoLocal.SinTransitorios(url));
 

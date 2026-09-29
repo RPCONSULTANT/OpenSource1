@@ -72,6 +72,22 @@ public sealed class ConversionMaestrosTests
         Assert.DoesNotContain($"value=\"{formNameAlta}\"", html);
     }
 
+    // Ola final (Minor 2): ?sel= ilegible (enlace truncado o editado) se ignora como una selección vacía; nunca la página de error.
+    [Theory]
+    [InlineData("/unidades-medida?sel=abc")]
+    [InlineData("/almacenes?sel=abc")]
+    public async Task SeleccionIlegible_SeIgnora_SinPaginaDeError(string ruta)
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+
+        var html = await HtmlAsync(app.Cliente(), ruta);
+
+        Assert.Contains("data-testid=\"page-toolbar\"", html);
+        Assert.Contains($"<span data-testid=\"accion-editar\" aria-disabled=\"true\" title=\"{SinSeleccion}\"", html);
+        // Los enlaces se construyen con el valor ya interpretado: ninguno arrastra el texto ilegible.
+        Assert.DoesNotMatch("href=\"[^\"]*sel=abc", html);
+    }
+
     [Fact]
     public async Task SeleccionQueNoEstaEnLaPagina_DeshabilitaAcciones()
     {

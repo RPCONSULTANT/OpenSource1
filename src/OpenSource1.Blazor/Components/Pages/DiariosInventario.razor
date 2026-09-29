@@ -217,8 +217,10 @@ else
     [SupplyParameterFromQuery(Name = "nombre")]
     private string? SearchNombre { get; set; }
 
+    // Tolerante (ola final Fix-Features): un ?sel= ilegible se ignora como selección vacía; con Guid? el binder lanzaría.
     [SupplyParameterFromQuery(Name = "sel")]
-    private Guid? Sel { get; set; }
+    private string? SelTexto { get; set; }
+    private Guid? Sel => InventarioVistasOpciones.ParseGuid(SelTexto);
 
     // Solo para redirigir la ruta antigua (?editId=) al editor propio.
     [SupplyParameterFromQuery(Name = "editId")]

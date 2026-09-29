@@ -52,8 +52,9 @@ public static class RetornoLocal
         return Unir(ruta, pares, fragmento);
     }
 
+    // Sin distinguir mayúsculas, igual que el binder de [SupplyParameterFromQuery]: ?OK= o ?DeleteId= también son transitorios.
     private static bool EsClave(string par, string clave) =>
-        par == clave || par.StartsWith(clave + "=", StringComparison.Ordinal);
+        par.Equals(clave, StringComparison.OrdinalIgnoreCase) || par.StartsWith(clave + "=", StringComparison.OrdinalIgnoreCase);
 
     private static (string Ruta, List<string> Pares, string Fragmento) Partir(string url)
     {

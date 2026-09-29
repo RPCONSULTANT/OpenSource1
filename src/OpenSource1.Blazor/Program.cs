@@ -532,8 +532,11 @@ app.MapGet("/reports/productos/raw.xlsx", async (
 
 // Paleta Ctrl+K (Fix-Features A4): JSON mínimo del host. El navegador nunca habla con la API: el host la llama con la sesión
 // (BearerTokenHandler) y devuelve solo los resultados. 400 = consulta fuera de 2–100; 502 = la API no respondió.
-app.MapGet("/buscar/sugerencias", async (string? q, IBusquedaApiClient busqueda, ILogger<Program> logger, CancellationToken cancellationToken) =>
+app.MapGet("/buscar/sugerencias", async (string? q, HttpContext http, IBusquedaApiClient busqueda, ILogger<Program> logger, CancellationToken cancellationToken) =>
 {
+    // Nombres y RNC/cédula de clientes: no-store explícito en el propio endpoint (no depende solo del middleware global de
+    // caché para usuarios autenticados, que podría cambiar).
+    http.Response.Headers.CacheControl = "no-store";
     var termino = q?.Trim() ?? string.Empty;
     if (termino.Length is < 2 or > 100)
     {

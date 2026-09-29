@@ -336,6 +336,12 @@
     var item = clientes.FirstOrDefault(c => c.Id == DeleteId.Value);
     <ConfirmDialog Title="Confirmar eliminación" Message="Esta acción eliminará el cliente seleccionado y no se puede deshacer." Variant="danger" CancelHref="@UrlActual"><p class="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-semibold text-red-900">@((item is null) ? "Cliente seleccionado" : item.NombreComercial)</p>@if (!string.IsNullOrWhiteSpace(modalError)){<div class="mt-4"><MessageBox Type="warning" Message="@modalError" /></div>}<EditForm Model="DeleteInput" FormName="delete-cliente-list" OnValidSubmit="DeleteAsync" class="mt-4" Enhance="true"><button type="submit" class="btn-press rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700">Sí, eliminar</button><a href="@UrlActual" class="btn-press ml-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700/60">Cancelar</a></EditForm></ConfirmDialog>
 }
+else
+{
+    @* Diálogo oculto (sin CanDelete o sin deleteId): EditForm vacío con el MISMO FormName para que un POST obsoleto o
+       forzado llegue al handler y reciba el mensaje real de la API (arriba, en el aviso de la página). *@
+    <EditForm Model="DeleteInput" FormName="delete-cliente-list" OnValidSubmit="DeleteAsync"></EditForm>
+}
 
 @code {
     private static readonly (string Key, string Label)[] FilterableFields =
@@ -365,7 +371,9 @@
     [SupplyParameterFromQuery(Name = "showFilters")] private bool ShowFilters { get; set; }
     [SupplyParameterFromQuery(Name = "report")] private bool ShowReport { get; set; }
     // Selección de la barra (Fix-Features B2c): ?sel= sustituye a ?focusId=; la ficha lateral "Detalles" se muestra con ella.
-    [SupplyParameterFromQuery(Name = "sel")] private Guid? Sel { get; set; }
+    // Tolerante (ola final Fix-Features): un ?sel= ilegible se ignora como selección vacía; con Guid? el binder lanzaría.
+    [SupplyParameterFromQuery(Name = "sel")] private string? SelTexto { get; set; }
+    private Guid? Sel => InventarioVistasOpciones.ParseGuid(SelTexto);
     // Solo para redirigir la ruta antigua ?editId= a /clientes/{id}/editar.
     [SupplyParameterFromQuery(Name = "editId")] private Guid? EditId { get; set; }
     // Solo para mapear la ruta antigua ?focusId= (marcadores anteriores a B2c) a ?sel=.
@@ -441,7 +449,7 @@
         }
         catch (Exception ex) { Logger.LogWarning(ex, "Could not load clientes from API."); message = "No fue posible cargar los clientes."; messageType = "danger"; }
     }
-    private async Task DeleteAsync(){if(!DeleteId.HasValue){modalError="No se pudo identificar el cliente. Intente de nuevo."; return;} var result=await SocioNegocioApiClient.DeleteAsync(DeleteId.Value); if(result.Succeeded) Nav.NavigateTo(RetornoLocal.ConParametro(UrlActual, "ok", "deleted")); else modalError=result.Message;}
+    private async Task DeleteAsync(){if(!DeleteId.HasValue){modalError="No se pudo identificar el cliente. Intente de nuevo."; return;} var result=await SocioNegocioApiClient.DeleteAsync(DeleteId.Value); if(result.Succeeded) Nav.NavigateTo(RetornoLocal.ConParametro(UrlActual, "ok", "deleted")); else if (CanDelete) modalError=result.Message; else { messageType="warning"; message=result.Message; }}
     // Acciones de cada tarjeta (vista Tarjetas): Ficha y Editar visibles; en ⋯ las de Crear/Ver del cliente (Fix-Features C1,
     // las mismas que la barra y la ficha; "Ficha" ya es acción rápida) y Eliminar.
     private RenderFragment TarjetaAccionesDe(SocioNegocioResponse c) => __builder =>

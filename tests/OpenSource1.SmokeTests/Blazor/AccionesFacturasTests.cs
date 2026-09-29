@@ -151,6 +151,23 @@ public sealed class AccionesFacturasTests
         Assert.Contains("data-testid=\"buscar-socio\"", html);
     }
 
+    // Ola final (Minor 2): ?socioId= ilegible se ignora (alta sin cliente precargado); nunca la página de error.
+    [Theory]
+    [InlineData("/facturas-venta/nueva?socioId=abc", "data-testid=\"buscar-socio\"")]
+    [InlineData("/facturas-venta?socioId=abc", "data-testid=\"page-toolbar\"")]
+    public async Task SocioIdIlegible_SeIgnora_SinPaginaDeError(string ruta, string marcaDeLaPagina)
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+
+        var html = await HtmlSsr.HtmlAsync(app.Cliente(), ruta);
+
+        Assert.Contains(marcaDeLaPagina, html);
+        Assert.DoesNotContain("data-testid=\"cliente-precargado\"", html);
+        Assert.DoesNotContain("No se encontró el cliente indicado", html);
+        // Los enlaces construidos por la página usan el valor ya interpretado (Limpiar recarga Nav.Uri tal cual, absoluta).
+        Assert.DoesNotMatch("href=\"/[^\"]*socioId=abc", html);
+    }
+
     [Fact]
     public async Task NuevaFactura_Guardar_CreaElBorradorConElCliente()
     {
