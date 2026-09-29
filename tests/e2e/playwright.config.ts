@@ -21,5 +21,18 @@ export default defineConfig({
     screenshot: 'only-on-failure',
     trace: process.env.E2E_TRACE === '1' ? 'retain-on-failure' : 'off',
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } } }],
+  // Controles nativos en español (selector de archivo, formato de fecha): locale del contexto + idioma del navegador.
+  projects: [
+    {
+      name: 'chromium',
+      use: {
+        ...devices['Desktop Chrome'],
+        // Chromium completo (nuevo headless) en vez de headless_shell: respeta --lang en los controles nativos.
+        channel: 'chromium',
+        viewport: { width: 1440, height: 900 },
+        locale: 'es-DO',
+        launchOptions: { args: ['--lang=es-DO'], env: { ...process.env, LANG: 'es_DO.UTF-8', LANGUAGE: 'es_DO:es' } },
+      },
+    },
+  ],
 });

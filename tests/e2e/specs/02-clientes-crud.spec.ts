@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { captura, iniciarSesion, unico, usuarios } from './ayuda';
+import { captura, eliminarPrimeraFila, iniciarSesion, unico, usuarios } from './ayuda';
 
 test('clientes: agregar, consultar, modificar, eliminar y validación', async ({ page }) => {
   const nombre = unico('E2E Cliente');
@@ -10,13 +10,18 @@ test('clientes: agregar, consultar, modificar, eliminar y validación', async ({
   await expect(page.getByTestId('entity-form-page')).toBeVisible();
   await page.getByTestId('guardar').click();
   const primerError = page.locator('.validation-message').first();
-  await primerError.scrollIntoViewIfNeeded();
   await expect(primerError).not.toBeEmpty();
+  // Encuadre desde arriba (migas, título y el campo con su mensaje).
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await expect(primerError).toBeInViewport();
   await captura(page, '10-cliente-validacion', primerError);
 
+  // Alta desde un formulario limpio: la captura no debe arrastrar el mensaje de validación anterior.
+  await page.goto('/clientes/nuevo');
   await page.locator('[name="Input.NombreComercial"]').fill(nombre);
   await page.locator('[name="Input.Email"]').fill(`${nombre.replace(/\s/g, '').toLowerCase()}@e2e.local`);
-  await page.locator('[name="Input.NombreComercial"]').scrollIntoViewIfNeeded();
+  await expect(page.locator('.validation-message')).toHaveCount(0);
+  await page.evaluate(() => window.scrollTo(0, 0));
   await captura(page, '11-cliente-alta', page.getByTestId('entity-form-page').getByText(/nuevo cliente/i).first());
   await page.getByTestId('guardar').click();
   await expect(page).toHaveURL(/\/clientes\?.*ok=created/);
@@ -40,11 +45,7 @@ test('clientes: agregar, consultar, modificar, eliminar y validación', async ({
   await page.evaluate(() => window.scrollTo(0, 0));
   await captura(page, '14-cliente-modificado', page.getByRole('cell', { name: '809-555-0101' }));
 
-  await page.getByTestId('seleccionar-fila').first().click();
-  await expect(page).toHaveURL(/sel=/);
-  await page.getByTestId('accion-eliminar').click();
-  await captura(page, '15-cliente-eliminar-confirmacion', 'Sí, eliminar');
-  await page.getByRole('button', { name: 'Sí, eliminar' }).click();
-  await expect(page).toHaveURL(/ok=deleted/);
+  await eliminarPrimeraFila(page, '15-cliente-eliminar-confirmacion');
   await expect(page.getByRole('cell', { name: nombre })).toHaveCount(0);
+  await captura(page, '42-cliente-eliminado', page.getByText(/eliminado satisfactoriamente/i));
 });

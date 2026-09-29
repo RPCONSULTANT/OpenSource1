@@ -34,19 +34,24 @@ test('facturas filtradas por cliente y ficha de producto con acciones', async ({
   await page.getByRole('button', { name: 'Sí, eliminar' }).click();
   await expect(page).toHaveURL(/ok=deleted/);
 
-  // Cliente con alguna factura posteada (el de la primera factura del listado), para que el filtro muestre resultados.
+  // Cliente con alguna factura posteada: se toma de la cabecera de la primera factura ("Vender a"). Los documentos
+  // posteados no se pueden borrar, así que la suite no los crea: sin facturas la prueba se omite con su motivo.
   await page.goto('/facturas-venta');
-  const filaFactura = page.getByTestId('tabla-facturas').locator('tbody tr').filter({ has: page.getByTestId('seleccionar-fila') }).first();
-  const codigoCliente = (await filaFactura.count()) > 0
-    ? (await filaFactura.locator('td').nth(2).innerText()).trim().split(/\s+/)[0]
-    : '';
-  await page.goto(codigoCliente ? `/clientes?view=list&filters=codigo&codigo=${encodeURIComponent(codigoCliente)}` : '/clientes?view=list');
+  const numeros = page.getByTestId('tabla-facturas').locator('a[href^="/facturas-venta/"]');
+  test.skip((await numeros.count()) === 0, 'No hay facturas posteadas en la base de datos (la suite no postea documentos).');
+  const numeroFactura = (await numeros.first().innerText()).trim();
+  await numeros.first().click();
+  const venderA = page.getByTestId('cabecera-factura').locator('div').filter({ has: page.getByText('Vender a', { exact: true }) }).last();
+  const codigoCliente = (await venderA.getByText(/ — /).first().innerText()).split(' — ')[0].trim();
+  expect(codigoCliente).not.toBe('');
+  await page.goto(`/clientes?view=list&filters=codigo&codigo=${encodeURIComponent(codigoCliente)}`);
   await page.getByTestId('seleccionar-fila').first().click();
   await expect(page).toHaveURL(/sel=/);
   await page.getByTestId('menu-ver').locator('summary').click();
   await page.getByTestId('menu-ver').getByRole('link', { name: 'Facturas del cliente' }).click();
   await expect(page).toHaveURL(/\/facturas-venta\?.*socioId=/);
   await expect(page.getByTestId('filtro-cliente')).toBeVisible();
-  if (codigoCliente) await expect(page.getByTestId('tabla-facturas').getByText(codigoCliente).first()).toBeVisible();
+  // El filtro incluye las facturas donde el cliente vende o factura: la factura de origen está en la lista.
+  await expect(page.getByTestId('tabla-facturas').getByRole('link', { name: numeroFactura }).first()).toBeVisible();
   await captura(page, '28-facturas', page.getByTestId('filtro-cliente'));
 });

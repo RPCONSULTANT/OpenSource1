@@ -1,7 +1,7 @@
 # Resumen de la suite E2E (Playwright)
 
 Fecha de ejecución: 2026-09-29. Stack de Docker Compose del proyecto (Blazor en `http://localhost:8080`, API en `:8081`,
-PostgreSQL publicado en el puerto `5433` de `.env`). Navegador Chromium, viewport 1440×900, un solo worker.
+PostgreSQL publicado en el puerto `5433` de `.env`). Navegador Chromium (canal completo, `--lang=es-DO`, locale `es-DO`), viewport 1440×900, un solo worker.
 
 Ejecución (desde `tests/e2e`):
 
@@ -19,15 +19,15 @@ docker compose start api
 |---|---|---|
 | 01-acceso-menu | Login, inicio con grupos y menú por grupos del administrador | PASS |
 | 01-acceso-menu | El ejecutor no ve Administración y el modo oscuro se conserva | PASS |
-| 02-clientes-crud | Clientes: agregar, consultar, modificar, eliminar y validación | PASS |
-| 03-productos-busquedas | Productos: alta y búsquedas por código, nombre, categoría, precio y estado | PASS |
-| 04-categorias-usuarios | Categorías: agregar, modificar y eliminar | PASS |
-| 04-categorias-usuarios | Usuarios: alta en página propia y ficha para rol/estado | PASS |
+| 02-clientes-crud | Clientes: validación, agregar, consultar, modificar y eliminar | PASS |
+| 03-productos-busquedas | Productos: agregar, buscar (código, nombre, categoría, precio, estado), modificar y eliminar | PASS |
+| 04-categorias-usuarios | Categorías: agregar, consultar, modificar y eliminar | PASS |
+| 04-categorias-usuarios | Usuarios: alta, ficha, desactivar y eliminar | PASS |
 | 05-busqueda-global | Paleta Ctrl+K: módulos al escribir, flechas, Enter y Esc | PASS |
 | 05-busqueda-global | Paleta tras navegación mejorada: ArrowDown ×2 selecciona la opción 1 (no salta) | PASS |
 | 05-busqueda-global | Búsqueda en servidor `/buscar` con módulos y registros | PASS |
 | 06-acciones-documentos | Desde un cliente: Crear ▾ Factura abre la nueva factura con el cliente precargado | PASS |
-| 06-acciones-documentos | Facturas filtradas por cliente y menú Ver ▾ de producto | PASS |
+| 06-acciones-documentos | Facturas filtradas por cliente y menú Ver ▾ de producto (se omite si no hay facturas posteadas) | PASS |
 | 07-errores | 403: el ejecutor no puede abrir Usuarios | PASS |
 | 07-errores | 404: grupo inexistente | PASS |
 | 07-errores | @api-caida: aviso en el login con la API detenida | PASS (ejecución aparte) |
@@ -46,16 +46,16 @@ Ejecución con la API detenida: 1 pasada. Reportes HTML: `reporte-e2e/index.html
 | 04-grupo-facturacion.png | Página del grupo Facturación (`/modulos/facturacion`) con indicadores y módulos |
 | 05-inicio-ejecutor-oscuro.png | Inicio del ejecutor en modo oscuro, sin el grupo Administración |
 | 10-cliente-validacion.png | Alta de cliente con el mensaje de validación del nombre comercial |
-| 11-cliente-alta.png | Formulario de nuevo cliente con los datos del registro E2E |
+| 11-cliente-alta.png | Formulario de nuevo cliente (limpio, sin mensajes de validación) con los datos del registro E2E |
 | 12-cliente-seleccion-acciones.png | Lista de clientes con una fila seleccionada (`?sel=`) y las acciones habilitadas |
 | 13-cliente-menu-crear.png | Menú Crear ▾ del cliente: Factura, Nota de crédito y Cobro |
 | 14-cliente-modificado.png | Aviso "Cliente modificado" y la fila con el teléfono actualizado |
 | 15-cliente-eliminar-confirmacion.png | Diálogo de confirmación de eliminación |
-| 16-producto-busqueda-codigo.png | Productos filtrados por código |
-| 17-producto-busqueda-nombre.png | Productos filtrados por nombre |
-| 18-producto-busqueda-categoria.png | Productos filtrados por categoría (GENERAL) |
-| 19-producto-busqueda-precio.png | Productos filtrados por precio de venta (125.50) |
-| 20-producto-busqueda-estado.png | Productos filtrados por estado de existencia (sin existencia) |
+| 16-producto-busqueda-codigo.png | Productos filtrados por código: aparece A y se excluye B |
+| 17-producto-busqueda-nombre.png | Productos filtrados por nombre: aparece A y se excluye B |
+| 18-producto-busqueda-categoria.png | Productos filtrados por categoría GENERAL: aparece A; B (otra categoría) queda fuera |
+| 19-producto-busqueda-precio.png | Productos filtrados por precio 125.50: aparece A; B (99.00) queda fuera |
+| 20-producto-busqueda-estado.png | Productos filtrados por estado "Sin existencia": A y B (ninguno tiene existencia) |
 | 21-categoria-alta.png | Formulario de nueva categoría de producto |
 | 22-usuario-alta.png | Alta de usuario en su página propia |
 | 23-usuarios-listado.png | Gestión de usuarios con el aviso de usuario creado |
@@ -68,10 +68,24 @@ Ejecución con la API detenida: 1 pasada. Reportes HTML: `reporte-e2e/index.html
 | 30-error-404.png | Página no encontrada (grupo inexistente, respuesta 404) |
 | 31-error-api-caida.png | Login con la API detenida: "El servicio de autenticación no está disponible" |
 | 32-navegacion-sin-flash.png | Términos de pago tras una navegación mejorada, sin barra ni destello |
+| 33-producto-alta.png | Formulario de nuevo producto lleno (sin mensajes de validación) |
+| 34-producto-modificado.png | Aviso "Producto modificado" y la fila con el precio nuevo (130.00) |
+| 35-producto-eliminar-confirmacion.png | Diálogo de confirmación de eliminación del producto |
+| 36-categorias-listado.png | Listado de categorías filtrado por el código E2E |
+| 37-categoria-modificada.png | Aviso "Categoría modificada" y la fila con el nombre editado |
+| 38-categoria-eliminar-confirmacion.png | Diálogo de confirmación de eliminación de la categoría |
+| 39-usuario-perfil.png | Ficha del usuario E2E (datos, contraseña, rol y estado de la cuenta) |
+| 40-usuario-rol-o-estado-cambiado.png | Aviso "Cuenta desactivada" y el estado "inactiva" en la ficha |
+| 41-usuario-eliminar-o-desactivar.png | Diálogo de confirmación de eliminación del usuario |
+| 42-cliente-eliminado.png | Aviso "Cliente eliminado" y la lista sin el registro |
 
 ## Datos de prueba
 
+En las búsquedas 16–20 la suite crea dos productos de la misma ejecución: A (125.50, categoría GENERAL) y B (99.00,
+categoría E2E propia). Cada búsqueda muestra A y excluye B, salvo la de estado de existencia: ninguno tiene existencia y
+crearla exige postear un diario de inventario (documento que no se puede borrar).
+
 Los registros que crea la suite llevan el prefijo `E2E` (clientes "E2E Cliente-…", productos y categorías "E2E-…",
-usuarios `e2e-…@e2e.local`) y la propia suite los elimina desde la interfaz. Clientes, productos y categorías usan
+usuarios `e2e-…@e2e.local`) y la propia suite los elimina desde la interfaz (el usuario se desactiva antes de eliminarlo). Clientes, productos y categorías usan
 borrado lógico (`IsDeleted`), así que las filas quedan en la base de datos marcadas como eliminadas; los usuarios se
 eliminan de verdad. La suite no crea ni postea documentos (la nueva factura precargada solo se abre, no se guarda).
