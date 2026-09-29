@@ -289,7 +289,17 @@
                         Show("warning", forzado.Message, forzado.Errors);
                     }
                 }
-                catch (Exception ex)
+                catch (InvalidOperationException ex)
+                {
+                    Logger.LogWarning(ex, "Could not update cliente {Id}.", idSinCarga);
+                    Show("danger", "No fue posible actualizar el cliente.");
+                }
+                catch (System.Net.Http.HttpRequestException ex)
+                {
+                    Logger.LogWarning(ex, "Could not update cliente {Id}.", idSinCarga);
+                    Show("danger", "No fue posible actualizar el cliente.");
+                }
+                catch (TaskCanceledException ex)
                 {
                     Logger.LogWarning(ex, "Could not update cliente {Id}.", idSinCarga);
                     Show("danger", "No fue posible actualizar el cliente.");
