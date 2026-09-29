@@ -1,0 +1,10 @@
+flowchart LR
+  U["Usuario<br/>(navegador)"] -->|"GET/POST HTML<br/>cookie HttpOnly"| B["Interfaz<br/>OpenSource1.Blazor<br/>Blazor Static SSR + Tailwind"]
+  B -->|"HttpClient tipado<br/>JWT en sesión de servidor"| A["Controladores<br/>OpenSource1.Api<br/>ASP.NET Core MVC (REST)"]
+  A -->|"MediatR ISender"| L["Lógica de negocio<br/>OpenSource1.Application<br/>Commands · Queries · Behaviors"]
+  L -.->|"entidades y reglas"| C["Dominio<br/>OpenSource1.Core"]
+  L --> E["Acceso a datos<br/>OpenSource1.Infrastructure<br/>EF Core (escrituras, migraciones)"]
+  L --> D["Acceso a datos<br/>OpenSource1.Infrastructure<br/>Dapper (lecturas)"]
+  E --> P[("PostgreSQL 17<br/>AxionERP_App")]
+  D --> P
+  A -->|"ASP.NET Core Identity"| I[("PostgreSQL 17<br/>AxionERP_Identity")]

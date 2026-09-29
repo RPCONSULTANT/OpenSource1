@@ -1,0 +1,897 @@
+erDiagram
+  Almacenes {
+    uuid Id PK
+    character_varying Codigo
+    character_varying Nombre
+    character_varying DireccionLinea1
+    character_varying DireccionLinea2
+    character_varying Ciudad
+    character_varying PaisCodigo
+    boolean Bloqueado
+    boolean EsPredeterminado
+    timestamp_with_time_zone CreatedAtUtc
+    character_varying CreatedBy
+    timestamp_with_time_zone UpdatedAtUtc
+    character_varying UpdatedBy
+    boolean IsDeleted
+    timestamp_with_time_zone DeletedAtUtc
+    character_varying DeletedBy
+  }
+  AplicacionesMovimientoProducto {
+    bigint Id PK
+    bigint MovimientoEntradaId FK
+    bigint MovimientoSalidaId FK
+    numeric Cantidad
+    date FechaRegistro
+  }
+  CategoriasProducto {
+    uuid Id PK
+    character_varying Codigo
+    character_varying Nombre
+    uuid CategoriaPadreId FK
+    timestamp_with_time_zone CreatedAtUtc
+    character_varying CreatedBy
+    timestamp_with_time_zone UpdatedAtUtc
+    character_varying UpdatedBy
+    boolean IsDeleted
+    timestamp_with_time_zone DeletedAtUtc
+    character_varying DeletedBy
+  }
+  ConfiguracionesRegistro {
+    uuid Id PK
+    date PermitirRegistroDesde
+    date PermitirRegistroHasta
+    timestamp_with_time_zone CreatedAtUtc
+    character_varying CreatedBy
+    timestamp_with_time_zone UpdatedAtUtc
+    character_varying UpdatedBy
+    boolean IsDeleted
+    timestamp_with_time_zone DeletedAtUtc
+    character_varying DeletedBy
+  }
+  ConfiguracionesRegistroUsuario {
+    uuid Id PK
+    uuid UsuarioId
+    character_varying NombreUsuario
+    date PermitirRegistroDesde
+    date PermitirRegistroHasta
+    timestamp_with_time_zone CreatedAtUtc
+    character_varying CreatedBy
+    timestamp_with_time_zone UpdatedAtUtc
+    character_varying UpdatedBy
+    boolean IsDeleted
+    timestamp_with_time_zone DeletedAtUtc
+    character_varying DeletedBy
+  }
+  CuentasContables {
+    uuid Id PK
+    character_varying Numero
+    character_varying Nombre
+    smallint TipoCuenta
+    smallint TipoResultado
+    boolean PosteoDirecto
+    boolean Bloqueada
+    integer Sangria
+    timestamp_with_time_zone CreatedAtUtc
+    character_varying CreatedBy
+    timestamp_with_time_zone UpdatedAtUtc
+    character_varying UpdatedBy
+    boolean IsDeleted
+    timestamp_with_time_zone DeletedAtUtc
+    character_varying DeletedBy
+  }
+  FacturasVenta {
+    character_varying Numero PK
+    character_varying NumeroBorrador
+    uuid SocioNegocioId FK
+    uuid SocioNegocioFacturarAId FK
+    character_varying NombreFacturacion
+    character_varying RazonSocialFacturacion
+    smallint TipoDocumentoFiscal
+    character_varying NumeroDocumentoFiscal
+    character_varying DireccionFacturacionLinea1
+    character_varying DireccionFacturacionLinea2
+    character_varying CiudadFacturacion
+    character_varying PaisCodigoFacturacion
+    date FechaRegistro
+    date FechaDocumento
+    date FechaVencimiento
+    uuid TerminoPagoId FK
+    uuid GrupoNegocioId FK
+    uuid GrupoIvaNegocioId FK
+    uuid GrupoClienteContableId FK
+    uuid AlmacenId FK
+    character_varying Moneda
+    character_varying Descripcion
+    numeric ImporteSinIva
+    numeric ImporteIva
+    numeric ImporteTotal
+    bigint RegistroContableId FK
+    timestamp_with_time_zone CreatedAtUtc
+    character_varying CreatedBy
+    uuid UsuarioId
+  }
+  FacturasVentaBorrador {
+    uuid Id PK
+    character_varying Numero
+    uuid SocioNegocioId FK
+    uuid SocioNegocioFacturarAId FK
+    character_varying NombreFacturacion
+    character_varying RazonSocialFacturacion
+    smallint TipoDocumentoFiscal
+    character_varying NumeroDocumentoFiscal
+    character_varying DireccionFacturacionLinea1
+    character_varying DireccionFacturacionLinea2
+    character_varying CiudadFacturacion
+    character_varying PaisCodigoFacturacion
+    date FechaRegistro
+    date FechaDocumento
+    date FechaVencimiento
+    uuid TerminoPagoId FK
+    uuid GrupoNegocioId FK
+    uuid GrupoIvaNegocioId FK
+    uuid GrupoClienteContableId FK
+    uuid AlmacenId FK
+    smallint Estado
+    character_varying Moneda
+    character_varying Descripcion
+    timestamp_with_time_zone CreatedAtUtc
+    character_varying CreatedBy
+    timestamp_with_time_zone UpdatedAtUtc
+    character_varying UpdatedBy
+    boolean IsDeleted
+    timestamp_with_time_zone DeletedAtUtc
+    character_varying DeletedBy
+  }
+  GruposClienteContable {
+    uuid Id PK
+    uuid CuentaCxCId FK
+    uuid CuentaDescuentoId FK
+    uuid CuentaInteresId FK
+    timestamp_with_time_zone CreatedAtUtc
+    character_varying CreatedBy
+    timestamp_with_time_zone UpdatedAtUtc
+    character_varying UpdatedBy
+    boolean IsDeleted
+    timestamp_with_time_zone DeletedAtUtc
+    character_varying DeletedBy
+    character_varying Codigo
+    character_varying Descripcion
+  }
+  GruposInventario {
+    uuid Id PK
+    timestamp_with_time_zone CreatedAtUtc
+    character_varying CreatedBy
+    timestamp_with_time_zone UpdatedAtUtc
+    character_varying UpdatedBy
+    boolean IsDeleted
+    timestamp_with_time_zone DeletedAtUtc
+    character_varying DeletedBy
+    character_varying Codigo
+    character_varying Descripcion
+  }
+  GruposIvaNegocio {
+    uuid Id PK
+    timestamp_with_time_zone CreatedAtUtc
+    character_varying CreatedBy
+    timestamp_with_time_zone UpdatedAtUtc
+    character_varying UpdatedBy
+    boolean IsDeleted
+    timestamp_with_time_zone DeletedAtUtc
+    character_varying DeletedBy
+    character_varying Codigo
+    character_varying Descripcion
+  }
+  GruposIvaProducto {
+    uuid Id PK
+    timestamp_with_time_zone CreatedAtUtc
+    character_varying CreatedBy
+    timestamp_with_time_zone UpdatedAtUtc
+    character_varying UpdatedBy
+    boolean IsDeleted
+    timestamp_with_time_zone DeletedAtUtc
+    character_varying DeletedBy
+    character_varying Codigo
+    character_varying Descripcion
+  }
+  GruposNegocio {
+    uuid Id PK
+    timestamp_with_time_zone CreatedAtUtc
+    character_varying CreatedBy
+    timestamp_with_time_zone UpdatedAtUtc
+    character_varying UpdatedBy
+    boolean IsDeleted
+    timestamp_with_time_zone DeletedAtUtc
+    character_varying DeletedBy
+    character_varying Codigo
+    character_varying Descripcion
+  }
+  GruposProducto {
+    uuid Id PK
+    timestamp_with_time_zone CreatedAtUtc
+    character_varying CreatedBy
+    timestamp_with_time_zone UpdatedAtUtc
+    character_varying UpdatedBy
+    boolean IsDeleted
+    timestamp_with_time_zone DeletedAtUtc
+    character_varying DeletedBy
+    character_varying Codigo
+    character_varying Descripcion
+  }
+  LineasDiario {
+    uuid Id PK
+    uuid LoteDiarioId FK
+    integer NumeroLinea
+    date FechaRegistro
+    date FechaDocumento
+    character_varying NumeroDocumento
+    smallint TipoMovimiento
+    uuid ProductoId FK
+    uuid AlmacenId FK
+    uuid AlmacenDestinoId FK
+    uuid UnidadMedidaId FK
+    numeric CantidadPorUnidadMedida
+    numeric Cantidad
+    numeric CostoUnitario
+    numeric ImporteCosto
+    character_varying Descripcion
+    timestamp_with_time_zone CreatedAtUtc
+    character_varying CreatedBy
+    timestamp_with_time_zone UpdatedAtUtc
+    character_varying UpdatedBy
+    boolean IsDeleted
+    timestamp_with_time_zone DeletedAtUtc
+    character_varying DeletedBy
+  }
+  LineasFacturaVenta {
+    bigint Id PK
+    character_varying FacturaVentaNumero FK
+    integer NumeroLinea
+    smallint Tipo
+    uuid ProductoId FK
+    uuid CuentaContableId FK
+    character_varying Descripcion
+    uuid AlmacenId FK
+    uuid UnidadMedidaId FK
+    numeric CantidadPorUnidadMedida
+    numeric Cantidad
+    numeric PrecioUnitario
+    numeric PorcentajeDescuentoLinea
+    numeric ImporteDescuentoLinea
+    numeric ImporteLinea
+    uuid GrupoProductoId FK
+    uuid GrupoIvaProductoId FK
+    uuid GrupoInventarioId FK
+    character_varying IdentificadorIva
+    numeric PorcentajeIva
+    bigint MovimientoProductoId FK
+  }
+  LineasFacturaVentaBorrador {
+    uuid Id PK
+    uuid FacturaVentaBorradorId FK
+    integer NumeroLinea
+    smallint Tipo
+    uuid ProductoId FK
+    uuid CuentaContableId FK
+    character_varying Descripcion
+    uuid AlmacenId FK
+    uuid UnidadMedidaId FK
+    numeric CantidadPorUnidadMedida
+    numeric Cantidad
+    numeric PrecioUnitario
+    numeric PorcentajeDescuentoLinea
+    numeric ImporteDescuentoLinea
+    numeric ImporteLinea
+    uuid GrupoProductoId FK
+    uuid GrupoIvaProductoId FK
+    uuid GrupoInventarioId FK
+    character_varying IdentificadorIva
+    numeric PorcentajeIva
+    timestamp_with_time_zone CreatedAtUtc
+    character_varying CreatedBy
+    timestamp_with_time_zone UpdatedAtUtc
+    character_varying UpdatedBy
+    boolean IsDeleted
+    timestamp_with_time_zone DeletedAtUtc
+    character_varying DeletedBy
+  }
+  LineasIvaFacturaVenta {
+    bigint Id PK
+    character_varying FacturaVentaNumero FK
+    character_varying IdentificadorIva
+    numeric PorcentajeIva
+    numeric BaseImponible
+    numeric ImporteIva
+    uuid CuentaIvaId FK
+  }
+  LineasIvaNotaCreditoVenta {
+    bigint Id PK
+    character_varying NotaCreditoVentaNumero FK
+    character_varying IdentificadorIva
+    numeric PorcentajeIva
+    numeric BaseImponible
+    numeric ImporteIva
+    uuid CuentaIvaId FK
+  }
+  LineasNotaCreditoVenta {
+    bigint Id PK
+    character_varying NotaCreditoVentaNumero FK
+    integer NumeroLinea
+    bigint LineaFacturaVentaId FK
+    smallint Tipo
+    uuid ProductoId FK
+    uuid CuentaContableId FK
+    character_varying Descripcion
+    uuid AlmacenId FK
+    uuid UnidadMedidaId FK
+    numeric CantidadPorUnidadMedida
+    numeric Cantidad
+    numeric PrecioUnitario
+    numeric PorcentajeDescuentoLinea
+    numeric ImporteDescuentoLinea
+    numeric ImporteLinea
+    uuid GrupoProductoId FK
+    uuid GrupoIvaProductoId FK
+    uuid GrupoInventarioId FK
+    character_varying IdentificadorIva
+    numeric PorcentajeIva
+    boolean DevolverInventario
+    bigint MovimientoProductoId FK
+  }
+  LineasNotaCreditoVentaBorrador {
+    uuid Id PK
+    uuid NotaCreditoVentaBorradorId FK
+    bigint LineaFacturaVentaId FK
+    integer NumeroLinea
+    smallint Tipo
+    uuid ProductoId FK
+    uuid CuentaContableId FK
+    character_varying Descripcion
+    uuid AlmacenId FK
+    uuid UnidadMedidaId FK
+    numeric CantidadPorUnidadMedida
+    numeric Cantidad
+    numeric PrecioUnitario
+    numeric PorcentajeDescuentoLinea
+    numeric ImporteDescuentoLinea
+    numeric ImporteLinea
+    uuid GrupoProductoId FK
+    uuid GrupoIvaProductoId FK
+    uuid GrupoInventarioId FK
+    character_varying IdentificadorIva
+    numeric PorcentajeIva
+    boolean DevolverInventario
+    timestamp_with_time_zone CreatedAtUtc
+    character_varying CreatedBy
+    timestamp_with_time_zone UpdatedAtUtc
+    character_varying UpdatedBy
+    boolean IsDeleted
+    timestamp_with_time_zone DeletedAtUtc
+    character_varying DeletedBy
+  }
+  LineasSerie {
+    uuid Id PK
+    uuid SerieId FK
+    character_varying NumeroInicial
+    character_varying NumeroFinal
+    character_varying UltimoNumeroUsado
+    date FechaInicial
+    integer Incremento
+    boolean Bloqueada
+    timestamp_with_time_zone CreatedAtUtc
+    character_varying CreatedBy
+    timestamp_with_time_zone UpdatedAtUtc
+    character_varying UpdatedBy
+    boolean IsDeleted
+    timestamp_with_time_zone DeletedAtUtc
+    character_varying DeletedBy
+  }
+  LotesDiario {
+    uuid Id PK
+    uuid PlantillaDiarioId FK
+    character_varying Codigo
+    character_varying Nombre
+    uuid SerieId FK
+    boolean Bloqueado
+    timestamp_with_time_zone CreatedAtUtc
+    character_varying CreatedBy
+    timestamp_with_time_zone UpdatedAtUtc
+    character_varying UpdatedBy
+    boolean IsDeleted
+    timestamp_with_time_zone DeletedAtUtc
+    character_varying DeletedBy
+  }
+  MovimientosCliente {
+    bigint Id PK
+    uuid SocioNegocioId FK
+    date FechaRegistro
+    date FechaDocumento
+    date FechaVencimiento
+    smallint TipoDocumento
+    character_varying NumeroDocumento
+    character_varying Descripcion
+    numeric ImporteOriginal
+    uuid GrupoClienteContableId FK
+    uuid CuentaCxCId FK
+    smallint TipoOrigen
+    character_varying ClaveOrigen
+    timestamp_with_time_zone CreatedAtUtc
+    character_varying CreatedBy
+    uuid UsuarioId
+  }
+  MovimientosClienteDetalle {
+    bigint Id PK
+    bigint MovimientoClienteId FK
+    smallint TipoMovimiento
+    numeric Importe
+    date FechaRegistro
+    bigint MovimientoClienteAplicadoId FK
+    smallint TipoOrigen
+    character_varying ClaveOrigen
+    timestamp_with_time_zone CreatedAtUtc
+    character_varying CreatedBy
+    uuid UsuarioId
+  }
+  MovimientosContables {
+    bigint Id PK
+    uuid CuentaContableId FK
+    character_varying NumeroCuenta
+    date FechaRegistro
+    date FechaDocumento
+    smallint TipoDocumento
+    character_varying NumeroDocumento
+    character_varying Descripcion
+    numeric Importe
+    numeric Debito
+    numeric Credito
+    bigint RegistroContableId FK
+    uuid SocioNegocioId FK
+    uuid ProductoId FK
+    uuid GrupoNegocioId FK
+    uuid GrupoProductoId FK
+    uuid GrupoIvaNegocioId FK
+    uuid GrupoIvaProductoId FK
+    smallint TipoOrigen
+    character_varying ClaveOrigen
+    timestamp_with_time_zone CreatedAtUtc
+    character_varying CreatedBy
+    uuid UsuarioId
+  }
+  MovimientosProducto {
+    bigint Id PK
+    uuid ProductoId FK
+    uuid AlmacenId FK
+    smallint TipoMovimiento
+    smallint TipoDocumento
+    character_varying NumeroDocumento
+    integer NumeroLineaDocumento
+    date FechaRegistro
+    date FechaDocumento
+    numeric Cantidad
+    numeric CantidadRestante
+    numeric CantidadFacturada
+    uuid UnidadMedidaId FK
+    numeric CantidadPorUnidadMedida
+    uuid SocioNegocioId FK
+    smallint TipoOrigen
+    character_varying ClaveOrigen
+    timestamp_with_time_zone CreatedAtUtc
+    character_varying CreatedBy
+    uuid UsuarioId
+  }
+  MovimientosValor {
+    bigint Id PK
+    bigint MovimientoProductoId FK
+    uuid ProductoId FK
+    uuid AlmacenId FK
+    smallint TipoValor
+    smallint TipoMovimiento
+    date FechaRegistro
+    numeric CantidadValorada
+    numeric CantidadFacturada
+    numeric ImporteCosto
+    numeric CostoPorUnidad
+    numeric ImporteVenta
+    numeric ImporteCostoPosteadoContabilidad
+    boolean Ajuste
+    smallint TipoDocumento
+    character_varying NumeroDocumento
+    integer NumeroLineaDocumento
+    uuid GrupoInventarioId FK
+    uuid GrupoNegocioId FK
+    uuid GrupoProductoId FK
+    smallint TipoOrigen
+    character_varying ClaveOrigen
+    timestamp_with_time_zone CreatedAtUtc
+    character_varying CreatedBy
+    uuid UsuarioId
+  }
+  NotasCreditoVenta {
+    character_varying Numero PK
+    character_varying NumeroBorrador
+    character_varying FacturaVentaNumero FK
+    uuid SocioNegocioId FK
+    uuid SocioNegocioFacturarAId FK
+    character_varying NombreFacturacion
+    character_varying RazonSocialFacturacion
+    smallint TipoDocumentoFiscal
+    character_varying NumeroDocumentoFiscal
+    character_varying DireccionFacturacionLinea1
+    character_varying DireccionFacturacionLinea2
+    character_varying CiudadFacturacion
+    character_varying PaisCodigoFacturacion
+    date FechaRegistro
+    date FechaDocumento
+    uuid GrupoNegocioId FK
+    uuid GrupoIvaNegocioId FK
+    uuid GrupoClienteContableId FK
+    uuid CuentaCxCId FK
+    character_varying Moneda
+    character_varying Descripcion
+    numeric ImporteSinIva
+    numeric ImporteIva
+    numeric ImporteTotal
+    bigint RegistroContableId FK
+    timestamp_with_time_zone CreatedAtUtc
+    character_varying CreatedBy
+    uuid UsuarioId
+  }
+  NotasCreditoVentaBorrador {
+    uuid Id PK
+    character_varying Numero
+    character_varying FacturaVentaNumero FK
+    uuid SocioNegocioId FK
+    uuid SocioNegocioFacturarAId FK
+    character_varying NombreFacturacion
+    character_varying RazonSocialFacturacion
+    smallint TipoDocumentoFiscal
+    character_varying NumeroDocumentoFiscal
+    character_varying DireccionFacturacionLinea1
+    character_varying DireccionFacturacionLinea2
+    character_varying CiudadFacturacion
+    character_varying PaisCodigoFacturacion
+    date FechaRegistro
+    date FechaDocumento
+    uuid GrupoNegocioId FK
+    uuid GrupoIvaNegocioId FK
+    uuid GrupoClienteContableId FK
+    uuid CuentaCxCId FK
+    character_varying Moneda
+    character_varying Descripcion
+    timestamp_with_time_zone CreatedAtUtc
+    character_varying CreatedBy
+    timestamp_with_time_zone UpdatedAtUtc
+    character_varying UpdatedBy
+    boolean IsDeleted
+    timestamp_with_time_zone DeletedAtUtc
+    character_varying DeletedBy
+  }
+  PlantillasDiario {
+    uuid Id PK
+    character_varying Codigo
+    character_varying Nombre
+    smallint Tipo
+    uuid SerieId FK
+    timestamp_with_time_zone CreatedAtUtc
+    character_varying CreatedBy
+    timestamp_with_time_zone UpdatedAtUtc
+    character_varying UpdatedBy
+    boolean IsDeleted
+    timestamp_with_time_zone DeletedAtUtc
+    character_varying DeletedBy
+  }
+  Productos {
+    uuid Id PK
+    character_varying Codigo
+    character_varying Nombre
+    numeric PrecioVenta
+    timestamp_with_time_zone CreatedAtUtc
+    character_varying CreatedBy
+    timestamp_with_time_zone UpdatedAtUtc
+    character_varying UpdatedBy
+    character_varying ImagePath
+    timestamp_with_time_zone DeletedAtUtc
+    character_varying DeletedBy
+    boolean IsDeleted
+    uuid CategoriaId FK
+    uuid UnidadMedidaBaseId FK
+    smallint MetodoCosteo
+    numeric CostoUnitario
+    numeric CostoEstandar
+    boolean CostoAjustado
+    smallint Bloqueado
+    uuid GrupoInventarioId FK
+    uuid GrupoIvaProductoId FK
+    uuid GrupoProductoId FK
+  }
+  RegistrosContables {
+    bigint Id PK
+    character_varying NumeroRegistro
+    bigint DesdeMovimiento
+    bigint HastaMovimiento
+    timestamp_with_time_zone FechaCreacion
+    character_varying CreadoPor
+    uuid UsuarioId
+    smallint TipoOrigen
+    character_varying ClaveOrigen
+  }
+  RegistrosDiario {
+    bigint Id PK
+    character_varying NumeroRegistro
+    uuid LoteDiarioId FK
+    bigint DesdeMovimientoProducto
+    bigint HastaMovimientoProducto
+    integer Lineas
+    timestamp_with_time_zone FechaCreacion
+    character_varying CreadoPor
+    uuid UsuarioId
+  }
+  Series {
+    uuid Id PK
+    character_varying Codigo
+    character_varying Descripcion
+    boolean PermiteHuecos
+    boolean PorDefecto
+    timestamp_with_time_zone CreatedAtUtc
+    character_varying CreatedBy
+    timestamp_with_time_zone UpdatedAtUtc
+    character_varying UpdatedBy
+    boolean IsDeleted
+    timestamp_with_time_zone DeletedAtUtc
+    character_varying DeletedBy
+  }
+  SetupsContableGeneral {
+    uuid Id PK
+    uuid GrupoNegocioId FK
+    uuid GrupoProductoId FK
+    uuid CuentaVentasId FK
+    uuid CuentaCostoVentasId FK
+    uuid CuentaDescuentoVentasId FK
+    uuid CuentaAjusteInventarioId FK
+    timestamp_with_time_zone CreatedAtUtc
+    character_varying CreatedBy
+    timestamp_with_time_zone UpdatedAtUtc
+    character_varying UpdatedBy
+    boolean IsDeleted
+    timestamp_with_time_zone DeletedAtUtc
+    character_varying DeletedBy
+  }
+  SetupsInventario {
+    uuid Id PK
+    uuid AlmacenId FK
+    uuid GrupoInventarioId FK
+    uuid CuentaInventarioId FK
+    uuid CuentaAjusteInventarioId FK
+    uuid CuentaVariacionCostoId FK
+    timestamp_with_time_zone CreatedAtUtc
+    character_varying CreatedBy
+    timestamp_with_time_zone UpdatedAtUtc
+    character_varying UpdatedBy
+    boolean IsDeleted
+    timestamp_with_time_zone DeletedAtUtc
+    character_varying DeletedBy
+  }
+  SetupsIva {
+    uuid Id PK
+    uuid GrupoIvaNegocioId FK
+    uuid GrupoIvaProductoId FK
+    numeric PorcentajeIva
+    uuid CuentaIvaVentasId FK
+    uuid CuentaIvaComprasId FK
+    character_varying IdentificadorIva
+    smallint TipoCalculoIva
+    timestamp_with_time_zone CreatedAtUtc
+    character_varying CreatedBy
+    timestamp_with_time_zone UpdatedAtUtc
+    character_varying UpdatedBy
+    boolean IsDeleted
+    timestamp_with_time_zone DeletedAtUtc
+    character_varying DeletedBy
+  }
+  SociosNegocio {
+    uuid Id PK
+    character_varying Email
+    character_varying Telefono
+    timestamp_with_time_zone CreatedAtUtc
+    character_varying CreatedBy
+    timestamp_with_time_zone UpdatedAtUtc
+    character_varying UpdatedBy
+    character_varying ImagePath
+    character_varying DireccionLinea1
+    character_varying DireccionLinea2
+    character_varying PaisCodigo
+    character_varying PaisNombre
+    character_varying Sector
+    timestamp_with_time_zone DeletedAtUtc
+    character_varying DeletedBy
+    boolean IsDeleted
+    character_varying Codigo
+    smallint Tipo
+    character_varying NombreComercial
+    character_varying RazonSocial
+    smallint TipoDocumentoFiscal
+    character_varying NumeroDocumentoFiscal
+    character_varying Ciudad
+    uuid TerminoPagoId FK
+    numeric LimiteCredito
+    smallint Bloqueado
+    uuid GrupoClienteContableId FK
+    uuid GrupoIvaNegocioId FK
+    uuid GrupoNegocioId FK
+  }
+  TerminosPago {
+    uuid Id PK
+    character_varying Codigo
+    character_varying Descripcion
+    integer DiasVencimiento
+    integer DiasDescuento
+    numeric PorcentajeDescuento
+    timestamp_with_time_zone CreatedAtUtc
+    character_varying CreatedBy
+    timestamp_with_time_zone UpdatedAtUtc
+    character_varying UpdatedBy
+    boolean IsDeleted
+    timestamp_with_time_zone DeletedAtUtc
+    character_varying DeletedBy
+  }
+  UnidadesMedida {
+    uuid Id PK
+    character_varying Codigo
+    character_varying Nombre
+    smallint Decimales
+    timestamp_with_time_zone CreatedAtUtc
+    character_varying CreatedBy
+    timestamp_with_time_zone UpdatedAtUtc
+    character_varying UpdatedBy
+    boolean IsDeleted
+    timestamp_with_time_zone DeletedAtUtc
+    character_varying DeletedBy
+  }
+  UnidadesMedidaProducto {
+    uuid Id PK
+    uuid ProductoId FK
+    uuid UnidadMedidaId FK
+    numeric CantidadPorUnidadMedida
+    timestamp_with_time_zone CreatedAtUtc
+    character_varying CreatedBy
+    timestamp_with_time_zone UpdatedAtUtc
+    character_varying UpdatedBy
+    boolean IsDeleted
+    timestamp_with_time_zone DeletedAtUtc
+    character_varying DeletedBy
+  }
+  Series ||--o{ LineasSerie : "SerieId"
+  Productos ||--o{ UnidadesMedidaProducto : "ProductoId"
+  UnidadesMedida ||--o{ UnidadesMedidaProducto : "UnidadMedidaId"
+  CategoriasProducto ||--o{ CategoriasProducto : "CategoriaPadreId"
+  TerminosPago ||--o{ SociosNegocio : "TerminoPagoId"
+  CategoriasProducto ||--o{ Productos : "CategoriaId"
+  UnidadesMedida ||--o{ Productos : "UnidadMedidaBaseId"
+  Almacenes ||--o{ MovimientosProducto : "AlmacenId"
+  Productos ||--o{ MovimientosProducto : "ProductoId"
+  SociosNegocio ||--o{ MovimientosProducto : "SocioNegocioId"
+  UnidadesMedida ||--o{ MovimientosProducto : "UnidadMedidaId"
+  MovimientosProducto ||--o{ AplicacionesMovimientoProducto : "MovimientoEntradaId"
+  MovimientosProducto ||--o{ AplicacionesMovimientoProducto : "MovimientoSalidaId"
+  Almacenes ||--o{ MovimientosValor : "AlmacenId"
+  MovimientosProducto ||--o{ MovimientosValor : "MovimientoProductoId"
+  Productos ||--o{ MovimientosValor : "ProductoId"
+  Series ||--o{ PlantillasDiario : "SerieId"
+  PlantillasDiario ||--o{ LotesDiario : "PlantillaDiarioId"
+  Series ||--o{ LotesDiario : "SerieId"
+  Almacenes ||--o{ SetupsInventario : "AlmacenId"
+  CuentasContables ||--o{ SetupsInventario : "CuentaAjusteInventarioId"
+  Almacenes ||--o{ LineasDiario : "AlmacenDestinoId"
+  Almacenes ||--o{ LineasDiario : "AlmacenId"
+  LotesDiario ||--o{ LineasDiario : "LoteDiarioId"
+  Productos ||--o{ LineasDiario : "ProductoId"
+  UnidadesMedida ||--o{ LineasDiario : "UnidadMedidaId"
+  LotesDiario ||--o{ RegistrosDiario : "LoteDiarioId"
+  CuentasContables ||--o{ GruposClienteContable : "CuentaCxCId"
+  CuentasContables ||--o{ GruposClienteContable : "CuentaDescuentoId"
+  CuentasContables ||--o{ GruposClienteContable : "CuentaInteresId"
+  GruposInventario ||--o{ Productos : "GrupoInventarioId"
+  GruposIvaProducto ||--o{ Productos : "GrupoIvaProductoId"
+  GruposProducto ||--o{ Productos : "GrupoProductoId"
+  GruposClienteContable ||--o{ SociosNegocio : "GrupoClienteContableId"
+  GruposIvaNegocio ||--o{ SociosNegocio : "GrupoIvaNegocioId"
+  GruposNegocio ||--o{ SociosNegocio : "GrupoNegocioId"
+  CuentasContables ||--o{ SetupsContableGeneral : "CuentaAjusteInventarioId"
+  CuentasContables ||--o{ SetupsContableGeneral : "CuentaCostoVentasId"
+  CuentasContables ||--o{ SetupsContableGeneral : "CuentaDescuentoVentasId"
+  CuentasContables ||--o{ SetupsContableGeneral : "CuentaVentasId"
+  GruposNegocio ||--o{ SetupsContableGeneral : "GrupoNegocioId"
+  GruposProducto ||--o{ SetupsContableGeneral : "GrupoProductoId"
+  CuentasContables ||--o{ SetupsInventario : "CuentaInventarioId"
+  CuentasContables ||--o{ SetupsInventario : "CuentaVariacionCostoId"
+  GruposInventario ||--o{ SetupsInventario : "GrupoInventarioId"
+  CuentasContables ||--o{ SetupsIva : "CuentaIvaComprasId"
+  CuentasContables ||--o{ SetupsIva : "CuentaIvaVentasId"
+  GruposIvaNegocio ||--o{ SetupsIva : "GrupoIvaNegocioId"
+  GruposIvaProducto ||--o{ SetupsIva : "GrupoIvaProductoId"
+  CuentasContables ||--o{ MovimientosContables : "CuentaContableId"
+  GruposIvaNegocio ||--o{ MovimientosContables : "GrupoIvaNegocioId"
+  GruposIvaProducto ||--o{ MovimientosContables : "GrupoIvaProductoId"
+  GruposNegocio ||--o{ MovimientosContables : "GrupoNegocioId"
+  GruposProducto ||--o{ MovimientosContables : "GrupoProductoId"
+  Productos ||--o{ MovimientosContables : "ProductoId"
+  RegistrosContables ||--o{ MovimientosContables : "RegistroContableId"
+  SociosNegocio ||--o{ MovimientosContables : "SocioNegocioId"
+  GruposInventario ||--o{ MovimientosValor : "GrupoInventarioId"
+  GruposNegocio ||--o{ MovimientosValor : "GrupoNegocioId"
+  GruposProducto ||--o{ MovimientosValor : "GrupoProductoId"
+  Almacenes ||--o{ FacturasVentaBorrador : "AlmacenId"
+  GruposClienteContable ||--o{ FacturasVentaBorrador : "GrupoClienteContableId"
+  GruposIvaNegocio ||--o{ FacturasVentaBorrador : "GrupoIvaNegocioId"
+  GruposNegocio ||--o{ FacturasVentaBorrador : "GrupoNegocioId"
+  SociosNegocio ||--o{ FacturasVentaBorrador : "SocioNegocioFacturarAId"
+  SociosNegocio ||--o{ FacturasVentaBorrador : "SocioNegocioId"
+  TerminosPago ||--o{ FacturasVentaBorrador : "TerminoPagoId"
+  Almacenes ||--o{ LineasFacturaVentaBorrador : "AlmacenId"
+  CuentasContables ||--o{ LineasFacturaVentaBorrador : "CuentaContableId"
+  FacturasVentaBorrador ||--o{ LineasFacturaVentaBorrador : "FacturaVentaBorradorId"
+  GruposInventario ||--o{ LineasFacturaVentaBorrador : "GrupoInventarioId"
+  GruposIvaProducto ||--o{ LineasFacturaVentaBorrador : "GrupoIvaProductoId"
+  GruposProducto ||--o{ LineasFacturaVentaBorrador : "GrupoProductoId"
+  Productos ||--o{ LineasFacturaVentaBorrador : "ProductoId"
+  UnidadesMedida ||--o{ LineasFacturaVentaBorrador : "UnidadMedidaId"
+  Almacenes ||--o{ FacturasVenta : "AlmacenId"
+  GruposClienteContable ||--o{ FacturasVenta : "GrupoClienteContableId"
+  GruposIvaNegocio ||--o{ FacturasVenta : "GrupoIvaNegocioId"
+  GruposNegocio ||--o{ FacturasVenta : "GrupoNegocioId"
+  RegistrosContables ||--o{ FacturasVenta : "RegistroContableId"
+  SociosNegocio ||--o{ FacturasVenta : "SocioNegocioFacturarAId"
+  SociosNegocio ||--o{ FacturasVenta : "SocioNegocioId"
+  TerminosPago ||--o{ FacturasVenta : "TerminoPagoId"
+  CuentasContables ||--o{ MovimientosCliente : "CuentaCxCId"
+  GruposClienteContable ||--o{ MovimientosCliente : "GrupoClienteContableId"
+  SociosNegocio ||--o{ MovimientosCliente : "SocioNegocioId"
+  Almacenes ||--o{ LineasFacturaVenta : "AlmacenId"
+  CuentasContables ||--o{ LineasFacturaVenta : "CuentaContableId"
+  FacturasVenta ||--o{ LineasFacturaVenta : "FacturaVentaNumero"
+  GruposInventario ||--o{ LineasFacturaVenta : "GrupoInventarioId"
+  GruposIvaProducto ||--o{ LineasFacturaVenta : "GrupoIvaProductoId"
+  GruposProducto ||--o{ LineasFacturaVenta : "GrupoProductoId"
+  MovimientosProducto ||--o{ LineasFacturaVenta : "MovimientoProductoId"
+  Productos ||--o{ LineasFacturaVenta : "ProductoId"
+  UnidadesMedida ||--o{ LineasFacturaVenta : "UnidadMedidaId"
+  CuentasContables ||--o{ LineasIvaFacturaVenta : "CuentaIvaId"
+  FacturasVenta ||--o{ LineasIvaFacturaVenta : "FacturaVentaNumero"
+  MovimientosCliente ||--o{ MovimientosClienteDetalle : "MovimientoClienteAplicadoId"
+  MovimientosCliente ||--o{ MovimientosClienteDetalle : "MovimientoClienteId"
+  CuentasContables ||--o{ NotasCreditoVenta : "CuentaCxCId"
+  FacturasVenta ||--o{ NotasCreditoVenta : "FacturaVentaNumero"
+  GruposClienteContable ||--o{ NotasCreditoVenta : "GrupoClienteContableId"
+  GruposIvaNegocio ||--o{ NotasCreditoVenta : "GrupoIvaNegocioId"
+  GruposNegocio ||--o{ NotasCreditoVenta : "GrupoNegocioId"
+  RegistrosContables ||--o{ NotasCreditoVenta : "RegistroContableId"
+  SociosNegocio ||--o{ NotasCreditoVenta : "SocioNegocioFacturarAId"
+  SociosNegocio ||--o{ NotasCreditoVenta : "SocioNegocioId"
+  CuentasContables ||--o{ NotasCreditoVentaBorrador : "CuentaCxCId"
+  FacturasVenta ||--o{ NotasCreditoVentaBorrador : "FacturaVentaNumero"
+  GruposClienteContable ||--o{ NotasCreditoVentaBorrador : "GrupoClienteContableId"
+  GruposIvaNegocio ||--o{ NotasCreditoVentaBorrador : "GrupoIvaNegocioId"
+  GruposNegocio ||--o{ NotasCreditoVentaBorrador : "GrupoNegocioId"
+  SociosNegocio ||--o{ NotasCreditoVentaBorrador : "SocioNegocioFacturarAId"
+  SociosNegocio ||--o{ NotasCreditoVentaBorrador : "SocioNegocioId"
+  CuentasContables ||--o{ LineasIvaNotaCreditoVenta : "CuentaIvaId"
+  NotasCreditoVenta ||--o{ LineasIvaNotaCreditoVenta : "NotaCreditoVentaNumero"
+  NotasCreditoVentaBorrador ||--o{ LineasNotaCreditoVentaBorrador : "NotaCreditoVentaBorradorId"
+  Productos ||--o{ LineasNotaCreditoVentaBorrador : "ProductoId"
+  Almacenes ||--o{ LineasNotaCreditoVenta : "AlmacenId"
+  CuentasContables ||--o{ LineasNotaCreditoVenta : "CuentaContableId"
+  GruposInventario ||--o{ LineasNotaCreditoVenta : "GrupoInventarioId"
+  GruposIvaProducto ||--o{ LineasNotaCreditoVenta : "GrupoIvaProductoId"
+  GruposProducto ||--o{ LineasNotaCreditoVenta : "GrupoProductoId"
+  LineasFacturaVenta ||--o{ LineasNotaCreditoVenta : "LineaFacturaVentaId"
+  MovimientosProducto ||--o{ LineasNotaCreditoVenta : "MovimientoProductoId"
+  NotasCreditoVenta ||--o{ LineasNotaCreditoVenta : "NotaCreditoVentaNumero"
+  Productos ||--o{ LineasNotaCreditoVenta : "ProductoId"
+  UnidadesMedida ||--o{ LineasNotaCreditoVenta : "UnidadMedidaId"
+  Almacenes ||--o{ LineasNotaCreditoVentaBorrador : "AlmacenId"
+  CuentasContables ||--o{ LineasNotaCreditoVentaBorrador : "CuentaContableId"
+  GruposInventario ||--o{ LineasNotaCreditoVentaBorrador : "GrupoInventarioId"
+  GruposIvaProducto ||--o{ LineasNotaCreditoVentaBorrador : "GrupoIvaProductoId"
+  GruposProducto ||--o{ LineasNotaCreditoVentaBorrador : "GrupoProductoId"
+  LineasFacturaVenta ||--o{ LineasNotaCreditoVentaBorrador : "LineaFacturaVentaId"
+  UnidadesMedida ||--o{ LineasNotaCreditoVentaBorrador : "UnidadMedidaId"

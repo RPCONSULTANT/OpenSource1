@@ -1,0 +1,209 @@
+erDiagram
+  SociosNegocio {
+    uuid Id PK
+    character_varying Email
+    character_varying Telefono
+    timestamp_with_time_zone CreatedAtUtc
+    character_varying CreatedBy
+    timestamp_with_time_zone UpdatedAtUtc
+    character_varying UpdatedBy
+    character_varying ImagePath
+    character_varying DireccionLinea1
+    character_varying DireccionLinea2
+    character_varying PaisCodigo
+    character_varying PaisNombre
+    character_varying Sector
+    timestamp_with_time_zone DeletedAtUtc
+    character_varying DeletedBy
+    boolean IsDeleted
+    character_varying Codigo
+    smallint Tipo
+    character_varying NombreComercial
+    character_varying RazonSocial
+    smallint TipoDocumentoFiscal
+    character_varying NumeroDocumentoFiscal
+    character_varying Ciudad
+    uuid TerminoPagoId FK
+    numeric LimiteCredito
+    smallint Bloqueado
+    uuid GrupoClienteContableId FK
+    uuid GrupoIvaNegocioId FK
+    uuid GrupoNegocioId FK
+  }
+  TerminosPago {
+    uuid Id PK
+    character_varying Codigo
+    character_varying Descripcion
+    integer DiasVencimiento
+    integer DiasDescuento
+    numeric PorcentajeDescuento
+    timestamp_with_time_zone CreatedAtUtc
+    character_varying CreatedBy
+    timestamp_with_time_zone UpdatedAtUtc
+    character_varying UpdatedBy
+    boolean IsDeleted
+    timestamp_with_time_zone DeletedAtUtc
+    character_varying DeletedBy
+  }
+  Productos {
+    uuid Id PK
+    character_varying Codigo
+    character_varying Nombre
+    numeric PrecioVenta
+    timestamp_with_time_zone CreatedAtUtc
+    character_varying CreatedBy
+    timestamp_with_time_zone UpdatedAtUtc
+    character_varying UpdatedBy
+    character_varying ImagePath
+    timestamp_with_time_zone DeletedAtUtc
+    character_varying DeletedBy
+    boolean IsDeleted
+    uuid CategoriaId FK
+    uuid UnidadMedidaBaseId FK
+    smallint MetodoCosteo
+    numeric CostoUnitario
+    numeric CostoEstandar
+    boolean CostoAjustado
+    smallint Bloqueado
+    uuid GrupoInventarioId FK
+    uuid GrupoIvaProductoId FK
+    uuid GrupoProductoId FK
+  }
+  CategoriasProducto {
+    uuid Id PK
+    character_varying Codigo
+    character_varying Nombre
+    uuid CategoriaPadreId FK
+    timestamp_with_time_zone CreatedAtUtc
+    character_varying CreatedBy
+    timestamp_with_time_zone UpdatedAtUtc
+    character_varying UpdatedBy
+    boolean IsDeleted
+    timestamp_with_time_zone DeletedAtUtc
+    character_varying DeletedBy
+  }
+  UnidadesMedida {
+    uuid Id PK
+    character_varying Codigo
+    character_varying Nombre
+    smallint Decimales
+    timestamp_with_time_zone CreatedAtUtc
+    character_varying CreatedBy
+    timestamp_with_time_zone UpdatedAtUtc
+    character_varying UpdatedBy
+    boolean IsDeleted
+    timestamp_with_time_zone DeletedAtUtc
+    character_varying DeletedBy
+  }
+  Almacenes {
+    uuid Id PK
+    character_varying Codigo
+    character_varying Nombre
+    character_varying DireccionLinea1
+    character_varying DireccionLinea2
+    character_varying Ciudad
+    character_varying PaisCodigo
+    boolean Bloqueado
+    boolean EsPredeterminado
+    timestamp_with_time_zone CreatedAtUtc
+    character_varying CreatedBy
+    timestamp_with_time_zone UpdatedAtUtc
+    character_varying UpdatedBy
+    boolean IsDeleted
+    timestamp_with_time_zone DeletedAtUtc
+    character_varying DeletedBy
+  }
+  MovimientosProducto {
+    bigint Id PK
+    uuid ProductoId FK
+    uuid AlmacenId FK
+    smallint TipoMovimiento
+    smallint TipoDocumento
+    character_varying NumeroDocumento
+    integer NumeroLineaDocumento
+    date FechaRegistro
+    date FechaDocumento
+    numeric Cantidad
+    numeric CantidadRestante
+    numeric CantidadFacturada
+    uuid UnidadMedidaId FK
+    numeric CantidadPorUnidadMedida
+    uuid SocioNegocioId FK
+    smallint TipoOrigen
+    character_varying ClaveOrigen
+    timestamp_with_time_zone CreatedAtUtc
+    character_varying CreatedBy
+    uuid UsuarioId
+  }
+  MovimientosValor {
+    bigint Id PK
+    bigint MovimientoProductoId FK
+    uuid ProductoId FK
+    uuid AlmacenId FK
+    smallint TipoValor
+    smallint TipoMovimiento
+    date FechaRegistro
+    numeric CantidadValorada
+    numeric CantidadFacturada
+    numeric ImporteCosto
+    numeric CostoPorUnidad
+    numeric ImporteVenta
+    numeric ImporteCostoPosteadoContabilidad
+    boolean Ajuste
+    smallint TipoDocumento
+    character_varying NumeroDocumento
+    integer NumeroLineaDocumento
+    uuid GrupoInventarioId FK
+    uuid GrupoNegocioId FK
+    uuid GrupoProductoId FK
+    smallint TipoOrigen
+    character_varying ClaveOrigen
+    timestamp_with_time_zone CreatedAtUtc
+    character_varying CreatedBy
+    uuid UsuarioId
+  }
+  AspNetUsers {
+    text Id PK
+    character_varying FullName
+    boolean IsActive
+    timestamp_with_time_zone CreatedAtUtc
+    timestamp_with_time_zone UpdatedAtUtc
+    character_varying UserName
+    character_varying NormalizedUserName
+    character_varying Email
+    character_varying NormalizedEmail
+    boolean EmailConfirmed
+    text PasswordHash
+    text SecurityStamp
+    text ConcurrencyStamp
+    text PhoneNumber
+    boolean PhoneNumberConfirmed
+    boolean TwoFactorEnabled
+    timestamp_with_time_zone LockoutEnd
+    boolean LockoutEnabled
+    integer AccessFailedCount
+    character_varying ProfileImagePath
+  }
+  AspNetRoles {
+    text Id PK
+    character_varying Name
+    character_varying NormalizedName
+    text ConcurrencyStamp
+  }
+  AspNetUserRoles {
+    text UserId PK, FK
+    text RoleId PK, FK
+  }
+  CategoriasProducto ||--o{ CategoriasProducto : "CategoriaPadreId"
+  TerminosPago ||--o{ SociosNegocio : "TerminoPagoId"
+  CategoriasProducto ||--o{ Productos : "CategoriaId"
+  UnidadesMedida ||--o{ Productos : "UnidadMedidaBaseId"
+  Almacenes ||--o{ MovimientosProducto : "AlmacenId"
+  Productos ||--o{ MovimientosProducto : "ProductoId"
+  SociosNegocio ||--o{ MovimientosProducto : "SocioNegocioId"
+  UnidadesMedida ||--o{ MovimientosProducto : "UnidadMedidaId"
+  Almacenes ||--o{ MovimientosValor : "AlmacenId"
+  MovimientosProducto ||--o{ MovimientosValor : "MovimientoProductoId"
+  Productos ||--o{ MovimientosValor : "ProductoId"
+  AspNetRoles ||--o{ AspNetUserRoles : "RoleId"
+  AspNetUsers ||--o{ AspNetUserRoles : "UserId"

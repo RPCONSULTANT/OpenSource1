@@ -1,0 +1,257 @@
+erDiagram
+  SociosNegocio {
+    uuid Id PK
+    character_varying Email
+    character_varying Telefono
+    timestamp_with_time_zone CreatedAtUtc
+    character_varying CreatedBy
+    timestamp_with_time_zone UpdatedAtUtc
+    character_varying UpdatedBy
+    character_varying ImagePath
+    character_varying DireccionLinea1
+    character_varying DireccionLinea2
+    character_varying PaisCodigo
+    character_varying PaisNombre
+    character_varying Sector
+    timestamp_with_time_zone DeletedAtUtc
+    character_varying DeletedBy
+    boolean IsDeleted
+    character_varying Codigo
+    smallint Tipo
+    character_varying NombreComercial
+    character_varying RazonSocial
+    smallint TipoDocumentoFiscal
+    character_varying NumeroDocumentoFiscal
+    character_varying Ciudad
+    uuid TerminoPagoId FK
+    numeric LimiteCredito
+    smallint Bloqueado
+    uuid GrupoClienteContableId FK
+    uuid GrupoIvaNegocioId FK
+    uuid GrupoNegocioId FK
+  }
+  FacturasVentaBorrador {
+    uuid Id PK
+    character_varying Numero
+    uuid SocioNegocioId FK
+    uuid SocioNegocioFacturarAId FK
+    character_varying NombreFacturacion
+    character_varying RazonSocialFacturacion
+    smallint TipoDocumentoFiscal
+    character_varying NumeroDocumentoFiscal
+    character_varying DireccionFacturacionLinea1
+    character_varying DireccionFacturacionLinea2
+    character_varying CiudadFacturacion
+    character_varying PaisCodigoFacturacion
+    date FechaRegistro
+    date FechaDocumento
+    date FechaVencimiento
+    uuid TerminoPagoId FK
+    uuid GrupoNegocioId FK
+    uuid GrupoIvaNegocioId FK
+    uuid GrupoClienteContableId FK
+    uuid AlmacenId FK
+    smallint Estado
+    character_varying Moneda
+    character_varying Descripcion
+    timestamp_with_time_zone CreatedAtUtc
+    character_varying CreatedBy
+    timestamp_with_time_zone UpdatedAtUtc
+    character_varying UpdatedBy
+    boolean IsDeleted
+    timestamp_with_time_zone DeletedAtUtc
+    character_varying DeletedBy
+  }
+  LineasFacturaVentaBorrador {
+    uuid Id PK
+    uuid FacturaVentaBorradorId FK
+    integer NumeroLinea
+    smallint Tipo
+    uuid ProductoId FK
+    uuid CuentaContableId FK
+    character_varying Descripcion
+    uuid AlmacenId FK
+    uuid UnidadMedidaId FK
+    numeric CantidadPorUnidadMedida
+    numeric Cantidad
+    numeric PrecioUnitario
+    numeric PorcentajeDescuentoLinea
+    numeric ImporteDescuentoLinea
+    numeric ImporteLinea
+    uuid GrupoProductoId FK
+    uuid GrupoIvaProductoId FK
+    uuid GrupoInventarioId FK
+    character_varying IdentificadorIva
+    numeric PorcentajeIva
+    timestamp_with_time_zone CreatedAtUtc
+    character_varying CreatedBy
+    timestamp_with_time_zone UpdatedAtUtc
+    character_varying UpdatedBy
+    boolean IsDeleted
+    timestamp_with_time_zone DeletedAtUtc
+    character_varying DeletedBy
+  }
+  FacturasVenta {
+    character_varying Numero PK
+    character_varying NumeroBorrador
+    uuid SocioNegocioId FK
+    uuid SocioNegocioFacturarAId FK
+    character_varying NombreFacturacion
+    character_varying RazonSocialFacturacion
+    smallint TipoDocumentoFiscal
+    character_varying NumeroDocumentoFiscal
+    character_varying DireccionFacturacionLinea1
+    character_varying DireccionFacturacionLinea2
+    character_varying CiudadFacturacion
+    character_varying PaisCodigoFacturacion
+    date FechaRegistro
+    date FechaDocumento
+    date FechaVencimiento
+    uuid TerminoPagoId FK
+    uuid GrupoNegocioId FK
+    uuid GrupoIvaNegocioId FK
+    uuid GrupoClienteContableId FK
+    uuid AlmacenId FK
+    character_varying Moneda
+    character_varying Descripcion
+    numeric ImporteSinIva
+    numeric ImporteIva
+    numeric ImporteTotal
+    bigint RegistroContableId FK
+    timestamp_with_time_zone CreatedAtUtc
+    character_varying CreatedBy
+    uuid UsuarioId
+  }
+  LineasFacturaVenta {
+    bigint Id PK
+    character_varying FacturaVentaNumero FK
+    integer NumeroLinea
+    smallint Tipo
+    uuid ProductoId FK
+    uuid CuentaContableId FK
+    character_varying Descripcion
+    uuid AlmacenId FK
+    uuid UnidadMedidaId FK
+    numeric CantidadPorUnidadMedida
+    numeric Cantidad
+    numeric PrecioUnitario
+    numeric PorcentajeDescuentoLinea
+    numeric ImporteDescuentoLinea
+    numeric ImporteLinea
+    uuid GrupoProductoId FK
+    uuid GrupoIvaProductoId FK
+    uuid GrupoInventarioId FK
+    character_varying IdentificadorIva
+    numeric PorcentajeIva
+    bigint MovimientoProductoId FK
+  }
+  LineasIvaFacturaVenta {
+    bigint Id PK
+    character_varying FacturaVentaNumero FK
+    character_varying IdentificadorIva
+    numeric PorcentajeIva
+    numeric BaseImponible
+    numeric ImporteIva
+    uuid CuentaIvaId FK
+  }
+  NotasCreditoVenta {
+    character_varying Numero PK
+    character_varying NumeroBorrador
+    character_varying FacturaVentaNumero FK
+    uuid SocioNegocioId FK
+    uuid SocioNegocioFacturarAId FK
+    character_varying NombreFacturacion
+    character_varying RazonSocialFacturacion
+    smallint TipoDocumentoFiscal
+    character_varying NumeroDocumentoFiscal
+    character_varying DireccionFacturacionLinea1
+    character_varying DireccionFacturacionLinea2
+    character_varying CiudadFacturacion
+    character_varying PaisCodigoFacturacion
+    date FechaRegistro
+    date FechaDocumento
+    uuid GrupoNegocioId FK
+    uuid GrupoIvaNegocioId FK
+    uuid GrupoClienteContableId FK
+    uuid CuentaCxCId FK
+    character_varying Moneda
+    character_varying Descripcion
+    numeric ImporteSinIva
+    numeric ImporteIva
+    numeric ImporteTotal
+    bigint RegistroContableId FK
+    timestamp_with_time_zone CreatedAtUtc
+    character_varying CreatedBy
+    uuid UsuarioId
+  }
+  LineasNotaCreditoVenta {
+    bigint Id PK
+    character_varying NotaCreditoVentaNumero FK
+    integer NumeroLinea
+    bigint LineaFacturaVentaId FK
+    smallint Tipo
+    uuid ProductoId FK
+    uuid CuentaContableId FK
+    character_varying Descripcion
+    uuid AlmacenId FK
+    uuid UnidadMedidaId FK
+    numeric CantidadPorUnidadMedida
+    numeric Cantidad
+    numeric PrecioUnitario
+    numeric PorcentajeDescuentoLinea
+    numeric ImporteDescuentoLinea
+    numeric ImporteLinea
+    uuid GrupoProductoId FK
+    uuid GrupoIvaProductoId FK
+    uuid GrupoInventarioId FK
+    character_varying IdentificadorIva
+    numeric PorcentajeIva
+    boolean DevolverInventario
+    bigint MovimientoProductoId FK
+  }
+  MovimientosCliente {
+    bigint Id PK
+    uuid SocioNegocioId FK
+    date FechaRegistro
+    date FechaDocumento
+    date FechaVencimiento
+    smallint TipoDocumento
+    character_varying NumeroDocumento
+    character_varying Descripcion
+    numeric ImporteOriginal
+    uuid GrupoClienteContableId FK
+    uuid CuentaCxCId FK
+    smallint TipoOrigen
+    character_varying ClaveOrigen
+    timestamp_with_time_zone CreatedAtUtc
+    character_varying CreatedBy
+    uuid UsuarioId
+  }
+  MovimientosClienteDetalle {
+    bigint Id PK
+    bigint MovimientoClienteId FK
+    smallint TipoMovimiento
+    numeric Importe
+    date FechaRegistro
+    bigint MovimientoClienteAplicadoId FK
+    smallint TipoOrigen
+    character_varying ClaveOrigen
+    timestamp_with_time_zone CreatedAtUtc
+    character_varying CreatedBy
+    uuid UsuarioId
+  }
+  SociosNegocio ||--o{ FacturasVentaBorrador : "SocioNegocioFacturarAId"
+  SociosNegocio ||--o{ FacturasVentaBorrador : "SocioNegocioId"
+  FacturasVentaBorrador ||--o{ LineasFacturaVentaBorrador : "FacturaVentaBorradorId"
+  SociosNegocio ||--o{ FacturasVenta : "SocioNegocioFacturarAId"
+  SociosNegocio ||--o{ FacturasVenta : "SocioNegocioId"
+  SociosNegocio ||--o{ MovimientosCliente : "SocioNegocioId"
+  FacturasVenta ||--o{ LineasFacturaVenta : "FacturaVentaNumero"
+  FacturasVenta ||--o{ LineasIvaFacturaVenta : "FacturaVentaNumero"
+  MovimientosCliente ||--o{ MovimientosClienteDetalle : "MovimientoClienteAplicadoId"
+  MovimientosCliente ||--o{ MovimientosClienteDetalle : "MovimientoClienteId"
+  FacturasVenta ||--o{ NotasCreditoVenta : "FacturaVentaNumero"
+  SociosNegocio ||--o{ NotasCreditoVenta : "SocioNegocioFacturarAId"
+  SociosNegocio ||--o{ NotasCreditoVenta : "SocioNegocioId"
+  LineasFacturaVenta ||--o{ LineasNotaCreditoVenta : "LineaFacturaVentaId"
+  NotasCreditoVenta ||--o{ LineasNotaCreditoVenta : "NotaCreditoVentaNumero"
