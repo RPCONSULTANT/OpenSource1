@@ -1,0 +1,76 @@
+@* NavMenu — menú lateral por grupos (Fix-Features A2). Fuente: IRegistroModulos. El grupo de la ruta actual llega abierto
+   desde el servidor (<details open>) y el módulo actual con aria-current; no hay JS. *@
+@inject IRegistroModulos Registro
+@inject NavigationManager Nav
+
+<nav class="flex-1 space-y-1 overflow-y-auto px-3 py-4" role="navigation" aria-label="Menú principal" data-testid="nav-menu">
+    <a href="/" class="@ClaseEnlace(esInicio)" aria-current="@(esInicio ? "page" : null)">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4 shrink-0" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="@IconosModulo.Inicio" />
+        </svg>
+        Inicio
+    </a>
+    @foreach (var grupo in grupos)
+    {
+        var abierto = grupo.Clave == grupoActual;
+        <details data-grupo="@grupo.Clave" open="@abierto" class="group/grupo">
+            <summary class="flex cursor-pointer list-none items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800 [&::-webkit-details-marker]:hidden">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4 shrink-0 text-slate-400" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="@grupo.Icono" />
+                </svg>
+                <span class="flex-1">@grupo.Titulo</span>
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-3.5 shrink-0 text-slate-400 transition-transform group-open/grupo:rotate-90" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                </svg>
+            </summary>
+            <div class="mb-2 mt-0.5 space-y-0.5 border-l border-slate-100 pl-3 ml-5 dark:border-slate-800">
+                <a href="@($"/modulos/{grupo.Clave}")" class="block rounded-md px-2.5 py-1.5 text-xs font-semibold text-slate-400 hover:text-brand-600">Ver grupo</a>
+                @foreach (var modulo in modulosPorGrupo[grupo.Clave])
+                {
+                    var actual = modulo.Clave == moduloActual;
+                    <a href="@modulo.Ruta" class="@ClaseSubenlace(actual)" aria-current="@(actual ? "page" : null)">@modulo.Titulo</a>
+                }
+            </div>
+        </details>
+    }
+</nav>
+
+@code {
+    [CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+    private IReadOnlyList<GrupoModulo> grupos = [];
+    private Dictionary<string, List<Modulo>> modulosPorGrupo = [];
+    private string? grupoActual;
+    private string? moduloActual;
+    private bool esInicio;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var ruta = Nav.ToBaseRelativePath(Nav.Uri);
+        var camino = ruta.Split('?', '#')[0].Trim('/');
+        esInicio = camino.Length == 0;
+
+        var modulo = Registro.ModuloDeRuta(ruta);
+        moduloActual = modulo?.Clave;
+        grupoActual = modulo?.Grupo
+            ?? (camino.StartsWith("modulos/", StringComparison.OrdinalIgnoreCase) ? camino["modulos/".Length..].ToLowerInvariant() : null);
+
+        if (AuthenticationStateTask is null)
+        {
+            return;
+        }
+
+        var usuario = (await AuthenticationStateTask).User;
+        var visibles = await Registro.VisiblesAsync(usuario);
+        modulosPorGrupo = visibles.GroupBy(m => m.Grupo).ToDictionary(g => g.Key, g => g.ToList());
+        grupos = Registro.Grupos.Where(g => modulosPorGrupo.ContainsKey(g.Clave)).OrderBy(g => g.Orden).ToList();
+    }
+
+    private static string ClaseEnlace(bool actual) => actual
+        ? "flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-semibold bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-400"
+        : "flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-100";
+
+    private static string ClaseSubenlace(bool actual) => actual
+        ? "block rounded-md px-2.5 py-1.5 text-sm font-semibold bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-400"
+        : "block rounded-md px-2.5 py-1.5 text-sm text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800";
+}
