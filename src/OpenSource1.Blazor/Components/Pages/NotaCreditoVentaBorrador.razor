@@ -1,0 +1,645 @@
+@page "/notas-credito-venta/borradores/{BorradorId:guid}"
+@attribute [Authorize(Policy = ApplicationPolicies.CanConsult)]
+@using System.Globalization
+@using Microsoft.AspNetCore.Authorization
+@using OpenSource1.Application.Features.FacturasVenta.Calculo
+@using OpenSource1.Application.Features.NotasCreditoVenta.Borradores.Dtos
+@using OpenSource1.Application.Security
+@using OpenSource1.Blazor.Services
+@using OpenSource1.Core.Enums
+@inject INotaCreditoVentaApiClient NotaApiClient
+@inject IAuthorizationService AuthorizationService
+@inject ILogger<NotaCreditoVentaBorrador> Logger
+@inject NavigationManager Nav
+
+<PageTitle>Borrador de nota de crédito – AxionERP</PageTitle>
+
+<div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+    <div>
+        <p class="text-xs font-bold tracking-widest uppercase text-brand-600 mb-1">Ventas · Borrador de nota de crédito</p>
+        <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">@(borrador is null ? "Borrador" : $"Borrador {borrador.Numero}")</h1>
+        @if (borrador is not null)
+        {
+            <p class="text-sm text-slate-500 mt-1">
+                @borrador.NombreFacturacion · Factura
+                <a class="font-mono text-brand-700 underline" href="@($"/facturas-venta/{Uri.EscapeDataString(borrador.FacturaVentaNumero)}")" data-testid="factura-origen">@borrador.FacturaVentaNumero</a>
+            </p>
+        }
+    </div>
+    <div class="flex flex-wrap items-center gap-2">
+        <a href="/notas-credito-venta/borradores" class="btn-press rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Volver al listado</a>
+        @if (borrador is not null && canModify)
+        {
+            <a href="@($"/notas-credito-venta/borradores?editId={BorradorId}")" class="btn-press rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-amber-600">Modificar cabecera</a>
+        }
+    </div>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(message))
+{
+    <div class="mb-6">
+        @if (messageType == "success")
+        {
+            <ActionFeedback Type="success" Message="@message" />
+        }
+        else
+        {
+            <MessageBox Type="@messageType" Message="@message" Errors="@errores" />
+        }
+    </div>
+}
+
+@if (posteoError is not null && !MuestraDialogoPosteo)
+{
+    <div class="mb-6" data-testid="errores-posteo"><MessageBox Type="warning" Message="@posteoError" Errors="@posteoErrores" /></div>
+}
+
+@if (loadError is not null)
+{
+    <MessageBox Type="danger" Message="@loadError" />
+}
+else if (borrador is null)
+{
+    <div class="rounded-2xl border border-slate-200 bg-white px-8 py-12 text-center text-slate-400 shadow-sm">
+        <p class="font-semibold text-slate-500">No se encontró el borrador de nota de crédito solicitado (puede haber sido posteado o eliminado).</p>
+        <p class="mt-2 text-sm"><a class="underline" href="/notas-credito-venta">Ver las notas de crédito posteadas</a></p>
+    </div>
+}
+else
+{
+    <!-- ── Cabecera ── -->
+    <div class="rounded-2xl border border-slate-200 bg-white shadow-sm mb-6 px-6 py-5" data-testid="cabecera-nota">
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 text-sm">
+            <div><p class="text-xs font-bold uppercase tracking-wide text-slate-400">Facturar a</p>
+                <p class="mt-1 text-slate-700"><a class="hover:underline" href="@($"/clientes/{borrador.SocioNegocioFacturarAId}")">@borrador.SocioNegocioFacturarACodigo — @borrador.NombreFacturacion</a></p>
+                <p class="text-xs text-slate-400">@borrador.RazonSocialFacturacion @borrador.NumeroDocumentoFiscal</p></div>
+            <div><p class="text-xs font-bold uppercase tracking-wide text-slate-400">Factura acreditada</p>
+                <p class="mt-1 text-slate-700 font-mono">@borrador.FacturaVentaNumero</p>
+                <p class="text-xs text-slate-500">Reg. @EntradaFecha.Formatear(borrador.FacturaFechaRegistro) · Total @VentasOpciones.Importe(borrador.FacturaImporteTotal)</p></div>
+            <div><p class="text-xs font-bold uppercase tracking-wide text-slate-400">Fechas</p>
+                <p class="mt-1 text-slate-700">Reg. @EntradaFecha.Formatear(borrador.FechaRegistro) · Doc. @EntradaFecha.Formatear(borrador.FechaDocumento)</p></div>
+            <div><p class="text-xs font-bold uppercase tracking-wide text-slate-400">CxC / Moneda</p>
+                <p class="mt-1 text-slate-700 font-mono">@(borrador.CuentaCxCNumero ?? "—") · @borrador.Moneda</p></div>
+            @if (!string.IsNullOrWhiteSpace(borrador.Descripcion))
+            {
+                <div class="sm:col-span-2 lg:col-span-4"><p class="text-xs font-bold uppercase tracking-wide text-slate-400">Descripción</p><p class="mt-1 text-slate-700">@borrador.Descripcion</p></div>
+            }
+        </div>
+    </div>
+
+    <!-- ── Líneas del borrador ── -->
+    <div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden mb-6">
+        <div class="px-6 py-4 border-b border-slate-100">
+            <h2 class="text-sm font-semibold text-slate-700">Líneas de la nota</h2>
+            <p class="mt-1 text-xs text-slate-500">@lineas.Count línea(s). Precio, descuento e IVA se copian de la factura y no se modifican; el número de línea es el de la factura.</p>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-slate-100 text-sm" data-testid="tabla-lineas">
+                <thead class="bg-slate-50">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">#</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Tipo</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Producto / Cuenta</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Descripción</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Almacén</th>
+                        <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Cantidad</th>
+                        <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Facturada</th>
+                        <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Ya acreditada</th>
+                        <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Precio</th>
+                        <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Desc. %</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">IVA</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Devolución</th>
+                        <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-50 bg-white">
+                    @if (lineas.Count == 0)
+                    {
+                        <tr><td colspan="13" class="px-4 py-8 text-center text-slate-400 text-sm">El borrador todavía no tiene líneas: elija abajo las líneas de la factura a acreditar.</td></tr>
+                    }
+                    @foreach (var l in lineas.OrderBy(x => x.NumeroLinea))
+                    {
+                        <tr @key="l.Id" class="hover:bg-slate-50">
+                            <td class="px-4 py-3 text-slate-400 text-xs">@l.NumeroLinea</td>
+                            <td class="px-4 py-3 text-xs text-slate-700">@VentasOpciones.TipoLinea(l.Tipo)</td>
+                            <td class="px-4 py-3 text-xs text-slate-700">@(l.ProductoCodigo ?? l.CuentaContableNumero ?? "—")</td>
+                            <td class="px-4 py-3 text-slate-700">@l.Descripcion</td>
+                            <td class="px-4 py-3 text-xs text-slate-500">@(l.AlmacenCodigo ?? "—")</td>
+                            <td class="px-4 py-3 text-right font-semibold text-slate-800">@Cantidad(l.Cantidad) <span class="text-xs text-slate-400">@l.UnidadMedidaCodigo</span></td>
+                            <td class="px-4 py-3 text-right text-slate-500">@Cantidad(l.CantidadFacturada)</td>
+                            <td class="px-4 py-3 text-right text-slate-500">@Cantidad(l.CantidadAcreditada)</td>
+                            <td class="px-4 py-3 text-right text-slate-700">@l.PrecioUnitario.ToString("0.00##", CultureInfo.InvariantCulture)</td>
+                            <td class="px-4 py-3 text-right text-slate-500">@(l.PorcentajeDescuentoLinea == 0 ? "—" : l.PorcentajeDescuentoLinea.ToString("0.#####", CultureInfo.InvariantCulture))</td>
+                            <td class="px-4 py-3 text-xs text-slate-500">@l.IdentificadorIva @(l.PorcentajeIva.ToString("0.##", CultureInfo.InvariantCulture))%</td>
+                            <td class="px-4 py-3 text-xs @(l.DevolverInventario ? "font-semibold text-emerald-700" : "text-slate-400")" data-testid="devolucion">@(l.DevolverInventario ? "Sí" : "No")</td>
+                            <td class="px-4 py-3 text-right">
+                                <div class="flex items-center justify-end gap-2">
+                                    @if (canModify)
+                                    {
+                                        <a href="@BuildUrl(editLineaId: l.Id)" class="btn-press rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-100" title="Modificar línea">Modificar</a>
+                                    }
+                                    @if (canDelete)
+                                    {
+                                        <a href="@BuildUrl(deleteLineaId: l.Id)" class="btn-press rounded-lg border border-red-200 bg-red-50 px-2 py-1 text-xs font-semibold text-red-700 hover:bg-red-100" title="Eliminar línea">Eliminar</a>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ── Totales (vista previa, con los topes de lo ya acreditado) ── -->
+    <div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden mb-6" data-testid="totales">
+        <div class="px-6 py-4 border-b border-slate-100">
+            <h2 class="text-sm font-semibold text-slate-700">Totales (vista previa)</h2>
+            <p class="mt-1 text-xs text-slate-500" data-testid="aviso-importes">Los importes definitivos se calculan al postear, descontando lo ya acreditado de la factura.</p>
+        </div>
+        @if (totales is null)
+        {
+            <p class="px-6 py-4 text-sm text-slate-400">@(totalesError ?? "No fue posible calcular los totales.")</p>
+        }
+        else
+        {
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 px-6 py-4">
+                <table class="min-w-full text-sm">
+                    <thead><tr class="text-xs uppercase text-slate-500"><th class="text-left py-1">IVA</th><th class="text-right py-1">%</th><th class="text-right py-1">Base</th><th class="text-right py-1">IVA</th></tr></thead>
+                    <tbody>
+                        @foreach (var g in totales.Grupos)
+                        {
+                            <tr><td class="py-1 text-slate-700">@g.IdentificadorIva</td><td class="py-1 text-right text-slate-500">@g.PorcentajeIva.ToString("0.#####", CultureInfo.InvariantCulture)</td><td class="py-1 text-right">@VentasOpciones.Importe(g.BaseImponible)</td><td class="py-1 text-right">@VentasOpciones.Importe(g.ImporteIva)</td></tr>
+                        }
+                    </tbody>
+                </table>
+                <dl class="text-sm space-y-1">
+                    <div class="flex justify-between"><dt class="text-slate-500">Importe sin IVA</dt><dd class="font-semibold text-slate-800" data-testid="total-sin-iva">@VentasOpciones.Importe(totales.ImporteSinIva)</dd></div>
+                    <div class="flex justify-between"><dt class="text-slate-500">IVA</dt><dd class="font-semibold text-slate-800" data-testid="total-iva">@VentasOpciones.Importe(totales.ImporteIva)</dd></div>
+                    <div class="flex justify-between border-t border-slate-100 pt-1"><dt class="font-bold text-slate-700">Total a acreditar</dt><dd class="text-lg font-extrabold text-slate-900" data-testid="total">@VentasOpciones.Importe(totales.ImporteTotal)</dd></div>
+                </dl>
+            </div>
+        }
+    </div>
+
+    <!-- ── Líneas de la factura (acreditables) ── -->
+    <div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden mb-6">
+        <div class="px-6 py-4 border-b border-slate-100">
+            <h2 class="text-sm font-semibold text-slate-700">Líneas de la factura @borrador.FacturaVentaNumero</h2>
+            <p class="mt-1 text-xs text-slate-500">Lo ya acreditado cuenta solo las notas posteadas. Cada línea de la factura se acredita una vez por borrador.</p>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-slate-100 text-sm" data-testid="tabla-acreditables">
+                <thead class="bg-slate-50">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">#</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Tipo</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Producto / Cuenta</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Descripción</th>
+                        <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Facturada</th>
+                        <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Acreditada</th>
+                        <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Pendiente</th>
+                        <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase">En este borrador</th>
+                        <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Acción</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-50 bg-white">
+                    @if (acreditables.Count == 0)
+                    {
+                        <tr><td colspan="9" class="px-4 py-8 text-center text-slate-400 text-sm">@(acreditablesCargaFallida ? "No fue posible cargar las líneas de la factura." : "La factura no tiene líneas acreditables.")</td></tr>
+                    }
+                    @foreach (var a in acreditables)
+                    {
+                        <tr @key="a.LineaFacturaVentaId" class="@(a.LineaFacturaVentaId == AddLineaId ? "bg-green-50" : "hover:bg-slate-50")">
+                            <td class="px-4 py-3 text-slate-400 text-xs">@a.NumeroLinea</td>
+                            <td class="px-4 py-3 text-xs text-slate-700">@VentasOpciones.TipoLinea(a.Tipo)</td>
+                            <td class="px-4 py-3 text-xs text-slate-700">@(a.ProductoCodigo ?? a.CuentaContableNumero ?? "—")</td>
+                            <td class="px-4 py-3 text-slate-700">@a.Descripcion</td>
+                            <td class="px-4 py-3 text-right text-slate-700">@Cantidad(a.CantidadFacturada) <span class="text-xs text-slate-400">@a.UnidadMedidaCodigo</span></td>
+                            <td class="px-4 py-3 text-right text-slate-500">@Cantidad(a.CantidadAcreditada)</td>
+                            <td class="px-4 py-3 text-right font-semibold @(a.CantidadPendiente > 0 ? "text-slate-800" : "text-slate-400")">@Cantidad(a.CantidadPendiente)</td>
+                            <td class="px-4 py-3 text-right text-slate-500">@(a.CantidadEnBorrador is { } enBorrador ? Cantidad(enBorrador) : "—")</td>
+                            <td class="px-4 py-3 text-right">
+                                @if (canAdd && a.LineaNotaId is null && a.CantidadPendiente > 0)
+                                {
+                                    <a href="@BuildUrl(addLineaId: a.LineaFacturaVentaId)" class="btn-press rounded-lg border border-green-200 bg-green-50 px-2 py-1 text-xs font-semibold text-green-700 hover:bg-green-100" title="Acreditar esta línea">Acreditar</a>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ── Agregar línea ── -->
+    @if (canAdd && AddLineaId.HasValue)
+    {
+        <div class="rounded-2xl border border-green-200 bg-white shadow-sm overflow-hidden mb-6" id="agregar">
+            <div class="px-6 py-4 bg-green-50 border-b border-green-100"><h2 class="text-sm font-bold text-green-800">Acreditar la línea @(lineaAAgregar?.NumeroLinea) de la factura</h2></div>
+            <div class="px-6 py-5">
+                @if (lineaAAgregar is null)
+                {
+                    <MessageBox Type="warning" Message="La línea de factura seleccionada no existe en la factura del borrador o ya no es acreditable." />
+                }
+                else
+                {
+                    <EditForm Model="AddInput" FormName="add-linea" OnValidSubmit="CreateLineaAsync" Enhance="true">
+                        <DataAnnotationsValidator />
+                        <input type="hidden" name="AddInput.LineaFacturaVentaId" value="@lineaAAgregar.LineaFacturaVentaId" />
+                        @CamposLinea(AddInput!, "AddInput", lineaAAgregar.Tipo, $"{lineaAAgregar.ProductoCodigo ?? lineaAAgregar.CuentaContableNumero} — {lineaAAgregar.Descripcion}", lineaAAgregar.CantidadPendiente, lineaAAgregar.UnidadMedidaCodigo)
+                        <div class="mt-5 flex items-center gap-3">
+                            <button type="submit" class="btn-press rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 shadow-sm">Agregar línea</button>
+                            <a href="@BuildUrl(addLineaId: AddLineaId)" class="btn-press rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Limpiar campos</a>
+                            <a href="@UrlBase" class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">Cancelar</a>
+                        </div>
+                    </EditForm>
+                }
+            </div>
+        </div>
+    }
+
+    <!-- ── Modificar línea ── -->
+    @if (canModify && EditLineaId.HasValue)
+    {
+        <div class="rounded-2xl border border-amber-200 bg-white shadow-sm overflow-hidden mb-6" id="modificar">
+            <div class="px-6 py-4 bg-amber-50 border-b border-amber-100"><h2 class="text-sm font-bold text-amber-800">Modificar línea @(lineaAEditar?.NumeroLinea)</h2></div>
+            <div class="px-6 py-5">
+                @if (lineaAEditar is null)
+                {
+                    <MessageBox Type="warning" Message="No se encontró la línea seleccionada. Puede haber sido eliminada por otro usuario." />
+                }
+                else
+                {
+                    <EditForm Model="UpdateInputLinea" FormName="update-linea" OnValidSubmit="UpdateLineaAsync" Enhance="true">
+                        <DataAnnotationsValidator />
+                        <input type="hidden" name="UpdateInputLinea.Xmin" value="@UpdateInputLinea!.Xmin" />
+                        @CamposLinea(UpdateInputLinea, "UpdateInputLinea", lineaAEditar.Tipo, $"{lineaAEditar.ProductoCodigo ?? lineaAEditar.CuentaContableNumero} — {lineaAEditar.Descripcion}", lineaAEditar.CantidadFacturada - lineaAEditar.CantidadAcreditada, lineaAEditar.UnidadMedidaCodigo)
+                        <div class="mt-5 flex items-center gap-3">
+                            <button type="submit" class="btn-press rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-600 shadow-sm">Guardar cambios</button>
+                            <a href="@BuildUrl(editLineaId: EditLineaId)" class="btn-press rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Limpiar campos</a>
+                            <a href="@UrlBase" class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">Cancelar</a>
+                        </div>
+                    </EditForm>
+                }
+            </div>
+        </div>
+    }
+
+    <!-- ── Posteo ── -->
+    @if (canModify)
+    {
+        <div class="rounded-2xl border border-brand-200 bg-white shadow-sm overflow-hidden mb-6" data-testid="acciones-borrador">
+            <div class="px-6 py-4 bg-brand-50 border-b border-brand-100"><h2 class="text-sm font-bold text-brand-800">Postear</h2></div>
+            <div class="px-6 py-5 flex flex-wrap items-center gap-3">
+                <a href="@BuildUrl(postear: true)" class="btn-press inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700">Postear nota de crédito</a>
+                <p class="w-full text-xs text-slate-400">Postear genera la nota legal (serie NC), la devolución de inventario de las líneas marcadas, el movimiento del cliente aplicado a la factura y el asiento inverso. No se puede deshacer.</p>
+            </div>
+        </div>
+    }
+
+    @if (MuestraDialogoPosteo)
+    {
+        <ConfirmDialog Title="Confirmar posteo de la nota de crédito" Message="Se generará la nota de crédito legal con su número, la devolución de inventario de las líneas marcadas, el movimiento del cliente (aplicado a la factura) y el asiento inverso. Esta acción no se puede deshacer." Variant="success" CancelHref="@UrlBase">
+            @if (posteoError is not null)
+            {
+                <div class="mb-4" data-testid="errores-posteo"><MessageBox Type="warning" Message="@posteoError" Errors="@posteoErrores" /></div>
+            }
+            <p class="rounded-xl border border-brand-100 bg-brand-50 px-4 py-3 text-sm text-brand-900">@borrador?.Numero — factura @borrador?.FacturaVentaNumero — @borrador?.NombreFacturacion (@lineas.Count línea(s))@(totales is null ? "" : $" · Total {VentasOpciones.Importe(totales.ImporteTotal)}")</p>
+            <EditForm Model="PostearInput" FormName="confirm-postear" OnValidSubmit="PostearAsync" class="mt-4">
+                <button type="submit" class="btn-press rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700">Sí, postear</button>
+                <a href="@UrlBase" class="btn-press ml-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Cancelar</a>
+            </EditForm>
+        </ConfirmDialog>
+    }
+
+    @if (MuestraDialogoBorrarLinea)
+    {
+        <ConfirmDialog Title="Confirmar eliminación" Message="Esta acción eliminará la línea seleccionada del borrador de nota de crédito." Variant="danger" CancelHref="@UrlBase">
+            <p class="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-900">@(lineaAEliminar is null ? DeleteLineaId?.ToString() : $"Línea {lineaAEliminar.NumeroLinea} — {VentasOpciones.TipoLinea(lineaAEliminar.Tipo)}: {lineaAEliminar.Descripcion}")</p>
+            <EditForm Model="DeleteInputLinea" FormName="delete-linea" OnValidSubmit="DeleteLineaAsync" class="mt-4">
+                <input type="hidden" name="DeleteInputLinea.Id" value="@DeleteLineaId" />
+                <button type="submit" class="btn-press rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-700">Sí, eliminar</button>
+                <a href="@UrlBase" class="btn-press ml-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Cancelar</a>
+            </EditForm>
+        </ConfirmDialog>
+    }
+}
+
+@* Formularios de acción que el estado (borrador posteado/eliminado, línea borrada) o el permiso ya no dejan mostrar: EditForm vacío
+   con el MISMO FormName y handler, para que un POST obsoleto, doble o forzado llegue al handler y reciba el mensaje real (404/409/
+   400/403 de la API) en vez del 400 genérico de Blazor. La autorización real la hace la API. *@
+@if (!MuestraFormAgregar)
+{
+    <EditForm Model="AddInput" FormName="add-linea" OnValidSubmit="CreateLineaAsync"></EditForm>
+}
+@if (!MuestraFormModificar)
+{
+    <EditForm Model="UpdateInputLinea" FormName="update-linea" OnValidSubmit="UpdateLineaAsync"></EditForm>
+}
+@if (!MuestraDialogoPosteo)
+{
+    <EditForm Model="PostearInput" FormName="confirm-postear" OnValidSubmit="PostearAsync"></EditForm>
+}
+@if (!MuestraDialogoBorrarLinea)
+{
+    <EditForm Model="DeleteInputLinea" FormName="delete-linea" OnValidSubmit="DeleteLineaAsync"></EditForm>
+}
+
+@code {
+    private const string BorradorNoDisponible = "No se encontró el borrador de nota de crédito: puede haber sido posteado o eliminado por otro usuario.";
+    private const string InputCss = "block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20";
+
+    [Parameter] public Guid BorradorId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "ok")] private string? Ok { get; set; }
+    [SupplyParameterFromQuery(Name = "addLineaId")] private long? AddLineaId { get; set; }
+    [SupplyParameterFromQuery(Name = "editLineaId")] private Guid? EditLineaId { get; set; }
+    [SupplyParameterFromQuery(Name = "deleteLineaId")] private Guid? DeleteLineaId { get; set; }
+    [SupplyParameterFromQuery(Name = "postear")] private bool PostearConfirm { get; set; }
+
+    [SupplyParameterFromForm(FormName = "add-linea")] private LineaNotaCreditoForm? AddInput { get; set; }
+    [SupplyParameterFromForm(FormName = "update-linea")] private LineaNotaCreditoForm? UpdateInputLinea { get; set; }
+    [SupplyParameterFromForm(FormName = "delete-linea")] private DeleteLineaForm? DeleteInputLinea { get; set; }
+    [SupplyParameterFromForm(FormName = "confirm-postear")] private AccionForm? PostearInput { get; set; }
+
+    private string UrlBase => $"/notas-credito-venta/borradores/{BorradorId}";
+
+    // Qué formularios de acción están visibles (el resto se mantiene vacío en el árbol, ver el final del marcado).
+    private bool MuestraFormAgregar => borrador is not null && canAdd && AddLineaId.HasValue && lineaAAgregar is not null;
+
+    private bool MuestraFormModificar => borrador is not null && canModify && EditLineaId.HasValue && lineaAEditar is not null;
+
+    private bool MuestraDialogoPosteo => borrador is not null && PostearConfirm && canModify;
+
+    private bool MuestraDialogoBorrarLinea => borrador is not null && DeleteLineaId.HasValue && canDelete;
+
+    private NotaCreditoVentaBorradorResponse? borrador;
+    private IReadOnlyList<LineaNotaCreditoVentaBorradorResponse> lineas = [];
+    private IReadOnlyList<LineaFacturaAcreditableResponse> acreditables = [];
+    private bool acreditablesCargaFallida;
+    private TotalesFactura? totales;
+    private string? totalesError;
+    private string? loadError;
+    private string? message;
+    private string messageType = "info";
+    private IReadOnlyList<string> errores = [];
+    private string? posteoError;
+    private IReadOnlyList<string> posteoErrores = [];
+
+    private LineaFacturaAcreditableResponse? lineaAAgregar;
+    private LineaNotaCreditoVentaBorradorResponse? lineaAEditar;
+    private LineaNotaCreditoVentaBorradorResponse? lineaAEliminar;
+
+    private bool canAdd;
+    private bool canModify;
+    private bool canDelete;
+
+    [CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var addNuevo = AddInput is null;
+        AddInput ??= new();
+        UpdateInputLinea ??= new();
+        DeleteInputLinea ??= new();
+        PostearInput ??= new();
+
+        if (AuthenticationStateTask is not null)
+        {
+            var user = (await AuthenticationStateTask).User;
+            canAdd = (await AuthorizationService.AuthorizeAsync(user, ApplicationPolicies.CanAdd)).Succeeded;
+            canModify = (await AuthorizationService.AuthorizeAsync(user, ApplicationPolicies.CanModify)).Succeeded;
+            canDelete = (await AuthorizationService.AuthorizeAsync(user, ApplicationPolicies.CanDelete)).Succeeded;
+        }
+
+        try
+        {
+            borrador = await NotaApiClient.GetBorradorAsync(BorradorId);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not load borrador de nota {Id}.", BorradorId);
+            loadError = "No fue posible cargar el borrador de nota de crédito.";
+            return;
+        }
+
+        if (borrador is null)
+        {
+            return;
+        }
+
+        try
+        {
+            lineas = await NotaApiClient.ListLineasAsync(BorradorId) ?? [];
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not load líneas of borrador de nota {Id}.", BorradorId);
+            Show("danger", "No fue posible cargar las líneas del borrador.");
+        }
+
+        try
+        {
+            acreditables = await NotaApiClient.ListLineasAcreditablesAsync(BorradorId) ?? [];
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not load líneas acreditables of borrador de nota {Id}.", BorradorId);
+            acreditablesCargaFallida = true;
+        }
+
+        try
+        {
+            totales = await NotaApiClient.GetTotalesAsync(BorradorId);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not load totales of borrador de nota {Id}.", BorradorId);
+            totalesError = "No fue posible calcular la vista previa de los totales.";
+        }
+
+        if (Ok is not null)
+        {
+            (messageType, message) = Ok switch
+            {
+                "creado" => ("success", "Borrador de nota de crédito creado. Elija las líneas de la factura a acreditar."),
+                "modificado" => ("success", "Cabecera modificada satisfactoriamente."),
+                "linea_creada" => ("success", "Línea agregada satisfactoriamente."),
+                "linea_modificada" => ("success", "Línea modificada satisfactoriamente."),
+                "linea_eliminada" => ("success", "Línea eliminada satisfactoriamente."),
+                _ => ("info", null)
+            };
+        }
+
+        if (AddLineaId is { } addLineaId)
+        {
+            lineaAAgregar = acreditables.FirstOrDefault(a => a.LineaFacturaVentaId == addLineaId);
+            // En un GET se propone lo pendiente de la línea; en un POST se conserva lo tecleado.
+            if (lineaAAgregar is not null && addNuevo)
+            {
+                AddInput.LineaFacturaVentaId = lineaAAgregar.LineaFacturaVentaId;
+                AddInput.CantidadTexto = Cantidad(lineaAAgregar.CantidadPendiente);
+            }
+        }
+
+        if (DeleteLineaId.HasValue && canDelete)
+        {
+            lineaAEliminar = lineas.FirstOrDefault(x => x.Id == DeleteLineaId.Value);
+        }
+
+        if (EditLineaId.HasValue)
+        {
+            lineaAEditar = lineas.FirstOrDefault(x => x.Id == EditLineaId.Value);
+            if (lineaAEditar is null)
+            {
+                try { lineaAEditar = await NotaApiClient.GetLineaAsync(EditLineaId.Value); }
+                catch (Exception ex) { Logger.LogWarning(ex, "Could not load línea de nota {Id}.", EditLineaId); }
+            }
+
+            // Solo se rellena con lo guardado cuando NO llegó un formulario de modificación (Xmin = 0).
+            if (lineaAEditar is not null && UpdateInputLinea.Xmin == 0)
+            {
+                UpdateInputLinea.CantidadTexto = Cantidad(lineaAEditar.Cantidad);
+                UpdateInputLinea.DevolverInventario = lineaAEditar.DevolverInventario;
+                UpdateInputLinea.Xmin = lineaAEditar.Xmin;
+            }
+        }
+    }
+
+    private RenderFragment CamposLinea(LineaNotaCreditoForm model, string prefix, TipoLineaFactura tipo, string etiqueta, decimal pendiente, string? unidad) => __builder =>
+    {
+        <p class="mb-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+            @VentasOpciones.TipoLinea(tipo): <span class="font-semibold">@etiqueta</span>
+            <span class="text-xs text-slate-400">· Pendiente de acreditar: @Cantidad(pendiente) @unidad</span>
+        </p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{prefix}_CantidadTexto")">Cantidad <span class="text-red-500">*</span></label>
+                <input id="@($"{prefix}_CantidadTexto")" type="text" inputmode="decimal" name="@($"{prefix}.CantidadTexto")" value="@model.CantidadTexto" class="@InputCss" />
+                <ValidationMessage For="() => model.CantidadTexto" />
+                <p class="mt-1 text-xs text-slate-400">En la unidad de la factura (@unidad); como máximo lo pendiente.</p>
+            </div>
+            @if (tipo == TipoLineaFactura.Producto)
+            {
+                <div class="flex items-end">
+                    <label class="inline-flex items-center gap-2 text-sm text-slate-700" for="@($"{prefix}_DevolverInventario")">
+                        <input id="@($"{prefix}_DevolverInventario")" type="checkbox" name="@($"{prefix}.DevolverInventario")" value="true" checked="@model.DevolverInventario" class="rounded border-slate-300" />
+                        Devolver al inventario (al costo de la venta)
+                    </label>
+                </div>
+            }
+        </div>
+    };
+
+    private async Task CreateLineaAsync()
+    {
+        if (borrador is null)
+        {
+            Show("warning", BorradorNoDisponible);
+            return;
+        }
+
+        var f = AddInput!;
+        if (f.LineaFacturaVentaId == 0)
+        {
+            Show("warning", "Seleccione primero la línea de la factura a acreditar.");
+            return;
+        }
+
+        await EjecutarAsync(
+            () => NotaApiClient.CreateLineaAsync(BorradorId, f.LineaFacturaVentaId, f.Cantidad, f.DevolverInventario),
+            "linea_creada", "No fue posible agregar la línea.");
+    }
+
+    private async Task UpdateLineaAsync()
+    {
+        if (borrador is null)
+        {
+            Show("warning", BorradorNoDisponible);
+            return;
+        }
+
+        if (!EditLineaId.HasValue)
+        {
+            Show("warning", "Seleccione primero una línea a modificar.");
+            return;
+        }
+
+        var f = UpdateInputLinea!;
+        await EjecutarAsync(
+            () => NotaApiClient.UpdateLineaAsync(EditLineaId.Value, f.Cantidad, f.DevolverInventario, f.Xmin),
+            "linea_modificada", "No fue posible modificar la línea.");
+    }
+
+    private async Task DeleteLineaAsync() =>
+        await EjecutarAsync(() => NotaApiClient.DeleteLineaAsync(DeleteInputLinea!.Id), "linea_eliminada", "No fue posible eliminar la línea.");
+
+    private async Task PostearAsync()
+    {
+        try
+        {
+            var result = await NotaApiClient.PostearAsync(BorradorId);
+            if (result.Succeeded)
+            {
+                var r = result.Valor!;
+                // Una nota de total 0 (devolución de un obsequio) no lleva asiento: sin "registro".
+                var registro = r.RegistroContable is { } numeroRegistro ? $"&registro={Uri.EscapeDataString(numeroRegistro)}" : string.Empty;
+                Nav.NavigateTo($"/notas-credito-venta/{Uri.EscapeDataString(r.Numero)}?ok=posteada&aplicado={r.ImporteAplicado.ToString("0.00", CultureInfo.InvariantCulture)}{registro}");
+                return;
+            }
+
+            posteoErrores = result.Errors ?? [];
+            posteoError = result.Message;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not postear borrador de nota {Id}.", BorradorId);
+            posteoError = "No fue posible postear la nota de crédito.";
+        }
+    }
+
+    private async Task EjecutarAsync<T>(Func<Task<VentaOperationResult<T>>> operacion, string ok, string mensajeFallo)
+    {
+        try
+        {
+            var result = await operacion();
+            if (result.Succeeded)
+            {
+                Nav.NavigateTo($"{UrlBase}?ok={ok}");
+                return;
+            }
+
+            errores = result.Errors ?? [];
+            Show("warning", result.Message);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Borrador de nota {Id}: {Mensaje}", BorradorId, mensajeFallo);
+            Show("danger", mensajeFallo);
+        }
+    }
+
+    private string BuildUrl(long? addLineaId = null, Guid? editLineaId = null, Guid? deleteLineaId = null, bool? postear = null)
+    {
+        var parameters = new List<string>();
+        if (addLineaId.HasValue) parameters.Add($"addLineaId={addLineaId.Value}");
+        if (editLineaId.HasValue) parameters.Add($"editLineaId={editLineaId.Value}");
+        if (deleteLineaId.HasValue) parameters.Add($"deleteLineaId={deleteLineaId.Value}");
+        if (postear == true) parameters.Add("postear=true");
+        return parameters.Count == 0 ? UrlBase : $"{UrlBase}?{string.Join("&", parameters)}";
+    }
+
+    private static string Cantidad(decimal valor) => valor.ToString("0.######", CultureInfo.InvariantCulture);
+
+    private void Show(string type, string text) { messageType = type; message = text; }
+
+    public sealed class DeleteLineaForm
+    {
+        public Guid Id { get; set; }
+    }
+
+    public sealed class AccionForm
+    {
+    }
+}

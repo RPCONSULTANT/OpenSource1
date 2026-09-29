@@ -1,0 +1,90 @@
+@using OpenSource1.Application.Features.CategoriasProducto.Dtos
+@using OpenSource1.Blazor.Components.Pages
+
+@*
+    CategoriaProductoFields — campos reutilizables para crear / modificar una CategoriaProducto.
+
+    Requiere el parámetro Prefix con el nombre exacto de la propiedad
+    [SupplyParameterFromForm] del componente padre:
+      - Agregar:   Prefix="SaveInput"
+      - Modificar: Prefix="UpdateInput"
+
+    El FormDataMapper de Blazor SSR usa el nombre del parámetro como prefijo.
+
+    La categoría padre es un <select> nativo (Static SSR: sin @bind ni @onchange). Opciones
+    excluye la propia categoría al editar (ExcluirId) para no ofrecer "ser su propio padre";
+    los ciclos más largos los rechaza la API con un mensaje de validación.
+*@
+
+<div class="space-y-4">
+    <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{Prefix}_Codigo")">
+            Código <span class="text-red-500">*</span>
+        </label>
+        <input id="@($"{Prefix}_Codigo")"
+               type="text"
+               name="@($"{Prefix}.Codigo")"
+               value="@Model.Codigo"
+               maxlength="30"
+               placeholder="ej. BEB"
+               class="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 placeholder-slate-400 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20" />
+        <ValidationMessage For="() => Model.Codigo" />
+    </div>
+
+    <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{Prefix}_Nombre")">
+            Nombre <span class="text-red-500">*</span>
+        </label>
+        <input id="@($"{Prefix}_Nombre")"
+               type="text"
+               name="@($"{Prefix}.Nombre")"
+               value="@Model.Nombre"
+               maxlength="100"
+               placeholder="ej. Bebidas"
+               class="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 placeholder-slate-400 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20" />
+        <ValidationMessage For="() => Model.Nombre" />
+    </div>
+
+    <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{Prefix}_CategoriaPadreId")">
+            Categoría padre
+        </label>
+        <select id="@($"{Prefix}_CategoriaPadreId")"
+                name="@($"{Prefix}.CategoriaPadreId")"
+                class="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20">
+            <option value="" selected="@(Model.CategoriaPadreId is null)">— Sin padre (categoría raíz) —</option>
+            @* El padre actual se ofrece SIEMPRE, aunque no esté en Opciones (listado caído o vacío):
+               sin esto el <select> solo tendría "Sin padre" y guardar borraría la jerarquía en silencio. *@
+            @if (Model.CategoriaPadreId is { } padreActualId && Opciones.All(o => o.Id != padreActualId))
+            {
+                <option value="@padreActualId" selected="selected">@(string.IsNullOrWhiteSpace(PadreActualNombre) ? padreActualId.ToString() : PadreActualNombre)</option>
+            }
+            @foreach (var opcion in Opciones.Where(o => o.Id != ExcluirId))
+            {
+                <option value="@opcion.Id" selected="@(opcion.Id == Model.CategoriaPadreId)">@opcion.Codigo — @opcion.Nombre</option>
+            }
+        </select>
+        <ValidationMessage For="() => Model.CategoriaPadreId" />
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public CategoriasProducto.CategoriaProductoForm Model { get; set; } = default!;
+    /// <summary>
+    /// Nombre exacto del parámetro [SupplyParameterFromForm] en el componente padre.
+    /// Ej: "SaveInput" o "UpdateInput"
+    /// </summary>
+    [Parameter, EditorRequired] public string Prefix { get; set; } = default!;
+
+    /// <summary>Categorías que se pueden elegir como padre.</summary>
+    [Parameter] public IReadOnlyList<CategoriaProductoResponse> Opciones { get; set; } = [];
+
+    /// <summary>
+    /// Nombre del padre actual del registro (el que trae GetByIdAsync), para rotular su opción cuando
+    /// no viene en <see cref="Opciones"/>. Si falta se usa el Guid como último recurso.
+    /// </summary>
+    [Parameter] public string? PadreActualNombre { get; set; }
+
+    /// <summary>Categoría que se está editando; se excluye de las opciones. <c>Guid.Empty</c> al agregar.</summary>
+    [Parameter] public Guid ExcluirId { get; set; }
+}

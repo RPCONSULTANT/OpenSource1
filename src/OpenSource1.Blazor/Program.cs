@@ -1,9 +1,11 @@
+using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.AspNetCore.Mvc;
 using OpenSource1.Application.Services.Auth.Dtos;
 using OpenSource1.Application.Security;
+using OpenSource1.Application.Storage;
 using OpenSource1.Blazor.Components;
 using OpenSource1.Blazor.Reporting;
 using OpenSource1.Blazor.Security;
@@ -38,27 +40,102 @@ builder.Services.AddHttpClient<IAuthApiClient, AuthApiClient>((serviceProvider, 
     var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<ApiClientOptions>>().Value;
     client.BaseAddress = options.BaseAddress;
 }).AddHttpMessageHandler<BearerTokenHandler>();
-builder.Services.AddHttpClient<IAppSettingsApiClient, AppSettingsApiClient>((serviceProvider, client) =>
-{
-    var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<ApiClientOptions>>().Value;
-    client.BaseAddress = options.BaseAddress;
-}).AddHttpMessageHandler<BearerTokenHandler>();
 builder.Services.AddHttpClient<IUserAdminApiClient, UserAdminApiClient>((serviceProvider, client) =>
 {
     var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<ApiClientOptions>>().Value;
     client.BaseAddress = options.BaseAddress;
 }).AddHttpMessageHandler<BearerTokenHandler>();
-builder.Services.AddHttpClient<IEntradaApiClient, EntradaApiClient>((serviceProvider, client) =>
-{
-    var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<ApiClientOptions>>().Value;
-    client.BaseAddress = options.BaseAddress;
-}).AddHttpMessageHandler<BearerTokenHandler>();
-builder.Services.AddHttpClient<IClienteApiClient, ClienteApiClient>((serviceProvider, client) =>
+builder.Services.AddHttpClient<ISocioNegocioApiClient, SocioNegocioApiClient>((serviceProvider, client) =>
 {
     var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<ApiClientOptions>>().Value;
     client.BaseAddress = options.BaseAddress;
 }).AddHttpMessageHandler<BearerTokenHandler>();
 builder.Services.AddHttpClient<IProductoApiClient, ProductoApiClient>((serviceProvider, client) =>
+{
+    var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<ApiClientOptions>>().Value;
+    client.BaseAddress = options.BaseAddress;
+}).AddHttpMessageHandler<BearerTokenHandler>();
+builder.Services.AddHttpClient<ITerminoPagoApiClient, TerminoPagoApiClient>((serviceProvider, client) =>
+{
+    var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<ApiClientOptions>>().Value;
+    client.BaseAddress = options.BaseAddress;
+}).AddHttpMessageHandler<BearerTokenHandler>();
+builder.Services.AddHttpClient<IUnidadMedidaApiClient, UnidadMedidaApiClient>((serviceProvider, client) =>
+{
+    var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<ApiClientOptions>>().Value;
+    client.BaseAddress = options.BaseAddress;
+}).AddHttpMessageHandler<BearerTokenHandler>();
+builder.Services.AddHttpClient<ICategoriaProductoApiClient, CategoriaProductoApiClient>((serviceProvider, client) =>
+{
+    var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<ApiClientOptions>>().Value;
+    client.BaseAddress = options.BaseAddress;
+}).AddHttpMessageHandler<BearerTokenHandler>();
+builder.Services.AddHttpClient<IAlmacenApiClient, AlmacenApiClient>((serviceProvider, client) =>
+{
+    var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<ApiClientOptions>>().Value;
+    client.BaseAddress = options.BaseAddress;
+}).AddHttpMessageHandler<BearerTokenHandler>();
+builder.Services.AddHttpClient<IDiarioInventarioApiClient, DiarioInventarioApiClient>((serviceProvider, client) =>
+{
+    var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<ApiClientOptions>>().Value;
+    client.BaseAddress = options.BaseAddress;
+}).AddHttpMessageHandler<BearerTokenHandler>();
+builder.Services.AddHttpClient<ICuentaContableApiClient, CuentaContableApiClient>((serviceProvider, client) =>
+{
+    var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<ApiClientOptions>>().Value;
+    client.BaseAddress = options.BaseAddress;
+}).AddHttpMessageHandler<BearerTokenHandler>();
+builder.Services.AddHttpClient<IGrupoContableApiClient, GrupoContableApiClient>((serviceProvider, client) =>
+{
+    var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<ApiClientOptions>>().Value;
+    client.BaseAddress = options.BaseAddress;
+}).AddHttpMessageHandler<BearerTokenHandler>();
+builder.Services.AddHttpClient<IGrupoClienteContableApiClient, GrupoClienteContableApiClient>((serviceProvider, client) =>
+{
+    var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<ApiClientOptions>>().Value;
+    client.BaseAddress = options.BaseAddress;
+}).AddHttpMessageHandler<BearerTokenHandler>();
+builder.Services.AddHttpClient<ISetupContableApiClient, SetupContableApiClient>((serviceProvider, client) =>
+{
+    var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<ApiClientOptions>>().Value;
+    client.BaseAddress = options.BaseAddress;
+}).AddHttpMessageHandler<BearerTokenHandler>();
+builder.Services.AddHttpClient<IContabilidadApiClient, ContabilidadApiClient>((serviceProvider, client) =>
+{
+    var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<ApiClientOptions>>().Value;
+    client.BaseAddress = options.BaseAddress;
+}).AddHttpMessageHandler<BearerTokenHandler>();
+builder.Services.AddHttpClient<IFacturaVentaApiClient, FacturaVentaApiClient>((serviceProvider, client) =>
+{
+    var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<ApiClientOptions>>().Value;
+    client.BaseAddress = options.BaseAddress;
+}).AddHttpMessageHandler<BearerTokenHandler>();
+builder.Services.AddHttpClient<INotaCreditoVentaApiClient, NotaCreditoVentaApiClient>((serviceProvider, client) =>
+{
+    var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<ApiClientOptions>>().Value;
+    client.BaseAddress = options.BaseAddress;
+}).AddHttpMessageHandler<BearerTokenHandler>();
+builder.Services.AddHttpClient<ICobroApiClient, CobroApiClient>((serviceProvider, client) =>
+{
+    var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<ApiClientOptions>>().Value;
+    client.BaseAddress = options.BaseAddress;
+}).AddHttpMessageHandler<BearerTokenHandler>();
+builder.Services.AddHttpClient<IInventarioConsultasApiClient, InventarioConsultasApiClient>((serviceProvider, client) =>
+{
+    var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<ApiClientOptions>>().Value;
+    client.BaseAddress = options.BaseAddress;
+}).AddHttpMessageHandler<BearerTokenHandler>();
+builder.Services.AddHttpClient<IClientesConsultasApiClient, ClientesConsultasApiClient>((serviceProvider, client) =>
+{
+    var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<ApiClientOptions>>().Value;
+    client.BaseAddress = options.BaseAddress;
+}).AddHttpMessageHandler<BearerTokenHandler>();
+builder.Services.AddHttpClient<IContabilidadConsultasApiClient, ContabilidadConsultasApiClient>((serviceProvider, client) =>
+{
+    var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<ApiClientOptions>>().Value;
+    client.BaseAddress = options.BaseAddress;
+}).AddHttpMessageHandler<BearerTokenHandler>();
+builder.Services.AddHttpClient<IFechasRegistroApiClient, FechasRegistroApiClient>((serviceProvider, client) =>
 {
     var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<ApiClientOptions>>().Value;
     client.BaseAddress = options.BaseAddress;
@@ -84,6 +161,7 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy(ApplicationPolicies.CanModify, policy => policy.RequireClaim("permission", ApplicationPolicies.CanModify));
     options.AddPolicy(ApplicationPolicies.CanDelete, policy => policy.RequireClaim("permission", ApplicationPolicies.CanDelete));
     options.AddPolicy(ApplicationPolicies.CanConsult, policy => policy.RequireClaim("permission", ApplicationPolicies.CanConsult));
+    options.AddPolicy(ApplicationPolicies.CanAdministrar, policy => policy.RequireClaim("permission", ApplicationPolicies.CanAdministrar));
 });
 
 var app = builder.Build();
@@ -99,16 +177,40 @@ app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages:
 app.UseHttpsRedirection();
 var uploadsRoot = Path.Combine(app.Environment.ContentRootPath, "storage", "uploads");
 Directory.CreateDirectory(uploadsRoot);
-app.UseStaticFiles(new StaticFileOptions
-{
-    FileProvider = new PhysicalFileProvider(uploadsRoot),
-    RequestPath = "/uploads"
-});
 
 app.UseRouting();
 app.UseSession();
 app.UseAuthentication();
 app.UseAuthorization();
+
+// "/uploads" es contenido privado (avatares, imágenes de clientes y productos): solo para usuarios
+// autenticados. El middleware de ficheros va DESPUÉS de UseAuthentication()/UseAuthorization() a propósito,
+// y esta rama corta la petición antes de llegar a él. Sin autenticar -> mismo Challenge que usan las páginas
+// (redirige a /account/login) y el fichero NO se sirve. Basta con estar autenticado: no se exige ningún
+// permiso (CanConsult, etc.), porque el avatar del propio usuario debe poder verse siempre.
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path.StartsWithSegments("/uploads") && context.User.Identity?.IsAuthenticated != true)
+    {
+        await context.ChallengeAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+        return;
+    }
+
+    await next();
+});
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(uploadsRoot),
+    RequestPath = "/uploads",
+    OnPrepareResponse = context =>
+    {
+        // Las subidas son contenido de usuario: el navegador no debe "adivinar" otro tipo distinto del declarado.
+        context.Context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+        // Contenido privado del usuario autenticado: ningún proxy/caché intermedio debe guardarlo.
+        context.Context.Response.Headers.CacheControl = "private, no-store";
+    }
+});
+
 app.Use(async (context, next) =>
 {
     if (context.User.Identity?.IsAuthenticated == true || context.Request.Path.StartsWithSegments("/account"))
@@ -133,41 +235,69 @@ app.MapPost("/account/logout", async (HttpContext httpContext) =>
 
 app.MapPost("/account/profile/image", async (
     HttpContext httpContext,
+    IAntiforgery antiforgery,
     IAuthApiClient authApiClient,
     IFileStorageService fileStorageService) =>
 {
+    // Este handler lee el formulario a mano (no enlaza [FromForm]/IFormFile), así que el middleware de antiforgery no lo valida
+    // por sí solo: se valida el token explícitamente. Sin token (o inválido) -> 400, sin tocar el perfil.
+    try
+    {
+        await antiforgery.ValidateRequestAsync(httpContext);
+    }
+    catch (AntiforgeryValidationException)
+    {
+        return Results.BadRequest();
+    }
+
     var currentUser = await authApiClient.GetCurrentUserAsync();
     if (currentUser is null)
     {
         return Results.Redirect("/account/login");
     }
 
+    string? nueva = null;
     try
     {
-        var path = await fileStorageService.SaveProfileImageAsync(httpContext, "ProfileImage", currentUser.ProfileImagePath);
-        var (success, _) = await authApiClient.UpdateProfileImageAsync(new UpdateProfileImageRequest(path));
-        return success
-            ? Results.Redirect("/account/profile")
-            : Results.Redirect("/account/profile");
+        // La imagen vigente viene del perfil guardado en el servidor (no del formulario).
+        var anterior = currentUser.ProfileImagePath;
+        nueva = await fileStorageService.SaveProfileImageAsync(httpContext, "ProfileImage", anterior);
+        var (success, _) = await authApiClient.UpdateProfileImageAsync(new UpdateProfileImageRequest(nueva));
+        if (success)
+        {
+            // Solo tras confirmar el cambio se retira la imagen anterior; si la API lo rechazó, se descarta la nueva.
+            if (nueva != anterior) await fileStorageService.DeleteIfExistsAsync(anterior, RutaImagen.CarpetaUsuarios);
+        }
+        else if (nueva is not null && nueva != anterior)
+        {
+            await fileStorageService.DeleteIfExistsAsync(nueva, RutaImagen.CarpetaUsuarios);
+        }
+
+        return Results.Redirect("/account/profile");
     }
     catch
     {
+        if (nueva is not null && nueva != currentUser.ProfileImagePath)
+        {
+            await fileStorageService.DeleteIfExistsAsync(nueva, RutaImagen.CarpetaUsuarios);
+        }
+
         return Results.Redirect("/account/profile");
     }
 }).RequireAuthorization(ApplicationPolicies.CanConsult);
 
 app.MapPost("/reports/clientes/selected", async (
-    [FromForm] ClienteSelectionReportForm form,
-    IClienteApiClient clienteApiClient,
+    [FromForm] ClienteSelectionReportForm? form,
+    ISocioNegocioApiClient clienteApiClient,
     IReportDocumentService reportDocumentService) =>
 {
-    var selectedIds = form.SelectedIds.Where(id => id != Guid.Empty).Distinct().ToArray();
+    var selectedIds = (form?.SelectedIds ?? []).Where(id => id != Guid.Empty).Distinct().ToArray();
     if (selectedIds.Length == 0)
     {
         return Results.Redirect("/clientes?ok=report-select-required");
     }
 
-    var clientes = new List<OpenSource1.Application.Features.Clientes.Dtos.ClienteResponse>();
+    var clientes = new List<OpenSource1.Application.Features.SociosNegocio.Dtos.SocioNegocioResponse>();
     foreach (var id in selectedIds)
     {
         var item = await clienteApiClient.GetByIdAsync(id);
@@ -187,17 +317,17 @@ app.MapPost("/reports/clientes/selected", async (
 }).RequireAuthorization(ApplicationPolicies.CanConsult);
 
 app.MapPost("/reports/clientes/selected.xlsx", async (
-    [FromForm] ClienteSelectionReportForm form,
-    IClienteApiClient clienteApiClient,
+    [FromForm] ClienteSelectionReportForm? form,
+    ISocioNegocioApiClient clienteApiClient,
     IReportDocumentService reportDocumentService) =>
 {
-    var selectedIds = form.SelectedIds.Where(id => id != Guid.Empty).Distinct().ToArray();
+    var selectedIds = (form?.SelectedIds ?? []).Where(id => id != Guid.Empty).Distinct().ToArray();
     if (selectedIds.Length == 0)
     {
         return Results.Redirect("/clientes?ok=report-select-required");
     }
 
-    var clientes = new List<OpenSource1.Application.Features.Clientes.Dtos.ClienteResponse>();
+    var clientes = new List<OpenSource1.Application.Features.SociosNegocio.Dtos.SocioNegocioResponse>();
     foreach (var id in selectedIds)
     {
         var item = await clienteApiClient.GetByIdAsync(id);
@@ -217,11 +347,11 @@ app.MapPost("/reports/clientes/selected.xlsx", async (
 }).RequireAuthorization(ApplicationPolicies.CanConsult);
 
 app.MapPost("/reports/productos/selected", async (
-    [FromForm] ProductoSelectionReportForm form,
+    [FromForm] ProductoSelectionReportForm? form,
     IProductoApiClient productoApiClient,
     IReportDocumentService reportDocumentService) =>
 {
-    var selectedIds = form.SelectedIds.Where(id => id != Guid.Empty).Distinct().ToArray();
+    var selectedIds = (form?.SelectedIds ?? []).Where(id => id != Guid.Empty).Distinct().ToArray();
     if (selectedIds.Length == 0)
     {
         return Results.Redirect("/productos?ok=report-select-required");
@@ -242,10 +372,10 @@ app.MapPost("/reports/productos/selected", async (
         return Results.Redirect("/productos?ok=report-no-data");
     }
 
-    productos = form.StockState switch
+    productos = form?.StockState switch
     {
-        "with-stock" => productos.Where(x => x.Stock > 0).ToList(),
-        "without-stock" => productos.Where(x => x.Stock <= 0).ToList(),
+        "with" => productos.Where(x => x.Existencia > 0).ToList(),
+        "without" => productos.Where(x => x.Existencia <= 0).ToList(),
         _ => productos
     };
 
@@ -259,11 +389,11 @@ app.MapPost("/reports/productos/selected", async (
 }).RequireAuthorization(ApplicationPolicies.CanConsult);
 
 app.MapPost("/reports/productos/selected.xlsx", async (
-    [FromForm] ProductoSelectionReportForm form,
+    [FromForm] ProductoSelectionReportForm? form,
     IProductoApiClient productoApiClient,
     IReportDocumentService reportDocumentService) =>
 {
-    var selectedIds = form.SelectedIds.Where(id => id != Guid.Empty).Distinct().ToArray();
+    var selectedIds = (form?.SelectedIds ?? []).Where(id => id != Guid.Empty).Distinct().ToArray();
     if (selectedIds.Length == 0)
     {
         return Results.Redirect("/productos?ok=report-select-required");
@@ -284,10 +414,10 @@ app.MapPost("/reports/productos/selected.xlsx", async (
         return Results.Redirect("/productos?ok=report-no-data");
     }
 
-    productos = form.StockState switch
+    productos = form?.StockState switch
     {
-        "with-stock" => productos.Where(x => x.Stock > 0).ToList(),
-        "without-stock" => productos.Where(x => x.Stock <= 0).ToList(),
+        "with" => productos.Where(x => x.Existencia > 0).ToList(),
+        "without" => productos.Where(x => x.Existencia <= 0).ToList(),
         _ => productos
     };
 
@@ -301,12 +431,12 @@ app.MapPost("/reports/productos/selected.xlsx", async (
 }).RequireAuthorization(ApplicationPolicies.CanConsult);
 
 app.MapPost("/reports/clientes/history", async (
-    [FromForm] ClienteHistoricalReportForm form,
-    IClienteApiClient clienteApiClient,
+    [FromForm] ClienteHistoricalReportForm? form,
+    ISocioNegocioApiClient clienteApiClient,
     IReportDocumentService reportDocumentService) =>
 {
     var clientes = await clienteApiClient.ListAllAsync();
-    if (form.Status == "inactive")
+    if (form?.Status == "inactive")
     {
         clientes = [];
     }
@@ -320,12 +450,12 @@ app.MapPost("/reports/clientes/history", async (
 }).RequireAuthorization(ApplicationPolicies.CanConsult);
 
 app.MapPost("/reports/clientes/history.xlsx", async (
-    [FromForm] ClienteHistoricalReportForm form,
-    IClienteApiClient clienteApiClient,
+    [FromForm] ClienteHistoricalReportForm? form,
+    ISocioNegocioApiClient clienteApiClient,
     IReportDocumentService reportDocumentService) =>
 {
     var clientes = await clienteApiClient.ListAllAsync();
-    if (form.Status == "inactive")
+    if (form?.Status == "inactive")
     {
         clientes = [];
     }
@@ -339,15 +469,15 @@ app.MapPost("/reports/clientes/history.xlsx", async (
 }).RequireAuthorization(ApplicationPolicies.CanConsult);
 
 app.MapPost("/reports/productos/history", async (
-    [FromForm] ProductoHistoricalReportForm form,
+    [FromForm] ProductoHistoricalReportForm? form,
     IProductoApiClient productoApiClient,
     IReportDocumentService reportDocumentService) =>
 {
     var productos = await productoApiClient.ListAllAsync();
-    productos = form.StockState switch
+    productos = form?.StockState switch
     {
-        "with-stock" => productos.Where(x => x.Stock > 0).ToList(),
-        "without-stock" => productos.Where(x => x.Stock <= 0).ToList(),
+        "with" => productos.Where(x => x.Existencia > 0).ToList(),
+        "without" => productos.Where(x => x.Existencia <= 0).ToList(),
         _ => productos
     };
     if (productos.Count == 0)
@@ -360,15 +490,15 @@ app.MapPost("/reports/productos/history", async (
 }).RequireAuthorization(ApplicationPolicies.CanConsult);
 
 app.MapPost("/reports/productos/history.xlsx", async (
-    [FromForm] ProductoHistoricalReportForm form,
+    [FromForm] ProductoHistoricalReportForm? form,
     IProductoApiClient productoApiClient,
     IReportDocumentService reportDocumentService) =>
 {
     var productos = await productoApiClient.ListAllAsync();
-    productos = form.StockState switch
+    productos = form?.StockState switch
     {
-        "with-stock" => productos.Where(x => x.Stock > 0).ToList(),
-        "without-stock" => productos.Where(x => x.Stock <= 0).ToList(),
+        "with" => productos.Where(x => x.Existencia > 0).ToList(),
+        "without" => productos.Where(x => x.Existencia <= 0).ToList(),
         _ => productos
     };
     if (productos.Count == 0)
@@ -381,7 +511,7 @@ app.MapPost("/reports/productos/history.xlsx", async (
 }).RequireAuthorization(ApplicationPolicies.CanConsult);
 
 app.MapGet("/reports/clientes/raw.xlsx", async (
-    IClienteApiClient clienteApiClient,
+    ISocioNegocioApiClient clienteApiClient,
     IReportDocumentService reportDocumentService) =>
 {
     var clientes = await clienteApiClient.ListAllAsync();
@@ -402,3 +532,5 @@ app.MapStaticAssets();
 app.MapRazorComponents<App>();
 
 app.Run();
+
+public partial class Program { }

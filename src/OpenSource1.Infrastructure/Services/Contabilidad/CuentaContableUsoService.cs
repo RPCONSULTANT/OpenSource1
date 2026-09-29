@@ -1,0 +1,63 @@
+using Dapper;
+using OpenSource1.Application.Data;
+using OpenSource1.Application.Services.Contabilidad;
+
+namespace OpenSource1.Infrastructure.Services.Contabilidad;
+
+/// <summary>
+/// Guarda de uso de cuentas contables. Una cuenta está en uso si la referencia, en cualquiera de sus columnas de cuenta, una fila
+/// NO borrada lógicamente de: un grupo contable de cliente (CxC, descuento o interés; Task 5.3) o uno de los tres setups
+/// contables (Task 5.4), o si tiene algún movimiento en el libro contable (Task 5.5; el libro no tiene borrado lógico y usa el
+/// índice <c>IX_MovimientosContables_CuentaContableId_FechaRegistro</c>), o una línea viva de borrador de factura de tipo
+/// CuentaContable (Task 6.2), o un borrador vivo de nota de crédito que la lleve en una línea CuentaContable o como CxC congelada
+/// (Task 8.6).
+/// </summary>
+public sealed class CuentaContableUsoService(IDbSession session) : ICuentaContableUsoService
+{
+    private const string Sql = """
+        SELECT EXISTS (
+            SELECT 1 FROM "MovimientosContables" WHERE "CuentaContableId" = @Id
+        ) OR EXISTS (
+            SELECT 1 FROM "GruposClienteContable"
+            WHERE "IsDeleted" = false
+              AND ("CuentaCxCId" = @Id OR "CuentaDescuentoId" = @Id OR "CuentaInteresId" = @Id)
+        ) OR EXISTS (
+            SELECT 1 FROM "SetupsContableGeneral"
+            WHERE "IsDeleted" = false
+              AND ("CuentaVentasId" = @Id OR "CuentaCostoVentasId" = @Id OR "CuentaDescuentoVentasId" = @Id OR "CuentaAjusteInventarioId" = @Id)
+        ) OR EXISTS (
+            SELECT 1 FROM "SetupsIva"
+            WHERE "IsDeleted" = false AND ("CuentaIvaVentasId" = @Id OR "CuentaIvaComprasId" = @Id)
+        ) OR EXISTS (
+            SELECT 1 FROM "SetupsInventario"
+            WHERE "IsDeleted" = false
+              AND ("CuentaInventarioId" = @Id OR "CuentaAjusteInventarioId" = @Id OR "CuentaVariacionCostoId" = @Id)
+        ) OR EXISTS (
+            SELECT 1 FROM "LineasFacturaVentaBorrador" WHERE "IsDeleted" = false AND "CuentaContableId" = @Id
+        ) OR EXISTS (
+            SELECT 1 FROM "LineasNotaCreditoVentaBorrador" WHERE "IsDeleted" = false AND "CuentaContableId" = @Id
+        ) OR EXISTS (
+            SELECT 1 FROM "NotasCreditoVentaBorrador" WHERE "IsDeleted" = false AND "CuentaCxCId" = @Id
+        )
+        """;
+
+    public async Task<bool> EstaEnUsoAsync(Guid cuentaContableId, CancellationToken cancellationToken = default)
+    {
+        await session.EnsureOpenAsync(cancellationToken);
+        return await session.Connection.ExecuteScalarAsync<bool>(
+            new CommandDefinition(Sql, new { Id = cuentaContableId }, session.CurrentTransaction, cancellationToken: cancellationToken));
+    }
+
+    public async Task BloquearAsync(Guid cuentaContableId, CancellationToken cancellationToken = default)
+    {
+        if (!session.HayTransaccionActiva)
+        {
+            throw new InvalidOperationException("Bloquear una cuenta contable requiere una transacción activa.");
+        }
+
+        await session.EnsureOpenAsync(cancellationToken);
+        await session.Connection.ExecuteAsync(new CommandDefinition(
+            """SELECT 1 FROM "CuentasContables" WHERE "Id" = @Id FOR UPDATE""",
+            new { Id = cuentaContableId }, session.CurrentTransaction, cancellationToken: cancellationToken));
+    }
+}

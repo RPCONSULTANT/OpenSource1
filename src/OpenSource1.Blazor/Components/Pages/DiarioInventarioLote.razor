@@ -1,0 +1,857 @@
+@page "/diarios-inventario/{LoteId:guid}"
+@attribute [Authorize(Policy = ApplicationPolicies.CanConsult)]
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Authorization
+@using OpenSource1.Application.Features.Almacenes.Dtos
+@using OpenSource1.Application.Features.DiariosInventario.Lineas.Dtos
+@using OpenSource1.Application.Features.DiariosInventario.Lotes.Dtos
+@using OpenSource1.Application.Features.DiariosInventario.Plantillas.Dtos
+@using OpenSource1.Application.Features.DiariosInventario.Registros.Commands
+@using OpenSource1.Application.Features.Productos.Dtos
+@using OpenSource1.Application.Security
+@using OpenSource1.Blazor.Services
+@using OpenSource1.Core.Common
+@using OpenSource1.Core.Enums
+@inject IDiarioInventarioApiClient DiarioApiClient
+@inject IProductoApiClient ProductoApiClient
+@inject IAlmacenApiClient AlmacenApiClient
+@inject IAuthorizationService AuthorizationService
+@inject ILogger<DiarioInventarioLote> Logger
+@inject NavigationManager Nav
+
+<PageTitle>Lote de diario – AxionERP</PageTitle>
+
+<div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+    <div>
+        <p class="text-xs font-bold tracking-widest uppercase text-brand-600 mb-1">Diarios de inventario</p>
+        <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">
+            @(lote is null ? "Lote" : $"Lote {lote.Codigo}")
+        </h1>
+        @if (lote is not null)
+        {
+            <p class="text-sm text-slate-500 mt-1">
+                @lote.Nombre — @(plantilla is null ? "(plantilla no disponible)" : $"{plantilla.Codigo} — {plantilla.Nombre}")
+                @if (lote.Bloqueado)
+                {
+                    <span class="ml-2 inline-flex items-center rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700">Bloqueado</span>
+                }
+            </p>
+        }
+    </div>
+    <a href="/diarios-inventario" class="btn-press rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Volver al listado</a>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(message))
+{
+    <div class="mb-6">
+        @if (messageType == "success")
+        {
+            <ActionFeedback Type="success" Message="@message" />
+        }
+        else
+        {
+            <MessageBox Type="@messageType" Message="@message" Errors="@errores" />
+        }
+    </div>
+}
+
+@if (loadError is not null)
+{
+    <MessageBox Type="danger" Message="@loadError" />
+}
+else if (lote is null)
+{
+    <div class="rounded-2xl border border-slate-200 bg-white px-8 py-12 text-center text-slate-400 shadow-sm">
+        <p class="font-semibold text-slate-500">No se encontró el lote de diario solicitado.</p>
+    </div>
+}
+else
+{
+    <!-- ── Tabla de líneas ── -->
+    <div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden mb-8">
+        <div class="px-6 py-4 border-b border-slate-100">
+            <h2 class="text-sm font-semibold text-slate-700">Líneas del lote</h2>
+            <p class="mt-1 text-xs text-slate-500">@lineas.Count línea(s) capturada(s).</p>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-slate-100 text-sm">
+                <thead class="bg-slate-50">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">#</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Fecha reg.</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Movimiento</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Producto</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Almacén</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Destino</th>
+                        <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Cantidad</th>
+                        <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Costo unit.</th>
+                        <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-50 bg-white">
+                    @if (lineas.Count == 0)
+                    {
+                        <tr><td colspan="9" class="px-4 py-8 text-center text-slate-400 text-sm">El lote todavía no tiene líneas capturadas.</td></tr>
+                    }
+                    else
+                    {
+                        @foreach (var linea in lineas.OrderBy(l => l.NumeroLinea))
+                        {
+                            <tr @key="linea.Id" class="hover:bg-slate-50 transition-colors">
+                                <td class="px-4 py-3 text-slate-400 text-xs">@linea.NumeroLinea</td>
+                                <td class="px-4 py-3 text-slate-500 text-xs">@linea.FechaRegistro.ToString("yyyy-MM-dd")</td>
+                                <td class="px-4 py-3 text-slate-700 text-xs">@EtiquetaMovimiento(linea.TipoMovimiento)</td>
+                                <td class="px-4 py-3 text-slate-700">@linea.ProductoCodigo <span class="text-slate-400 text-xs">@linea.ProductoNombre</span></td>
+                                <td class="px-4 py-3 text-slate-500 text-xs">@linea.AlmacenCodigo</td>
+                                <td class="px-4 py-3 text-slate-500 text-xs">@(linea.AlmacenDestinoCodigo ?? "—")</td>
+                                <td class="px-4 py-3 text-right text-slate-700">@linea.Cantidad.ToString("0.######") <span class="text-slate-400 text-xs">@linea.UnidadMedidaCodigo</span></td>
+                                <td class="px-4 py-3 text-right text-slate-700">@(linea.CostoUnitario?.ToString("0.00##") ?? "—")</td>
+                                <td class="px-4 py-3 text-right">
+                                    <div class="flex items-center justify-end gap-2">
+                                        @if (canModify && !lote.Bloqueado)
+                                        {
+                                            <a href="@BuildUrl(editLineaId: linea.Id)" class="btn-press inline-flex items-center justify-center size-8 rounded-lg border border-amber-200 bg-amber-50 text-amber-600 hover:bg-amber-100" title="Editar línea">
+                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Z" /></svg>
+                                            </a>
+                                        }
+                                        @if (canDelete && !lote.Bloqueado)
+                                        {
+                                            <a href="@BuildUrl(deleteLineaId: linea.Id)" class="btn-press inline-flex items-center justify-center size-8 rounded-lg border border-red-200 bg-red-50 text-red-600 hover:bg-red-100" title="Eliminar línea">
+                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79" /></svg>
+                                            </a>
+                                        }
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    @if (lote.Bloqueado)
+    {
+        <div class="mb-6"><MessageBox Type="warning" Message="El lote está bloqueado: no admite altas, ediciones ni bajas de línea, ni registro." /></div>
+    }
+
+    <!-- ── Agregar línea ── -->
+    @if (canAdd && !lote.Bloqueado)
+    {
+        <div class="rounded-2xl border border-green-200 bg-white shadow-sm overflow-hidden mb-6">
+            <div class="px-6 py-4 bg-green-50 border-b border-green-100 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-5 text-green-600"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
+                <h2 class="text-sm font-bold text-green-800">Agregar línea</h2>
+            </div>
+            <div class="px-6 py-5">
+                @if (addProducto is null)
+                {
+                    <BuscadorProducto ActionUrl="@UrlBase" QueryParamName="addProductoQuery" Termino="@AddProductoQuery"
+                                       Resultados="@addProductoOpciones" CargaFallida="@addProductoOpcionesCargaFallida"
+                                       ConstruirUrlUsar="@(id => BuildUrl(addProductoId: id, addProductoQuery: AddProductoQuery))" />
+                }
+                else
+                {
+                    <div class="mb-4 flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                        <p class="text-sm text-slate-700">
+                            Producto: <span class="font-semibold">@addProducto.Codigo — @addProducto.Nombre</span>
+                            <span class="text-slate-400 text-xs">· Unidad base: @addProducto.UnidadMedidaCodigo (@addProducto.UnidadMedidaNombre)</span>
+                        </p>
+                        <a href="@UrlBase" class="btn-press rounded-lg border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50">Cambiar producto</a>
+                    </div>
+
+                    <EditForm Model="AddInput" FormName="add-linea" OnValidSubmit="CreateLineaAsync" Enhance="true">
+                        <DataAnnotationsValidator />
+                        <LineaDiarioFields Model="AddInput!" Prefix="AddInput" PlantillaTipo="@(plantilla?.Tipo ?? TipoPlantillaDiario.Articulo)" Almacenes="@almacenes" AlmacenesCargaFallida="@almacenesCargaFallida" />
+                        <div class="mt-5 flex items-center gap-3">
+                            @if (!almacenesCargaFallida)
+                            {
+                                <button type="submit" class="btn-press flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 transition-colors shadow-sm">Agregar línea</button>
+                            }
+                            <a href="@UrlBase" title="Limpiar campos" class="btn-press inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+                                Limpiar campos
+                            </a>
+                        </div>
+                    </EditForm>
+                }
+            </div>
+        </div>
+    }
+
+    <!-- ── Editar línea ── -->
+    @if (canModify && !lote.Bloqueado && EditLineaId.HasValue)
+    {
+        <div class="rounded-2xl border border-amber-200 bg-white shadow-sm overflow-hidden mb-6">
+            <div class="px-6 py-4 bg-amber-50 border-b border-amber-100 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-5 text-amber-600"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" /></svg>
+                <h2 class="text-sm font-bold text-amber-800">Editar línea</h2>
+            </div>
+            <div class="px-6 py-5">
+                @if (lineaAEditar is null)
+                {
+                    <MessageBox Type="warning" Message="No se encontró la línea seleccionada. Puede haber sido eliminada o registrada por otro usuario." />
+                }
+                else if (editProducto is null)
+                {
+                    @if (EditProductoIdOverride is not null)
+                    {
+                        <p class="text-sm text-amber-600 mb-3">El producto seleccionado ya no está disponible. Busque otro para continuar.</p>
+                    }
+                    <BuscadorProducto ActionUrl="@UrlBase" QueryParamName="editProductoQuery" Termino="@EditProductoQuery"
+                                       Resultados="@editProductoOpciones" CargaFallida="@editProductoOpcionesCargaFallida"
+                                       ConstruirUrlUsar="@(id => BuildUrl(editLineaId: EditLineaId, editProductoId: id))">
+                        <CamposOcultos>
+                            <input type="hidden" name="editLineaId" value="@EditLineaId" />
+                            <input type="hidden" name="editBuscar" value="true" />
+                        </CamposOcultos>
+                    </BuscadorProducto>
+                }
+                else
+                {
+                    <div class="mb-4 flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                        <p class="text-sm text-slate-700">
+                            Producto: <span class="font-semibold">@editProducto.Codigo — @editProducto.Nombre</span>
+                            <span class="text-slate-400 text-xs">· Unidad base: @editProducto.UnidadMedidaCodigo@(string.IsNullOrWhiteSpace(editProducto.UnidadMedidaNombre) ? "" : $" ({editProducto.UnidadMedidaNombre})")</span>
+                        </p>
+                        <a href="@BuildUrl(editLineaId: EditLineaId, editBuscar: true)" class="btn-press rounded-lg border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50">Cambiar producto</a>
+                    </div>
+
+                    <EditForm Model="UpdateInputLinea" FormName="update-linea" OnValidSubmit="UpdateLineaAsync" Enhance="true">
+                        <DataAnnotationsValidator />
+                        <input type="hidden" name="UpdateInputLinea.Xmin" value="@UpdateInputLinea!.Xmin" />
+                        <LineaDiarioFields Model="UpdateInputLinea!" Prefix="UpdateInputLinea" PlantillaTipo="@(plantilla?.Tipo ?? TipoPlantillaDiario.Articulo)"
+                                           Almacenes="@almacenes" AlmacenesCargaFallida="@almacenesCargaFallida"
+                                           CurrentAlmacenCodigo="@lineaAEditar.AlmacenCodigo" CurrentAlmacenNombre="@lineaAEditar.AlmacenCodigo"
+                                           CurrentAlmacenDestinoCodigo="@lineaAEditar.AlmacenDestinoCodigo" CurrentAlmacenDestinoNombre="@lineaAEditar.AlmacenDestinoCodigo" />
+                        <div class="mt-5 flex items-center gap-3">
+                            @if (!almacenesCargaFallida)
+                            {
+                                <button type="submit" class="btn-press flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-600 transition-colors shadow-sm">Guardar cambios</button>
+                            }
+                            <a href="@UrlBase" class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">Cancelar</a>
+                        </div>
+                    </EditForm>
+                }
+            </div>
+        </div>
+    }
+
+    <!-- ── Registrar lote ── -->
+    @if (canModify)
+    {
+        <div class="rounded-2xl border border-brand-200 bg-white shadow-sm overflow-hidden mb-6">
+            <div class="px-6 py-4 bg-brand-50 border-b border-brand-100 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-5 text-brand-700"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
+                <h2 class="text-sm font-bold text-brand-800">Registrar lote</h2>
+            </div>
+            <div class="px-6 py-5">
+                @if (registroResultado is not null)
+                {
+                    <div class="rounded-xl border border-green-200 bg-green-50 px-4 py-4 text-sm text-green-900">
+                        <p class="font-semibold">Lote registrado. Número de registro: @registroResultado.NumeroRegistro</p>
+                        <p class="mt-1 text-xs">@registroResultado.Movimientos movimiento(s) generado(s) (MovimientosProducto @registroResultado.DesdeMovimientoProducto–@registroResultado.HastaMovimientoProducto).</p>
+                        @{
+                            var productosDistintos = lineasRegistradas
+                                .GroupBy(l => l.ProductoId)
+                                .Select(g => g.First())
+                                .ToList();
+                        }
+                        @if (productosDistintos.Count > 0)
+                        {
+                            <p class="mt-3 text-xs font-semibold uppercase tracking-wide text-green-700">Productos afectados</p>
+                            <ul class="mt-1 list-disc list-inside space-y-0.5">
+                                @foreach (var p in productosDistintos)
+                                {
+                                    <li><a class="underline hover:text-green-700" href="@($"/productos/{p.ProductoId}")">@p.ProductoCodigo — @p.ProductoNombre</a></li>
+                                }
+                            </ul>
+                        }
+                    </div>
+                }
+                else if (!lote.Bloqueado)
+                {
+                    <p class="text-sm text-slate-500 mb-4">Registra las líneas del lote en el libro de inventario. Esta acción no se puede deshacer.</p>
+                    <a href="@BuildUrl(registrar: true)" class="btn-press inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700">Registrar lote</a>
+                }
+            </div>
+        </div>
+    }
+
+    @if (RegistrarConfirm && registroResultado is null)
+    {
+        @if (canModify)
+        {
+            <ConfirmDialog Title="Confirmar registro del lote" Message="Se registrarán todas las líneas del lote en el libro de inventario. Esta acción no se puede deshacer." Variant="success" CancelHref="@UrlBase">
+                @if (registroError is not null)
+                {
+                    <div class="mb-4"><MessageBox Type="warning" Message="@registroError" Errors="@registroErrores" /></div>
+                }
+                <p class="rounded-xl border border-brand-100 bg-brand-50 px-4 py-3 text-sm text-brand-900">@lote.Codigo — @lote.Nombre (@lineas.Count línea(s))</p>
+                <EditForm Model="RegistrarInput" FormName="confirm-registrar" OnValidSubmit="RegistrarAsync" class="mt-4">
+                    <button type="submit" class="btn-press rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700">Sí, registrar</button>
+                    <a href="@UrlBase" class="btn-press ml-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Cancelar</a>
+                </EditForm>
+            </ConfirmDialog>
+        }
+        else
+        {
+            @* Sin CanModify no se muestra el diálogo (un Ejecutor no debe ver este panel ni siquiera
+               navegando directo a ?registrar=true: el botón que llevaría aquí ya está oculto arriba),
+               pero el EditForm debe seguir existiendo en el árbol de render: un POST forzado (DOM
+               alterado, replay) tiene que llegar a RegistrarAsync y recibir el 403 real de la API con
+               su mensaje, en vez del "Cannot submit the form..." genérico de Blazor cuando el
+               formulario no está presente en la página. La autorización real la sigue haciendo la API
+               ([Authorize(Policy = CanModify)] en el controller); esto solo evita el error genérico y,
+               si de todos modos llega un POST, muestra el mensaje real en vez de nada. *@
+            @if (registroError is not null)
+            {
+                <MessageBox Type="warning" Message="@registroError" Errors="@registroErrores" />
+            }
+            <EditForm Model="RegistrarInput" FormName="confirm-registrar" OnValidSubmit="RegistrarAsync"></EditForm>
+        }
+    }
+
+    @if (DeleteLineaId.HasValue && canDelete && !lote.Bloqueado)
+    {
+        <ConfirmDialog Title="Confirmar eliminación" Message="Esta acción eliminará la línea seleccionada del lote y no se puede deshacer." Variant="danger" CancelHref="@UrlBase">
+            <p class="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-900">
+                @(lineaAEliminar is null ? DeleteLineaId.Value.ToString() : $"Línea {lineaAEliminar.NumeroLinea} — {lineaAEliminar.ProductoCodigo} ({lineaAEliminar.Cantidad:0.######} {lineaAEliminar.UnidadMedidaCodigo})")
+            </p>
+            <EditForm Model="DeleteInputLinea" FormName="delete-linea" OnValidSubmit="DeleteLineaAsync" class="mt-4">
+                <input type="hidden" name="DeleteInputLinea.Id" value="@DeleteLineaId" />
+                <button type="submit" class="btn-press rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-700">Sí, eliminar</button>
+                <a href="@UrlBase" class="btn-press ml-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Cancelar</a>
+            </EditForm>
+        </ConfirmDialog>
+    }
+}
+
+@code {
+    [Parameter] public Guid LoteId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "ok")] private string? Ok { get; set; }
+    [SupplyParameterFromQuery(Name = "editLineaId")] private Guid? EditLineaId { get; set; }
+    [SupplyParameterFromQuery(Name = "deleteLineaId")] private Guid? DeleteLineaId { get; set; }
+    [SupplyParameterFromQuery(Name = "registrar")] private bool RegistrarConfirm { get; set; }
+
+    [SupplyParameterFromQuery(Name = "addProductoQuery")] private string? AddProductoQuery { get; set; }
+    [SupplyParameterFromQuery(Name = "addProductoId")] private Guid? AddProductoId { get; set; }
+    [SupplyParameterFromQuery(Name = "editProductoQuery")] private string? EditProductoQuery { get; set; }
+    [SupplyParameterFromQuery(Name = "editProductoId")] private Guid? EditProductoIdOverride { get; set; }
+
+    /// <summary>"Cambiar producto" en edición: entra a modo búsqueda aunque la línea ya tenga un producto guardado (si no, siempre se resolvería el mismo por defecto y el enlace no haría nada).</summary>
+    [SupplyParameterFromQuery(Name = "editBuscar")] private bool EditBuscarProducto { get; set; }
+
+    [SupplyParameterFromForm(FormName = "add-linea")] private LineaForm? AddInput { get; set; }
+    [SupplyParameterFromForm(FormName = "update-linea")] private LineaForm? UpdateInputLinea { get; set; }
+    [SupplyParameterFromForm(FormName = "delete-linea")] private DeleteLineaForm? DeleteInputLinea { get; set; }
+    [SupplyParameterFromForm(FormName = "confirm-registrar")] private RegistrarForm? RegistrarInput { get; set; }
+
+    private string UrlBase => $"/diarios-inventario/{LoteId}";
+
+    private LoteDiarioResponse? lote;
+    private PlantillaDiarioResponse? plantilla;
+    private IReadOnlyList<LineaDiarioResponse> lineas = [];
+    private IReadOnlyList<AlmacenResponse> almacenes = [];
+    private bool almacenesCargaFallida;
+    private string? loadError;
+    private string? message;
+    private string messageType = "info";
+    private IReadOnlyList<string> errores = [];
+
+    private ProductoResponse? addProducto;
+    private IReadOnlyList<ProductoResponse> addProductoOpciones = [];
+    private bool addProductoOpcionesCargaFallida;
+
+    private ProductoResponse? editProducto;
+    private IReadOnlyList<ProductoResponse> editProductoOpciones = [];
+    private bool editProductoOpcionesCargaFallida;
+
+    private LineaDiarioResponse? lineaAEditar;
+    private LineaDiarioResponse? lineaAEliminar;
+
+    // Resultado del registro: se muestra en LA MISMA respuesta del POST (sin redirigir), usando el
+    // snapshot de "lineas" cargado en OnInitializedAsync de ESTA petición (antes de que el POST las
+    // borre lógicamente en la API), porque ResultadoRegistroLote no trae los productos afectados.
+    private ResultadoRegistroLote? registroResultado;
+    private IReadOnlyList<LineaDiarioResponse> lineasRegistradas = [];
+    private string? registroError;
+    private IReadOnlyList<string> registroErrores = [];
+
+    private bool canAdd;
+    private bool canModify;
+    private bool canDelete;
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        AddInput ??= new();
+        UpdateInputLinea ??= new();
+        DeleteInputLinea ??= new();
+        RegistrarInput ??= new();
+
+        if (AuthenticationStateTask is not null)
+        {
+            var user = (await AuthenticationStateTask).User;
+            canAdd = (await AuthorizationService.AuthorizeAsync(user, ApplicationPolicies.CanAdd)).Succeeded;
+            canModify = (await AuthorizationService.AuthorizeAsync(user, ApplicationPolicies.CanModify)).Succeeded;
+            canDelete = (await AuthorizationService.AuthorizeAsync(user, ApplicationPolicies.CanDelete)).Succeeded;
+        }
+
+        try
+        {
+            lote = await DiarioApiClient.GetLoteByIdAsync(LoteId);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not load lote de diario {LoteId}.", LoteId);
+            loadError = "No fue posible cargar el lote de diario.";
+            return;
+        }
+
+        if (lote is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var plantillas = await DiarioApiClient.ListPlantillasAsync();
+            plantilla = plantillas.FirstOrDefault(p => p.Id == lote.PlantillaDiarioId);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not load plantillas de diario.");
+        }
+
+        try
+        {
+            lineas = await DiarioApiClient.ListLineasAsync(LoteId) ?? [];
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not load líneas of lote {LoteId}.", LoteId);
+            Show("danger", "No fue posible cargar las líneas del lote.");
+        }
+
+        try
+        {
+            var pagina = await AlmacenApiClient.ListAsync(null, new PageRequest(1, PageRequest.TamanoMaximo));
+            almacenes = pagina.Items;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not load almacenes.");
+            almacenesCargaFallida = true;
+        }
+
+        if (Ok is not null)
+        {
+            (messageType, message) = Ok switch
+            {
+                "linea_creada" => ("success", "Línea agregada satisfactoriamente."),
+                "linea_modificada" => ("success", "Línea modificada satisfactoriamente."),
+                "linea_eliminada" => ("success", "Línea eliminada satisfactoriamente."),
+                _ => ("info", null)
+            };
+        }
+
+        if (DeleteLineaId.HasValue && canDelete)
+        {
+            lineaAEliminar = lineas.FirstOrDefault(x => x.Id == DeleteLineaId.Value);
+            if (lineaAEliminar is null)
+            {
+                try { lineaAEliminar = await DiarioApiClient.GetLineaByIdAsync(DeleteLineaId.Value); }
+                catch (Exception ex) { Logger.LogWarning(ex, "Could not load línea {Id} to delete.", DeleteLineaId); }
+            }
+        }
+
+        if (EditLineaId.HasValue)
+        {
+            lineaAEditar = lineas.FirstOrDefault(x => x.Id == EditLineaId.Value);
+            if (lineaAEditar is null)
+            {
+                try { lineaAEditar = await DiarioApiClient.GetLineaByIdAsync(EditLineaId.Value); }
+                catch (Exception ex) { Logger.LogWarning(ex, "Could not load línea {Id} to edit.", EditLineaId); }
+            }
+
+            if (lineaAEditar is not null && string.IsNullOrEmpty(UpdateInputLinea!.CantidadTexto))
+            {
+                UpdateInputLinea.FechaRegistroTexto = EntradaFecha.Formatear(lineaAEditar.FechaRegistro);
+                UpdateInputLinea.FechaDocumentoTexto = EntradaFecha.Formatear(lineaAEditar.FechaDocumento);
+                UpdateInputLinea.NumeroDocumento = lineaAEditar.NumeroDocumento;
+                UpdateInputLinea.TipoMovimiento = (short)lineaAEditar.TipoMovimiento;
+                UpdateInputLinea.AlmacenId = lineaAEditar.AlmacenId;
+                UpdateInputLinea.AlmacenDestinoId = lineaAEditar.AlmacenDestinoId;
+                UpdateInputLinea.CantidadTexto = EntradaDecimal.Formatear(lineaAEditar.Cantidad);
+                UpdateInputLinea.CostoUnitarioTexto = lineaAEditar.CostoUnitario is { } c ? EntradaDecimal.Formatear(c) : null;
+                UpdateInputLinea.Descripcion = lineaAEditar.Descripcion;
+                UpdateInputLinea.Xmin = lineaAEditar.Xmin;
+            }
+        }
+
+        await CargarProductoAgregarAsync();
+        await CargarProductoEditarAsync();
+    }
+
+    private async Task CargarProductoAgregarAsync()
+    {
+        if (AddProductoId is { } id)
+        {
+            try
+            {
+                addProducto = await ProductoApiClient.GetByIdAsync(id);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Could not load producto {Id} for agregar línea.", id);
+            }
+
+            return;
+        }
+
+        try
+        {
+            var filtro = new ProductoSearchFilter(null, EmptyAsNull(AddProductoQuery), null, null, null, null, null, null);
+            var pagina = await ProductoApiClient.ListAsync(filtro, new PageRequest(1, 20, "Nombre", false));
+            addProductoOpciones = pagina.Items;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not load productos for agregar línea.");
+            addProductoOpcionesCargaFallida = true;
+        }
+    }
+
+    private async Task CargarProductoEditarAsync()
+    {
+        if (!EditLineaId.HasValue || lineaAEditar is null)
+        {
+            return;
+        }
+
+        if (EditProductoIdOverride is null && !EditBuscarProducto)
+        {
+            // Por defecto (sin pedir explícitamente cambiar de producto) se conserva el ya guardado en
+            // la línea: sus datos ya vienen en LineaDiarioResponse (Codigo/Nombre/UnidadMedidaId/Codigo),
+            // sin necesidad de otra llamada.
+            editProducto = new ProductoResponse
+            {
+                Id = lineaAEditar.ProductoId,
+                Codigo = lineaAEditar.ProductoCodigo ?? string.Empty,
+                Nombre = lineaAEditar.ProductoNombre ?? string.Empty,
+                UnidadMedidaBaseId = lineaAEditar.UnidadMedidaId,
+                UnidadMedidaCodigo = lineaAEditar.UnidadMedidaCodigo ?? string.Empty,
+            };
+            return;
+        }
+
+        if (EditProductoIdOverride is { } id)
+        {
+            try
+            {
+                editProducto = await ProductoApiClient.GetByIdAsync(id);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Could not load producto {Id} for editar línea.", id);
+            }
+
+            if (editProducto is not null)
+            {
+                return;
+            }
+        }
+
+        // Modo búsqueda: "Cambiar producto" (EditBuscarProducto) o el id elegido ya no existe/no cargó.
+        try
+        {
+            var filtro = new ProductoSearchFilter(null, EmptyAsNull(EditProductoQuery), null, null, null, null, null, null);
+            var pagina = await ProductoApiClient.ListAsync(filtro, new PageRequest(1, 20, "Nombre", false));
+            editProductoOpciones = pagina.Items;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not load productos for editar línea.");
+            editProductoOpcionesCargaFallida = true;
+        }
+    }
+
+    private async Task CreateLineaAsync()
+    {
+        if (lote is null || lote.Bloqueado)
+        {
+            Show("warning", "El lote está bloqueado.");
+            return;
+        }
+
+        if (addProducto is null)
+        {
+            Show("warning", "Seleccione primero un producto.");
+            return;
+        }
+
+        if (AddInput!.AlmacenId == Guid.Empty)
+        {
+            Show("warning", "Seleccione un almacén.");
+            return;
+        }
+
+        var tipoMovimiento = plantilla?.Tipo == TipoPlantillaDiario.Reclasificacion
+            ? TipoMovimientoInventario.Transferencia
+            : (TipoMovimientoInventario)AddInput.TipoMovimiento;
+
+        Guid? almacenDestinoId = null;
+        if (plantilla?.Tipo == TipoPlantillaDiario.Reclasificacion)
+        {
+            if (AddInput.AlmacenDestinoId is not { } destino || destino == Guid.Empty)
+            {
+                Show("warning", "Seleccione el almacén destino.");
+                return;
+            }
+
+            almacenDestinoId = destino;
+        }
+
+        var costoUnitario = tipoMovimiento == TipoMovimientoInventario.AjustePositivo ? AddInput.CostoUnitario : null;
+
+        var input = new LineaDiarioInput(
+            AddInput.FechaRegistro, AddInput.FechaDocumento, EmptyAsNull(AddInput.NumeroDocumento), tipoMovimiento,
+            addProducto.Id, AddInput.AlmacenId, almacenDestinoId, addProducto.UnidadMedidaBaseId, AddInput.Cantidad,
+            costoUnitario, EmptyAsNull(AddInput.Descripcion));
+
+        try
+        {
+            var result = await DiarioApiClient.CreateLineaAsync(LoteId, input);
+            if (result.Succeeded)
+            {
+                Nav.NavigateTo($"{UrlBase}?ok=linea_creada");
+                return;
+            }
+
+            errores = result.Errors ?? [];
+            Show("warning", result.Message);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not create línea de diario.");
+            Show("danger", "No fue posible agregar la línea.");
+        }
+    }
+
+    private async Task UpdateLineaAsync()
+    {
+        if (lote is null || lote.Bloqueado)
+        {
+            Show("warning", "El lote está bloqueado.");
+            return;
+        }
+
+        if (!EditLineaId.HasValue || editProducto is null)
+        {
+            Show("warning", "Seleccione primero una línea a modificar.");
+            return;
+        }
+
+        if (UpdateInputLinea!.AlmacenId == Guid.Empty)
+        {
+            Show("warning", "Seleccione un almacén.");
+            return;
+        }
+
+        var tipoMovimiento = plantilla?.Tipo == TipoPlantillaDiario.Reclasificacion
+            ? TipoMovimientoInventario.Transferencia
+            : (TipoMovimientoInventario)UpdateInputLinea.TipoMovimiento;
+
+        Guid? almacenDestinoId = null;
+        if (plantilla?.Tipo == TipoPlantillaDiario.Reclasificacion)
+        {
+            if (UpdateInputLinea.AlmacenDestinoId is not { } destino || destino == Guid.Empty)
+            {
+                Show("warning", "Seleccione el almacén destino.");
+                return;
+            }
+
+            almacenDestinoId = destino;
+        }
+
+        var costoUnitario = tipoMovimiento == TipoMovimientoInventario.AjustePositivo ? UpdateInputLinea.CostoUnitario : null;
+
+        var input = new LineaDiarioInput(
+            UpdateInputLinea.FechaRegistro, UpdateInputLinea.FechaDocumento, EmptyAsNull(UpdateInputLinea.NumeroDocumento), tipoMovimiento,
+            editProducto.Id, UpdateInputLinea.AlmacenId, almacenDestinoId, editProducto.UnidadMedidaBaseId, UpdateInputLinea.Cantidad,
+            costoUnitario, EmptyAsNull(UpdateInputLinea.Descripcion));
+
+        try
+        {
+            var result = await DiarioApiClient.UpdateLineaAsync(EditLineaId.Value, input, UpdateInputLinea.Xmin);
+            if (result.Succeeded)
+            {
+                Nav.NavigateTo($"{UrlBase}?ok=linea_modificada");
+                return;
+            }
+
+            errores = result.Errors ?? [];
+            Show("warning", result.Message);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not update línea de diario {Id}.", EditLineaId);
+            Show("danger", "No fue posible modificar la línea.");
+        }
+    }
+
+    private async Task DeleteLineaAsync()
+    {
+        try
+        {
+            var result = await DiarioApiClient.DeleteLineaAsync(DeleteInputLinea!.Id);
+            if (result.Succeeded)
+            {
+                Nav.NavigateTo($"{UrlBase}?ok=linea_eliminada");
+                return;
+            }
+
+            Show("warning", result.Message);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not delete línea de diario.");
+            Show("danger", "No fue posible eliminar la línea.");
+        }
+    }
+
+    private async Task RegistrarAsync()
+    {
+        try
+        {
+            var result = await DiarioApiClient.RegistrarLoteAsync(LoteId);
+            if (result.Succeeded)
+            {
+                registroResultado = result.Valor;
+                lineasRegistradas = lineas;
+                return;
+            }
+
+            registroErrores = result.Errors ?? [];
+            registroError = result.Message;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not registrar lote de diario {LoteId}.", LoteId);
+            registroError = "No fue posible registrar el lote.";
+        }
+    }
+
+    private void Show(string type, string text) { messageType = type; message = text; }
+
+    private static string? EmptyAsNull(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static string EtiquetaMovimiento(TipoMovimientoInventario tipo) => tipo switch
+    {
+        TipoMovimientoInventario.AjustePositivo => "Ajuste positivo",
+        TipoMovimientoInventario.AjusteNegativo => "Ajuste negativo",
+        TipoMovimientoInventario.Transferencia => "Transferencia",
+        TipoMovimientoInventario.Compra => "Compra",
+        TipoMovimientoInventario.Venta => "Venta",
+        _ => tipo.ToString()
+    };
+
+    private string BuildUrl(
+        Guid? editLineaId = null, Guid? deleteLineaId = null, bool? registrar = null,
+        Guid? addProductoId = null, string? addProductoQuery = null,
+        Guid? editProductoId = null, string? editProductoQuery = null, bool? editBuscar = null)
+    {
+        var parameters = new List<string>();
+        if (editLineaId.HasValue) parameters.Add($"editLineaId={editLineaId.Value}");
+        if (deleteLineaId.HasValue) parameters.Add($"deleteLineaId={deleteLineaId.Value}");
+        if (registrar == true) parameters.Add("registrar=true");
+        if (addProductoId.HasValue) parameters.Add($"addProductoId={addProductoId.Value}");
+        if (!string.IsNullOrWhiteSpace(addProductoQuery)) parameters.Add($"addProductoQuery={Uri.EscapeDataString(addProductoQuery)}");
+        if (editProductoId.HasValue) parameters.Add($"editProductoId={editProductoId.Value}");
+        if (!string.IsNullOrWhiteSpace(editProductoQuery)) parameters.Add($"editProductoQuery={Uri.EscapeDataString(editProductoQuery)}");
+        if (editBuscar == true) parameters.Add("editBuscar=true");
+        return parameters.Count == 0 ? UrlBase : $"{UrlBase}?{string.Join("&", parameters)}";
+    }
+
+    public sealed class LineaForm : IValidatableObject
+    {
+        [Required(ErrorMessage = "La fecha de registro es obligatoria.")]
+        public string FechaRegistroTexto { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "La fecha de documento es obligatoria.")]
+        public string FechaDocumentoTexto { get; set; } = string.Empty;
+
+        [MaxLength(20, ErrorMessage = "El número de documento no puede superar los 20 caracteres.")]
+        public string? NumeroDocumento { get; set; }
+
+        public short TipoMovimiento { get; set; } = (short)TipoMovimientoInventario.AjustePositivo;
+
+        public Guid AlmacenId { get; set; }
+
+        public Guid? AlmacenDestinoId { get; set; }
+
+        [Required(ErrorMessage = "La cantidad es obligatoria.")]
+        public string CantidadTexto { get; set; } = string.Empty;
+
+        public string? CostoUnitarioTexto { get; set; }
+
+        [MaxLength(200, ErrorMessage = "La descripción no puede superar los 200 caracteres.")]
+        public string? Descripcion { get; set; }
+
+        public long Xmin { get; set; }
+
+        public DateOnly FechaRegistro => EntradaFecha.TryParse(FechaRegistroTexto, out var v, out _) ? v : default;
+
+        public DateOnly FechaDocumento => EntradaFecha.TryParse(FechaDocumentoTexto, out var v, out _) ? v : default;
+
+        public decimal Cantidad => EntradaDecimal.TryParse(CantidadTexto, out var v, out _, "La cantidad") ? v : 0m;
+
+        public decimal? CostoUnitario =>
+            !string.IsNullOrWhiteSpace(CostoUnitarioTexto) && EntradaDecimal.TryParse(CostoUnitarioTexto, out var v, out _, "El costo unitario")
+                ? v
+                : null;
+
+        public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+        {
+            if (!string.IsNullOrWhiteSpace(FechaRegistroTexto) && !EntradaFecha.TryParse(FechaRegistroTexto, out _, out var errorFechaReg, "La fecha de registro"))
+            {
+                yield return new ValidationResult(errorFechaReg ?? "La fecha de registro no es válida.", [nameof(FechaRegistroTexto)]);
+            }
+
+            if (!string.IsNullOrWhiteSpace(FechaDocumentoTexto) && !EntradaFecha.TryParse(FechaDocumentoTexto, out _, out var errorFechaDoc, "La fecha de documento"))
+            {
+                yield return new ValidationResult(errorFechaDoc ?? "La fecha de documento no es válida.", [nameof(FechaDocumentoTexto)]);
+            }
+
+            if (!string.IsNullOrWhiteSpace(CantidadTexto))
+            {
+                if (!EntradaDecimal.TryParse(CantidadTexto, out var cantidad, out var errorCantidad, "La cantidad"))
+                {
+                    yield return new ValidationResult(errorCantidad, [nameof(CantidadTexto)]);
+                }
+                else if (cantidad <= 0)
+                {
+                    yield return new ValidationResult("La cantidad debe ser mayor que cero.", [nameof(CantidadTexto)]);
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(CostoUnitarioTexto) && !EntradaDecimal.TryParse(CostoUnitarioTexto, out _, out var errorCosto, "El costo unitario"))
+            {
+                yield return new ValidationResult(errorCosto, [nameof(CostoUnitarioTexto)]);
+            }
+        }
+    }
+
+    public sealed class DeleteLineaForm
+    {
+        public Guid Id { get; set; }
+    }
+
+    public sealed class RegistrarForm
+    {
+    }
+}

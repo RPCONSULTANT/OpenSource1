@@ -1,4 +1,4 @@
-using OpenSource1.Core.ValueObjects;
+using OpenSource1.Core.Enums;
 
 namespace OpenSource1.Core.Entities;
 
@@ -6,9 +6,50 @@ public sealed class Producto : BaseEntity
 {
     public required string Codigo { get; set; }
     public required string Nombre { get; set; }
-    public decimal Precio { get; set; }
-    public int Stock { get; set; }
-    public required CategoriaProducto Categoria { get; set; }
-    public required UnidadMedida UnidadMedida { get; set; }
+
+    /// <summary>Precio de venta (antes <c>Precio</c>). <c>numeric(18,4)</c>.</summary>
+    public decimal PrecioVenta { get; set; }
+
+    // Stock (Task 3.6): eliminado. La existencia se deriva del libro de inventario (MovimientosProducto),
+    // sumando "Cantidad" por producto/almacén/fecha (ver IConsultaInventario). El Stock legado se migró a
+    // movimientos de apertura con TipoOrigen = Migracion en el almacén PRINCIPAL.
+
+    /// <summary>Unidad de medida base del producto (catálogo <see cref="UnidadMedida"/>).</summary>
+    public Guid UnidadMedidaBaseId { get; set; }
+
+    public MetodoCosteo MetodoCosteo { get; set; } = MetodoCosteo.Promedio;
+
+    /// <summary>
+    /// Proyección del costo unitario: NO es autoritativa ni editable por el cliente HTTP; la mantiene la
+    /// rutina de costeo de la Fase 3. Un producto nuevo nace con 0.
+    /// </summary>
+    public decimal CostoUnitario { get; set; }
+
+    /// <summary>Costo estándar (informativo, editable).</summary>
+    public decimal CostoEstandar { get; set; }
+
+    /// <summary>
+    /// Lo mantiene el sistema (rutina de costeo de la Fase 3), no el cliente HTTP. <c>true</c> = sin
+    /// movimientos pendientes de ajustar (un producto nuevo no tiene ninguno).
+    /// </summary>
+    public bool CostoAjustado { get; set; } = true;
+
+    /// <summary>Categoría del producto (catálogo <see cref="CategoriaProducto"/>).</summary>
+    public Guid CategoriaId { get; set; }
+
+    public BloqueoProducto Bloqueado { get; set; } = BloqueoProducto.Ninguno;
     public string? ImagePath { get; set; }
+
+    // Clasificación contable (Fase 5, Task 5.3): tres ejes ortogonales, todos FK nulables. La migración AddGruposContables
+    // asignó BIENES / ITBIS18 / GENERAL a los productos existentes; un grupo nulo al derivar cuentas da
+    // setup_contable.grupo_faltante (Task 5.4).
+
+    /// <summary>Grupo contable de producto (<c>GruposProducto</c>): cuenta de resultado (ventas, costo de ventas).</summary>
+    public Guid? GrupoProductoId { get; set; }
+
+    /// <summary>Grupo de IVA del producto (<c>GruposIvaProducto</c>): tasa y cuenta de impuesto.</summary>
+    public Guid? GrupoIvaProductoId { get; set; }
+
+    /// <summary>Grupo de inventario (<c>GruposInventario</c>): cuenta de activo de la existencia, cruzado con el almacén.</summary>
+    public Guid? GrupoInventarioId { get; set; }
 }

@@ -1,0 +1,122 @@
+@using OpenSource1.Blazor.Components.Pages
+
+@*
+    AlmacenFields — campos reutilizables para crear / modificar un Almacen.
+
+    Requiere el parámetro Prefix con el nombre exacto de la propiedad
+    [SupplyParameterFromForm] del componente padre:
+      - Agregar:   Prefix="SaveInput"
+      - Modificar: Prefix="UpdateInput"
+
+    El FormDataMapper de Blazor SSR usa el nombre del parámetro como prefijo.
+*@
+
+<div class="space-y-4">
+    <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{Prefix}_Codigo")">
+            Código <span class="text-red-500">*</span>
+        </label>
+        <input id="@($"{Prefix}_Codigo")"
+               type="text"
+               name="@($"{Prefix}.Codigo")"
+               value="@Model.Codigo"
+               maxlength="10"
+               placeholder="ej. PRINCIPAL"
+               class="@InputCss" />
+        <ValidationMessage For="() => Model.Codigo" />
+    </div>
+
+    <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{Prefix}_Nombre")">
+            Nombre <span class="text-red-500">*</span>
+        </label>
+        <input id="@($"{Prefix}_Nombre")"
+               type="text"
+               name="@($"{Prefix}.Nombre")"
+               value="@Model.Nombre"
+               maxlength="100"
+               placeholder="ej. Almacén Principal"
+               class="@InputCss" />
+        <ValidationMessage For="() => Model.Nombre" />
+    </div>
+
+    <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{Prefix}_DireccionLinea1")">Dirección — línea 1</label>
+        <input id="@($"{Prefix}_DireccionLinea1")"
+               type="text"
+               name="@($"{Prefix}.DireccionLinea1")"
+               value="@Model.DireccionLinea1"
+               maxlength="300"
+               placeholder="Calle, número, sector (opcional)"
+               class="@InputCss" />
+        <ValidationMessage For="() => Model.DireccionLinea1" />
+    </div>
+
+    <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{Prefix}_DireccionLinea2")">Dirección — línea 2</label>
+        <input id="@($"{Prefix}_DireccionLinea2")"
+               type="text"
+               name="@($"{Prefix}.DireccionLinea2")"
+               value="@Model.DireccionLinea2"
+               maxlength="300"
+               placeholder="Referencia, nave, edificio (opcional)"
+               class="@InputCss" />
+        <ValidationMessage For="() => Model.DireccionLinea2" />
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{Prefix}_Ciudad")">Ciudad</label>
+            <input id="@($"{Prefix}_Ciudad")"
+                   type="text"
+                   name="@($"{Prefix}.Ciudad")"
+                   value="@Model.Ciudad"
+                   maxlength="100"
+                   placeholder="Ciudad (opcional)"
+                   class="@InputCss" />
+            <ValidationMessage For="() => Model.Ciudad" />
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{Prefix}_PaisCodigo")">País</label>
+            <select id="@($"{Prefix}_PaisCodigo")" name="@($"{Prefix}.PaisCodigo")" class="@InputCss">
+                <option value="">-- Sin especificar --</option>
+                @foreach (var pais in OpenSource1.Core.ValueObjects.Pais.Catalogo)
+                {
+                    <option value="@pais.Codigo" selected="@(pais.Codigo == Model.PaisCodigo)">@pais.Nombre</option>
+                }
+            </select>
+            <ValidationMessage For="() => Model.PaisCodigo" />
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{Prefix}_Bloqueado")">Bloqueo</label>
+            <select id="@($"{Prefix}_Bloqueado")" name="@($"{Prefix}.Bloqueado")" class="@InputCss">
+                <option value="false" selected="@(!Model.Bloqueado)">No bloqueado</option>
+                <option value="true" selected="@Model.Bloqueado">Bloqueado</option>
+            </select>
+            <ValidationMessage For="() => Model.Bloqueado" />
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{Prefix}_EsPredeterminado")">Predeterminado</label>
+            <select id="@($"{Prefix}_EsPredeterminado")" name="@($"{Prefix}.EsPredeterminado")" class="@InputCss">
+                <option value="false" selected="@(!Model.EsPredeterminado)">No</option>
+                <option value="true" selected="@Model.EsPredeterminado">Sí — es el almacén predeterminado</option>
+            </select>
+            <p class="mt-1 text-xs text-slate-400">Siempre debe existir uno; marcarlo aquí desmarca el anterior.</p>
+            <ValidationMessage For="() => Model.EsPredeterminado" />
+        </div>
+    </div>
+</div>
+
+@code {
+    private const string InputCss = "block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 placeholder-slate-400 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20";
+
+    [Parameter, EditorRequired] public Almacenes.AlmacenForm Model { get; set; } = default!;
+    /// <summary>
+    /// Nombre exacto del parámetro [SupplyParameterFromForm] en el componente padre.
+    /// Ej: "SaveInput" o "UpdateInput"
+    /// </summary>
+    [Parameter, EditorRequired] public string Prefix { get; set; } = default!;
+}

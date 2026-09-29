@@ -1,0 +1,45 @@
+@*
+    SelectorGrupoContable — <select> de un grupo contable (Task 5.3) para las fichas de producto y cliente.
+
+    - Siempre ofrece el grupo VIGENTE aunque no venga en Opciones (grupo borrado o listado vacío): sin esto el <select>
+      no reflejaría el valor guardado.
+    - Opción vacía solo si no hay valor (TextoVacio: "— Sin asignar —" en la edición, "— Por defecto —" en el alta).
+    - Deshabilitado (la API de grupos no cargó): un <select disabled> no se envía con el formulario, así que el valor llega
+      como null y la API lo trata como "conservar"; el resto de la ficha se guarda con normalidad.
+*@
+<div>
+    <label class="block text-sm font-semibold text-slate-700 mb-1.5" for="@Id">@Etiqueta</label>
+    <select id="@Id" name="@Name" class="@InputCss" disabled="@Deshabilitado">
+        @* La opción vacía solo se ofrece cuando NO hay valor: en la edición, elegirla sobre un grupo asignado no haría nada
+           (null = conservar) y la ficha diría "modificado"; en el alta, vacío = la API asigna la semilla por defecto. *@
+        @if (Valor is null)
+        {
+            <option value="" selected="selected">@TextoVacio</option>
+        }
+        @if (Valor is { } vigente && Opciones.All(o => o.Id != vigente))
+        {
+            <option value="@vigente" selected="selected">@(string.IsNullOrWhiteSpace(RotuloVigente) ? $"Grupo no disponible ({vigente})" : RotuloVigente)</option>
+        }
+        @foreach (var opcion in Opciones)
+        {
+            <option value="@opcion.Id" selected="@(opcion.Id == Valor)">@opcion.Rotulo</option>
+        }
+    </select>
+    @if (Deshabilitado)
+    {
+        <p class="mt-1 text-xs text-amber-600">No disponible: se conserva el grupo actual.</p>
+    }
+</div>
+
+@code {
+    private const string InputCss = "block w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20 disabled:cursor-not-allowed disabled:opacity-70";
+
+    [Parameter, EditorRequired] public string Etiqueta { get; set; } = default!;
+    [Parameter, EditorRequired] public string Id { get; set; } = default!;
+    [Parameter, EditorRequired] public string Name { get; set; } = default!;
+    [Parameter] public IReadOnlyList<GrupoOpcion> Opciones { get; set; } = [];
+    [Parameter] public Guid? Valor { get; set; }
+    [Parameter] public string? RotuloVigente { get; set; }
+    [Parameter] public bool Deshabilitado { get; set; }
+    [Parameter] public string TextoVacio { get; set; } = "— Sin asignar —";
+}

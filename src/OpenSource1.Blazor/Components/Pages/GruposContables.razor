@@ -1,0 +1,404 @@
+@page "/grupos-contables"
+@attribute [Authorize(Policy = ApplicationPolicies.CanConsult)]
+@using Microsoft.AspNetCore.Authorization
+@using OpenSource1.Application.Features.GruposContables
+@using OpenSource1.Application.Features.GruposContables.Dtos
+@using OpenSource1.Application.Security
+@using OpenSource1.Blazor.Services
+@using OpenSource1.Core.Common
+@using OpenSource1.Core.Enums
+@inject IGrupoContableApiClient GrupoContableApiClient
+@inject IAuthorizationService AuthorizationService
+@inject ILogger<GruposContables> Logger
+@inject NavigationManager Nav
+
+@*
+    Mantenimiento ÚNICO de los cinco grupos contables simples (Task 5.3, desviación "Un solo mantenimiento"): el tipo va
+    en ?tipo=<ruta> (negocio, producto, iva-negocio, iva-producto, inventario) — como texto, no como enum, porque
+    [SupplyParameterFromQuery] no admite enums (lección de la 5.2). Los formularios hacen POST a la URL vigente, así que el
+    tipo viaja con ellos sin campo oculto.
+*@
+
+<PageTitle>Grupos contables – AxionERP</PageTitle>
+
+<div class="mb-6">
+    <p class="text-xs font-bold tracking-widest uppercase text-brand-600 mb-1">Contabilidad</p>
+    <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">Grupos contables</h1>
+    <p class="text-sm text-slate-500 mt-1">Clasificadores de socios y productos. La contabilidad se define en las intersecciones (setups), no aquí.</p>
+</div>
+
+<!-- ── Selector de tipo ── -->
+<nav class="mb-6 flex flex-wrap gap-2" aria-label="Tipo de grupo contable" data-testid="selector-tipo">
+    @foreach (var descriptor in TiposGrupoContable.Todos)
+    {
+        var activo = descriptor.Tipo == Tipo;
+        <a href="/grupos-contables?tipo=@descriptor.Ruta" aria-current="@(activo ? "page" : null)"
+           class="@(activo ? "rounded-lg bg-brand-600 px-3 py-2 text-sm font-semibold text-white shadow-sm" : "rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50")">
+            @descriptor.NombrePlural
+        </a>
+    }
+</nav>
+
+@if (tipoInvalido)
+{
+    <div class="mb-6"><MessageBox Type="warning" Message="@($"El tipo de grupo '{TipoRuta}' no existe; se muestran los {Descriptor.NombrePlural.ToLowerInvariant()}.")" /></div>
+}
+
+@if (!string.IsNullOrWhiteSpace(message))
+{
+    <div class="mb-6">
+        @if (messageType == "success")
+        {
+            <ActionFeedback Type="success" Message="@message" />
+        }
+        else
+        {
+            <MessageBox Type="@messageType" Message="@message" Errors="@errores" />
+        }
+    </div>
+}
+
+<!-- ── Filtros ── -->
+<div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden mb-6">
+    <form method="get" action="/grupos-contables" data-enhance class="p-4 sm:p-6">
+        <input type="hidden" name="tipo" value="@Descriptor.Ruta" />
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div class="grid flex-1 grid-cols-1 gap-3 sm:grid-cols-2 max-w-3xl">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 mb-1" for="filtroCodigo">Código</label>
+                    <input id="filtroCodigo" type="text" name="codigo" value="@SearchCodigo" placeholder="ej. NACIONAL"
+                           class="block w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-600/20" />
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 mb-1" for="filtroDescripcion">Descripción</label>
+                    <input id="filtroDescripcion" type="text" name="descripcion" value="@SearchDescripcion" placeholder="ej. nacionales"
+                           class="block w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-600/20" />
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <button type="submit" class="btn-press inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700">Consultar</button>
+                <a href="@($"/grupos-contables?tipo={Descriptor.Ruta}")" title="Limpiar campos" class="btn-press inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Limpiar campos</a>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- ── Tabla ── -->
+<div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden mb-8">
+    <div class="px-6 py-4 border-b border-slate-100">
+        <h2 class="text-sm font-semibold text-slate-700">@Descriptor.NombrePlural</h2>
+        <p class="mt-1 text-xs text-slate-500">@total resultado(s) · página @Pagina de @Math.Max(totalPaginas, 1).</p>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-slate-100 text-sm">
+            <thead class="bg-slate-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Código</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Descripción</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Actualizado</th>
+                    <th class="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Acciones</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-50 bg-white">
+                @if (grupos.Count == 0)
+                {
+                    <tr><td colspan="4" class="px-6 py-8 text-center text-slate-400 text-sm">No hay grupos registrados con esos criterios.</td></tr>
+                }
+                else
+                {
+                    @foreach (var grupo in grupos)
+                    {
+                        <tr @key="grupo.Id" class="hover:bg-slate-50 transition-colors">
+                            <td class="px-6 py-3 font-mono text-xs font-semibold text-brand-700">@grupo.Codigo</td>
+                            <td class="px-6 py-3 text-slate-700">@grupo.Descripcion</td>
+                            <td class="px-6 py-3 text-slate-400 text-xs">@(grupo.UpdatedAtUtc?.ToLocalTime().ToString("g") ?? grupo.CreatedAtUtc.ToLocalTime().ToString("g"))</td>
+                            <td class="px-6 py-3 text-right">
+                                <div class="flex items-center justify-end gap-2">
+                                    @if (canModify)
+                                    {
+                                        <a href="@BuildListUrl(editId: grupo.Id)" class="btn-press inline-flex items-center justify-center size-8 rounded-lg border border-amber-200 bg-amber-50 text-amber-600 hover:bg-amber-100" title="Editar grupo">✎</a>
+                                    }
+                                    @if (canDelete)
+                                    {
+                                        <a href="@BuildListUrl(deleteId: grupo.Id)" class="btn-press inline-flex items-center justify-center size-8 rounded-lg border border-red-200 bg-red-50 text-red-600 hover:bg-red-100" title="Eliminar grupo">🗑</a>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+    @if (totalPaginas > 1)
+    {
+        <div class="flex items-center justify-between gap-3 border-t border-slate-100 px-6 py-4">
+            <p class="text-xs text-slate-500">Página @Pagina de @totalPaginas</p>
+            <div class="flex items-center gap-2">
+                @if (Pagina > 1)
+                {
+                    <a href="@BuildListUrl(pagina: Pagina - 1)" class="btn-press rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">« Anterior</a>
+                }
+                @if (Pagina < totalPaginas)
+                {
+                    <a href="@BuildListUrl(pagina: Pagina + 1)" class="btn-press rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">Siguiente »</a>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+<!-- ── Formularios de operación ── -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    @if (canAdd)
+    {
+        <div id="agregar" class="rounded-2xl border border-green-200 bg-white shadow-sm overflow-hidden">
+            <div class="px-6 py-4 bg-green-50 border-b border-green-100"><h2 class="text-sm font-bold text-green-800">Agregar @Descriptor.Nombre.ToLowerInvariant()</h2></div>
+            <div class="px-6 py-5">
+                <EditForm Model="SaveInput" FormName="save-grupo-contable" OnValidSubmit="CreateAsync" Enhance="true">
+                    <DataAnnotationsValidator />
+                    <GrupoContableFields Model="SaveInput!" Prefix="SaveInput" />
+                    <div class="mt-5">
+                        <button type="submit" class="btn-press rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 shadow-sm">Agregar</button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    }
+
+    @if (canModify)
+    {
+        <div id="modificar" class="rounded-2xl border border-amber-200 bg-white shadow-sm overflow-hidden">
+            <div class="px-6 py-4 bg-amber-50 border-b border-amber-100"><h2 class="text-sm font-bold text-amber-800">Modificar @Descriptor.Nombre.ToLowerInvariant()</h2></div>
+            <div class="px-6 py-5">
+                @if (EditId.HasValue && UpdateInput?.Id != EditId)
+                {
+                    <MessageBox Type="warning" Message="No se encontró el grupo seleccionado. Puede haber sido eliminado por otro usuario." />
+                }
+                <EditForm Model="UpdateInput" FormName="update-grupo-contable" OnValidSubmit="UpdateAsync" Enhance="true">
+                    <DataAnnotationsValidator />
+                    <input type="hidden" name="UpdateInput.Id" value="@UpdateInput!.Id" />
+                    <input type="hidden" name="UpdateInput.Xmin" value="@UpdateInput.Xmin" />
+                    <GrupoContableFields Model="UpdateInput!" Prefix="UpdateInput" />
+                    <div class="mt-5">
+                        <button type="submit" class="btn-press rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-600 shadow-sm">Guardar cambios</button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    }
+</div>
+
+@if (DeleteId.HasValue && canDelete)
+{
+    <ConfirmDialog Title="Confirmar eliminación" Message="@($"Esta acción eliminará el {Descriptor.Nombre.ToLowerInvariant()} seleccionado y no se puede deshacer.")" Variant="danger" CancelHref="@BuildListUrl()">
+        <p class="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-mono text-red-900">@(itemToDelete is null ? DeleteId.Value.ToString() : $"{itemToDelete.Codigo} — {itemToDelete.Descripcion}")</p>
+        <EditForm Model="DeleteInput" FormName="delete-grupo-contable" OnValidSubmit="DeleteAsync" class="mt-4">
+            <input type="hidden" name="DeleteInput.Id" value="@DeleteId" />
+            <button type="submit" class="btn-press rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-700">Sí, eliminar</button>
+            <a href="@BuildListUrl()" class="btn-press ml-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Cancelar</a>
+        </EditForm>
+    </ConfirmDialog>
+}
+
+@code {
+    [SupplyParameterFromForm(FormName = "save-grupo-contable")]
+    private GrupoContableForm? SaveInput { get; set; }
+
+    [SupplyParameterFromForm(FormName = "update-grupo-contable")]
+    private GrupoContableForm? UpdateInput { get; set; }
+
+    [SupplyParameterFromForm(FormName = "delete-grupo-contable")]
+    private DeleteForm? DeleteInput { get; set; }
+
+    [SupplyParameterFromQuery(Name = "tipo")]
+    private string? TipoRuta { get; set; }
+
+    [SupplyParameterFromQuery(Name = "codigo")]
+    private string? SearchCodigo { get; set; }
+
+    [SupplyParameterFromQuery(Name = "descripcion")]
+    private string? SearchDescripcion { get; set; }
+
+    [SupplyParameterFromQuery(Name = "editId")]
+    private Guid? EditId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "deleteId")]
+    private Guid? DeleteId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "ok")]
+    private string? Ok { get; set; }
+
+    [SupplyParameterFromQuery(Name = "pagina")]
+    private int Pagina { get; set; } = 1;
+
+    // Tipo vigente: el de ?tipo= si existe; si falta o no existe, el primero (Negocio).
+    private TipoGrupoContable Tipo => TiposGrupoContable.DesdeRuta(TipoRuta) ?? TipoGrupoContable.Negocio;
+    private TiposGrupoContable.Descriptor Descriptor => TiposGrupoContable.De(Tipo);
+    private bool tipoInvalido;
+
+    private IReadOnlyList<GrupoContableResponse> grupos = [];
+    private GrupoContableResponse? itemToDelete;
+    private long total;
+    private int totalPaginas;
+    private string? message;
+    private string messageType = "info";
+    private IReadOnlyList<string> errores = [];
+    private bool canAdd;
+    private bool canModify;
+    private bool canDelete;
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        SaveInput ??= new();
+        UpdateInput ??= new();
+        DeleteInput ??= new();
+        tipoInvalido = !string.IsNullOrWhiteSpace(TipoRuta) && TiposGrupoContable.DesdeRuta(TipoRuta) is null;
+
+        if (AuthenticationStateTask is not null)
+        {
+            var user = (await AuthenticationStateTask).User;
+            canAdd = (await AuthorizationService.AuthorizeAsync(user, ApplicationPolicies.CanAdd)).Succeeded;
+            canModify = (await AuthorizationService.AuthorizeAsync(user, ApplicationPolicies.CanModify)).Succeeded;
+            canDelete = (await AuthorizationService.AuthorizeAsync(user, ApplicationPolicies.CanDelete)).Succeeded;
+        }
+
+        await LoadAsync();
+
+        if (Ok is not null)
+        {
+            (messageType, message) = Ok switch
+            {
+                "created" => ("success", $"{Descriptor.Nombre} creado satisfactoriamente."),
+                "updated" => ("success", $"{Descriptor.Nombre} modificado satisfactoriamente."),
+                "deleted" => ("success", $"{Descriptor.Nombre} eliminado satisfactoriamente."),
+                _ => ("info", null)
+            };
+        }
+
+        if (DeleteId.HasValue && canDelete)
+        {
+            try
+            {
+                itemToDelete = await GrupoContableApiClient.GetByIdAsync(Tipo, DeleteId.Value);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Could not load grupo contable {DeleteId} from API.", DeleteId);
+            }
+        }
+
+        if (EditId.HasValue && canModify && UpdateInput.Id == Guid.Empty)
+        {
+            try
+            {
+                var grupo = await GrupoContableApiClient.GetByIdAsync(Tipo, EditId.Value);
+                if (grupo is not null)
+                {
+                    UpdateInput.Id = grupo.Id;
+                    UpdateInput.Codigo = grupo.Codigo;
+                    UpdateInput.Descripcion = grupo.Descripcion;
+                    UpdateInput.Xmin = grupo.Xmin;
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Could not load grupo contable {EditId} from API.", EditId);
+                Show("danger", "No fue posible cargar el grupo a modificar.");
+            }
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            var filter = new GrupoContableSearchFilter(EmptyAsNull(SearchCodigo), EmptyAsNull(SearchDescripcion));
+            if (Pagina < 1) Pagina = 1;
+            // Descendente: false explícito (el default de PageRequest es true): los grupos se leen por código ascendente.
+            var pagina = await GrupoContableApiClient.ListAsync(Tipo, filter, new PageRequest(Pagina, PageRequest.TamanoPorDefecto, Descendente: false));
+            if (pagina.TotalPaginas == 0)
+            {
+                Pagina = 1;
+            }
+            else if (Pagina > pagina.TotalPaginas)
+            {
+                Pagina = pagina.TotalPaginas;
+                pagina = await GrupoContableApiClient.ListAsync(Tipo, filter, new PageRequest(Pagina, PageRequest.TamanoPorDefecto, Descendente: false));
+            }
+
+            grupos = pagina.Items;
+            total = pagina.Total;
+            totalPaginas = pagina.TotalPaginas;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not load grupos contables from API.");
+            Show("danger", "No fue posible cargar los grupos contables.");
+        }
+    }
+
+    private string BuildListUrl(int? pagina = null, Guid? editId = null, Guid? deleteId = null)
+    {
+        var parameters = new List<string> { $"tipo={Descriptor.Ruta}" };
+        if (!string.IsNullOrWhiteSpace(SearchCodigo)) parameters.Add($"codigo={Uri.EscapeDataString(SearchCodigo)}");
+        if (!string.IsNullOrWhiteSpace(SearchDescripcion)) parameters.Add($"descripcion={Uri.EscapeDataString(SearchDescripcion)}");
+        var paginaEfectiva = pagina ?? Pagina;
+        if (paginaEfectiva > 1) parameters.Add($"pagina={paginaEfectiva}");
+        if (editId.HasValue) parameters.Add($"editId={editId.Value}");
+        if (deleteId.HasValue) parameters.Add($"deleteId={deleteId.Value}");
+        return $"/grupos-contables?{string.Join("&", parameters)}";
+    }
+
+    private async Task CreateAsync() =>
+        await ExecuteAsync(() => GrupoContableApiClient.CreateAsync(Tipo, ToInput(SaveInput!)), "created");
+
+    private async Task UpdateAsync()
+    {
+        if (UpdateInput!.Id == Guid.Empty)
+        {
+            Show("warning", "Seleccione primero un registro a modificar desde la tabla.");
+            return;
+        }
+
+        await ExecuteAsync(() => GrupoContableApiClient.UpdateAsync(Tipo, UpdateInput.Id, ToInput(UpdateInput), UpdateInput.Xmin), "updated");
+    }
+
+    private async Task DeleteAsync() => await ExecuteAsync(() => GrupoContableApiClient.DeleteAsync(Tipo, DeleteInput!.Id), "deleted");
+
+    private async Task ExecuteAsync(Func<Task<GrupoOperationResult>> operation, string successCode)
+    {
+        try
+        {
+            var result = await operation();
+            if (result.Succeeded)
+            {
+                Nav.NavigateTo($"/grupos-contables?tipo={Descriptor.Ruta}&ok={successCode}");
+            }
+            else
+            {
+                errores = result.Errors ?? [];
+                Show("warning", result.Message);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not complete grupo contable operation.");
+            Show("danger", "No fue posible completar la operación.");
+        }
+    }
+
+    private void Show(string type, string text) { messageType = type; message = text; }
+
+    private static GrupoContableInput ToInput(GrupoContableForm form) => new(form.Codigo.Trim(), form.Descripcion.Trim());
+
+    private static string? EmptyAsNull(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    public sealed class DeleteForm
+    {
+        public Guid Id { get; set; }
+    }
+}

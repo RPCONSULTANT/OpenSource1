@@ -1,0 +1,118 @@
+using Moq;
+using OpenSource1.Application.Data.UnitOfWork;
+using OpenSource1.Application.Features.DiariosInventario.Lotes.Commands;
+using OpenSource1.Application.Features.DiariosInventario.Lotes.Handlers;
+using OpenSource1.Core.Entities;
+using OpenSource1.Core.Entities.Inventario;
+using OpenSource1.Core.Enums;
+using OpenSource1.SmokeTests.TestInfrastructure;
+
+namespace OpenSource1.SmokeTests.Features.DiariosInventario.Lotes.Handlers;
+
+public class UpdateLoteDiarioCommandHandlerTests
+{
+    [Fact]
+    public async Task Handle_LoteInexistente_DevuelveFallo()
+    {
+        var unitOfWork = ArmarUnitOfWork(out _, out _, out _);
+
+        var handler = new UpdateLoteDiarioCommandHandler(unitOfWork.Object);
+        var result = await handler.Handle(
+            new UpdateLoteDiarioCommand(Guid.NewGuid(), "COD", "Nombre", null, null, 1), default);
+
+        Assert.True(result.EsFallo);
+        Assert.Equal("diario_lote.no_encontrado", result.Errores[0].Codigo);
+    }
+
+    [Fact]
+    public async Task Handle_ActualizaCodigoYNombreYConservaSerieNoInformada()
+    {
+        var unitOfWork = ArmarUnitOfWork(out var lotes, out _, out _);
+        var serieOriginal = Guid.NewGuid();
+        var entity = lotes.Agregar(new LoteDiario { PlantillaDiarioId = Guid.NewGuid(), Codigo = "OLD", Nombre = "Viejo", SerieId = serieOriginal });
+
+        var handler = new UpdateLoteDiarioCommandHandler(unitOfWork.Object);
+        var result = await handler.Handle(
+            new UpdateLoteDiarioCommand(entity.Id, " new ", " Nuevo ", null, null, 1), default);
+
+        Assert.True(result.EsExito);
+        Assert.Equal("NEW", entity.Codigo);
+        Assert.Equal("Nuevo", entity.Nombre);
+        Assert.Equal(serieOriginal, entity.SerieId);
+    }
+
+    [Fact]
+    public async Task Handle_SerieEmpty_LimpiaLaSerie()
+    {
+        var unitOfWork = ArmarUnitOfWork(out var lotes, out _, out _);
+        var entity = lotes.Agregar(new LoteDiario { PlantillaDiarioId = Guid.NewGuid(), Codigo = "OLD", Nombre = "Viejo", SerieId = Guid.NewGuid() });
+
+        var handler = new UpdateLoteDiarioCommandHandler(unitOfWork.Object);
+        var result = await handler.Handle(
+            new UpdateLoteDiarioCommand(entity.Id, "OLD", "Viejo", Guid.Empty, null, 1), default);
+
+        Assert.True(result.EsExito);
+        Assert.Null(entity.SerieId);
+    }
+
+    [Fact]
+    public async Task Handle_SerieNuevaInexistente_DevuelveFalloSinGuardar()
+    {
+        var unitOfWork = ArmarUnitOfWork(out var lotes, out _, out _);
+        var entity = lotes.Agregar(new LoteDiario { PlantillaDiarioId = Guid.NewGuid(), Codigo = "OLD", Nombre = "Viejo" });
+
+        var handler = new UpdateLoteDiarioCommandHandler(unitOfWork.Object);
+        var result = await handler.Handle(
+            new UpdateLoteDiarioCommand(entity.Id, "OLD", "Viejo", Guid.NewGuid(), null, 1), default);
+
+        Assert.True(result.EsFallo);
+        Assert.Equal("diario.serie_invalida", result.Errores[0].Codigo);
+        unitOfWork.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Handle_SerieQueNoEsDeDiario_DevuelveSerieInvalidaSinGuardar()
+    {
+        var unitOfWork = ArmarUnitOfWork(out var lotes, out var series, out _);
+        var entity = lotes.Agregar(new LoteDiario { PlantillaDiarioId = Guid.NewGuid(), Codigo = "OLD", Nombre = "Viejo" });
+        var socios = series.Agregar(new Serie { Codigo = "SOCIOS", Descripcion = "Códigos de socios de negocio" });
+
+        var handler = new UpdateLoteDiarioCommandHandler(unitOfWork.Object);
+        var result = await handler.Handle(
+            new UpdateLoteDiarioCommand(entity.Id, "OLD", "Viejo", socios.Id, null, 1), default);
+
+        Assert.True(result.EsFallo);
+        Assert.Equal("diario.serie_invalida", result.Errores[0].Codigo);
+        Assert.Equal("SerieId", result.Errores[0].Campo);
+        unitOfWork.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Handle_EstableceLaVersionOriginalDeXminAntesDeGuardar()
+    {
+        var unitOfWork = ArmarUnitOfWork(out var lotes, out _, out _);
+        var entity = lotes.Agregar(new LoteDiario { PlantillaDiarioId = Guid.NewGuid(), Codigo = "OLD", Nombre = "Viejo" });
+
+        var handler = new UpdateLoteDiarioCommandHandler(unitOfWork.Object);
+        await handler.Handle(new UpdateLoteDiarioCommand(entity.Id, "OLD", "Viejo", null, null, 42), default);
+
+        lotes.Mock.Verify(r => r.EstablecerVersionOriginal(entity, 42), Times.Once);
+    }
+
+    private static Mock<IUnitOfWork> ArmarUnitOfWork(
+        out RepositorioEnMemoria<LoteDiario> lotes,
+        out RepositorioEnMemoria<Serie> series,
+        out RepositorioEnMemoria<LineaDiario> lineas)
+    {
+        lotes = new RepositorioEnMemoria<LoteDiario>();
+        series = new RepositorioEnMemoria<Serie>();
+        lineas = new RepositorioEnMemoria<LineaDiario>();
+
+        var unitOfWork = new Mock<IUnitOfWork>();
+        unitOfWork.Setup(u => u.Repository<LoteDiario>()).Returns(lotes.Repo);
+        unitOfWork.Setup(u => u.Repository<Serie>()).Returns(series.Repo);
+        unitOfWork.Setup(u => u.Repository<LineaDiario>()).Returns(lineas.Repo);
+        unitOfWork.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
+        return unitOfWork;
+    }
+}

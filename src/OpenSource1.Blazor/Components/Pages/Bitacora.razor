@@ -3,7 +3,7 @@
 @using Microsoft.AspNetCore.Authorization
 @using OpenSource1.Application.Security
 @using OpenSource1.Blazor.Services
-@inject IClienteApiClient ClienteApiClient
+@inject ISocioNegocioApiClient SocioNegocioApiClient
 @inject IProductoApiClient ProductoApiClient
 @inject ILogger<Bitacora> Logger
 
@@ -103,11 +103,11 @@ else
     {
         try
         {
-            var clientes = await ClienteApiClient.ListAllAsync();
+            var clientes = await SocioNegocioApiClient.ListAllAsync();
             var productos = await ProductoApiClient.ListAllAsync();
 
             entries = clientes
-                .Select(c => new BitacoraEntry("Cliente", $"{c.Nombre} {c.Apellido}",
+                .Select(c => new BitacoraEntry("Cliente", $"{c.NombreComercial} ({c.Codigo})",
                     c.UpdatedAtUtc.HasValue ? "Actualizado" : "Creado",
                     c.UpdatedAtUtc.HasValue ? (c.UpdatedBy ?? c.CreatedBy) : c.CreatedBy,
                     c.UpdatedAtUtc ?? c.CreatedAtUtc))

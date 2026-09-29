@@ -51,7 +51,7 @@ public class FilterExpressionBuilderTests
     {
         // Evidencia a nivel del builder (no solo de ColumnasPermitidas.Citar): un nombre
         // de columna hostil no debe producir cláusula SQL alguna ni aparecer en ella.
-        const string columnaMaliciosa = "Nombre\"; DROP TABLE \"Clientes";
+        const string columnaMaliciosa = "Nombre\"; DROP TABLE \"SociosNegocio";
         var filtros = new List<string>();
         var parametros = new DynamicParameters();
 

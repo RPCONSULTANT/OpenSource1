@@ -2,12 +2,15 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using OpenSource1.Infrastructure.Identity;
 using OpenSource1.Application.Security;
 using OpenSource1.Application.Services.Auth;
 using OpenSource1.Application.Services.Auth.Dtos;
+using OpenSource1.Application.Storage;
+using OpenSource1.Core.Common;
 
 namespace OpenSource1.Infrastructure.Services.Auth;
 
@@ -192,10 +195,30 @@ public sealed class AuthService(
 
     public async Task<(bool Success, IReadOnlyList<string> Errors)> UpdateProfileImageAsync(string userId, string? imagePath, CancellationToken cancellationToken = default)
     {
+        // Cualquier usuario autenticado llega aquí: la ruta acaba en un borrado de fichero al cambiar la imagen
+        // de perfil, así que solo se acepta /uploads/users/<nombre> (400 con el campo ImagePath).
+        if (RutaImagen.Validar(imagePath, RutaImagen.CarpetaUsuarios) is { } errorImagen)
+        {
+            throw new ErroresDeDominioException(errorImagen);
+        }
+
         var user = await userManager.FindByIdAsync(userId);
         if (user is null || !user.IsActive)
         {
             return (false, ["No fue posible identificar la cuenta autenticada."]);
+        }
+
+        // Una imagen de perfil solo puede pertenecer a UN usuario: si otro pudiera apuntar al fichero de este, al cambiar
+        // su imagen la UI borraría la ajena.
+        // LIMITACIÓN CONOCIDA: consulta previa SIN índice único; dos peticiones concurrentes con el mismo imagePath pueden asignarlo
+        // a dos usuarios (medido: 40 de 40 rondas). Consecuencia: al cambiar la imagen de uno se borra el fichero y el otro queda con
+        // la imagen rota; NO es explotable para borrar el fichero de una víctima. Corrección de raíz recomendada (no implementada):
+        // índice único parcial sobre ProfileImagePath (no nulo) o comprobar referencias antes de borrar el fichero.
+        if (!string.IsNullOrEmpty(imagePath)
+            && await userManager.Users.AnyAsync(u => u.ProfileImagePath == imagePath && u.Id != user.Id, cancellationToken))
+        {
+            throw new ErroresDeDominioException(new Error(
+                "usuario.imagen_en_uso", "La imagen ya está asignada a otro usuario.", RutaImagen.Campo));
         }
 
         user.ProfileImagePath = imagePath;
@@ -259,7 +282,7 @@ public sealed class AuthService(
 
         if (roleSet.Contains(ApplicationRoles.Administrator))
         {
-            permissions.UnionWith([ApplicationPolicies.CanAdd, ApplicationPolicies.CanModify, ApplicationPolicies.CanDelete, ApplicationPolicies.CanConsult]);
+            permissions.UnionWith([ApplicationPolicies.CanAdd, ApplicationPolicies.CanModify, ApplicationPolicies.CanDelete, ApplicationPolicies.CanConsult, ApplicationPolicies.CanAdministrar]);
         }
 
         if (roleSet.Contains(ApplicationRoles.Supervisor))

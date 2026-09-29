@@ -5,7 +5,8 @@
 @using OpenSource1.Application.Security
 @using OpenSource1.Blazor.Components
 @using OpenSource1.Blazor.Services
-@inject IClienteApiClient ClienteApiClient
+@using OpenSource1.Core.Enums
+@inject ISocioNegocioApiClient SocioNegocioApiClient
 @inject ILogger<ClientesDashboard> Logger
 
 <PageTitle>Panel de Clientes – AxionERP</PageTitle>
@@ -47,6 +48,54 @@ else
         </div>
     </div>
 
+    <div class="grid grid-cols-2 gap-4 mb-8 lg:grid-cols-4 animate-slide-up">
+        <div class="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+            <p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Clientes / proveedores / ambos</p>
+            <p class="mt-1 text-2xl font-extrabold text-slate-900 dark:text-slate-100" data-testid="kpi-tipos">@porTipo[TipoSocioNegocio.Cliente] / @porTipo[TipoSocioNegocio.Proveedor] / @porTipo[TipoSocioNegocio.Ambos]</p>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+            <p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Con bloqueo</p>
+            <p class="mt-1 text-2xl font-extrabold text-slate-900 dark:text-slate-100" data-testid="kpi-bloqueados">@bloqueados</p>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+            <p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Sin documento fiscal</p>
+            <p class="mt-1 text-2xl font-extrabold text-slate-900 dark:text-slate-100" data-testid="kpi-sin-documento">@sinDocumento</p>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+            <p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Límite de crédito total</p>
+            <p class="mt-1 text-2xl font-extrabold text-slate-900 dark:text-slate-100" data-testid="kpi-limite">@limiteTotal.ToString("N2", CultureInfo.InvariantCulture)</p>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 gap-5 mb-8 lg:grid-cols-2 animate-slide-up">
+        <div class="rounded-2xl border border-slate-200 bg-white shadow-sm p-5 dark:border-slate-700 dark:bg-slate-800">
+            <h2 class="mb-4 text-sm font-bold uppercase tracking-wide text-slate-700 dark:text-slate-300">Distribución por tipo de socio</h2>
+            @if (total > 0)
+            {
+                <ChartCanvas Id="chart-clientes-tipos" Type="doughnut"
+                             Labels="@(SocioNegocioEtiquetas.Tipos.Select(SocioNegocioEtiquetas.Tipo).ToList())"
+                             Datasets="@(new List<ChartDataset> { new("Socios", SocioNegocioEtiquetas.Tipos.Select(t => (double)porTipo[t]).ToList(), [ChartPalette.Pick(1), ChartPalette.Pick(2), ChartPalette.Pick(4)]) })" />
+            }
+            else
+            {
+                <p class="text-sm text-slate-400">Sin datos suficientes para graficar.</p>
+            }
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-white shadow-sm p-5 dark:border-slate-700 dark:bg-slate-800">
+            <h2 class="mb-4 text-sm font-bold uppercase tracking-wide text-slate-700 dark:text-slate-300">Documento fiscal</h2>
+            @if (total > 0)
+            {
+                <ChartCanvas Id="chart-clientes-documentos" Type="bar"
+                             Labels="@(SocioNegocioEtiquetas.TiposDocumento.Select(SocioNegocioEtiquetas.TipoDocumento).ToList())"
+                             Datasets="@(new List<ChartDataset> { new("Socios", SocioNegocioEtiquetas.TiposDocumento.Select(t => (double)porDocumento[t]).ToList(), [ChartPalette.Pick(0)]) })" />
+            }
+            else
+            {
+                <p class="text-sm text-slate-400">Sin datos suficientes para graficar.</p>
+            }
+        </div>
+    </div>
+
     <div class="grid grid-cols-1 gap-5 mb-8 lg:grid-cols-2 animate-slide-up">
         <div class="rounded-2xl border border-slate-200 bg-white shadow-sm p-5 dark:border-slate-700 dark:bg-slate-800">
             <h2 class="mb-4 text-sm font-bold uppercase tracking-wide text-slate-700 dark:text-slate-300">Altas por mes (últimos 6 meses)</h2>
@@ -75,16 +124,26 @@ else
     private int actualizados30d;
     private int sinCambiosRecientes;
     private Dictionary<string, int> altasPorMes = [];
+    private Dictionary<TipoSocioNegocio, int> porTipo = SocioNegocioEtiquetas.Tipos.ToDictionary(t => t, _ => 0);
+    private Dictionary<TipoDocumentoFiscal, int> porDocumento = SocioNegocioEtiquetas.TiposDocumento.ToDictionary(t => t, _ => 0);
+    private int bloqueados;
+    private int sinDocumento;
+    private decimal limiteTotal;
     private string? loadError;
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
-            var clientes = await ClienteApiClient.ListAllAsync();
+            var clientes = await SocioNegocioApiClient.ListAllAsync();
             var corte = DateTime.UtcNow.AddDays(-30);
 
             total = clientes.Count;
+            porTipo = SocioNegocioEtiquetas.Tipos.ToDictionary(t => t, t => clientes.Count(c => c.Tipo == t));
+            porDocumento = SocioNegocioEtiquetas.TiposDocumento.ToDictionary(t => t, t => clientes.Count(c => c.TipoDocumentoFiscal == t));
+            bloqueados = clientes.Count(c => c.Bloqueado != BloqueoSocioNegocio.Ninguno);
+            sinDocumento = clientes.Count(c => c.TipoDocumentoFiscal == TipoDocumentoFiscal.SinDocumento);
+            limiteTotal = clientes.Sum(c => c.LimiteCredito);
             nuevos30d = clientes.Count(c => c.CreatedAtUtc >= corte);
             actualizados30d = clientes.Count(c => c.UpdatedAtUtc is not null && c.UpdatedAtUtc >= corte && c.CreatedAtUtc < corte);
             sinCambiosRecientes = total - nuevos30d - actualizados30d;

@@ -1,14 +1,27 @@
 using MediatR;
 using OpenSource1.Application.Features.Productos.Dtos;
+using OpenSource1.Core.Common;
+using OpenSource1.Core.Enums;
 
 namespace OpenSource1.Application.Features.Productos.Commands;
 
+/// <summary>
+/// Alta de producto. <c>CategoriaId</c> y <c>UnidadMedidaBaseId</c> son opcionales: si no vienen se usan la categoría
+/// <c>GENERAL</c> y la unidad <c>UND</c> del catálogo. <c>CostoUnitario</c> nace en 0 y <c>CostoAjustado</c> en
+/// <c>true</c> (no hay movimientos que ajustar): los mantiene el sistema y no forman parte del comando.
+/// Los grupos contables (Task 5.3) son opcionales: <see langword="null"/> = el grupo semilla por defecto (BIENES / ITBIS18 /
+/// GENERAL; queda null si esa semilla fue borrada). Si vienen, deben existir (400 <c>producto.grupo_invalido</c>).
+/// </summary>
 public sealed record CreateProductoCommand(
     string Codigo,
     string Nombre,
-    decimal Precio,
-    int Stock,
-    string CategoriaCodigo,
-    string CategoriaNombre,
-    string UnidadMedidaCodigo,
-    string? ImagePath = null) : IRequest<ProductoResponse>;
+    decimal PrecioVenta,
+    Guid? CategoriaId = null,
+    Guid? UnidadMedidaBaseId = null,
+    MetodoCosteo MetodoCosteo = MetodoCosteo.Promedio,
+    decimal CostoEstandar = 0m,
+    BloqueoProducto Bloqueado = BloqueoProducto.Ninguno,
+    string? ImagePath = null,
+    Guid? GrupoProductoId = null,
+    Guid? GrupoIvaProductoId = null,
+    Guid? GrupoInventarioId = null) : IRequest<Result<ProductoResponse>>, IDatosProducto;

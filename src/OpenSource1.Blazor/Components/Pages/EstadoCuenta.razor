@@ -1,0 +1,272 @@
+@page "/ventas/estado-cuenta"
+@attribute [Authorize(Policy = ApplicationPolicies.CanConsult)]
+@using Microsoft.AspNetCore.Authorization
+@using OpenSource1.Application.Features.MovimientosCliente
+@using OpenSource1.Application.Features.MovimientosCliente.Dtos
+@using OpenSource1.Application.Features.SociosNegocio.Dtos
+@using OpenSource1.Application.Security
+@using OpenSource1.Blazor.Services
+@using OpenSource1.Core.Common
+@inject IClientesConsultasApiClient ConsultasApiClient
+@inject ISocioNegocioApiClient SocioApiClient
+@inject ILogger<EstadoCuenta> Logger
+
+<PageTitle>Estado de cuenta – AxionERP</PageTitle>
+
+<div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+    <div>
+        <p class="text-xs font-bold tracking-widest uppercase text-brand-600 mb-1">Ventas</p>
+        <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">Estado de cuenta</h1>
+        <p class="text-sm text-slate-500 mt-1">Antigüedad de saldos por cliente a una fecha de corte: el restante de cada documento a esa fecha, por días vencidos. Los pagos sin aplicar restan del total.</p>
+    </div>
+    <div class="flex flex-wrap items-center gap-2">
+        <a href="/ventas/movimientos-cliente" class="btn-press rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Movimientos de cliente</a>
+    </div>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(message))
+{
+    <div class="mb-6"><MessageBox Type="@messageType" Message="@message" Errors="@errores" /></div>
+}
+@if (socios.CargaFallida)
+{
+    <div class="mb-6"><MessageBox Type="warning" Message="No fue posible cargar la lista de clientes; el cliente ya elegido se sigue usando." /></div>
+}
+
+<div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden mb-6">
+    <form method="get" action="/ventas/estado-cuenta" data-enhance class="p-4 sm:p-6">
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1" for="fechaCorte">Fecha de corte</label>
+                <input id="fechaCorte" type="date" name="fechaCorte" value="@(FechaCorteTexto ?? (estado is null ? "" : EntradaFecha.Formatear(estado.FechaCorte)))" class="@FiltroCss" />
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1" for="texto">Buscar cliente (código o nombre)</label>
+                <input id="texto" type="text" name="texto" value="@Texto" placeholder="ej. Comercial" class="@FiltroCss" />
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1" for="socioId">Cliente</label>
+                <select id="socioId" name="socioId" class="@FiltroCss">
+                    <option value="" selected="@(SocioId is null)">— Todos —</option>
+                    @if (SocioId is { } elegido && socios.Items.All(s => s.Id != elegido))
+                    {
+                        <option value="@elegido" selected="selected">@(socioActual is null ? $"Cliente seleccionado ({elegido})" : $"{socioActual.Codigo} — {socioActual.NombreComercial}")</option>
+                    }
+                    @foreach (var s in socios.Items)
+                    {
+                        <option value="@s.Id" selected="@(s.Id == SocioId)">@s.Codigo — @s.NombreComercial</option>
+                    }
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1" for="ordenarPor">Ordenar por</label>
+                <select id="ordenarPor" name="ordenarPor" class="@FiltroCss">
+                    @foreach (var (valor, etiqueta) in Ordenes)
+                    {
+                        <option value="@valor" selected="@(valor == Orden)">@etiqueta</option>
+                    }
+                </select>
+            </div>
+        </div>
+        <label class="mt-3 inline-flex items-center gap-2 text-sm text-slate-600">
+            <input type="checkbox" name="soloConSaldo" value="true" checked="@SoloConSaldo" class="rounded border-slate-300" />
+            Solo clientes con documentos abiertos
+        </label>
+        <div class="mt-4 flex items-center gap-2">
+            <button type="submit" class="btn-press rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700">Consultar</button>
+            <a href="/ventas/estado-cuenta" title="Limpiar campos" class="btn-press rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Limpiar campos</a>
+        </div>
+        <p class="mt-2 text-xs text-slate-400">Sin fecha de corte se usa la de hoy. La búsqueda filtra la tabla por código o nombre y acota la lista de clientes por nombre (primeros @VentasOpciones.MaximoSocios).</p>
+    </form>
+</div>
+
+<div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden mb-8">
+    <div class="px-6 py-4 border-b border-slate-100">
+        <h2 class="text-sm font-semibold text-slate-700">Clientes@(estado is null ? "" : $" al {EntradaFecha.Formatear(estado.FechaCorte)}")</h2>
+        <p class="mt-1 text-xs text-slate-500">@total cliente(s) · página @Pagina de @Math.Max(totalPaginas, 1) · días vencidos = fecha de corte − vencimiento.</p>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-slate-100 text-sm" data-testid="tabla-estado-cuenta">
+            <thead class="bg-slate-50">
+                <tr>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Cliente</th>
+                    @foreach (var etiqueta in EtiquetasTramos)
+                    {
+                        <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase whitespace-nowrap">@etiqueta</th>
+                    }
+                    <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Total</th>
+                    <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Abiertos</th>
+                    <th class="px-4 py-3"></th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-50 bg-white">
+                @if (clientes.Count == 0)
+                {
+                    <tr><td colspan="10" class="px-4 py-8 text-center text-slate-400 text-sm">@(cargaFallida ? "No fue posible cargar el estado de cuenta." : "No hay clientes con movimientos hasta la fecha de corte.")</td></tr>
+                }
+                @foreach (var c in clientes)
+                {
+                    <tr @key="c.SocioNegocioId" class="hover:bg-slate-50">
+                        <td class="px-4 py-3 text-slate-700"><span class="font-mono text-xs">@c.Codigo</span> <span class="text-xs text-slate-500">@c.Nombre</span></td>
+                        @foreach (var (_, valor) in EstadoCuentaOpciones.Tramos(c))
+                        {
+                            <td class="px-4 py-3 text-right @(valor == 0 ? "text-slate-300" : valor < 0 ? "text-emerald-700" : "text-slate-800")">@VentasOpciones.Importe(valor)</td>
+                        }
+                        <td class="px-4 py-3 text-right font-semibold @(c.Total > 0 ? "text-red-700" : "text-slate-900")" data-testid="total-cliente">@VentasOpciones.Importe(c.Total)</td>
+                        <td class="px-4 py-3 text-right text-xs text-slate-500">@c.DocumentosAbiertos</td>
+                        <td class="px-4 py-3 text-right text-xs whitespace-nowrap"><a class="font-semibold text-brand-700 underline" href="@UrlDetalle(c.SocioNegocioId)">Movimientos</a></td>
+                    </tr>
+                }
+            </tbody>
+            @if (estado is not null && clientes.Count > 0)
+            {
+                <tfoot class="bg-slate-50 font-semibold">
+                    <tr data-testid="totales-estado-cuenta">
+                        <td class="px-4 py-3 text-xs uppercase text-slate-500">Total (@total cliente(s))</td>
+                        @foreach (var (_, valor) in EstadoCuentaOpciones.Tramos(estado.Totales))
+                        {
+                            <td class="px-4 py-3 text-right text-slate-800">@VentasOpciones.Importe(valor)</td>
+                        }
+                        <td class="px-4 py-3 text-right text-slate-900">@VentasOpciones.Importe(estado.Totales.Total)</td>
+                        <td colspan="2"></td>
+                    </tr>
+                </tfoot>
+            }
+        </table>
+    </div>
+    @if (totalPaginas > 1)
+    {
+        <div class="flex items-center justify-between gap-3 border-t border-slate-100 px-6 py-4">
+            <p class="text-xs text-slate-500">Página @Pagina de @totalPaginas</p>
+            <div class="flex items-center gap-2">
+                @if (Pagina > 1)
+                {
+                    <a href="@BuildUrl(Pagina - 1)" class="btn-press rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">« Anterior</a>
+                }
+                @if (Pagina < totalPaginas)
+                {
+                    <a href="@BuildUrl(Pagina + 1)" class="btn-press rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">Siguiente »</a>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private const string FiltroCss = "block w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-600/20";
+
+    /// <summary>Órdenes de la allow-list de la API; el total, de mayor a menor (quién debe más primero).</summary>
+    private static readonly IReadOnlyList<(string Valor, string Etiqueta)> Ordenes =
+        [("Nombre", "Nombre"), ("Codigo", "Código"), ("Total", "Total (mayor primero)")];
+
+    private static readonly IReadOnlyList<string> EtiquetasTramos =
+        [.. EstadoCuentaOpciones.Tramos(new EstadoCuentaTramos()).Select(t => t.Etiqueta)];
+
+    [SupplyParameterFromQuery(Name = "fechaCorte")] private string? FechaCorteTexto { get; set; }
+    [SupplyParameterFromQuery(Name = "texto")] private string? Texto { get; set; }
+    [SupplyParameterFromQuery(Name = "socioId")] private string? SocioIdTexto { get; set; }
+    [SupplyParameterFromQuery(Name = "soloConSaldo")] private string? SoloConSaldoTexto { get; set; }
+    [SupplyParameterFromQuery(Name = "ordenarPor")] private string? OrdenarPorTexto { get; set; }
+    [SupplyParameterFromQuery(Name = "pagina")] private string? PaginaTexto { get; set; }
+
+    private Guid? SocioId;
+    private bool SoloConSaldo;
+    private string Orden = "Nombre";
+    private int Pagina = 1;
+
+    private OpcionesCargadas<SocioNegocioResponse> socios = OpcionesCargadas<SocioNegocioResponse>.SinCargar;
+    private SocioNegocioResponse? socioActual;
+    private EstadoCuentaResponse? estado;
+    private IReadOnlyList<EstadoCuentaClienteResponse> clientes = [];
+    private long total;
+    private int totalPaginas;
+    private bool cargaFallida;
+    private string? message;
+    private string messageType = "info";
+    private IReadOnlyList<string>? errores;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        message = null;
+        errores = null;
+        cargaFallida = false;
+        estado = null;
+        clientes = [];
+        total = 0;
+        totalPaginas = 0;
+
+        var filtroInvalido = InventarioVistasOpciones.FiltroInvalido(("socioId", SocioIdTexto))
+            ?? EstadoCuentaOpciones.BoolInvalido("soloConSaldo", SoloConSaldoTexto);
+        SocioId = InventarioVistasOpciones.ParseGuid(SocioIdTexto);
+        SoloConSaldo = EstadoCuentaOpciones.ParseBool(SoloConSaldoTexto) ?? false;
+        // Un orden que no está en la lista cae al nombre (la API haría lo mismo).
+        Orden = Ordenes.Any(o => o.Valor == OrdenarPorTexto) ? OrdenarPorTexto! : "Nombre";
+        Pagina = Math.Max(InventarioVistasOpciones.ParseEntero(PaginaTexto) ?? 1, 1);
+
+        socios = await VentasOpciones.SociosAsync(SocioApiClient, Texto, Logger);
+        socioActual = await EstadoCuentaOpciones.SocioVigenteAsync(SocioApiClient, SocioId, socios.Items, Logger);
+
+        if (filtroInvalido is not null)
+        {
+            Show("warning", filtroInvalido);
+            return;
+        }
+
+        if (!InventarioVistasOpciones.TryFecha(FechaCorteTexto, "La fecha de corte", out var corte, out var errorFecha))
+        {
+            Show("warning", errorFecha ?? "La fecha no es válida.");
+            return;
+        }
+
+        var criterios = new EstadoCuentaCriterios(corte, SocioId, EmptyAsNull(Texto), SoloConSaldo);
+        try
+        {
+            var resultado = await ConsultasApiClient.GetEstadoCuentaAsync(criterios, Paginacion());
+            if (resultado.Succeeded && resultado.Valor!.Pagina.TotalPaginas > 0 && Pagina > resultado.Valor.Pagina.TotalPaginas)
+            {
+                Pagina = resultado.Valor.Pagina.TotalPaginas;
+                resultado = await ConsultasApiClient.GetEstadoCuentaAsync(criterios, Paginacion());
+            }
+
+            if (!resultado.Succeeded)
+            {
+                cargaFallida = true;
+                Show("warning", resultado.Message, resultado.Errors);
+                return;
+            }
+
+            estado = resultado.Valor!;
+            clientes = estado.Pagina.Items;
+            total = estado.Pagina.Total;
+            totalPaginas = estado.Pagina.TotalPaginas;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not load estado de cuenta.");
+            cargaFallida = true;
+            Show("danger", "No fue posible cargar el estado de cuenta.");
+        }
+    }
+
+    private PageRequest Paginacion() => new(Pagina, PageRequest.TamanoPorDefecto, Orden, Descendente: Orden == "Total");
+
+    /// <summary>Detalle del cliente a la MISMA fecha de corte, solo abiertos: la suma de sus restantes es el total de la fila.</summary>
+    private string UrlDetalle(Guid socioId) =>
+        $"/ventas/movimientos-cliente?socioId={socioId}&soloAbiertos=true&fechaCorte={EntradaFecha.Formatear(estado!.FechaCorte)}";
+
+    private string BuildUrl(int pagina)
+    {
+        var parameters = new List<string>();
+        if (!string.IsNullOrWhiteSpace(FechaCorteTexto)) parameters.Add($"fechaCorte={Uri.EscapeDataString(FechaCorteTexto)}");
+        if (!string.IsNullOrWhiteSpace(Texto)) parameters.Add($"texto={Uri.EscapeDataString(Texto)}");
+        if (SocioId is { } s) parameters.Add($"socioId={s}");
+        if (SoloConSaldo) parameters.Add("soloConSaldo=true");
+        if (Orden != "Nombre") parameters.Add($"ordenarPor={Orden}");
+        if (pagina > 1) parameters.Add($"pagina={pagina}");
+        return parameters.Count == 0 ? "/ventas/estado-cuenta" : $"/ventas/estado-cuenta?{string.Join("&", parameters)}";
+    }
+
+    private void Show(string type, string text, IReadOnlyList<string>? detalle = null) { messageType = type; message = text; errores = detalle; }
+
+    private static string? EmptyAsNull(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+}

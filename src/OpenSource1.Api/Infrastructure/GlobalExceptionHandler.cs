@@ -98,7 +98,7 @@ public sealed class GlobalExceptionHandler(
         // PostgreSQL reporta unique_violation con SQLSTATE 23505. Npgsql lo expone como
         // Npgsql.PostgresException, que EF Core envuelve como InnerException de DbUpdateException
         // al fallar un INSERT/UPDATE — verificado empíricamente contra Postgres real (ver
-        // ProductosApiTests/AppSettingsApiTests). Sin esta rama, cualquier índice único (incluidos
+        // ProductosApiTests). Sin esta rama, cualquier índice único (incluidos
         // los parciales usados por el soft delete) que se viole por fuera de la validación de
         // aplicación (condiciones de carrera entre el chequeo de existencia y el INSERT, o
         // entidades futuras sin ese chequeo) cae en el 500 desnudo de la rama genérica.
@@ -126,6 +126,32 @@ public sealed class GlobalExceptionHandler(
             });
         }
 
+        // Interbloqueo (40P01, deadlock_detected) o bloqueo no disponible (55P03, lock_not_available): conflicto
+        // transitorio entre transacciones concurrentes (p. ej. dos posteos de inventario), no un fallo del servidor. Con
+        // Dapper la PostgresException llega directa; con EF, envuelta en DbUpdateException (u otra): se busca en la cadena.
+        if (BuscarPostgresException(exception) is { SqlState: PostgresErrorCodes.DeadlockDetected or PostgresErrorCodes.LockNotAvailable } bloqueo)
+        {
+            logger.LogWarning(
+                exception,
+                "Conflicto de bloqueo entre transacciones concurrentes (SQLSTATE {SqlState}).", bloqueo.SqlState);
+
+            var problemaBloqueo = new ProblemDetails
+            {
+                Status = StatusCodes.Status409Conflict,
+                Title = "La operación entró en conflicto con otra que se ejecutaba a la vez. Reintente.",
+            };
+            problemaBloqueo.Extensions["codigo"] = "inventario.conflicto";
+
+            httpContext.Response.StatusCode = StatusCodes.Status409Conflict;
+
+            return await problemDetailsService.TryWriteAsync(new ProblemDetailsContext
+            {
+                HttpContext = httpContext,
+                Exception = exception,
+                ProblemDetails = problemaBloqueo,
+            });
+        }
+
         logger.LogError(exception, "Excepción no controlada.");
 
         httpContext.Response.StatusCode = StatusCodes.Status500InternalServerError;
@@ -144,5 +170,18 @@ public sealed class GlobalExceptionHandler(
             Exception = exception,
             ProblemDetails = problemaGenerico,
         });
+    }
+
+    private static PostgresException? BuscarPostgresException(Exception? exception)
+    {
+        for (var actual = exception; actual is not null; actual = actual.InnerException)
+        {
+            if (actual is PostgresException postgres)
+            {
+                return postgres;
+            }
+        }
+
+        return null;
     }
 }

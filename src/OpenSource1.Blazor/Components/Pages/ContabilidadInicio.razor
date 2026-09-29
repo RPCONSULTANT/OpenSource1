@@ -1,0 +1,165 @@
+@page "/contabilidad"
+@attribute [Authorize(Policy = ApplicationPolicies.CanConsult)]
+@using Microsoft.AspNetCore.Authorization
+@using OpenSource1.Application.Security
+@using OpenSource1.Application.Services.Contabilidad
+@using OpenSource1.Blazor.Services
+@inject IContabilidadApiClient ContabilidadApiClient
+@inject IAuthorizationService AuthorizationService
+@inject ILogger<ContabilidadInicio> Logger
+
+@*
+    Página de Contabilidad (Task 5.6): ejecuta el batch "Contabilizar costo de inventario" (POST api/contabilidad/
+    postear-costo-inventario, CanModify) tras un ConfirmDialog (?contabilizar=true + EditForm de un paso, Static SSR) y muestra
+    el resumen de la ejecución en la misma respuesta del POST: asientos creados, movimientos contabilizados y la lista de
+    pendientes con el motivo real (setup inexistente, grupo faltante, cuenta inválida...). Idempotente: ejecutarlo otra vez
+    solo contabiliza lo nuevo.
+*@
+
+<PageTitle>Contabilidad – AxionERP</PageTitle>
+
+<div class="mb-6">
+    <p class="text-xs font-bold tracking-widest uppercase text-brand-600 mb-1">Contabilidad</p>
+    <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">Contabilidad</h1>
+    <p class="text-sm text-slate-500 mt-1">Procesos de posteo al libro contable. Las cuentas se derivan de los <a class="underline hover:text-brand-700" href="/setups-contables">setups contables</a>; el <a class="underline hover:text-brand-700" href="/cuentas-contables">plan de cuentas</a> se mantiene aparte.</p>
+    <p class="text-sm text-slate-500 mt-1">Consultas del libro: <a class="underline hover:text-brand-700" href="/contabilidad/movimientos">movimientos contables</a> y <a class="underline hover:text-brand-700" href="/contabilidad/balance-comprobacion">balance de comprobación</a>.</p>
+</div>
+
+<div class="rounded-2xl border border-brand-200 bg-white shadow-sm overflow-hidden mb-6" data-testid="panel-costo-inventario">
+    <div class="px-6 py-4 bg-brand-50 border-b border-brand-100 flex items-center gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-5 text-brand-700"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5m8.25 3v6.75m0 0-3-3m3 3 3-3M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" /></svg>
+        <h2 class="text-sm font-bold text-brand-800">Costo de inventario</h2>
+    </div>
+    <div class="px-6 py-5">
+        <p class="text-sm text-slate-600 mb-4">
+            Contabiliza en el libro contable la diferencia entre el costo de cada movimiento de valor del inventario y lo ya
+            contabilizado: inventario contra costo de ventas (ventas), contra ajuste de inventario (compras, ajustes y apertura)
+            o contra el inventario de otro almacén (transferencias). Conviene ejecutar antes el ajuste de costo de los movimientos.
+            Es idempotente: una segunda ejecución solo contabiliza lo nuevo.
+        </p>
+
+        @if (resultado is not null)
+        {
+            <div class="rounded-xl border border-green-200 bg-green-50 px-4 py-4 text-sm text-green-900 mb-4" data-testid="resultado-costo">
+                <p class="font-semibold">Ejecución terminada.</p>
+                <p class="mt-1">
+                    <span data-testid="resultado-asientos">@resultado.Asientos</span> asiento(s) creado(s) ·
+                    <span data-testid="resultado-contabilizados">@resultado.MovimientosValorContabilizados</span> movimiento(s) de valor contabilizado(s) ·
+                    <span data-testid="resultado-pendientes">@resultado.Pendientes.Count</span> pendiente(s).
+                </p>
+            </div>
+
+            @if (resultado.Pendientes.Count > 0)
+            {
+                <div class="mb-4"><MessageBox Type="warning" Message="Estos movimientos siguen pendientes: corrija el setup indicado y vuelva a ejecutar el proceso." /></div>
+                <div class="overflow-x-auto rounded-xl border border-slate-200 mb-4">
+                    <table class="min-w-full divide-y divide-slate-100 text-sm" data-testid="tabla-pendientes">
+                        <thead class="bg-slate-50">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Movimiento de valor</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Código</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Motivo</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-50 bg-white">
+                            @foreach (var pendiente in resultado.Pendientes)
+                            {
+                                <tr @key="pendiente.MovimientoValorId">
+                                    <td class="px-4 py-3 text-slate-700 font-mono text-xs">@pendiente.MovimientoValorId</td>
+                                    <td class="px-4 py-3 text-slate-500 font-mono text-xs">@pendiente.Codigo</td>
+                                    <td class="px-4 py-3 text-slate-700">@pendiente.Mensaje</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        }
+
+        @if (canModify)
+        {
+            <a href="/contabilidad?contabilizar=true" class="btn-press inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700">Contabilizar costo de inventario</a>
+        }
+        else
+        {
+            <p class="text-xs text-slate-400">Ejecutar este proceso requiere permiso de modificación.</p>
+        }
+    </div>
+</div>
+
+@if (Contabilizar && resultado is null)
+{
+    @if (canModify)
+    {
+        <ConfirmDialog Title="Confirmar contabilización del costo" Message="Se contabilizará en el libro contable el costo pendiente de todos los movimientos de inventario. Los asientos contables no se pueden deshacer." Variant="success" CancelHref="/contabilidad">
+            @if (error is not null)
+            {
+                <div class="mb-4"><MessageBox Type="warning" Message="@error" Errors="@errores" /></div>
+            }
+            <EditForm Model="ContabilizarInput" FormName="confirm-contabilizar" OnValidSubmit="ContabilizarAsync">
+                <button type="submit" class="btn-press rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700">Sí, contabilizar</button>
+                <a href="/contabilidad" class="btn-press ml-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Cancelar</a>
+            </EditForm>
+        </ConfirmDialog>
+    }
+    else
+    {
+        @* Sin CanModify no se muestra el diálogo, pero el EditForm sigue en el árbol: un POST forzado llega a ContabilizarAsync y
+           recibe el 403 real de la API (mismo criterio que el registro de lotes de diario). *@
+        @if (error is not null)
+        {
+            <MessageBox Type="warning" Message="@error" Errors="@errores" />
+        }
+        <EditForm Model="ContabilizarInput" FormName="confirm-contabilizar" OnValidSubmit="ContabilizarAsync"></EditForm>
+    }
+}
+
+@code {
+    [SupplyParameterFromQuery(Name = "contabilizar")] private bool Contabilizar { get; set; }
+
+    [SupplyParameterFromForm(FormName = "confirm-contabilizar")] private ContabilizarForm? ContabilizarInput { get; set; }
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+    private bool canModify;
+    private ResultadoPosteoCostoInventario? resultado;
+    private string? error;
+    private IReadOnlyList<string> errores = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        ContabilizarInput ??= new();
+
+        if (AuthenticationStateTask is not null)
+        {
+            var user = (await AuthenticationStateTask).User;
+            canModify = (await AuthorizationService.AuthorizeAsync(user, ApplicationPolicies.CanModify)).Succeeded;
+        }
+    }
+
+    private async Task ContabilizarAsync()
+    {
+        try
+        {
+            var result = await ContabilidadApiClient.PostearCostoInventarioAsync();
+            if (result.Succeeded)
+            {
+                resultado = result.Valor;
+                return;
+            }
+
+            error = result.Message;
+            errores = result.Errors ?? [];
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not contabilizar el costo de inventario.");
+            error = "No fue posible contabilizar el costo de inventario.";
+        }
+    }
+
+    public sealed class ContabilizarForm
+    {
+    }
+}

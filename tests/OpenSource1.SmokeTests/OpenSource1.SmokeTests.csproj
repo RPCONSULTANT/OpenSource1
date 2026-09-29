@@ -26,6 +26,8 @@
     <ProjectReference Include="..\..\src\OpenSource1.Application\OpenSource1.Application.csproj" />
     <ProjectReference Include="..\..\src\OpenSource1.Api\OpenSource1.Api.csproj" />
     <ProjectReference Include="..\..\src\OpenSource1.Infrastructure\OpenSource1.Infrastructure.csproj" />
+    <!-- Servicio de almacenamiento, exportaciones y EntradaDecimal de la UI. Alias: la clase Program de Blazor chocaría con la de la API. -->
+    <ProjectReference Include="..\..\src\OpenSource1.Blazor\OpenSource1.Blazor.csproj" Aliases="BlazorApp" />
   </ItemGroup>
 
 </Project>

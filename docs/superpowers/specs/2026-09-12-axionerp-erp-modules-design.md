@@ -31,7 +31,7 @@ el informe de investigación.
 | D5 | Toda fila de libro lleva `(TipoOrigen, ClaveOrigen)` | El par AWTYP/AWKEY de SAP. Dos columnas, gratis ahora, doloroso de retrofitear |
 | D6 | **Borrador y posteado son tablas distintas**; lo posteado es inmutable y **sin discriminador de tipo** | BC copia a `Sales Invoice Header` cuya PK es `No.` a secas, sin `Document Type` |
 | D7 | "Abierta/cerrada" **se deriva**, no se persiste en tablas separadas | SAP usó BSID/BSAD/BSIK/BSAK y en S/4HANA los eliminó: ahora son vistas |
-| D8 | Las líneas **congelan** factor de UdM, `% IVA`, grupos contables y costo unitario | Un `JOIN` al maestro actual reescribiría la historia |
+| D8 | Las líneas **congelan** factor de UdM, `% IVA`, grupos contables y costo unitario. Si la línea usa la unidad base del producto, el factor congelado es 1 (identidad; no existe fila en `UnidadesMedidaProducto` para la unidad base, ver 2.2) | Un `JOIN` al maestro actual reescribiría la historia |
 | D9 | Series de numeración **separadas** para borrador (con huecos) y posteado (sin huecos) | Gapless implica bloqueo de fila hasta el commit. No hay truco; solo se limita el alcance del bloqueo |
 
 ### Convenciones transversales
@@ -353,20 +353,26 @@ requerido.
 Tabla `UnidadesMedida` (catálogo global): `Id uuid`, `Codigo varchar(10)` UNIQUE,
 `Nombre varchar(50)`, `Decimales smallint` (redondeo de cantidades).
 
-Tabla `UnidadesMedidaProducto` (equivalente a `Item Unit of Measure` 5404):
+Tabla `UnidadesMedidaProducto` (equivalente a `Item Unit of Measure` 5404): guarda **solo
+las unidades ALTERNATIVAS** del producto, nunca su unidad base. La unidad base
+(`Producto.UnidadMedidaBaseId`) es **implícita, con factor 1**: no tiene fila en esta
+tabla, y `ConversionUnidadMedidaService` la trata como identidad (factor 1) sin
+consultarla. Cuando exista alta/edición de equivalencias (hoy no hay UI ni endpoint para
+esto), debe **rechazar** que se dé de alta una fila para la unidad base del producto.
 
 | Columna | Tipo | Notas |
 |---|---|---|
 | `Id` | `uuid` PK | |
 | `ProductoId` | `uuid` | FK |
-| `UnidadMedidaId` | `uuid` | FK |
+| `UnidadMedidaId` | `uuid` | FK; nunca `Producto.UnidadMedidaBaseId` de ese mismo producto |
 | `CantidadPorUnidadMedida` | `numeric(18,6)` | NOT NULL, > 0 |
 
-UNIQUE(`ProductoId`, `UnidadMedidaId`). La unidad base del producto tiene factor 1 y su
-fila es obligatoria.
+UNIQUE(`ProductoId`, `UnidadMedidaId`).
 
-**Conversión:** `cantidadBase = cantidad * CantidadPorUnidadMedida`. El factor se
-**congela** en cada línea de documento y de libro (D8).
+**Conversión:** `cantidadBase = cantidad * CantidadPorUnidadMedida`. Para la unidad base
+del producto, `CantidadPorUnidadMedida` vale 1 por identidad, sin leer la tabla. El factor
+se **congela** en cada línea de documento y de libro (D8); en una línea capturada con la
+unidad base, el factor congelado es 1.
 
 El VO `UnidadMedida` estático se elimina; las validaciones pasan a resolverse contra la
 tabla. El VO `Pais` se conserva tal cual (los países no necesitan administración).
@@ -379,7 +385,7 @@ tabla. El VO `Pais` se conserva tal cual (los países no necesitan administraci�
 | `Precio numeric(18,2)` | → `PrecioVenta numeric(18,4)` |
 | `UnidadMedidaBaseId uuid` | FK → `UnidadesMedida`, NOT NULL |
 | `MetodoCosteo smallint` | Promedio=1 (único implementado) |
-| `CostoUnitario numeric(18,4)` | **Proyección mantenida**, no autoritativa: la recalcula la rutina de ajuste de costo. El valor autoritativo siempre se deriva de `MovimientosValor` |
+| `CostoUnitario numeric(18,4)` | **Proyección mantenida**, no autoritativa: la recalcula la rutina de ajuste de costo y, desde la Fase 8, cada movimiento de inventario (promedio `V / Q` sobre todo el libro de valor; si `Q <= 0` se conserva). El valor autoritativo siempre se deriva de `MovimientosValor` |
 | `CostoEstandar numeric(18,4)` | Informativo |
 | `CostoAjustado bool` | La doc confirma que `Cost is Adjusted` vive en `Item`, no en el movimiento |
 | `CategoriaId uuid` | FK → `CategoriasProducto` (hoy es texto libre sin catálogo) |
@@ -413,6 +419,24 @@ Con `PermiteHuecos = false` la implementación hace `SELECT ... FOR UPDATE` sobr
 `LineasSerie` aplicable, de modo que el número se reserva hasta el commit. Con
 `PermiteHuecos = true` no bloquea. Series de borrador con huecos, series de posteado sin
 huecos.
+
+**Desviaciones acordadas durante la ejecución de la Fase 2** (ver el plan `2026-09-13-fase-2-dominio-maestro.md`):
+
+- `Producto.Stock` se conserva como columna LEGADA en la Fase 2 y se elimina en la Fase 3, cuando existe el libro
+  de inventario que lo sustituye; quitarlo antes eliminaría el stock de las páginas y reportes ya entregados.
+- `SociosNegocio.Email` NO es único (índice no único): dos socios pueden compartir correo y el índice único
+  puede fallar con datos existentes. `NumeroDocumentoFiscal` sí es único parcial.
+- El renombre `Cliente` → `SocioDeNegocio` se ejecuta por *expand/contract*: primero un renombre mecánico en
+  todas las capas (sin campos nuevos) y después la extensión del modelo con su migración de datos. La UI
+  conserva la etiqueta "Clientes"; la ruta de la API pasa a `api/socios-negocio`.
+- Los VOs estáticos `UnidadMedida` y `CategoriaProducto` se renombran a `...Legado` en las tareas 2.3/2.4 y se
+  borran en la 2.9, cuando `Producto` pasa a las claves foráneas.
+- El apartado 2.2 describía originalmente la fila de la unidad base con factor 1 en `UnidadesMedidaProducto` como
+  obligatoria; no se llegó a crear en ningún flujo, y prevalece el diseño implementado: la unidad base es
+  **implícita** (factor 1, sin fila), tal como ya lo refleja el texto actual de 2.2. `ConversionUnidadMedidaService`
+  trata la unidad base del producto (`Producto.UnidadMedidaBaseId`) como identidad — factor 1 sin consultar la
+  tabla — aunque exista una fila con otro factor. Solo las unidades ALTERNATIVAS a la base exigen fila
+  (`conversion.unidad_no_asociada`).
 
 **Verificación de la Fase 2:** build verde; migración aplicada sin pérdida de datos de
 `Clientes`/`Productos`; tests de conversión de unidades, de generación de números
@@ -539,6 +563,30 @@ test de que el costo promedio con entradas a precios distintos da el ponderado c
 test de que `AjustarCostoMovimientos` es idempotente; test de que ningún camino de código
 hace `UPDATE` ni `DELETE` sobre los libros.
 
+**Desviaciones acordadas durante la ejecución de la Fase 3** (ver el plan `2026-09-25-fase-3-inventario-libro.md`):
+
+- **Fórmula del promedio.** La fórmula de 3.5 (solo filas con `CantidadValorada > 0`) sobrevalora el inventario
+  en cuanto hay salidas (compra 10 a 10, venta 10, compra 10 a 20 → promedio 15 y valor residual 50 con existencia
+  0) y cuenta dos veces las transferencias. Se usa el promedio móvil por día: para una salida con fecha `d`,
+  `Costo = V / Q` con `V = SUM(ImporteCosto)` y `Q = SUM(CantidadValorada)` sobre **todos** los movimientos de valor
+  del producto con `FechaRegistro < d`, más los de **entradas no transferencia** con `FechaRegistro = d`. Las
+  salidas del mismo día comparten el costo. Si `Q <= 0` se usa `Producto.CostoUnitario` y el producto queda con
+  `CostoAjustado = false`.
+- **Movimientos de valor de ajuste y redondeo** llevan `CantidadValorada = 0` (no alteran la cantidad valorada).
+- **Append-only real.** Triggers de PostgreSQL rechazan `DELETE`/`TRUNCATE` en las tres tablas del libro y `UPDATE`
+  en `MovimientosValor` y `AplicacionesMovimientoProducto`; en `MovimientosProducto` solo se permite cambiar
+  `CantidadRestante` (lo consumen las aplicaciones, como `Remaining Quantity` en BC).
+- **Stock legado.** `Producto.Stock` se elimina en esta fase (desviación de la Fase 2). La migración usa el almacén
+  `PRINCIPAL` (predeterminado, sembrado) y convierte cada `Stock <> 0` en un movimiento de apertura
+  (`TipoOrigen = Migracion`) con su movimiento de valor `Stock × CostoUnitario`. Un stock negativo se migra como
+  salida sin aplicaciones.
+- **Serialización por producto** con `pg_advisory_xact_lock` en lugar de `SELECT ... FOR UPDATE` sobre `Productos`
+  (no bloquea la edición del maestro).
+- **Existencia por almacén** de un producto: `GET api/productos/{id}/existencias`. Las vistas completas de
+  movimientos quedan para la Fase 7.
+- Las columnas de grupos contables (`GrupoInventarioId`, `GrupoNegocioId`, `GrupoProductoId`) se crean `uuid`
+  nulas SIN FK; la FK llega con sus tablas en la Fase 5.
+
 ---
 
 ## Fase 4 — Diarios de inventario
@@ -611,6 +659,31 @@ reclasificación es exactamente 0.
 escribe **ninguna** fila (atomicidad real, con rollback verificado); test de ajuste
 negativo sin existencia suficiente → `Result` fallido; test de reclasificación con suma de
 costo 0; test de que el lote queda vacío tras postear.
+
+**Desviaciones acordadas durante la ejecución de la Fase 4** (ver el plan `2026-09-26-fase-4-diarios-inventario.md`):
+
+- **Plantillas sembradas y de solo lectura.** `ARTICULO` (Tipo=1) y `RECLASIF` (Tipo=2), ambas con la serie `DIARIO-INV`
+  (sin huecos). No hay CRUD de plantillas: dos tipos fijos no justifican un mantenimiento.
+- **`LineasDiario.CostoUnitario` está en la unidad BASE del producto** (evita redondeos al convertir un costo por caja y
+  respeta los 4 decimales del libro). La UI lo rotula "Costo unitario (unidad base)".
+- **`CantidadPorUnidadMedida` se congela al guardar la línea** y el registro vuelve a obtener el factor: si cambió, el
+  registro falla con `diario.factor_cambiado` y el número de línea (hay que volver a guardar la línea).
+- **`NumeroDocumento` de la línea es opcional**; si viene vacío, los movimientos llevan el `NumeroRegistro`.
+- **Orden de registro:** por `FechaRegistro`, luego entradas antes que salidas, luego `NumeroLinea`, para que una salida pueda
+  consumir una entrada del mismo día del mismo lote.
+- **Las líneas registradas se borran lógicamente** (las líneas son maestros con soft delete como el resto).
+- **`RegistrosDiario` es append-only** (mismo trigger que el libro).
+- **Borrar un almacén** toma un advisory lock exclusivo del almacén y `RegistrarAsync` toma el mismo lock en modo compartido,
+  para que no pueda registrarse un movimiento en un almacén que se está borrando. Cambiar la unidad base y borrar un producto
+  toman el lock del producto.
+- **`Producto.CostoAjustado = false` (paso 6 del flujo 4.2) NO se marca en "los productos afectados"** como dice ese
+  paso, sino según la regla de la Fase 3 (Ruling AS), decidida movimiento a movimiento dentro de
+  `RegistroMovimientosInventario.RegistrarAsync`: toda SALIDA lo marca, y toda ENTRADA de un producto que ya tenga
+  alguna salida (de cualquier fecha) también lo marca. Una entrada de un producto sin salidas previas no lo marca (su
+  costo no depende de ningún promedio calculado). En una reclasificación esto puede marcar solo uno de los dos
+  productos (o ninguno), no ambos por igual.
+- **Permisos:** consultar = CanConsult; crear/editar lotes y líneas = CanAdd/CanModify; borrar = CanDelete; **registrar un
+  lote = CanModify** (afecta al inventario; Administrador y Supervisor).
 
 ---
 
@@ -766,6 +839,31 @@ cliente); y las filas de intersección correspondientes.
 que una combinación sin setup devuelve `Result` fallido y **no** escribe nada; test de que
 todo registro contable cuadra a 0; test de idempotencia del batch de costo (dos
 ejecuciones seguidas → la segunda no inserta filas).
+
+**Desviaciones acordadas durante la ejecución de la Fase 5** (ver el plan `2026-09-27-fase-5-contabilidad.md`):
+
+- **`ImporteCostoPosteadoContabilidad` es la segunda columna actualizable del libro de valor.** El trigger append-only de
+  `MovimientosValor` pasa a permitir un `UPDATE` que cambie ÚNICAMENTE esa columna (como `CantidadRestante` en
+  `MovimientosProducto` y "Cost Posted to G/L" en BC); todo lo demás sigue prohibido.
+- **El batch de costo contabiliza todos los tipos de movimiento, no solo ventas.** Para cada delta: débito/crédito
+  `CuentaInventario` (de `SetupsInventario[Almacén × GrupoInventario]`) por `+delta` y la contrapartida por `−delta` en
+  `CuentaCostoVentas` si el movimiento es Venta, o en `CuentaAjusteInventario` (de `SetupsInventario`) en ajustes, apertura
+  migrada y compras; las transferencias contabilizan inventario contra inventario entre almacenes (si la cuenta es la misma,
+  se netea y no se escribe). Un asiento por ejecución y grupo de movimientos; cada movimiento de valor se contabiliza entero
+  o no se contabiliza.
+- **Grupos en maestros:** `Producto` gana `GrupoProductoId`, `GrupoIvaProductoId`, `GrupoInventarioId`; `SocioNegocio`
+  gana `GrupoNegocioId`, `GrupoIvaNegocioId`, `GrupoClienteContableId`. Todas FK nulables; la migración asigna los grupos
+  semilla por defecto (`BIENES`, `ITBIS18`, `GENERAL`; `NACIONAL`, `ITBIS18`, `GENERAL`) a los registros existentes. Un
+  grupo nulo en el momento de derivar → `setup_contable.grupo_faltante`.
+- **Congelación de grupos en el libro de valor (D8):** `RegistrarAsync` copia `GrupoInventarioId`/`GrupoProductoId` del
+  producto y `GrupoNegocioId` del socio (si lo hay) al `MovimientoValor`. La migración rellena los movimientos ya existentes
+  con los grupos por defecto, desactivando el trigger SOLO dentro de esa migración.
+- **Un solo mantenimiento para los cinco grupos simples** (`GruposNegocio`, `GruposProducto`, `GruposIvaNegocio`,
+  `GruposIvaProducto`, `GruposInventario`): API `api/grupos-contables/{tipo}` y una página con selector de tipo.
+  `GruposClienteContable` tiene su propio mantenimiento (lleva cuentas).
+- **Numeración:** los registros contables usan la serie `CONTAB` (sin huecos, sembrada).
+- **Sin posteo contable al facturar** en esta fase: `ConfiguracionInventario.PosteoAutomaticoCosto` no se implementa (el
+  batch es el único camino, como el valor por defecto del spec).
 
 ---
 
@@ -927,6 +1025,38 @@ sin setup contable no escribe **ninguna** fila; test de que el asiento cuadra a 
 que el saldo derivado del cliente coincide tras factura + pago parcial + aplicación; test
 de que la serie de posteado no deja huecos bajo dos posteos concurrentes.
 
+**Desviaciones acordadas durante la ejecución de la Fase 6** (ver el plan `2026-09-28-fase-6-facturacion.md`):
+
+- **Sin patas de costo al facturar.** `PosteoAutomaticoCosto` no se implementa (su valor por defecto es falso): el costo lo
+  contabiliza el batch de la Fase 5. El asiento de la factura tiene solo CxC, Ventas e IVA.
+- **Descuento de línea neto.** `ImporteLinea` ya va neto del descuento y Ventas se acredita neto; no hay pata de
+  descuento (la cuenta `CuentaDescuentoVentas` queda para una fase futura).
+- **Crédito de Ventas por (GrupoNegocio × GrupoProducto)** con `ROUND(SUM(ImporteLinea), 2)` por grupo; la diferencia de
+  redondeo entre la suma de esas bases y `ImporteSinIva` (bases agrupadas por IVA) se ajusta en la pata de Ventas de mayor
+  importe, para que el asiento cuadre sin cuenta de redondeo.
+- **Líneas de tipo CuentaContable** acreditan esa cuenta (Posteo, no bloqueada y `PosteoDirecto = true`) y llevan su propio
+  `GrupoIvaProductoId` (obligatorio) para el IVA; no mueven inventario. Las de tipo Comentario no tienen importes.
+- **Series:** borradores `FV-BORR` (con huecos) y facturas posteadas `FV` (sin huecos), sembradas. El generador actual
+  serializa también la serie con huecos (limitación aceptada: el alta de borrador es corta).
+- **Cobros:** el pago indica la cuenta de caja/banco (Posteo, no bloqueada, `PosteoDirecto = true`; por defecto `1101 Caja`)
+  y su asiento es débito caja / crédito CxC derivada del grupo de cliente contable VIGENTE del socio (congelada en el
+  movimiento). Serie `COBRO` sin huecos. Aplicar solo entre movimientos del mismo socio, de signo opuesto, por un importe ≤
+  el mínimo de los restantes.
+- **Cliente facturar-a:** el libro de clientes y la CxC usan `SocioNegocioFacturarAId`; el inventario lleva
+  `SocioNegocioId` (vender-a).
+- **Guarda de borrado de socios** (pendiente de la Fase 5): un socio con borradores, facturas, movimientos de cliente o
+  movimientos contables → 409 `socio_negocio.conflicto`.
+- **Orden global de locks** (todo comando que escribe documentos, libros o asientos lo respeta, para que no se formen
+  ciclos): documento/borrador (`FOR UPDATE`, con sus líneas) → socios (`FOR SHARE`, orden de Id; también el alta y el cambio
+  de socio de un borrador, antes de validarlos) → productos (advisory lock, ordenados) → series (línea de serie
+  `FOR UPDATE`) → almacenes compartidos (advisory lock compartido) → cuentas (`FOR SHARE`, orden de Id) → serie `CONTAB`.
+  La aplicación de cobros bloquea primero los movimientos de cliente (`FOR UPDATE`, orden de Id: ocupan el lugar del
+  documento) y después el socio (`FOR SHARE`); comprueba que factura y pago son del mismo socio antes de bloquearlo.
+- **Cantidades exactas en la unidad base:** una cantidad cuya equivalencia en la unidad base (con el factor congelado,
+  redondeado a 6 decimales) tenga más decimales de los que admite la unidad base se rechaza (`conversion.cantidad_no_exacta`
+  al capturar la línea y al postear, `inventario.cantidad_invalida` en la red final del registro de inventario); nunca se
+  redondea en el libro.
+
 ---
 
 ## Fase 7 — Vistas de movimientos
@@ -946,6 +1076,52 @@ para filtros y paginación por query string, según la convención del proyecto.
 
 Todas sobre repositorios Dapper paginados, con allow-list de columnas de ordenación
 (Fase 1.8).
+
+**Desviaciones acordadas durante la ejecución de la Fase 7** (ver el plan `2026-09-29-fase-7-vistas.md`):
+
+- **Saldo acumulado** en movimientos de producto solo cuando el filtro fija un producto (y opcionalmente un almacén): es
+  el único caso en que tiene sentido; se calcula con una función de ventana ordenada por `(FechaRegistro, Id)` más el
+  saldo anterior al rango (`desde`) y a la página. Sin producto, la columna no se devuelve.
+- **Estado de cuenta:** antigüedad por `FechaVencimiento` respecto a una **fecha de corte** (por defecto hoy): corriente
+  (no vencido), 1-30, 31-60, 61-90, 90+ días vencidos, sobre el **restante a la fecha de corte** (detalle con
+  `FechaRegistro <= corte`); los pagos con restante negativo se muestran como "sin aplicar" y restan del total.
+  **Regla refinada (Task 7.3):** una fila de detalle que es una **aplicación** solo cuenta a la fecha de corte si el
+  movimiento contrario (`MovimientoClienteAplicadoId`) también está registrado a esa fecha. Así las dos patas de cada
+  aplicación entran o salen juntas (una aplicación fechada antes que su pago no reduce la factura en una fecha en que el
+  pago aún no existe) y el **total del estado de cuenta = Σ importes originales con `FechaRegistro <= corte` = saldo de CxC
+  a esa fecha**. Cualquier restante negativo va a "sin aplicar"; se listan los socios con algún movimiento a la fecha.
+- **Balance de comprobación** por rango de fechas: saldo inicial (antes de `desde`), débitos y créditos del rango y saldo
+  final, solo cuentas de Posteo con movimientos o saldo; sin cierre de ejercicio (las cuentas de resultado acumulan).
+  **Presentación (Task 7.4):** las cuentas de tipo Encabezado no borradas se intercalan siempre como **filas de título**
+  (sin importes, con su sangría; aunque ninguna cuenta suya tenga filas en el rango), ordenadas por número; las de
+  totalización no se muestran. El balance agrupa por `CuentaContableId` y muestra el **número y nombre ACTUALES** de la
+  cuenta (marcada como borrada si lo está); la vista de movimientos contables muestra el número congelado en el movimiento.
+- **Valor de inventario** por producto y almacén = `SUM(ImporteCosto)` de los movimientos de valor hasta la fecha;
+  existencia = `SUM(Cantidad)` de movimientos de producto (misma derivación que `IConsultaInventario`).
+- **Limpieza heredada:** `ConvertirABaseAsync` y `ObtenerFactorAsync` (redondean) se retiran de
+  `IConversionUnidadMedidaService` si no tienen llamadores. **Hecho en la Task 7.5** (no tenían ninguno).
+- **Paginación desbordada (Task 7.5):** `PageRequest.Offset` se calcula en 64 bits y se acota a `[0, int.MaxValue]`: los
+  listados, incluidas las vistas de la Fase 7, responden 200 con una página vacía ante una página enorme (antes, 500), y
+  las páginas Blazor de las vistas saltan a la última página con resultados. (`PaginacionValidacion`, que devolvía 400 en
+  las vistas, se retiró en la tanda final de la Fase 7 por redundante.)
+
+---
+
+## Fase 8 — Notas de crédito, reglas de importe, fechas permitidas y limpieza
+
+Fase añadida tras cerrar la Fase 7, a petición del usuario (2026-09-27). Plan: `2026-09-30-fase-8-notas-credito.md`.
+
+- **Notas de crédito de venta** siempre ligadas a una factura posteada: cantidades ≤ lo facturado menos lo ya
+  acreditado; precio, descuento, IVA y grupos copiados de la línea original; devolución de inventario opcional por línea
+  al costo unitario de la salida original; `MovimientoCliente` NotaCredito aplicado automáticamente a la factura; asiento
+  inverso al de la factura (débito Ventas e IVA, crédito la CxC congelada de la factura). Series `NC-BORR` (con huecos) y
+  `NC` (sin huecos). Documento posteado append-only.
+- **Regla de importes:** precio unitario 0 bloqueado e importe de línea 0 bloqueado, salvo 100 % de descuento. Una factura
+  de total 0 (todas sus líneas al 100 %) se postea con documento e inventario, sin movimiento de cliente ni asiento.
+- **`Producto.CostoUnitario`** se actualiza con cada movimiento de inventario al promedio vigente a la última fecha.
+- **Fechas de registro permitidas:** rango general y excepciones por usuario (el administrador las asigna); se validan en
+  todos los posteos de documentos, cobros y aplicaciones (`registro.fecha_no_permitida`), no en los procesos del sistema.
+- **Limpieza:** se retiran definitivamente los módulos de prueba Entradas y AppSettings, incluidas sus tablas.
 
 ---
 

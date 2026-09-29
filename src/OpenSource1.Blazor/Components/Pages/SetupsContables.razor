@@ -1,0 +1,695 @@
+@page "/setups-contables"
+@attribute [Authorize(Policy = ApplicationPolicies.CanConsult)]
+@using Microsoft.AspNetCore.Authorization
+@using OpenSource1.Application.Features.CuentasContables.Dtos
+@using OpenSource1.Application.Features.SetupsContables
+@using OpenSource1.Application.Features.SetupsContables.Dtos
+@using OpenSource1.Application.Security
+@using OpenSource1.Blazor.Services
+@using OpenSource1.Core.Common
+@using OpenSource1.Core.Enums
+@inject ISetupContableApiClient SetupApiClient
+@inject IGrupoContableApiClient GrupoContableApiClient
+@inject IAlmacenApiClient AlmacenApiClient
+@inject ICuentaContableApiClient CuentaContableApiClient
+@inject IAuthorizationService AuthorizationService
+@inject ILogger<SetupsContables> Logger
+@inject NavigationManager Nav
+
+@*
+    Mantenimiento de los tres setups contables (Task 5.4) con selector de tipo en ?tipo=general|iva|inventario (texto, no enum:
+    [SupplyParameterFromQuery] no admite enums). Un solo formulario para los tres tipos (SetupContableForm): el eje secundario
+    vacío es el COMODÍN ("cualquiera") y las cuentas van en ranuras cuyo rótulo da el tipo. Los formularios hacen POST a la URL
+    vigente, así que el tipo viaja con ellos. Si las opciones (grupos, almacenes o cuentas) no cargan, no se puede guardar.
+*@
+
+<PageTitle>Setups contables – AxionERP</PageTitle>
+
+<div class="mb-6">
+    <p class="text-xs font-bold tracking-widest uppercase text-brand-600 mb-1">Contabilidad</p>
+    <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">Setups contables</h1>
+    <p class="text-sm text-slate-500 mt-1">Intersecciones de grupos de las que se derivan las cuentas al postear. Un eje vacío (<em>cualquiera</em>) es el comodín: se usa cuando no hay una fila exacta.</p>
+</div>
+
+<!-- ── Selector de tipo ── -->
+<nav class="mb-6 flex flex-wrap gap-2" aria-label="Tipo de setup contable" data-testid="selector-tipo">
+    @foreach (var descriptor in TiposSetupContable.Todos)
+    {
+        var activo = descriptor.Tipo == Tipo;
+        <a href="/setups-contables?tipo=@descriptor.Ruta" aria-current="@(activo ? "page" : null)"
+           class="@(activo ? "rounded-lg bg-brand-600 px-3 py-2 text-sm font-semibold text-white shadow-sm" : "rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50")">
+            @descriptor.NombrePlural
+        </a>
+    }
+</nav>
+
+@if (tipoInvalido)
+{
+    <div class="mb-6"><MessageBox Type="warning" Message="@($"El tipo de setup '{TipoRuta}' no existe; se muestra el {Descriptor.NombrePlural.ToLowerInvariant()}.")" /></div>
+}
+
+@if (opcionesCargaFallida && (canAdd || canModify))
+{
+    <div class="mb-6"><MessageBox Type="danger" Message="No fue posible cargar los grupos, almacenes o cuentas contables. Por seguridad no se puede agregar ni modificar un setup hasta que carguen; recargue la página." /></div>
+}
+
+@if (!string.IsNullOrWhiteSpace(message))
+{
+    <div class="mb-6">
+        @if (messageType == "success")
+        {
+            <ActionFeedback Type="success" Message="@message" />
+        }
+        else
+        {
+            <MessageBox Type="@messageType" Message="@message" Errors="@errores" />
+        }
+    </div>
+}
+
+<!-- ── Filtros ── -->
+<div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden mb-6">
+    <form method="get" action="/setups-contables" data-enhance class="p-4 sm:p-6">
+        <input type="hidden" name="tipo" value="@Descriptor.Ruta" />
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div class="grid flex-1 grid-cols-1 gap-3 sm:grid-cols-2 max-w-3xl">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 mb-1" for="filtroSecundario">@Descriptor.RotuloSecundario</label>
+                    <select id="filtroSecundario" name="secundario" class="@FiltroCss">
+                        <option value="" selected="@(FiltroSecundario is null)">— Todos —</option>
+                        @OpcionesEje(opcionesSecundario, FiltroSecundario, null)
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 mb-1" for="filtroPrincipal">@Descriptor.RotuloPrincipal</label>
+                    <select id="filtroPrincipal" name="principal" class="@FiltroCss">
+                        <option value="" selected="@(FiltroPrincipal is null)">— Todos —</option>
+                        @OpcionesEje(opcionesPrincipal, FiltroPrincipal, null)
+                    </select>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <button type="submit" class="btn-press inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700">Consultar</button>
+                <a href="@($"/setups-contables?tipo={Descriptor.Ruta}")" title="Limpiar campos" class="btn-press inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Limpiar campos</a>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- ── Tabla ── -->
+<div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden mb-8">
+    <div class="px-6 py-4 border-b border-slate-100">
+        <h2 class="text-sm font-semibold text-slate-700">@Descriptor.NombrePlural</h2>
+        <p class="mt-1 text-xs text-slate-500">@total resultado(s) · página @Pagina de @Math.Max(totalPaginas, 1).</p>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-slate-100 text-sm">
+            <thead class="bg-slate-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">@Descriptor.RotuloPrincipal</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">@Descriptor.RotuloSecundario</th>
+                    @if (Tipo == TipoSetupContable.Iva)
+                    {
+                        <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">IVA</th>
+                    }
+                    @foreach (var ranura in Ranuras)
+                    {
+                        <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">@ranura.Rotulo</th>
+                    }
+                    <th class="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Acciones</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-50 bg-white">
+                @if (filas.Count == 0)
+                {
+                    <tr><td colspan="@(Ranuras.Count + (Tipo == TipoSetupContable.Iva ? 4 : 3))" class="px-6 py-8 text-center text-slate-400 text-sm">No hay setups registrados con esos criterios.</td></tr>
+                }
+                else
+                {
+                    @foreach (var fila in filas)
+                    {
+                        <tr @key="fila.Id" class="hover:bg-slate-50 transition-colors">
+                            <td class="px-6 py-3 font-mono text-xs font-semibold text-brand-700">@fila.Principal</td>
+                            <td class="px-6 py-3 font-mono text-xs @(fila.Secundario is null ? "italic text-slate-400" : "text-slate-700")">@(fila.Secundario ?? "cualquiera")</td>
+                            @if (Tipo == TipoSetupContable.Iva)
+                            {
+                                <td class="px-6 py-3 text-xs text-slate-700">@fila.Detalle</td>
+                            }
+                            @foreach (var cuenta in fila.Cuentas)
+                            {
+                                <td class="px-6 py-3 text-xs text-slate-600">@cuenta</td>
+                            }
+                            <td class="px-6 py-3 text-right">
+                                <div class="flex items-center justify-end gap-2">
+                                    @if (canModify)
+                                    {
+                                        <a href="@BuildListUrl(editId: fila.Id)" class="btn-press inline-flex items-center justify-center size-8 rounded-lg border border-amber-200 bg-amber-50 text-amber-600 hover:bg-amber-100" title="Editar setup">✎</a>
+                                    }
+                                    @if (canDelete)
+                                    {
+                                        <a href="@BuildListUrl(deleteId: fila.Id)" class="btn-press inline-flex items-center justify-center size-8 rounded-lg border border-red-200 bg-red-50 text-red-600 hover:bg-red-100" title="Eliminar setup">🗑</a>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+    @if (totalPaginas > 1)
+    {
+        <div class="flex items-center justify-between gap-3 border-t border-slate-100 px-6 py-4">
+            <p class="text-xs text-slate-500">Página @Pagina de @totalPaginas</p>
+            <div class="flex items-center gap-2">
+                @if (Pagina > 1)
+                {
+                    <a href="@BuildListUrl(pagina: Pagina - 1)" class="btn-press rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">« Anterior</a>
+                }
+                @if (Pagina < totalPaginas)
+                {
+                    <a href="@BuildListUrl(pagina: Pagina + 1)" class="btn-press rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">Siguiente »</a>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+<!-- ── Formularios de operación ── -->
+<div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+    @if (canAdd)
+    {
+        <div id="agregar" class="rounded-2xl border border-green-200 bg-white shadow-sm overflow-hidden">
+            <div class="px-6 py-4 bg-green-50 border-b border-green-100"><h2 class="text-sm font-bold text-green-800">Agregar fila al @Descriptor.NombrePlural.ToLowerInvariant()</h2></div>
+            <div class="px-6 py-5">
+                <EditForm Model="SaveInput" FormName="save-setup-contable" OnValidSubmit="CreateAsync" Enhance="true">
+                    <DataAnnotationsValidator />
+                    @Campos(SaveInput!, "SaveInput", null)
+                    @if (!opcionesCargaFallida)
+                    {
+                        <div class="mt-5"><button type="submit" class="btn-press rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 shadow-sm">Agregar</button></div>
+                    }
+                </EditForm>
+            </div>
+        </div>
+    }
+
+    @if (canModify)
+    {
+        <div id="modificar" class="rounded-2xl border border-amber-200 bg-white shadow-sm overflow-hidden">
+            <div class="px-6 py-4 bg-amber-50 border-b border-amber-100"><h2 class="text-sm font-bold text-amber-800">Modificar fila del @Descriptor.NombrePlural.ToLowerInvariant()</h2></div>
+            <div class="px-6 py-5">
+                @if (EditId.HasValue && UpdateInput?.Id != EditId)
+                {
+                    <MessageBox Type="warning" Message="No se encontró el setup seleccionado. Puede haber sido eliminado por otro usuario." />
+                }
+                <EditForm Model="UpdateInput" FormName="update-setup-contable" OnValidSubmit="UpdateAsync" Enhance="true">
+                    <DataAnnotationsValidator />
+                    <input type="hidden" name="UpdateInput.Id" value="@UpdateInput!.Id" />
+                    <input type="hidden" name="UpdateInput.Xmin" value="@UpdateInput.Xmin" />
+                    @Campos(UpdateInput, "UpdateInput", vigente)
+                    @if (!opcionesCargaFallida)
+                    {
+                        <div class="mt-5"><button type="submit" class="btn-press rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-600 shadow-sm">Guardar cambios</button></div>
+                    }
+                </EditForm>
+            </div>
+        </div>
+    }
+</div>
+
+@if (DeleteId.HasValue && canDelete)
+{
+    <ConfirmDialog Title="Confirmar eliminación" Message="@($"Esta acción eliminará la fila seleccionada del {Descriptor.NombrePlural.ToLowerInvariant()} y no se puede deshacer.")" Variant="danger" CancelHref="@BuildListUrl()">
+        <p class="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-mono text-red-900">@(filaABorrar is null ? DeleteId.Value.ToString() : $"{filaABorrar.Principal} × {filaABorrar.Secundario ?? "cualquiera"}")</p>
+        <EditForm Model="DeleteInput" FormName="delete-setup-contable" OnValidSubmit="DeleteAsync" class="mt-4">
+            <input type="hidden" name="DeleteInput.Id" value="@DeleteId" />
+            <button type="submit" class="btn-press rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-700">Sí, eliminar</button>
+            <a href="@BuildListUrl()" class="btn-press ml-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Cancelar</a>
+        </EditForm>
+    </ConfirmDialog>
+}
+
+@code {
+    private const string InputCss = "block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20";
+    private const string FiltroCss = "block w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-600/20";
+
+    /// <summary>Ranura de cuenta del formulario: su número (Cuenta1Id..Cuenta4Id), rótulo y si es obligatoria para el tipo.</summary>
+    private sealed record Ranura(int Numero, string Rotulo, bool Obligatoria);
+
+    /// <summary>Fila de la tabla, común a los tres tipos. <c>Secundario</c> null = comodín.</summary>
+    private sealed record Fila(Guid Id, string Principal, string? Secundario, IReadOnlyList<string> Cuentas, string? Detalle);
+
+    /// <summary>La fila en edición tal como está guardada: rotula los valores vigentes aunque ya no sean elegibles.</summary>
+    private sealed record Vigente(Guid? SecundarioId, string? SecundarioCodigo, Guid PrincipalId, string PrincipalCodigo, IReadOnlyDictionary<int, (Guid? Id, string? Numero, string? Nombre)> Cuentas);
+
+    private static readonly IReadOnlyDictionary<TipoSetupContable, IReadOnlyList<Ranura>> RanurasPorTipo = new Dictionary<TipoSetupContable, IReadOnlyList<Ranura>>
+    {
+        [TipoSetupContable.General] = [new(1, "Ventas", true), new(2, "Costo de ventas", true), new(3, "Descuentos sobre ventas", true), new(4, "Ajuste de inventario", true)],
+        [TipoSetupContable.Iva] = [new(1, "IVA en ventas", true), new(2, "IVA en compras", false)],
+        [TipoSetupContable.Inventario] = [new(1, "Inventario", true), new(2, "Ajuste de inventario", true), new(3, "Variación de costo", true)],
+    };
+
+    [SupplyParameterFromForm(FormName = "save-setup-contable")]
+    private SetupContableForm? SaveInput { get; set; }
+
+    [SupplyParameterFromForm(FormName = "update-setup-contable")]
+    private SetupContableForm? UpdateInput { get; set; }
+
+    [SupplyParameterFromForm(FormName = "delete-setup-contable")]
+    private DeleteForm? DeleteInput { get; set; }
+
+    [SupplyParameterFromQuery(Name = "tipo")]
+    private string? TipoRuta { get; set; }
+
+    [SupplyParameterFromQuery(Name = "secundario")]
+    private Guid? FiltroSecundario { get; set; }
+
+    [SupplyParameterFromQuery(Name = "principal")]
+    private Guid? FiltroPrincipal { get; set; }
+
+    [SupplyParameterFromQuery(Name = "editId")]
+    private Guid? EditId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "deleteId")]
+    private Guid? DeleteId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "ok")]
+    private string? Ok { get; set; }
+
+    [SupplyParameterFromQuery(Name = "pagina")]
+    private int Pagina { get; set; } = 1;
+
+    // Tipo vigente: el de ?tipo= si existe; si falta o no existe, el general.
+    private TipoSetupContable Tipo => TiposSetupContable.DesdeRuta(TipoRuta) ?? TipoSetupContable.General;
+    private TiposSetupContable.Descriptor Descriptor => TiposSetupContable.De(Tipo);
+    private IReadOnlyList<Ranura> Ranuras => RanurasPorTipo[Tipo];
+    private bool tipoInvalido;
+
+    private IReadOnlyList<Fila> filas = [];
+    private Fila? filaABorrar;
+    private Vigente? vigente;
+    private IReadOnlyList<GrupoOpcion> opcionesSecundario = [];
+    private IReadOnlyList<GrupoOpcion> opcionesPrincipal = [];
+    // Cuentas elegibles: de Posteo y no bloqueadas (las únicas que la API acepta al asignar o cambiar una cuenta).
+    private IReadOnlyList<CuentaContableResponse> cuentas = [];
+    private bool opcionesCargaFallida;
+    private long total;
+    private int totalPaginas;
+    private string? message;
+    private string messageType = "info";
+    private IReadOnlyList<string> errores = [];
+    private bool canAdd;
+    private bool canModify;
+    private bool canDelete;
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        SaveInput ??= new();
+        UpdateInput ??= new();
+        DeleteInput ??= new();
+        tipoInvalido = !string.IsNullOrWhiteSpace(TipoRuta) && TiposSetupContable.DesdeRuta(TipoRuta) is null;
+
+        if (AuthenticationStateTask is not null)
+        {
+            var user = (await AuthenticationStateTask).User;
+            canAdd = (await AuthorizationService.AuthorizeAsync(user, ApplicationPolicies.CanAdd)).Succeeded;
+            canModify = (await AuthorizationService.AuthorizeAsync(user, ApplicationPolicies.CanModify)).Succeeded;
+            canDelete = (await AuthorizationService.AuthorizeAsync(user, ApplicationPolicies.CanDelete)).Succeeded;
+        }
+
+        await CargarOpcionesAsync();
+        await LoadAsync();
+
+        if (Ok is not null)
+        {
+            (messageType, message) = Ok switch
+            {
+                "created" => ("success", "Setup contable agregado satisfactoriamente."),
+                "updated" => ("success", "Setup contable modificado satisfactoriamente."),
+                "deleted" => ("success", "Setup contable eliminado satisfactoriamente."),
+                _ => ("info", null)
+            };
+        }
+
+        if (DeleteId.HasValue && canDelete)
+        {
+            try
+            {
+                filaABorrar = (await LeerAsync(DeleteId.Value)).Fila;
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Could not load setup contable {DeleteId} from API.", DeleteId);
+            }
+        }
+
+        var editarId = EditId ?? (UpdateInput.Id != Guid.Empty ? UpdateInput.Id : null);
+        if (editarId.HasValue && canModify)
+        {
+            try
+            {
+                var (_, guardado, formulario) = await LeerAsync(editarId.Value);
+                vigente = guardado;
+                // Solo se rellena con lo guardado cuando NO llegó un formulario de modificación.
+                if (formulario is not null && UpdateInput.Id == Guid.Empty)
+                {
+                    UpdateInput = formulario;
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Could not load setup contable {EditId} from API.", editarId);
+                Show("danger", "No fue posible cargar el setup a modificar.");
+            }
+        }
+    }
+
+    /// <summary>Opciones de los dos ejes (siempre: también las usan los filtros) y, si puede escribir, las cuentas elegibles.</summary>
+    private async Task CargarOpcionesAsync()
+    {
+        using var cts = new CancellationTokenSource(ProductoOpciones.TiempoMaximo);
+        try
+        {
+            var (secundario, principal) = Tipo switch
+            {
+                TipoSetupContable.General => (TipoGrupoContable.Negocio, TipoGrupoContable.Producto),
+                TipoSetupContable.Iva => (TipoGrupoContable.IvaNegocio, TipoGrupoContable.IvaProducto),
+                _ => ((TipoGrupoContable?)null, TipoGrupoContable.Inventario)
+            };
+
+            opcionesPrincipal = GruposOpciones.Mapear(await GrupoContableApiClient.ListAllAsync(principal, cts.Token));
+            opcionesSecundario = secundario is { } tipoSecundario
+                ? GruposOpciones.Mapear(await GrupoContableApiClient.ListAllAsync(tipoSecundario, cts.Token))
+                : await CargarAlmacenesAsync(cts.Token);
+
+            if (canAdd || canModify)
+            {
+                var todas = new List<CuentaContableResponse>();
+                var filtro = new CuentaContableSearchFilter(null, null, TipoCuentaContable.Posteo, null, Bloqueada: false);
+                for (var pagina = 1; ; pagina++)
+                {
+                    var resultado = await CuentaContableApiClient.ListAsync(filtro, new PageRequest(pagina, PageRequest.TamanoMaximo, "Numero", Descendente: false), cts.Token);
+                    todas.AddRange(resultado.Items);
+                    if (resultado.Items.Count == 0 || pagina >= resultado.TotalPaginas)
+                    {
+                        break;
+                    }
+                }
+
+                cuentas = todas;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not load setup contable options from API.");
+            opcionesCargaFallida = true;
+        }
+    }
+
+    private async Task<IReadOnlyList<GrupoOpcion>> CargarAlmacenesAsync(CancellationToken cancellationToken)
+    {
+        var todos = new List<GrupoOpcion>();
+        for (var pagina = 1; ; pagina++)
+        {
+            var resultado = await AlmacenApiClient.ListAsync(null, new PageRequest(pagina, PageRequest.TamanoMaximo, "Codigo", Descendente: false), cancellationToken);
+            todos.AddRange(resultado.Items.Select(a => new GrupoOpcion(a.Id, a.Codigo, a.Nombre)));
+            if (resultado.Items.Count == 0 || pagina >= resultado.TotalPaginas)
+            {
+                return todos;
+            }
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            if (Pagina < 1) Pagina = 1;
+            var pagina = await ListarAsync();
+            if (pagina.TotalPaginas == 0)
+            {
+                Pagina = 1;
+            }
+            else if (Pagina > pagina.TotalPaginas)
+            {
+                Pagina = pagina.TotalPaginas;
+                pagina = await ListarAsync();
+            }
+
+            filas = pagina.Items;
+            total = pagina.Total;
+            totalPaginas = pagina.TotalPaginas;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not load setups contables from API.");
+            Show("danger", "No fue posible cargar los setups contables.");
+        }
+    }
+
+    private async Task<PagedResult<Fila>> ListarAsync()
+    {
+        // Descendente: false explícito (el default de PageRequest es true); la API ordena por el eje principal y el comodín primero.
+        var peticion = new PageRequest(Pagina, PageRequest.TamanoPorDefecto, Descendente: false);
+        return Tipo switch
+        {
+            TipoSetupContable.General => Mapear(await SetupApiClient.ListAsync<SetupGeneralResponse>(Tipo, FiltroSecundario, FiltroPrincipal, peticion), AFila),
+            TipoSetupContable.Iva => Mapear(await SetupApiClient.ListAsync<SetupIvaResponse>(Tipo, FiltroSecundario, FiltroPrincipal, peticion), AFila),
+            _ => Mapear(await SetupApiClient.ListAsync<SetupInventarioResponse>(Tipo, FiltroSecundario, FiltroPrincipal, peticion), AFila),
+        };
+    }
+
+    private static PagedResult<Fila> Mapear<T>(PagedResult<T> pagina, Func<T, Fila> mapa) =>
+        new([.. pagina.Items.Select(mapa)], pagina.Pagina, pagina.TamanoPagina, pagina.Total);
+
+    /// <summary>La fila guardada: su fila de tabla, sus valores vigentes y el formulario de edición relleno (null si no existe).</summary>
+    private async Task<(Fila? Fila, Vigente? Vigente, SetupContableForm? Formulario)> LeerAsync(Guid id)
+    {
+        switch (Tipo)
+        {
+            case TipoSetupContable.General:
+                var g = await SetupApiClient.GetByIdAsync<SetupGeneralResponse>(Tipo, id);
+                return g is null ? default : (AFila(g), new Vigente(g.GrupoNegocioId, g.GrupoNegocioCodigo, g.GrupoProductoId, g.GrupoProductoCodigo, new Dictionary<int, (Guid?, string?, string?)>
+                {
+                    [1] = (g.CuentaVentasId, g.CuentaVentasNumero, g.CuentaVentasNombre),
+                    [2] = (g.CuentaCostoVentasId, g.CuentaCostoVentasNumero, g.CuentaCostoVentasNombre),
+                    [3] = (g.CuentaDescuentoVentasId, g.CuentaDescuentoVentasNumero, g.CuentaDescuentoVentasNombre),
+                    [4] = (g.CuentaAjusteInventarioId, g.CuentaAjusteInventarioNumero, g.CuentaAjusteInventarioNombre),
+                }), new SetupContableForm
+                {
+                    Id = g.Id, Xmin = g.Xmin, SecundarioId = g.GrupoNegocioId, PrincipalId = g.GrupoProductoId,
+                    Cuenta1Id = g.CuentaVentasId, Cuenta2Id = g.CuentaCostoVentasId, Cuenta3Id = g.CuentaDescuentoVentasId, Cuenta4Id = g.CuentaAjusteInventarioId
+                });
+            case TipoSetupContable.Iva:
+                var i = await SetupApiClient.GetByIdAsync<SetupIvaResponse>(Tipo, id);
+                return i is null ? default : (AFila(i), new Vigente(i.GrupoIvaNegocioId, i.GrupoIvaNegocioCodigo, i.GrupoIvaProductoId, i.GrupoIvaProductoCodigo, new Dictionary<int, (Guid?, string?, string?)>
+                {
+                    [1] = (i.CuentaIvaVentasId, i.CuentaIvaVentasNumero, i.CuentaIvaVentasNombre),
+                    [2] = (i.CuentaIvaComprasId, i.CuentaIvaComprasNumero, i.CuentaIvaComprasNombre),
+                }), new SetupContableForm
+                {
+                    Id = i.Id, Xmin = i.Xmin, SecundarioId = i.GrupoIvaNegocioId, PrincipalId = i.GrupoIvaProductoId,
+                    Cuenta1Id = i.CuentaIvaVentasId, Cuenta2Id = i.CuentaIvaComprasId, PorcentajeIvaTexto = SetupContableForm.FormatearPorcentaje(i.PorcentajeIva),
+                    IdentificadorIva = i.IdentificadorIva, TipoCalculoIva = (int)i.TipoCalculoIva
+                });
+            default:
+                var v = await SetupApiClient.GetByIdAsync<SetupInventarioResponse>(Tipo, id);
+                return v is null ? default : (AFila(v), new Vigente(v.AlmacenId, v.AlmacenCodigo, v.GrupoInventarioId, v.GrupoInventarioCodigo, new Dictionary<int, (Guid?, string?, string?)>
+                {
+                    [1] = (v.CuentaInventarioId, v.CuentaInventarioNumero, v.CuentaInventarioNombre),
+                    [2] = (v.CuentaAjusteInventarioId, v.CuentaAjusteInventarioNumero, v.CuentaAjusteInventarioNombre),
+                    [3] = (v.CuentaVariacionCostoId, v.CuentaVariacionCostoNumero, v.CuentaVariacionCostoNombre),
+                }), new SetupContableForm
+                {
+                    Id = v.Id, Xmin = v.Xmin, SecundarioId = v.AlmacenId, PrincipalId = v.GrupoInventarioId,
+                    Cuenta1Id = v.CuentaInventarioId, Cuenta2Id = v.CuentaAjusteInventarioId, Cuenta3Id = v.CuentaVariacionCostoId
+                });
+        }
+    }
+
+    private static Fila AFila(SetupGeneralResponse x) => new(x.Id, x.GrupoProductoCodigo, Eje(x.GrupoNegocioId, x.GrupoNegocioCodigo),
+        [Cuenta(x.CuentaVentasNumero, x.CuentaVentasNombre), Cuenta(x.CuentaCostoVentasNumero, x.CuentaCostoVentasNombre),
+         Cuenta(x.CuentaDescuentoVentasNumero, x.CuentaDescuentoVentasNombre), Cuenta(x.CuentaAjusteInventarioNumero, x.CuentaAjusteInventarioNombre)], null);
+
+    private static Fila AFila(SetupIvaResponse x) => new(x.Id, x.GrupoIvaProductoCodigo, Eje(x.GrupoIvaNegocioId, x.GrupoIvaNegocioCodigo),
+        [Cuenta(x.CuentaIvaVentasNumero, x.CuentaIvaVentasNombre), x.CuentaIvaComprasId is null ? "—" : Cuenta(x.CuentaIvaComprasNumero, x.CuentaIvaComprasNombre)],
+        $"{SetupContableForm.FormatearPorcentaje(x.PorcentajeIva)} % · {x.IdentificadorIva} · {(x.TipoCalculoIva == TipoCalculoIva.Exento ? "Exento" : "Normal")}");
+
+    private static Fila AFila(SetupInventarioResponse x) => new(x.Id, x.GrupoInventarioCodigo, Eje(x.AlmacenId, x.AlmacenCodigo),
+        [Cuenta(x.CuentaInventarioNumero, x.CuentaInventarioNombre), Cuenta(x.CuentaAjusteInventarioNumero, x.CuentaAjusteInventarioNombre),
+         Cuenta(x.CuentaVariacionCostoNumero, x.CuentaVariacionCostoNombre)], null);
+
+    // Eje secundario: null = comodín; un Id cuyo código ya no se encuentra (grupo borrado) se señala.
+    private static string? Eje(Guid? id, string? codigo) => id is null ? null : string.IsNullOrWhiteSpace(codigo) ? "(no disponible)" : codigo;
+
+    private static string Cuenta(string? numero, string? nombre) => string.IsNullOrWhiteSpace(numero) ? "No disponible" : $"{numero} — {nombre}";
+
+    private RenderFragment Campos(SetupContableForm model, string prefix, Vigente? actual) => __builder =>
+    {
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{prefix}_PrincipalId")">@Descriptor.RotuloPrincipal <span class="text-red-500">*</span></label>
+                <select id="@($"{prefix}_PrincipalId")" name="@($"{prefix}.PrincipalId")" class="@InputCss">
+                    <option value="" selected="@(model.PrincipalId is null)">— Seleccione —</option>
+                    @OpcionesEje(opcionesPrincipal, model.PrincipalId, actual is null ? null : (actual.PrincipalId, actual.PrincipalCodigo))
+                </select>
+                <ValidationMessage For="() => model.PrincipalId" />
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{prefix}_SecundarioId")">@Descriptor.RotuloSecundario</label>
+                <select id="@($"{prefix}_SecundarioId")" name="@($"{prefix}.SecundarioId")" class="@InputCss">
+                    <option value="" selected="@(model.SecundarioId is null)">— Cualquiera (comodín) —</option>
+                    @OpcionesEje(opcionesSecundario, model.SecundarioId, actual?.SecundarioId is { } s ? (s, actual.SecundarioCodigo) : null)
+                </select>
+            </div>
+        </div>
+        @if (Tipo == TipoSetupContable.Iva)
+        {
+            <div class="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{prefix}_PorcentajeIvaTexto")">Porcentaje de IVA <span class="text-red-500">*</span></label>
+                    <input id="@($"{prefix}_PorcentajeIvaTexto")" type="text" inputmode="decimal" name="@($"{prefix}.PorcentajeIvaTexto")" value="@model.PorcentajeIvaTexto" placeholder="18.00" class="@InputCss" />
+                    <ValidationMessage For="() => model.PorcentajeIvaTexto" />
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{prefix}_IdentificadorIva")">Identificador <span class="text-red-500">*</span></label>
+                    <input id="@($"{prefix}_IdentificadorIva")" type="text" name="@($"{prefix}.IdentificadorIva")" value="@model.IdentificadorIva" placeholder="ej. ITBIS18" maxlength="20" class="@InputCss" />
+                    <ValidationMessage For="() => model.IdentificadorIva" />
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{prefix}_TipoCalculoIva")">Tipo de cálculo</label>
+                    <select id="@($"{prefix}_TipoCalculoIva")" name="@($"{prefix}.TipoCalculoIva")" class="@InputCss">
+                        <option value="@((int)TipoCalculoIva.Normal)" selected="@(model.TipoCalculoIva == (int)TipoCalculoIva.Normal)">Normal</option>
+                        <option value="@((int)TipoCalculoIva.Exento)" selected="@(model.TipoCalculoIva == (int)TipoCalculoIva.Exento)">Exento (porcentaje 0)</option>
+                    </select>
+                </div>
+            </div>
+        }
+        <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            @foreach (var ranura in Ranuras)
+            {
+                var seleccion = model.Cuenta(ranura.Numero);
+                var cuentaVigente = actual is not null && actual.Cuentas.TryGetValue(ranura.Numero, out var c) ? c : default;
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{prefix}_Cuenta{ranura.Numero}Id")">Cuenta de @ranura.Rotulo.ToLowerInvariant() @if (ranura.Obligatoria) {<span class="text-red-500">*</span>}</label>
+                    <select id="@($"{prefix}_Cuenta{ranura.Numero}Id")" name="@($"{prefix}.Cuenta{ranura.Numero}Id")" class="@InputCss">
+                        <option value="" selected="@(seleccion is null)">@(ranura.Obligatoria ? "— Seleccione —" : "— Ninguna —")</option>
+                        @if (seleccion is { } id && cuentas.All(x => x.Id != id))
+                        {
+                            <option value="@id" selected="selected">@(cuentaVigente.Id == id && !string.IsNullOrWhiteSpace(cuentaVigente.Numero) ? $"{cuentaVigente.Numero} — {cuentaVigente.Nombre} (no elegible)" : $"Cuenta no disponible ({id})")</option>
+                        }
+                        @foreach (var cuenta in cuentas)
+                        {
+                            <option value="@cuenta.Id" selected="@(cuenta.Id == seleccion)">@cuenta.Numero — @cuenta.Nombre</option>
+                        }
+                    </select>
+                </div>
+            }
+        </div>
+        <p class="mt-2 text-xs text-slate-400">Solo se ofrecen cuentas de posteo no bloqueadas. Deje el @Descriptor.RotuloSecundario.ToLowerInvariant() en «Cualquiera» para la fila comodín.</p>
+    };
+
+    // El valor seleccionado se ofrece SIEMPRE aunque ya no esté entre las opciones (grupo/almacén borrado): sin esto el <select> no
+    // reflejaría el valor guardado y guardar lo cambiaría en silencio.
+    private RenderFragment OpcionesEje(IReadOnlyList<GrupoOpcion> opciones, Guid? seleccion, (Guid Id, string? Codigo)? actual) => __builder =>
+    {
+        if (seleccion is { } id && opciones.All(o => o.Id != id))
+        {
+            <option value="@id" selected="selected">@(actual?.Id == id && !string.IsNullOrWhiteSpace(actual?.Codigo) ? $"{actual?.Codigo} (no disponible)" : $"No disponible ({id})")</option>
+        }
+        foreach (var opcion in opciones)
+        {
+            <option value="@opcion.Id" selected="@(opcion.Id == seleccion)">@opcion.Rotulo</option>
+        }
+    };
+
+    private string BuildListUrl(int? pagina = null, Guid? editId = null, Guid? deleteId = null)
+    {
+        var parameters = new List<string> { $"tipo={Descriptor.Ruta}" };
+        if (FiltroSecundario.HasValue) parameters.Add($"secundario={FiltroSecundario.Value}");
+        if (FiltroPrincipal.HasValue) parameters.Add($"principal={FiltroPrincipal.Value}");
+        var paginaEfectiva = pagina ?? Pagina;
+        if (paginaEfectiva > 1) parameters.Add($"pagina={paginaEfectiva}");
+        if (editId.HasValue) parameters.Add($"editId={editId.Value}");
+        if (deleteId.HasValue) parameters.Add($"deleteId={deleteId.Value}");
+        return $"/setups-contables?{string.Join("&", parameters)}";
+    }
+
+    /// <summary>Cuerpo de la API para el tipo vigente. Siempre el valor completo: una cuenta obligatoria vacía viaja como Guid vacío (la
+    /// API responde "obligatoria") y la de IVA en compras vacía también (en el PUT = quitarla; en el alta = sin cuenta).</summary>
+    private object Cuerpo(SetupContableForm f) => Tipo switch
+    {
+        TipoSetupContable.General => new
+        {
+            GrupoNegocioId = f.SecundarioId, GrupoProductoId = f.PrincipalId ?? Guid.Empty,
+            CuentaVentasId = f.Cuenta1Id ?? Guid.Empty, CuentaCostoVentasId = f.Cuenta2Id ?? Guid.Empty,
+            CuentaDescuentoVentasId = f.Cuenta3Id ?? Guid.Empty, CuentaAjusteInventarioId = f.Cuenta4Id ?? Guid.Empty, f.Xmin
+        },
+        TipoSetupContable.Iva => new
+        {
+            GrupoIvaNegocioId = f.SecundarioId, GrupoIvaProductoId = f.PrincipalId ?? Guid.Empty, f.PorcentajeIva,
+            CuentaIvaVentasId = f.Cuenta1Id ?? Guid.Empty, CuentaIvaComprasId = f.Cuenta2Id ?? Guid.Empty,
+            IdentificadorIva = f.IdentificadorIva?.Trim() ?? string.Empty, TipoCalculoIva = (TipoCalculoIva)f.TipoCalculoIva, f.Xmin
+        },
+        _ => new
+        {
+            AlmacenId = f.SecundarioId, GrupoInventarioId = f.PrincipalId ?? Guid.Empty,
+            CuentaInventarioId = f.Cuenta1Id ?? Guid.Empty, CuentaAjusteInventarioId = f.Cuenta2Id ?? Guid.Empty,
+            CuentaVariacionCostoId = f.Cuenta3Id ?? Guid.Empty, f.Xmin
+        },
+    };
+
+    private async Task CreateAsync()
+    {
+        // Defensa en profundidad: sin opciones fiables no se envía nada aunque el botón no se haya renderizado.
+        if (opcionesCargaFallida) return;
+        await ExecuteAsync(() => SetupApiClient.CreateAsync(Tipo, Cuerpo(SaveInput!)), "created");
+    }
+
+    private async Task UpdateAsync()
+    {
+        if (opcionesCargaFallida) return;
+        if (UpdateInput!.Id == Guid.Empty)
+        {
+            Show("warning", "Seleccione primero un registro a modificar desde la tabla.");
+            return;
+        }
+
+        await ExecuteAsync(() => SetupApiClient.UpdateAsync(Tipo, UpdateInput.Id, Cuerpo(UpdateInput)), "updated");
+    }
+
+    private async Task DeleteAsync() => await ExecuteAsync(() => SetupApiClient.DeleteAsync(Tipo, DeleteInput!.Id), "deleted");
+
+    private async Task ExecuteAsync(Func<Task<GrupoOperationResult>> operation, string successCode)
+    {
+        try
+        {
+            var result = await operation();
+            if (result.Succeeded)
+            {
+                Nav.NavigateTo($"/setups-contables?tipo={Descriptor.Ruta}&ok={successCode}");
+            }
+            else
+            {
+                errores = result.Errors ?? [];
+                Show("warning", result.Message);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not complete setup contable operation.");
+            Show("danger", "No fue posible completar la operación.");
+        }
+    }
+
+    private void Show(string type, string text) { messageType = type; message = text; }
+
+    public sealed class DeleteForm
+    {
+        public Guid Id { get; set; }
+    }
+}

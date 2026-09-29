@@ -1,0 +1,445 @@
+@page "/admin/fechas-registro"
+@attribute [Authorize(Policy = ApplicationPolicies.CanAdministrar)]
+@using System.ComponentModel.DataAnnotations
+@using OpenSource1.Application.Features.FechasRegistro.Dtos
+@using OpenSource1.Application.Features.Users.Dtos
+@using OpenSource1.Blazor.Services
+@inject IFechasRegistroApiClient FechasApiClient
+@inject IUserAdminApiClient UserApiClient
+@inject ILogger<FechasRegistroPermitidas> Logger
+@inject NavigationManager Nav
+
+<PageTitle>Fechas de registro – AxionERP</PageTitle>
+
+<div class="mb-6">
+    <p class="text-xs font-bold tracking-widest uppercase text-brand-600 mb-1">Administración</p>
+    <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">Fechas de registro permitidas</h1>
+    <p class="text-sm text-slate-500 mt-1">
+        Rango de fechas en que se pueden postear diarios, facturas, notas de crédito, cobros y aplicaciones. Si un usuario tiene
+        fechas propias, se usan solo las suyas (aunque sean más amplias o más estrechas que las generales). Una fecha vacía no limita.
+    </p>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(message) || errores.Count > 0)
+{
+    <div class="mb-6">
+        @if (messageType == "success")
+        {
+            <ActionFeedback Type="success" Message="@message" />
+        }
+        else
+        {
+            <MessageBox Type="@messageType" Message="@message" Errors="@errores" />
+        }
+    </div>
+}
+
+<!-- ── Rango general ── -->
+<div id="general" class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden mb-6">
+    <div class="px-6 py-4 border-b border-slate-100">
+        <h2 class="text-sm font-semibold text-slate-700">Rango general</h2>
+        <p class="mt-1 text-xs text-slate-500">
+            Vigente: <span class="font-semibold text-slate-700">@DescribirRango(general?.PermitirRegistroDesde, general?.PermitirRegistroHasta)</span>
+            @if (general?.UpdatedAtUtc is { } actualizado)
+            {
+                <span> · modificado por @general.UpdatedBy el @actualizado.ToLocalTime().ToString("g")</span>
+            }
+        </p>
+    </div>
+    <div class="px-6 py-5">
+        <EditForm Model="GeneralInput" FormName="fechas-general" OnValidSubmit="GuardarGeneralAsync" Enhance="true">
+            <DataAnnotationsValidator />
+            <input type="hidden" name="GeneralInput.Enviado" value="true" />
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 max-w-xl">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1" for="GeneralInput_DesdeTexto">Permitir registro desde</label>
+                    <input id="GeneralInput_DesdeTexto" type="date" name="GeneralInput.DesdeTexto" value="@GeneralInput!.DesdeTexto" class="@InputCss" />
+                    <ValidationMessage For="() => GeneralInput.DesdeTexto" />
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1" for="GeneralInput_HastaTexto">Permitir registro hasta</label>
+                    <input id="GeneralInput_HastaTexto" type="date" name="GeneralInput.HastaTexto" value="@GeneralInput.HastaTexto" class="@InputCss" />
+                    <ValidationMessage For="() => GeneralInput.HastaTexto" />
+                </div>
+            </div>
+            <div class="mt-5 flex items-center gap-2">
+                <button type="submit" class="btn-press flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-600 transition-colors shadow-sm">
+                    Guardar rango general
+                </button>
+                <a href="/admin/fechas-registro" title="Limpiar campos" class="btn-press inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">
+                    Limpiar campos
+                </a>
+            </div>
+        </EditForm>
+    </div>
+</div>
+
+<!-- ── Excepciones por usuario ── -->
+<div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden mb-6">
+    <div class="px-6 py-4 border-b border-slate-100">
+        <h2 class="text-sm font-semibold text-slate-700">Fechas propias por usuario</h2>
+        <p class="mt-1 text-xs text-slate-500">@excepciones.Count usuario(s) con fechas propias; el resto usa el rango general.</p>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-slate-100 text-sm">
+            <thead class="bg-slate-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Usuario</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Desde</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Hasta</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Actualizado</th>
+                    <th class="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Acciones</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-50 bg-white">
+                @if (excepciones.Count == 0)
+                {
+                    <tr>
+                        <td colspan="5" class="px-6 py-8 text-center text-slate-400 text-sm">Ningún usuario tiene fechas propias.</td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var fila in excepciones)
+                    {
+                        <tr @key="fila.Id" class="hover:bg-slate-50 transition-colors">
+                            <td class="px-6 py-3 text-slate-700">@fila.NombreUsuario</td>
+                            <td class="px-6 py-3 text-slate-600 text-xs">@(fila.PermitirRegistroDesde is { } d ? Fecha(d) : "Sin límite")</td>
+                            <td class="px-6 py-3 text-slate-600 text-xs">@(fila.PermitirRegistroHasta is { } h ? Fecha(h) : "Sin límite")</td>
+                            <td class="px-6 py-3 text-slate-400 text-xs">@((fila.UpdatedAtUtc ?? fila.CreatedAtUtc).ToLocalTime().ToString("g"))</td>
+                            <td class="px-6 py-3 text-right">
+                                <div class="flex items-center justify-end gap-2">
+                                    <a href="/admin/fechas-registro?editId=@fila.Id#modificar" class="btn-press inline-flex items-center justify-center size-8 rounded-lg border border-amber-200 bg-amber-50 text-amber-600 hover:bg-amber-100" title="Modificar fechas del usuario">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Z" /></svg>
+                                    </a>
+                                    <a href="/admin/fechas-registro?deleteId=@fila.Id" class="btn-press inline-flex items-center justify-center size-8 rounded-lg border border-red-200 bg-red-50 text-red-600 hover:bg-red-100" title="Eliminar fechas del usuario">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79" /></svg>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <!-- Agregar -->
+    <div id="agregar" class="rounded-2xl border border-green-200 bg-white shadow-sm overflow-hidden">
+        <div class="px-6 py-4 bg-green-50 border-b border-green-100">
+            <h2 class="text-sm font-bold text-green-800">Agregar fechas de un usuario</h2>
+        </div>
+        <div class="px-6 py-5">
+            @if (usuariosError is not null)
+            {
+                <div class="mb-4"><MessageBox Type="warning" Message="@usuariosError" /></div>
+            }
+            <EditForm Model="AltaInput" FormName="fechas-usuario-agregar" OnValidSubmit="AgregarAsync" Enhance="true">
+                <DataAnnotationsValidator />
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1" for="AltaInput_UsuarioId">Usuario <span class="text-red-500">*</span></label>
+                        <select id="AltaInput_UsuarioId" name="AltaInput.UsuarioId" class="@InputCss">
+                            <option value="" selected="@(AltaInput!.UsuarioId is null)">— Seleccione —</option>
+                            @foreach (var u in usuarios)
+                            {
+                                <option value="@u.Id" selected="@(u.Id == AltaInput.UsuarioId)">@u.Etiqueta</option>
+                            }
+                            @if (AltaInput.UsuarioId is { } seleccionado && usuarios.All(u => u.Id != seleccionado))
+                            {
+                                <option value="@seleccionado" selected="selected">Usuario seleccionado (@seleccionado)</option>
+                            }
+                        </select>
+                        <ValidationMessage For="() => AltaInput.UsuarioId" />
+                    </div>
+                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1" for="AltaInput_DesdeTexto">Desde</label>
+                            <input id="AltaInput_DesdeTexto" type="date" name="AltaInput.DesdeTexto" value="@AltaInput.DesdeTexto" class="@InputCss" />
+                            <ValidationMessage For="() => AltaInput.DesdeTexto" />
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1" for="AltaInput_HastaTexto">Hasta</label>
+                            <input id="AltaInput_HastaTexto" type="date" name="AltaInput.HastaTexto" value="@AltaInput.HastaTexto" class="@InputCss" />
+                            <ValidationMessage For="() => AltaInput.HastaTexto" />
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-5 flex items-center gap-2">
+                    <button type="submit" class="btn-press flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 transition-colors shadow-sm">
+                        Agregar
+                    </button>
+                    <a href="/admin/fechas-registro#agregar" title="Limpiar campos" class="btn-press inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">
+                        Limpiar campos
+                    </a>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+
+    <!-- Modificar (siempre en el árbol: un POST sin selección o de una fila ya borrada recibe el mensaje real) -->
+    <div id="modificar" class="rounded-2xl border border-amber-200 bg-white shadow-sm overflow-hidden">
+        <div class="px-6 py-4 bg-amber-50 border-b border-amber-100">
+            <h2 class="text-sm font-bold text-amber-800">Modificar fechas de un usuario</h2>
+        </div>
+        <div class="px-6 py-5">
+            @if (EditId.HasValue && UpdateInput?.Id != EditId)
+            {
+                <div class="mb-4"><MessageBox Type="warning" Message="No se encontraron las fechas del usuario seleccionado. Puede haberlas eliminado otro administrador." /></div>
+            }
+            <EditForm Model="UpdateInput" FormName="fechas-usuario-modificar" OnValidSubmit="ModificarAsync" Enhance="true">
+                <DataAnnotationsValidator />
+                <input type="hidden" name="UpdateInput.Id" value="@UpdateInput!.Id" />
+                <div class="space-y-4">
+                    <div>
+                        <p class="block text-sm font-medium text-slate-700 mb-1">Usuario</p>
+                        <p class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                            @(NombreDe(UpdateInput.Id) ?? "Seleccione una fila de la tabla para modificarla.")
+                        </p>
+                    </div>
+                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1" for="UpdateInput_DesdeTexto">Desde</label>
+                            <input id="UpdateInput_DesdeTexto" type="date" name="UpdateInput.DesdeTexto" value="@UpdateInput.DesdeTexto" class="@InputCss" />
+                            <ValidationMessage For="() => UpdateInput.DesdeTexto" />
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1" for="UpdateInput_HastaTexto">Hasta</label>
+                            <input id="UpdateInput_HastaTexto" type="date" name="UpdateInput.HastaTexto" value="@UpdateInput.HastaTexto" class="@InputCss" />
+                            <ValidationMessage For="() => UpdateInput.HastaTexto" />
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-5 flex items-center gap-2">
+                    <button type="submit" class="btn-press flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-600 transition-colors shadow-sm">
+                        Guardar cambios
+                    </button>
+                    <a href="/admin/fechas-registro#modificar" title="Limpiar campos" class="btn-press inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">
+                        Limpiar campos
+                    </a>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+</div>
+
+@if (DeleteId.HasValue)
+{
+    <ConfirmDialog Title="Confirmar eliminación" Message="El usuario volverá a usar el rango general de fechas de registro." Variant="danger" CancelHref="/admin/fechas-registro">
+        <p class="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-900">
+            @(itemToDelete is null ? DeleteId.Value.ToString() : $"{itemToDelete.NombreUsuario} — {DescribirRango(itemToDelete.PermitirRegistroDesde, itemToDelete.PermitirRegistroHasta)}")
+        </p>
+        <EditForm Model="DeleteInput" FormName="fechas-usuario-eliminar" OnValidSubmit="EliminarAsync" class="mt-4">
+            <input type="hidden" name="DeleteInput.Id" value="@DeleteId" />
+            <button type="submit" class="btn-press rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-700">Sí, eliminar</button>
+            <a href="/admin/fechas-registro" class="btn-press ml-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Cancelar</a>
+        </EditForm>
+    </ConfirmDialog>
+}
+
+@code {
+    private const string InputCss = "block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 placeholder-slate-400 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20";
+
+    [SupplyParameterFromForm(FormName = "fechas-general")] private GeneralForm? GeneralInput { get; set; }
+    [SupplyParameterFromForm(FormName = "fechas-usuario-agregar")] private AltaForm? AltaInput { get; set; }
+    [SupplyParameterFromForm(FormName = "fechas-usuario-modificar")] private RangoForm? UpdateInput { get; set; }
+    [SupplyParameterFromForm(FormName = "fechas-usuario-eliminar")] private DeleteForm? DeleteInput { get; set; }
+
+    [SupplyParameterFromQuery(Name = "editId")] private Guid? EditId { get; set; }
+    [SupplyParameterFromQuery(Name = "deleteId")] private Guid? DeleteId { get; set; }
+    [SupplyParameterFromQuery(Name = "ok")] private string? Ok { get; set; }
+
+    private FechasRegistroGeneralResponse? general;
+    private IReadOnlyList<FechasRegistroUsuarioResponse> excepciones = [];
+    private IReadOnlyList<OpcionUsuario> usuarios = [];
+    private string? usuariosError;
+    private FechasRegistroUsuarioResponse? itemToDelete;
+    private string? message;
+    private string messageType = "info";
+    private IReadOnlyList<string> errores = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        GeneralInput ??= new();
+        AltaInput ??= new();
+        UpdateInput ??= new();
+        DeleteInput ??= new();
+
+        await CargarAsync();
+
+        // El formulario general muestra el rango vigente salvo que llegue en un POST (se conserva lo tecleado).
+        if (!GeneralInput.Enviado && general is not null)
+        {
+            GeneralInput.DesdeTexto = EntradaFecha.Formatear(general.PermitirRegistroDesde);
+            GeneralInput.HastaTexto = EntradaFecha.Formatear(general.PermitirRegistroHasta);
+        }
+
+        if (EditId.HasValue && UpdateInput.Id == Guid.Empty)
+        {
+            try
+            {
+                var fila = await FechasApiClient.GetUsuarioAsync(EditId.Value);
+                if (fila is not null)
+                {
+                    UpdateInput.Id = fila.Id;
+                    UpdateInput.DesdeTexto = EntradaFecha.Formatear(fila.PermitirRegistroDesde);
+                    UpdateInput.HastaTexto = EntradaFecha.Formatear(fila.PermitirRegistroHasta);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Could not load fechas de registro {EditId}.", EditId);
+                Show("danger", "No fue posible cargar las fechas del usuario a modificar.");
+            }
+        }
+
+        if (DeleteId.HasValue)
+        {
+            try
+            {
+                itemToDelete = await FechasApiClient.GetUsuarioAsync(DeleteId.Value);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Could not load fechas de registro {DeleteId}.", DeleteId);
+            }
+        }
+
+        if (Ok is not null)
+        {
+            (messageType, message) = Ok switch
+            {
+                "general" => ("success", "Rango general guardado satisfactoriamente."),
+                "created" => ("success", "Fechas del usuario agregadas satisfactoriamente."),
+                "updated" => ("success", "Fechas del usuario modificadas satisfactoriamente."),
+                "deleted" => ("success", "Fechas del usuario eliminadas: vuelve a usar el rango general."),
+                _ => ("info", null)
+            };
+        }
+    }
+
+    private async Task CargarAsync()
+    {
+        try
+        {
+            general = await FechasApiClient.GetGeneralAsync();
+            excepciones = await FechasApiClient.ListUsuariosAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not load fechas de registro from API.");
+            Show("danger", "No fue posible cargar la configuración de fechas de registro.");
+        }
+
+        var (lista, error) = await UserApiClient.ListUsersAsync();
+        usuariosError = error;
+        var configurados = excepciones.Select(e => e.UsuarioId).ToHashSet();
+        usuarios = [.. (lista ?? [])
+            .Select(u => Guid.TryParse(u.Id, out var id) ? new OpcionUsuario(id, Etiqueta(u, configurados.Contains(id))) : null)
+            .OfType<OpcionUsuario>()
+            .OrderBy(u => u.Etiqueta, StringComparer.CurrentCultureIgnoreCase)];
+    }
+
+    private static string Etiqueta(UserSummaryResponse u, bool configurado)
+    {
+        var nombre = string.IsNullOrWhiteSpace(u.FullName) ? u.Email : $"{u.FullName} ({u.Email})";
+        if (!u.IsActive) nombre += " — inactivo";
+        return configurado ? $"{nombre} — ya tiene fechas propias" : nombre;
+    }
+
+    private async Task GuardarGeneralAsync() =>
+        await EjecutarAsync(() => FechasApiClient.UpdateGeneralAsync(new FechasRegistroRangoInput(GeneralInput!.Desde, GeneralInput.Hasta)), "general");
+
+    private async Task AgregarAsync() =>
+        await EjecutarAsync(() => FechasApiClient.CreateUsuarioAsync(
+            AltaInput!.UsuarioId ?? Guid.Empty, new FechasRegistroRangoInput(AltaInput.Desde, AltaInput.Hasta)), "created");
+
+    private async Task ModificarAsync()
+    {
+        if (UpdateInput!.Id == Guid.Empty)
+        {
+            Show("warning", "Seleccione primero una fila de la tabla para modificarla.");
+            return;
+        }
+
+        await EjecutarAsync(() => FechasApiClient.UpdateUsuarioAsync(UpdateInput.Id, new FechasRegistroRangoInput(UpdateInput.Desde, UpdateInput.Hasta)), "updated");
+    }
+
+    private async Task EliminarAsync() => await EjecutarAsync(() => FechasApiClient.DeleteUsuarioAsync(DeleteInput!.Id), "deleted");
+
+    private async Task EjecutarAsync(Func<Task<GrupoOperationResult>> operacion, string ok)
+    {
+        try
+        {
+            var result = await operacion();
+            if (result.Succeeded)
+            {
+                Nav.NavigateTo($"/admin/fechas-registro?ok={ok}");
+                return;
+            }
+
+            errores = result.Errors ?? [];
+            Show("warning", result.Message);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not complete fechas de registro operation.");
+            Show("danger", "No fue posible completar la operación.");
+        }
+    }
+
+    private string? NombreDe(Guid id) => id == Guid.Empty ? null : excepciones.FirstOrDefault(e => e.Id == id)?.NombreUsuario ?? $"Registro {id}";
+
+    private static string Fecha(DateOnly fecha) => fecha.ToString("dd/MM/yyyy");
+
+    private static string DescribirRango(DateOnly? desde, DateOnly? hasta) =>
+        new OpenSource1.Application.Features.FechasRegistro.RangoFechasRegistro(desde, hasta).Describir();
+
+    private void Show(string type, string text) { messageType = type; message = text; }
+
+    private sealed record OpcionUsuario(Guid Id, string Etiqueta);
+
+    public class RangoForm : IValidatableObject
+    {
+        public Guid Id { get; set; }
+
+        public string? DesdeTexto { get; set; }
+
+        public string? HastaTexto { get; set; }
+
+        public DateOnly? Desde => EntradaFecha.TryParse(DesdeTexto, out var v, out _) ? v : null;
+
+        public DateOnly? Hasta => EntradaFecha.TryParse(HastaTexto, out var v, out _) ? v : null;
+
+        public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+        {
+            if (!string.IsNullOrWhiteSpace(DesdeTexto) && !EntradaFecha.TryParse(DesdeTexto, out _, out var errorDesde, "La fecha desde"))
+            {
+                yield return new ValidationResult(errorDesde, [nameof(DesdeTexto)]);
+            }
+
+            if (!string.IsNullOrWhiteSpace(HastaTexto) && !EntradaFecha.TryParse(HastaTexto, out _, out var errorHasta, "La fecha hasta"))
+            {
+                yield return new ValidationResult(errorHasta, [nameof(HastaTexto)]);
+            }
+        }
+    }
+
+    public sealed class GeneralForm : RangoForm
+    {
+        public bool Enviado { get; set; }
+    }
+
+    public sealed class AltaForm : RangoForm
+    {
+        [Required(ErrorMessage = "Seleccione el usuario.")]
+        public Guid? UsuarioId { get; set; }
+    }
+
+    public sealed class DeleteForm
+    {
+        public Guid Id { get; set; }
+    }
+}

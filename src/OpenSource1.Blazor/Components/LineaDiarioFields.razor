@@ -1,0 +1,146 @@
+@using OpenSource1.Application.Features.Almacenes.Dtos
+@using OpenSource1.Blazor.Components.Pages
+@using OpenSource1.Core.Enums
+
+@*
+    LineaDiarioFields — campos reutilizables para capturar / modificar una LineaDiario (Task 4.4).
+
+    El producto y su unidad de medida (siempre la BASE del producto: no hay endpoint de equivalencias
+    hoy, ver limitación documentada en DiarioInventarioLote.razor) NO forman parte de este componente:
+    la página contenedora resuelve el producto elegido (búsqueda + selección vía query string, por el
+    volumen del catálogo) y pasa su Id/UnidadMedidaBaseId como campos ocultos junto a este componente.
+
+    TipoMovimiento depende de la plantilla del lote (inmutable): ARTICULO admite Ajuste positivo/negativo;
+    RECLASIF fuerza Transferencia (campo oculto, sin selector) y exige almacén destino.
+*@
+
+<div class="space-y-4">
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{Prefix}_FechaRegistroTexto")">
+                Fecha de registro <span class="text-red-500">*</span>
+            </label>
+            <input id="@($"{Prefix}_FechaRegistroTexto")" type="date" name="@($"{Prefix}.FechaRegistroTexto")" value="@Model.FechaRegistroTexto" class="@InputCss" />
+            <ValidationMessage For="() => Model.FechaRegistroTexto" />
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{Prefix}_FechaDocumentoTexto")">
+                Fecha de documento <span class="text-red-500">*</span>
+            </label>
+            <input id="@($"{Prefix}_FechaDocumentoTexto")" type="date" name="@($"{Prefix}.FechaDocumentoTexto")" value="@Model.FechaDocumentoTexto" class="@InputCss" />
+            <ValidationMessage For="() => Model.FechaDocumentoTexto" />
+        </div>
+    </div>
+
+    <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{Prefix}_NumeroDocumento")">Número de documento</label>
+        <input id="@($"{Prefix}_NumeroDocumento")" type="text" name="@($"{Prefix}.NumeroDocumento")" value="@Model.NumeroDocumento" maxlength="20" placeholder="Opcional (por defecto, el número de registro)" class="@InputCss" />
+        <ValidationMessage For="() => Model.NumeroDocumento" />
+    </div>
+
+    @if (PlantillaTipo == TipoPlantillaDiario.Reclasificacion)
+    {
+        <input type="hidden" name="@($"{Prefix}.TipoMovimiento")" value="@((short)TipoMovimientoInventario.Transferencia)" />
+        <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Tipo de movimiento</label>
+            <p class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">Transferencia (reclasificación)</p>
+        </div>
+    }
+    else
+    {
+        <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{Prefix}_TipoMovimiento")">Tipo de movimiento <span class="text-red-500">*</span></label>
+            <select id="@($"{Prefix}_TipoMovimiento")" name="@($"{Prefix}.TipoMovimiento")" class="@InputCss">
+                <option value="@((short)TipoMovimientoInventario.AjustePositivo)" selected="@(Model.TipoMovimiento == (short)TipoMovimientoInventario.AjustePositivo)">Ajuste positivo (entrada)</option>
+                <option value="@((short)TipoMovimientoInventario.AjusteNegativo)" selected="@(Model.TipoMovimiento == (short)TipoMovimientoInventario.AjusteNegativo)">Ajuste negativo (salida)</option>
+            </select>
+            <ValidationMessage For="() => Model.TipoMovimiento" />
+        </div>
+    }
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{Prefix}_AlmacenId")">
+                @(PlantillaTipo == TipoPlantillaDiario.Reclasificacion ? "Almacén origen" : "Almacén") <span class="text-red-500">*</span>
+            </label>
+            <select id="@($"{Prefix}_AlmacenId")" name="@($"{Prefix}.AlmacenId")" class="@InputCss">
+                <option value="">-- Seleccione --</option>
+                @if (Model.AlmacenId != Guid.Empty && Almacenes.All(a => a.Id != Model.AlmacenId))
+                {
+                    <option value="@Model.AlmacenId" selected="selected">@(string.IsNullOrWhiteSpace(CurrentAlmacenCodigo) ? $"Almacén no disponible ({Model.AlmacenId})" : $"{CurrentAlmacenCodigo} — {CurrentAlmacenNombre}")</option>
+                }
+                @foreach (var almacen in Almacenes)
+                {
+                    <option value="@almacen.Id" selected="@(almacen.Id == Model.AlmacenId)">@almacen.Codigo — @almacen.Nombre</option>
+                }
+            </select>
+            <ValidationMessage For="() => Model.AlmacenId" />
+        </div>
+
+        @if (PlantillaTipo == TipoPlantillaDiario.Reclasificacion)
+        {
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{Prefix}_AlmacenDestinoId")">Almacén destino <span class="text-red-500">*</span></label>
+                <select id="@($"{Prefix}_AlmacenDestinoId")" name="@($"{Prefix}.AlmacenDestinoId")" class="@InputCss">
+                    <option value="">-- Seleccione --</option>
+                    @if (Model.AlmacenDestinoId is { } destinoVigente && destinoVigente != Guid.Empty && Almacenes.All(a => a.Id != destinoVigente))
+                    {
+                        <option value="@destinoVigente" selected="selected">@(string.IsNullOrWhiteSpace(CurrentAlmacenDestinoCodigo) ? $"Almacén no disponible ({destinoVigente})" : $"{CurrentAlmacenDestinoCodigo} — {CurrentAlmacenDestinoNombre}")</option>
+                    }
+                    @foreach (var almacen in Almacenes)
+                    {
+                        <option value="@almacen.Id" selected="@(almacen.Id == Model.AlmacenDestinoId)">@almacen.Codigo — @almacen.Nombre</option>
+                    }
+                </select>
+                <ValidationMessage For="() => Model.AlmacenDestinoId" />
+            </div>
+        }
+    </div>
+
+    @if (AlmacenesCargaFallida)
+    {
+        <MessageBox Type="warning" Message="No fue posible cargar el catálogo de almacenes. No se puede guardar hasta que cargue; recargue la página." />
+    }
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{Prefix}_CantidadTexto")">Cantidad <span class="text-red-500">*</span></label>
+            <input id="@($"{Prefix}_CantidadTexto")" type="text" inputmode="decimal" name="@($"{Prefix}.CantidadTexto")" value="@Model.CantidadTexto" placeholder="0.00" class="@InputCss" />
+            <p class="mt-1 text-xs text-slate-400">En la unidad base del producto. Punto o coma decimal, sin separador de miles.</p>
+            <ValidationMessage For="() => Model.CantidadTexto" />
+        </div>
+        @if (PlantillaTipo == TipoPlantillaDiario.Articulo)
+        {
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{Prefix}_CostoUnitarioTexto")">Costo unitario (unidad base)</label>
+                <input id="@($"{Prefix}_CostoUnitarioTexto")" type="text" inputmode="decimal" name="@($"{Prefix}.CostoUnitarioTexto")" value="@Model.CostoUnitarioTexto" placeholder="0.00" class="@InputCss" />
+                <p class="mt-1 text-xs text-slate-400">Obligatorio en ajuste positivo; se ignora en ajuste negativo.</p>
+                <ValidationMessage For="() => Model.CostoUnitarioTexto" />
+            </div>
+        }
+    </div>
+
+    <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{Prefix}_Descripcion")">Descripción</label>
+        <input id="@($"{Prefix}_Descripcion")" type="text" name="@($"{Prefix}.Descripcion")" value="@Model.Descripcion" maxlength="200" placeholder="Opcional" class="@InputCss" />
+        <ValidationMessage For="() => Model.Descripcion" />
+    </div>
+</div>
+
+@code {
+    private const string InputCss = "block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 placeholder-slate-400 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20";
+
+    [Parameter, EditorRequired] public DiarioInventarioLote.LineaForm Model { get; set; } = default!;
+    [Parameter, EditorRequired] public string Prefix { get; set; } = default!;
+    [Parameter, EditorRequired] public TipoPlantillaDiario PlantillaTipo { get; set; }
+    [Parameter, EditorRequired] public IReadOnlyList<AlmacenResponse> Almacenes { get; set; } = [];
+    [Parameter] public bool AlmacenesCargaFallida { get; set; }
+
+    /// <summary>Rótulo del almacén (origen) vigente, para su opción de respaldo si no viene en <see cref="Almacenes"/>.</summary>
+    [Parameter] public string? CurrentAlmacenCodigo { get; set; }
+    [Parameter] public string? CurrentAlmacenNombre { get; set; }
+
+    /// <summary>Rótulo del almacén destino vigente, para su opción de respaldo si no viene en <see cref="Almacenes"/>.</summary>
+    [Parameter] public string? CurrentAlmacenDestinoCodigo { get; set; }
+    [Parameter] public string? CurrentAlmacenDestinoNombre { get; set; }
+}

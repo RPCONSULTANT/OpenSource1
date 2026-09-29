@@ -108,6 +108,18 @@ public sealed class AuthPermissionsApiTests : IClassFixture<PostgresTestFixture>
         Assert.True(principal.HasClaim("permission", ApplicationPolicies.CanModify));
         Assert.True(principal.HasClaim("permission", ApplicationPolicies.CanDelete));
         Assert.True(principal.HasClaim("permission", ApplicationPolicies.CanConsult));
+        // Task 8.5: la configuración reservada al Administrador (fechas de registro permitidas).
+        Assert.True(principal.HasClaim("permission", ApplicationPolicies.CanAdministrar));
+    }
+
+    [Theory]
+    [InlineData("supervisor")]
+    [InlineData("ejecutor")]
+    public async Task CanAdministrar_SoloSeEmiteParaElAdministrador(string userName)
+    {
+        var response = await LoginAsync(userName);
+
+        Assert.DoesNotContain(ApplicationPolicies.CanAdministrar, response.Permissions);
     }
 
     private async Task<AuthResponse> LoginAsync(string userName)
@@ -127,7 +139,8 @@ public sealed class AuthPermissionsApiTests : IClassFixture<PostgresTestFixture>
     private static string[] CoarsePermissionsEsperadas(string rol) => rol switch
     {
         ApplicationRoles.Administrator =>
-            [ApplicationPolicies.CanAdd, ApplicationPolicies.CanModify, ApplicationPolicies.CanDelete, ApplicationPolicies.CanConsult],
+            [ApplicationPolicies.CanAdd, ApplicationPolicies.CanModify, ApplicationPolicies.CanDelete, ApplicationPolicies.CanConsult,
+             ApplicationPolicies.CanAdministrar],
         ApplicationRoles.Supervisor => [ApplicationPolicies.CanModify, ApplicationPolicies.CanConsult],
         ApplicationRoles.Executor => [ApplicationPolicies.CanAdd, ApplicationPolicies.CanConsult],
         _ => []

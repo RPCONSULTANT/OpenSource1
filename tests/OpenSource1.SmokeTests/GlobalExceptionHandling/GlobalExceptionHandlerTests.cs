@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
+using Npgsql;
 using OpenSource1.Api.Infrastructure;
 using OpenSource1.Core.Common;
 
@@ -213,6 +214,51 @@ public class GlobalExceptionHandlerTests
 
         var cuerpo = await LeerCuerpoAsync(httpContext);
         Assert.Contains("detalle visible en dev", cuerpo);
+    }
+
+    public static TheoryData<string, bool> ConflictosDeBloqueo => new()
+    {
+        { PostgresErrorCodes.DeadlockDetected, false },
+        { PostgresErrorCodes.DeadlockDetected, true },
+        { PostgresErrorCodes.LockNotAvailable, false },
+    };
+
+    [Theory]
+    [MemberData(nameof(ConflictosDeBloqueo))]
+    public async Task TryHandleAsync_ConInterbloqueoOBloqueoNoDisponible_Devuelve409InventarioConflicto(string sqlState, bool envueltaEnEf)
+    {
+        var handler = CrearHandler(entornoDesarrollo: false);
+        var postgres = new PostgresException("deadlock detected", "ERROR", "ERROR", sqlState);
+        // Con Dapper llega la PostgresException directa; con EF, como InnerException de DbUpdateException.
+        Exception excepcion = envueltaEnEf ? new DbUpdateException("fallo al guardar", postgres) : postgres;
+
+        var httpContext = new DefaultHttpContext
+        {
+            Response = { Body = new MemoryStream() },
+        };
+
+        var manejada = await handler.TryHandleAsync(httpContext, excepcion, CancellationToken.None);
+
+        Assert.True(manejada);
+        Assert.Equal(StatusCodes.Status409Conflict, httpContext.Response.StatusCode);
+        using var documento = JsonDocument.Parse(await LeerCuerpoAsync(httpContext));
+        Assert.Equal("inventario.conflicto", documento.RootElement.GetProperty("codigo").GetString());
+        Assert.Contains("Reintente", documento.RootElement.GetProperty("title").GetString());
+    }
+
+    [Fact]
+    public async Task TryHandleAsync_ConOtraPostgresException_SigueSiendo500()
+    {
+        var handler = CrearHandler(entornoDesarrollo: false);
+        var httpContext = new DefaultHttpContext
+        {
+            Response = { Body = new MemoryStream() },
+        };
+
+        await handler.TryHandleAsync(
+            httpContext, new PostgresException("check", "ERROR", "ERROR", PostgresErrorCodes.CheckViolation), CancellationToken.None);
+
+        Assert.Equal(StatusCodes.Status500InternalServerError, httpContext.Response.StatusCode);
     }
 
     private static GlobalExceptionHandler CrearHandler(bool entornoDesarrollo)

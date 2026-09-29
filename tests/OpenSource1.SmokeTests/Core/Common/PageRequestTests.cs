@@ -31,6 +31,22 @@ public class PageRequestTests
     }
 
     [Fact]
+    public void Offset_PaginaEnorme_SeAcotaAIntMaxValueSinDesbordar()
+    {
+        Assert.Equal(int.MaxValue, new PageRequest(int.MaxValue, 50).Normalizar().Offset);
+        Assert.Equal(int.MaxValue, new PageRequest(int.MaxValue, PageRequest.TamanoMaximo).Normalizar().Offset);
+        // Justo en el límite: (2 - 1) * int.MaxValue no se acota.
+        Assert.Equal(int.MaxValue, new PageRequest(2, int.MaxValue).Offset);
+    }
+
+    [Fact]
+    public void Offset_SinNormalizar_NuncaEsNegativo()
+    {
+        Assert.Equal(0, new PageRequest(0, 50).Offset);
+        Assert.Equal(0, new PageRequest(3, -20).Offset);
+    }
+
+    [Fact]
     public void TotalPaginas_RedondeaHaciaArriba()
     {
         var pagina = new PagedResult<int>([1, 2], 1, 20, 41);
