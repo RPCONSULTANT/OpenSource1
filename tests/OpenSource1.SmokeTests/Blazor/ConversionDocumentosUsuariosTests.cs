@@ -181,7 +181,7 @@ public sealed class ConversionDocumentosUsuariosTests
     }
 
     [Fact]
-    public async Task Borradores_SoloSeleccionaAbiertos()
+    public async Task Borradores_SoloAbiertosSeModificanOEliminan()
     {
         using var app = Configurar(new BlazorSsrFactory());
 
@@ -191,7 +191,10 @@ public sealed class ConversionDocumentosUsuariosTests
         Assert.Contains($"<a data-testid=\"accion-editar\" href=\"/facturas-venta/borradores/{IdBorrador}/editar?returnUrl=", abierto);
         Assert.Contains("href=\"/facturas-venta/nueva?returnUrl=", abierto);
         Assert.Contains("value=\"B\"", abierto);
-        Assert.Contains("<span data-testid=\"accion-editar\" aria-disabled=\"true\"", liberado);
+        // Fix-Features C3 (R7): un liberado se selecciona (Ver ▾ Abrir borrador / Cliente) pero Modificar y Eliminar se ocultan.
+        Assert.DoesNotContain("data-testid=\"accion-editar\"", liberado);
+        Assert.DoesNotContain("data-testid=\"accion-eliminar\"", liberado);
+        Assert.Contains($"href=\"/facturas-venta/borradores/{IdBorradorLiberado}\"", liberado);
     }
 
     [Fact]

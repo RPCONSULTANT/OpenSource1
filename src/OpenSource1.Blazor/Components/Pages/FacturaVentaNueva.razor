@@ -7,12 +7,14 @@
 @inject IFacturaVentaApiClient FacturaApiClient
 @inject ISocioNegocioApiClient SocioApiClient
 @inject IAlmacenApiClient AlmacenApiClient
+@inject ITerminoPagoApiClient TerminoPagoApiClient
 @inject IAuthorizationService AuthorizationService
 @inject ILogger<FacturaVentaNueva> Logger
 @inject NavigationManager Nav
 
 @* Alta de borrador de factura (Fix-Features B2d) en página-tarjeta propia. Tras crear se abre el editor del borrador
-   (/facturas-venta/borradores/{id}), donde se agregan las líneas. *@
+   (/facturas-venta/borradores/{id}), donde se agregan las líneas. Con ?socioId= (Fix-Features C3, desde la ficha del cliente)
+   el cliente vender-a llega precargado y bloqueado: se envía oculto y "Cambiar cliente" vuelve al alta sin socioId. *@
 <EntityFormPage Titulo="Nueva factura" Subtitulo="Crea el borrador de factura; las líneas se agregan en el editor del borrador."
                 Migas="@Migas" Mensaje="@message" TipoMensaje="@messageType" Errores="@errores">
     @if (!canAdd)
@@ -26,21 +28,34 @@
         {
             <div class="mb-4"><MessageBox Type="danger" Message="No fue posible cargar los clientes o los almacenes. Por seguridad no se puede crear el borrador hasta que carguen; recargue la página." /></div>
         }
-        <form method="get" action="/facturas-venta/nueva" data-enhance class="mb-6 flex flex-wrap items-end gap-2" data-testid="buscar-socio">
-            @if (!string.IsNullOrWhiteSpace(ReturnUrl))
-            {
-                <input type="hidden" name="returnUrl" value="@ReturnUrl" />
-            }
-            <div class="min-w-60 flex-1">
-                <label class="mb-1 block text-xs font-semibold text-slate-500" for="socioQuery">Buscar cliente por nombre</label>
-                <input id="socioQuery" type="text" name="socioQuery" value="@SocioQuery" placeholder="ej. Comercial" class="@VentasCss.Filtro" />
-            </div>
-            <button type="submit" class="btn-press rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Buscar</button>
-            <p class="w-full text-xs text-slate-400">Se muestran los primeros @VentasOpciones.MaximoSocios clientes por nombre@(string.IsNullOrWhiteSpace(SocioQuery) ? "" : $" que contienen «{SocioQuery}»").</p>
-        </form>
+        @if (socioPrecargado is null)
+        {
+            <form method="get" action="/facturas-venta/nueva" data-enhance class="mb-6 flex flex-wrap items-end gap-2" data-testid="buscar-socio">
+                @if (!string.IsNullOrWhiteSpace(ReturnUrl))
+                {
+                    <input type="hidden" name="returnUrl" value="@ReturnUrl" />
+                }
+                <div class="min-w-60 flex-1">
+                    <label class="mb-1 block text-xs font-semibold text-slate-500" for="socioQuery">Buscar cliente por nombre</label>
+                    <input id="socioQuery" type="text" name="socioQuery" value="@SocioQuery" placeholder="ej. Comercial" class="@VentasCss.Filtro" />
+                </div>
+                <button type="submit" class="btn-press rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Buscar</button>
+                <p class="w-full text-xs text-slate-400">Se muestran los primeros @VentasOpciones.MaximoSocios clientes por nombre@(string.IsNullOrWhiteSpace(SocioQuery) ? "" : $" que contienen «{SocioQuery}»").</p>
+            </form>
+        }
         <EditForm Model="AddInput" FormName="add-borrador" OnValidSubmit="CreateAsync" Enhance="true">
             <DataAnnotationsValidator />
-            <CabeceraFacturaFields Model="AddInput!" Prefix="AddInput" Socios="@socios.Items" Almacenes="@almacenes.Items" />
+            @if (socioPrecargado is not null)
+            {
+                <div class="mb-6 rounded-xl border border-brand-100 bg-brand-50/60 px-4 py-3 text-sm dark:border-brand-500/20 dark:bg-brand-500/10" data-testid="cliente-precargado">
+                    <input type="hidden" name="AddInput.SocioNegocioId" value="@socioPrecargado.Id" />
+                    <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">Vender a</p>
+                    <p class="font-semibold text-slate-800 dark:text-slate-100">@socioPrecargado.Codigo — @socioPrecargado.NombreComercial</p>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">Término de pago: @(terminoPrecargado ?? "Sin término") · Grupo de cliente: @(socioPrecargado.GrupoClienteContableCodigo ?? "Sin asignar") · Fecha de registro: hoy</p>
+                    <a href="@CambiarClienteHref" class="mt-1 inline-block text-xs font-semibold text-brand-600 hover:text-brand-700">Cambiar cliente</a>
+                </div>
+            }
+            <CabeceraFacturaFields Model="AddInput!" Prefix="AddInput" Socios="@socios.Items" Almacenes="@almacenes.Items" SocioBloqueado="@(socioPrecargado is not null)" />
             <FormularioAcciones CancelarHref="@Volver" LimpiarHref="@Nav.Uri" TextoGuardar="Crear borrador" Deshabilitado="@OpcionesFallidas" />
         </EditForm>
     }
@@ -49,17 +64,24 @@
 @code {
     [SupplyParameterFromQuery(Name = "returnUrl")] private string? ReturnUrl { get; set; }
     [SupplyParameterFromQuery(Name = "socioQuery")] private string? SocioQuery { get; set; }
+    [SupplyParameterFromQuery(Name = "socioId")] private Guid? SocioId { get; set; }
     [SupplyParameterFromForm(FormName = "add-borrador")] private FacturasVentaBorradores.BorradorForm? AddInput { get; set; }
     [CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
 
     private OpcionesCargadas<SocioNegocioResponse> socios = OpcionesCargadas<SocioNegocioResponse>.SinCargar;
     private OpcionesCargadas<AlmacenResponse> almacenes = OpcionesCargadas<AlmacenResponse>.SinCargar;
     private PermisosPagina? permisos;
+    private SocioNegocioResponse? socioPrecargado;
+    private string? terminoPrecargado;
     private bool canAdd;
     private string? message;
     private string messageType = "warning";
     private IReadOnlyList<string> errores = [];
 
+    // "Cambiar cliente" quita el socioId y conserva la vuelta (returnUrl) si la hay.
+    private string CambiarClienteHref => string.IsNullOrWhiteSpace(ReturnUrl)
+        ? "/facturas-venta/nueva"
+        : RetornoLocal.ConRetorno("/facturas-venta/nueva", Volver);
     private bool OpcionesFallidas => socios.CargaFallida || almacenes.CargaFallida;
     private string Volver => RetornoLocal.Volver(ReturnUrl, "/facturas-venta/borradores");
     private IReadOnlyList<Miga> Migas => [new("Facturación", "/modulos/facturacion"), new("Borradores de factura", Volver), new("Nueva factura")];
@@ -74,6 +96,39 @@
         {
             socios = await VentasOpciones.SociosAsync(SocioApiClient, SocioQuery, Logger);
             almacenes = await VentasOpciones.AlmacenesAsync(AlmacenApiClient, Logger);
+            await PrecargarSocioAsync();
+        }
+    }
+
+    /// <summary>?socioId=: carga el cliente y lo fija como vender-a; si no existe (o no carga) se avisa y queda el selector normal.</summary>
+    private async Task PrecargarSocioAsync()
+    {
+        if (SocioId is not { } socioId)
+        {
+            return;
+        }
+
+        try
+        {
+            socioPrecargado = await SocioApiClient.GetByIdAsync(socioId);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not load socio {Id} for nueva factura.", socioId);
+            Show("warning", "No fue posible cargar el cliente indicado; seleccione uno de la lista.");
+            return;
+        }
+
+        if (socioPrecargado is null)
+        {
+            Show("warning", "No se encontró el cliente indicado; seleccione uno de la lista.");
+            return;
+        }
+
+        AddInput!.SocioNegocioId = socioPrecargado.Id;
+        if (socioPrecargado.TerminoPagoId is { } terminoId)
+        {
+            terminoPrecargado = await TerminoPagoOpciones.NombreAsync(TerminoPagoApiClient, terminoId, Logger);
         }
     }
 

@@ -17,9 +17,10 @@
 <PageToolbar Titulo="Borradores de factura" Subtitulo="Facturas de venta en preparación: cabecera, líneas, liberación y posteo."
              Migas="@Migas" Permisos="@permisos"
              NuevoHref="@RetornoLocal.ConRetorno("/facturas-venta/nueva", UrlActual)" NuevoTexto="Nueva factura"
-             SeleccionId="@SeleccionValida?.ToString()"
-             EditarUrl="@(id => RetornoLocal.ConRetorno($"/facturas-venta/borradores/{id}/editar", UrlActual))"
-             EliminarUrl="@(id => BuildListUrl(deleteId: Guid.Parse(id)))">
+             SeleccionId="@BorradorSeleccionado?.Id.ToString()"
+             Ver="@VerBorrador"
+             EditarUrl="@(SeleccionNoEditable ? null : id => RetornoLocal.ConRetorno($"/facturas-venta/borradores/{id}/editar", UrlActual))"
+             EliminarUrl="@(SeleccionNoEditable ? null : id => BuildListUrl(deleteId: Guid.Parse(id)))">
     <a href="/facturas-venta" class="btn-press rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">Facturas posteadas</a>
 </PageToolbar>
 
@@ -97,15 +98,10 @@
                 {
                     @foreach (var b in borradores)
                     {
-                        var marcada = b.Id == SeleccionValida;
-                        @* Solo los borradores abiertos se seleccionan (los liberados no admiten modificar ni eliminar). *@
-                        <tr @key="b.Id" class="@(b.Estado == EstadoFacturaBorrador.Abierta ? SeleccionFila.ClaseFila : "hover:bg-slate-50") transition-colors @(marcada ? SeleccionFila.ClaseFilaSeleccionada : null)">
-                            <td class="px-4 py-3">
-                                @if (b.Estado == EstadoFacturaBorrador.Abierta)
-                                {
-                                    <SeleccionFila Href="@BuildListUrl(sel: b.Id)" Seleccionada="@marcada" Etiqueta="@b.Numero" />
-                                }
-                            </td>
+                        var marcada = b.Id == BorradorSeleccionado?.Id;
+                        @* Todos los borradores se seleccionan (Abrir / Cliente); Modificar y Eliminar solo aplican a los abiertos. *@
+                        <tr @key="b.Id" class="@SeleccionFila.ClaseFila transition-colors @(marcada ? SeleccionFila.ClaseFilaSeleccionada : null)">
+                            <td class="px-4 py-3"><SeleccionFila Href="@BuildListUrl(sel: b.Id)" Seleccionada="@marcada" Etiqueta="@b.Numero" /></td>
                             <td class="px-4 py-3"><a href="@($"/facturas-venta/borradores/{b.Id}")" class="font-mono text-xs font-semibold text-brand-700 hover:underline">@b.Numero</a></td>
                             <td class="px-4 py-3 text-slate-700">@b.SocioNegocioCodigo <span class="text-slate-400 text-xs">@b.SocioNegocioNombre</span></td>
                             <td class="px-4 py-3 text-slate-700">@b.SocioNegocioFacturarACodigo <span class="text-slate-400 text-xs">@b.NombreFacturacion</span></td>
@@ -197,8 +193,17 @@
 
     private bool MuestraDialogoBorrar => DeleteId.HasValue && permisos?.CanDelete == true;
 
-    /// <summary>Selección válida: solo un borrador Abierta de la página cargada (los liberados no se modifican ni eliminan).</summary>
-    private Guid? SeleccionValida => Sel is { } s && borradores.Any(b => b.Id == s && b.Estado == EstadoFacturaBorrador.Abierta) ? s : null;
+    /// <summary>Selección válida: un borrador de la página cargada (una selección obsoleta deja las acciones deshabilitadas).</summary>
+    private FacturaVentaBorradorResponse? BorradorSeleccionado => Sel is { } s ? borradores.FirstOrDefault(b => b.Id == s) : null;
+
+    /// <summary>R7: Modificar/Eliminar se ocultan solo si HAY un borrador seleccionado y no está Abierta; sin selección salen deshabilitados.</summary>
+    private bool SeleccionNoEditable => BorradorSeleccionado is { } b && b.Estado != EstadoFacturaBorrador.Abierta;
+
+    private IReadOnlyList<AccionPagina> VerBorrador =>
+    [
+        new("Abrir borrador", IconosModulo.Documento, id => $"/facturas-venta/borradores/{id}", null, RequiereSeleccion: true),
+        new("Cliente", IconosModulo.Persona, _ => $"/clientes/{BorradorSeleccionado?.SocioNegocioId}", ApplicationPolicies.CanConsult, RequiereSeleccion: true),
+    ];
 
     /// <summary>URL de vuelta del listado (filtros, página y selección; sin ok/deleteId/editId).</summary>
     private string UrlActual => RetornoLocal.SinTransitorios(BuildListUrl());

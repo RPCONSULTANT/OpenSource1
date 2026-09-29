@@ -15,7 +15,9 @@
 
 <PageToolbar Titulo="Borradores de nota de crédito" Subtitulo="Notas de crédito en preparación, siempre ligadas a una factura posteada: cabecera, líneas y posteo."
              Migas="@Migas" Permisos="@permisos"
+             NuevoHref="@RetornoLocal.ConRetorno("/notas-credito-venta/nueva", UrlActual)" NuevoTexto="Nueva nota de crédito"
              SeleccionId="@SeleccionValida?.ToString()"
+             Ver="@VerNota"
              EditarUrl="@(id => RetornoLocal.ConRetorno($"/notas-credito-venta/borradores/{id}/editar", UrlActual))"
              EliminarUrl="@(id => BuildListUrl(deleteId: Guid.Parse(id)))">
     <a href="/notas-credito-venta" class="btn-press rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">Notas posteadas</a>
@@ -38,7 +40,7 @@
 
 @if (permisos?.CanAdd == true)
 {
-    <div class="mb-6"><MessageBox Type="info" Message="Para crear una nota de crédito abra la factura posteada (Ventas › Facturas) y pulse «Crear nota de crédito»." /></div>
+    <div class="mb-6"><MessageBox Type="info" Message="Para crear una nota de crédito pulse «Nueva nota de crédito» y elija el cliente y su factura, o abra la factura posteada (Ventas › Facturas) y pulse «Crear nota de crédito»." /></div>
 }
 
 <!-- ── Filtros ── -->
@@ -187,7 +189,15 @@
     private bool MuestraDialogoBorrar => DeleteId.HasValue && permisos?.CanDelete == true;
 
     /// <summary>Selección de la lista (?sel=) solo si el borrador está en la página cargada.</summary>
-    private Guid? SeleccionValida => Sel is { } s && borradores.Any(b => b.Id == s) ? s : null;
+    private Guid? SeleccionValida => NotaSeleccionada?.Id;
+
+    private NotaCreditoVentaBorradorResponse? NotaSeleccionada => Sel is { } s ? borradores.FirstOrDefault(b => b.Id == s) : null;
+
+    private IReadOnlyList<AccionPagina> VerNota =>
+    [
+        new("Abrir borrador", IconosModulo.Documento, id => $"/notas-credito-venta/borradores/{id}", null, RequiereSeleccion: true),
+        new("Cliente", IconosModulo.Persona, _ => $"/clientes/{NotaSeleccionada?.SocioNegocioId}", ApplicationPolicies.CanConsult, RequiereSeleccion: true),
+    ];
 
     /// <summary>URL de vuelta del listado (filtros, página y selección; sin ok/deleteId/editId).</summary>
     private string UrlActual => RetornoLocal.SinTransitorios(BuildListUrl());
