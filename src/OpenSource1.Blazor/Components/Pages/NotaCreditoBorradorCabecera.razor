@@ -1,0 +1,150 @@
+@page "/notas-credito-venta/borradores/{BorradorId:guid}/editar"
+@attribute [Authorize(Policy = ApplicationPolicies.CanConsult)]
+@using Microsoft.AspNetCore.Authorization
+@using OpenSource1.Application.Features.NotasCreditoVenta.Borradores.Dtos
+@using OpenSource1.Blazor.Services
+@inject INotaCreditoVentaApiClient NotaApiClient
+@inject IAuthorizationService AuthorizationService
+@inject ILogger<NotaCreditoBorradorCabecera> Logger
+@inject NavigationManager Nav
+
+@* Modificación de la cabecera de un borrador de nota de crédito (Fix-Features B2d) en página-tarjeta propia. Sin alta: la
+   nota se crea desde la factura posteada. El formulario update-borrador-nota está siempre en el árbol. *@
+<EntityFormPage Titulo="@($"Modificar cabecera {borradorEnEdicion?.Numero}".TrimEnd())" Subtitulo="Fechas y descripción del borrador de nota de crédito."
+                Migas="@Migas" Mensaje="@message" TipoMensaje="@messageType" Errores="@errores">
+    @if (MuestraFormModificar)
+    {
+        <p class="mb-4 text-sm text-slate-600 dark:text-slate-300">Factura <span class="font-mono">@borradorEnEdicion!.FacturaVentaNumero</span> (registro @EntradaFecha.Formatear(borradorEnEdicion.FacturaFechaRegistro)) · @borradorEnEdicion.NombreFacturacion</p>
+        <EditForm Model="UpdateInput" FormName="update-borrador-nota" OnValidSubmit="UpdateAsync" Enhance="true">
+            <DataAnnotationsValidator />
+            <input type="hidden" name="UpdateInput.Xmin" value="@UpdateInput!.Xmin" />
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1" for="UpdateInput_FechaRegistroTexto">Fecha de registro *</label>
+                    <input id="UpdateInput_FechaRegistroTexto" type="date" name="UpdateInput.FechaRegistroTexto" value="@UpdateInput.FechaRegistroTexto" class="@InputCss" />
+                    <ValidationMessage For="() => UpdateInput.FechaRegistroTexto" />
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1" for="UpdateInput_FechaDocumentoTexto">Fecha de documento *</label>
+                    <input id="UpdateInput_FechaDocumentoTexto" type="date" name="UpdateInput.FechaDocumentoTexto" value="@UpdateInput.FechaDocumentoTexto" class="@InputCss" />
+                    <ValidationMessage For="() => UpdateInput.FechaDocumentoTexto" />
+                </div>
+                <div class="sm:col-span-2">
+                    <label class="block text-sm font-medium text-slate-700 mb-1" for="UpdateInput_Descripcion">Descripción</label>
+                    <input id="UpdateInput_Descripcion" type="text" name="UpdateInput.Descripcion" value="@UpdateInput.Descripcion" maxlength="200" class="@InputCss" />
+                    <ValidationMessage For="() => UpdateInput.Descripcion" />
+                </div>
+            </div>
+            <p class="mt-2 text-xs text-slate-400">La fecha de registro no puede ser anterior a la de la factura y debe estar dentro de las fechas permitidas del usuario.</p>
+            <FormularioAcciones CancelarHref="@Volver" LimpiarHref="@Nav.Uri" TextoGuardar="Guardar cambios" />
+        </EditForm>
+    }
+    else
+    {
+        @if (permisos?.CanModify != true)
+        {
+            <p class="text-sm text-slate-600 dark:text-slate-300">No tiene permiso para realizar esta acción.</p>
+        }
+        else if (!cargaFallida)
+        {
+            <MessageBox Type="warning" Message="No se encontró el borrador seleccionado. Puede haber sido posteado o eliminado por otro usuario." />
+        }
+        <EditForm Model="UpdateInput" FormName="update-borrador-nota" OnValidSubmit="UpdateAsync"></EditForm>
+        <div class="mt-4"><a href="@Volver" class="text-sm font-semibold text-brand-600 hover:underline">Volver a la lista</a></div>
+    }
+</EntityFormPage>
+
+@code {
+    private const string InputCss = "block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20";
+
+    [Parameter] public Guid BorradorId { get; set; }
+    [SupplyParameterFromQuery(Name = "returnUrl")] private string? ReturnUrl { get; set; }
+    [SupplyParameterFromForm(FormName = "update-borrador-nota")] private NotasCreditoVentaBorradores.CabeceraNotaForm? UpdateInput { get; set; }
+    [CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+    private NotaCreditoVentaBorradorResponse? borradorEnEdicion;
+    private PermisosPagina? permisos;
+    private bool cargaFallida;
+    private string? message;
+    private string messageType = "warning";
+    private IReadOnlyList<string> errores = [];
+
+    private bool MuestraFormModificar => permisos?.CanModify == true && borradorEnEdicion is not null;
+    private string Volver => RetornoLocal.Volver(ReturnUrl, "/notas-credito-venta/borradores");
+    private IReadOnlyList<Miga> Migas =>
+        [new("Facturación", "/modulos/facturacion"), new("Borradores de nota de crédito", Volver), new("Modificar cabecera")];
+
+    protected override async Task OnInitializedAsync()
+    {
+        UpdateInput ??= new();
+        permisos = await PermisosPagina.CargarAsync(AuthorizationService, AuthenticationStateTask);
+        if (!permisos.CanModify)
+        {
+            return;
+        }
+
+        try
+        {
+            borradorEnEdicion = await NotaApiClient.GetBorradorAsync(BorradorId);
+            // Solo se rellena con lo guardado cuando NO llegó un formulario de modificación (Xmin = 0).
+            if (borradorEnEdicion is not null && UpdateInput.Xmin == 0)
+            {
+                UpdateInput.FechaRegistroTexto = EntradaFecha.Formatear(borradorEnEdicion.FechaRegistro);
+                UpdateInput.FechaDocumentoTexto = EntradaFecha.Formatear(borradorEnEdicion.FechaDocumento);
+                UpdateInput.Descripcion = borradorEnEdicion.Descripcion;
+                UpdateInput.Xmin = borradorEnEdicion.Xmin;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not load borrador de nota {Id} to edit.", BorradorId);
+            cargaFallida = true;
+            Show("danger", "No fue posible cargar el borrador a modificar.");
+        }
+    }
+
+    private async Task UpdateAsync()
+    {
+        // Sin permiso la página no carga el borrador: el POST forzado va igualmente a la API, que devuelve su 403 real.
+        if (borradorEnEdicion is null && permisos?.CanModify == true)
+        {
+            Show("warning", "No se encontró el borrador seleccionado: puede haber sido posteado o eliminado por otro usuario.");
+            return;
+        }
+
+        var f = UpdateInput!;
+        // R17: la navegación va FUERA del try (NavigateTo puede lanzar NavigationException y el catch se la tragaría).
+        string? destino = null;
+        try
+        {
+            var result = await NotaApiClient.UpdateBorradorAsync(
+                BorradorId, f.FechaRegistro, f.FechaDocumento, f.Descripcion?.Trim() ?? string.Empty, f.Xmin);
+            if (result.Succeeded)
+            {
+                // Como antes de la conversión: tras modificar la cabecera se vuelve al editor del borrador.
+                destino = $"/notas-credito-venta/borradores/{BorradorId}?ok=modificado";
+            }
+            else
+            {
+                Show("warning", result.Message, result.Errors);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not update borrador de nota {Id}.", BorradorId);
+            Show("danger", "No fue posible modificar el borrador.");
+        }
+
+        if (destino is not null)
+        {
+            Nav.NavigateTo(destino);
+        }
+    }
+
+    private void Show(string type, string? text, IReadOnlyList<string>? errors = null)
+    {
+        messageType = type;
+        message = text;
+        errores = errors ?? [];
+    }
+}

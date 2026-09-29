@@ -1,0 +1,70 @@
+@page "/admin/users/nuevo"
+@attribute [Authorize(Roles = ApplicationRoles.Administrator)]
+@using System.ComponentModel.DataAnnotations
+@using OpenSource1.Blazor.Services
+@inject IUserAdminApiClient UserAdminApi
+@inject NavigationManager Nav
+
+@* Alta de usuario (Fix-Features B2d) en página-tarjeta propia; antes era un diálogo en /admin/users?new=true. Inputs SSR
+   planos con name="CreateInput.*" (sin enlace bidireccional). El rol se asigna luego desde el perfil del usuario. *@
+<EntityFormPage Titulo="Nuevo usuario" Subtitulo="Complete los datos para crear una cuenta. Podrá asignarle un rol luego desde su perfil."
+                Migas="@Migas" Mensaje="@createError" TipoMensaje="danger">
+    <EditForm Model="CreateInput" FormName="create-user" OnValidSubmit="CreateUserAsync" Enhance="true" class="space-y-4">
+        <DataAnnotationsValidator />
+        <div>
+            <label class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300" for="CreateInput_FullName">Nombre completo</label>
+            <input id="CreateInput_FullName" name="CreateInput.FullName" value="@CreateInput!.FullName" class="@InputCss" />
+            <ValidationMessage For="() => CreateInput!.FullName" />
+        </div>
+        <div>
+            <label class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300" for="CreateInput_Email">Correo electrónico</label>
+            <input id="CreateInput_Email" type="email" name="CreateInput.Email" value="@CreateInput.Email" class="@InputCss" />
+            <ValidationMessage For="() => CreateInput!.Email" />
+        </div>
+        <div>
+            <label class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300" for="CreateInput_Password">Contraseña</label>
+            <input id="CreateInput_Password" type="password" name="CreateInput.Password" autocomplete="new-password" class="@InputCss" />
+            <ValidationMessage For="() => CreateInput!.Password" />
+        </div>
+        <FormularioAcciones CancelarHref="/admin/users" LimpiarHref="/admin/users/nuevo" TextoGuardar="Crear usuario" />
+    </EditForm>
+</EntityFormPage>
+
+@code {
+    private const string InputCss = "block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200";
+    private static readonly IReadOnlyList<Miga> Migas = [new("Administración", "/modulos/administracion"), new("Usuarios", "/admin/users"), new("Nuevo")];
+
+    [SupplyParameterFromForm(FormName = "create-user")] private CreateUserModel? CreateInput { get; set; }
+
+    private string? createError;
+
+    protected override void OnInitialized() => CreateInput ??= new();
+
+    private async Task CreateUserAsync()
+    {
+        var input = CreateInput!;
+        var (success, error) = await UserAdminApi.CreateAsync(input.Email, input.FullName, input.Password);
+        if (success)
+        {
+            Nav.NavigateTo($"/admin/users?ok={Uri.EscapeDataString("Usuario creado satisfactoriamente.")}");
+        }
+        else
+        {
+            createError = error ?? "No se pudo crear el usuario.";
+        }
+    }
+
+    public sealed class CreateUserModel
+    {
+        [Required(ErrorMessage = "El nombre completo es requerido.")]
+        public string FullName { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "El correo es requerido.")]
+        [EmailAddress(ErrorMessage = "Ingrese un correo válido.")]
+        public string Email { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "La contraseña es requerida.")]
+        [MinLength(6, ErrorMessage = "La contraseña debe tener al menos 6 caracteres.")]
+        public string Password { get; set; } = string.Empty;
+    }
+}

@@ -1,0 +1,254 @@
+@page "/facturas-venta/borradores/{BorradorId:guid}/editar"
+@attribute [Authorize(Policy = ApplicationPolicies.CanConsult)]
+@using Microsoft.AspNetCore.Authorization
+@using OpenSource1.Application.Features.Almacenes.Dtos
+@using OpenSource1.Application.Features.FacturasVenta.Borradores.Dtos
+@using OpenSource1.Application.Features.SociosNegocio.Dtos
+@using OpenSource1.Blazor.Services
+@using OpenSource1.Core.Enums
+@inject IFacturaVentaApiClient FacturaApiClient
+@inject ISocioNegocioApiClient SocioApiClient
+@inject IAlmacenApiClient AlmacenApiClient
+@inject IAuthorizationService AuthorizationService
+@inject ILogger<FacturaVentaBorradorCabecera> Logger
+@inject NavigationManager Nav
+
+@* Modificación de la cabecera de un borrador de factura (Fix-Features B2d) en página-tarjeta propia. El formulario
+   update-borrador está siempre en el árbol (vacío si el permiso o el estado no lo dejan mostrar). *@
+<EntityFormPage Titulo="@($"Modificar cabecera {borradorEnEdicion?.Numero}".TrimEnd())" Subtitulo="Clientes, fechas, almacén y descripción del borrador de factura."
+                Migas="@Migas" Mensaje="@message" TipoMensaje="@messageType" Errores="@errores">
+    @if (MuestraFormModificar)
+    {
+        @if (OpcionesFallidas)
+        {
+            <div class="mb-4"><MessageBox Type="danger" Message="No fue posible cargar los clientes o los almacenes. Por seguridad no se puede modificar el borrador hasta que carguen; recargue la página." /></div>
+        }
+        @if (borradorEnEdicion!.Estado == EstadoFacturaBorrador.Liberada)
+        {
+            <div class="mb-4"><MessageBox Type="warning" Message="El borrador está liberado: reábralo para modificarlo." /></div>
+        }
+        <form method="get" action="@($"/facturas-venta/borradores/{BorradorId}/editar")" data-enhance class="mb-6 flex flex-wrap items-end gap-2" data-testid="buscar-socio">
+            @if (!string.IsNullOrWhiteSpace(ReturnUrl))
+            {
+                <input type="hidden" name="returnUrl" value="@ReturnUrl" />
+            }
+            <div class="min-w-60 flex-1">
+                <label class="mb-1 block text-xs font-semibold text-slate-500" for="socioQuery">Buscar cliente por nombre (para los selectores)</label>
+                <input id="socioQuery" type="text" name="socioQuery" value="@SocioQuery" placeholder="ej. Comercial" class="@FiltroCss" />
+            </div>
+            <button type="submit" class="btn-press rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Buscar</button>
+            <p class="w-full text-xs text-slate-400">Se muestran los primeros @VentasOpciones.MaximoSocios clientes por nombre@(string.IsNullOrWhiteSpace(SocioQuery) ? "" : $" que contienen «{SocioQuery}»").</p>
+        </form>
+        <EditForm Model="UpdateInput" FormName="update-borrador" OnValidSubmit="UpdateAsync" Enhance="true">
+            <DataAnnotationsValidator />
+            <input type="hidden" name="UpdateInput.Xmin" value="@UpdateInput!.Xmin" />
+            @CamposCabecera(UpdateInput, borradorEnEdicion)
+            <FormularioAcciones CancelarHref="@Volver" LimpiarHref="@Nav.Uri" TextoGuardar="Guardar cambios" Deshabilitado="@OpcionesFallidas" />
+        </EditForm>
+    }
+    else
+    {
+        @if (permisos?.CanModify != true)
+        {
+            <p class="text-sm text-slate-600 dark:text-slate-300">No tiene permiso para realizar esta acción.</p>
+        }
+        else if (!cargaFallida)
+        {
+            <MessageBox Type="warning" Message="No se encontró el borrador seleccionado. Puede haber sido posteado o eliminado por otro usuario." />
+        }
+        <EditForm Model="UpdateInput" FormName="update-borrador" OnValidSubmit="UpdateAsync"></EditForm>
+        <div class="mt-4"><a href="@Volver" class="text-sm font-semibold text-brand-600 hover:underline">Volver a la lista</a></div>
+    }
+</EntityFormPage>
+
+@code {
+    private const string InputCss = "block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20";
+    private const string FiltroCss = "block w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-600/20";
+
+    [Parameter] public Guid BorradorId { get; set; }
+    [SupplyParameterFromQuery(Name = "returnUrl")] private string? ReturnUrl { get; set; }
+    [SupplyParameterFromQuery(Name = "socioQuery")] private string? SocioQuery { get; set; }
+    [SupplyParameterFromForm(FormName = "update-borrador")] private FacturasVentaBorradores.BorradorForm? UpdateInput { get; set; }
+    [CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+    private FacturaVentaBorradorResponse? borradorEnEdicion;
+    private OpcionesCargadas<SocioNegocioResponse> socios = OpcionesCargadas<SocioNegocioResponse>.SinCargar;
+    private OpcionesCargadas<AlmacenResponse> almacenes = OpcionesCargadas<AlmacenResponse>.SinCargar;
+    private PermisosPagina? permisos;
+    private bool cargaFallida;
+    private string? message;
+    private string messageType = "warning";
+    private IReadOnlyList<string> errores = [];
+
+    private bool OpcionesFallidas => socios.CargaFallida || almacenes.CargaFallida;
+    private bool MuestraFormModificar => permisos?.CanModify == true && borradorEnEdicion is not null;
+    private string Volver => RetornoLocal.Volver(ReturnUrl, "/facturas-venta/borradores");
+    private IReadOnlyList<Miga> Migas =>
+        [new("Facturación", "/modulos/facturacion"), new("Borradores de factura", Volver), new("Modificar cabecera")];
+
+    protected override async Task OnInitializedAsync()
+    {
+        UpdateInput ??= new();
+        permisos = await PermisosPagina.CargarAsync(AuthorizationService, AuthenticationStateTask);
+        if (!permisos.CanModify)
+        {
+            return;
+        }
+
+        socios = await VentasOpciones.SociosAsync(SocioApiClient, SocioQuery, Logger);
+        almacenes = await VentasOpciones.AlmacenesAsync(AlmacenApiClient, Logger);
+
+        try
+        {
+            borradorEnEdicion = await FacturaApiClient.GetBorradorAsync(BorradorId);
+            // Solo se rellena con lo guardado cuando NO llegó un formulario de modificación (Xmin = 0).
+            if (borradorEnEdicion is not null && UpdateInput.Xmin == 0)
+            {
+                UpdateInput.SocioNegocioId = borradorEnEdicion.SocioNegocioId;
+                UpdateInput.SocioNegocioFacturarAId = borradorEnEdicion.SocioNegocioFacturarAId;
+                UpdateInput.FechaRegistroTexto = EntradaFecha.Formatear(borradorEnEdicion.FechaRegistro);
+                UpdateInput.FechaDocumentoTexto = EntradaFecha.Formatear(borradorEnEdicion.FechaDocumento);
+                UpdateInput.FechaVencimientoTexto = EntradaFecha.Formatear(borradorEnEdicion.FechaVencimiento);
+                UpdateInput.AlmacenId = borradorEnEdicion.AlmacenId;
+                UpdateInput.Descripcion = borradorEnEdicion.Descripcion;
+                UpdateInput.Xmin = borradorEnEdicion.Xmin;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not load borrador {Id} to edit.", BorradorId);
+            cargaFallida = true;
+            Show("danger", "No fue posible cargar el borrador a modificar.");
+        }
+    }
+
+    private RenderFragment CamposCabecera(FacturasVentaBorradores.BorradorForm model, FacturaVentaBorradorResponse vigente) => __builder =>
+    {
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1" for="UpdateInput_SocioNegocioId">Vender a <span class="text-red-500">*</span></label>
+                <select id="UpdateInput_SocioNegocioId" name="UpdateInput.SocioNegocioId" class="@InputCss">
+                    <option value="" selected="@(model.SocioNegocioId is null)">— Seleccione —</option>
+                    @OpcionSocioVigente(model.SocioNegocioId, vigente.SocioNegocioId, vigente.SocioNegocioCodigo, vigente.SocioNegocioNombre)
+                    @foreach (var s in socios.Items)
+                    {
+                        <option value="@s.Id" selected="@(s.Id == model.SocioNegocioId)">@s.Codigo — @s.NombreComercial</option>
+                    }
+                </select>
+                <ValidationMessage For="() => model.SocioNegocioId" />
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1" for="UpdateInput_SocioNegocioFacturarAId">Facturar a</label>
+                <select id="UpdateInput_SocioNegocioFacturarAId" name="UpdateInput.SocioNegocioFacturarAId" class="@InputCss">
+                    <option value="" selected="@(model.SocioNegocioFacturarAId is null)">— Igual que vender a —</option>
+                    @OpcionSocioVigente(model.SocioNegocioFacturarAId, vigente.SocioNegocioFacturarAId, vigente.SocioNegocioFacturarACodigo, vigente.NombreFacturacion)
+                    @foreach (var s in socios.Items)
+                    {
+                        <option value="@s.Id" selected="@(s.Id == model.SocioNegocioFacturarAId)">@s.Codigo — @s.NombreComercial</option>
+                    }
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1" for="UpdateInput_FechaRegistroTexto">Fecha de registro *</label>
+                <input id="UpdateInput_FechaRegistroTexto" type="date" name="UpdateInput.FechaRegistroTexto" value="@model.FechaRegistroTexto" class="@InputCss" />
+                <ValidationMessage For="() => model.FechaRegistroTexto" />
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1" for="UpdateInput_FechaDocumentoTexto">Fecha de documento *</label>
+                <input id="UpdateInput_FechaDocumentoTexto" type="date" name="UpdateInput.FechaDocumentoTexto" value="@model.FechaDocumentoTexto" class="@InputCss" />
+                <ValidationMessage For="() => model.FechaDocumentoTexto" />
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1" for="UpdateInput_FechaVencimientoTexto">Fecha de vencimiento</label>
+                <input id="UpdateInput_FechaVencimientoTexto" type="date" name="UpdateInput.FechaVencimientoTexto" value="@model.FechaVencimientoTexto" class="@InputCss" />
+                <ValidationMessage For="() => model.FechaVencimientoTexto" />
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1" for="UpdateInput_AlmacenId">Almacén</label>
+                <select id="UpdateInput_AlmacenId" name="UpdateInput.AlmacenId" class="@InputCss">
+                    @if (model.AlmacenId is { } almacenId && almacenes.Items.All(a => a.Id != almacenId))
+                    {
+                        <option value="@almacenId" selected="selected">@(vigente.AlmacenId == almacenId && vigente.AlmacenCodigo is not null ? $"{vigente.AlmacenCodigo} (no disponible)" : $"Almacén no disponible ({almacenId})")</option>
+                    }
+                    @foreach (var a in almacenes.Items)
+                    {
+                        <option value="@a.Id" selected="@(a.Id == model.AlmacenId)">@a.Codigo — @a.Nombre</option>
+                    }
+                </select>
+            </div>
+            <div class="sm:col-span-2">
+                <label class="block text-sm font-medium text-slate-700 mb-1" for="UpdateInput_Descripcion">Descripción</label>
+                <input id="UpdateInput_Descripcion" type="text" name="UpdateInput.Descripcion" value="@model.Descripcion" maxlength="200" class="@InputCss" />
+                <ValidationMessage For="() => model.Descripcion" />
+            </div>
+        </div>
+        <p class="mt-2 text-xs text-slate-400">Si cambia la fecha de documento y deja el vencimiento como estaba, la API lo recalcula con el término de pago.</p>
+    };
+
+    // El socio seleccionado se ofrece SIEMPRE aunque no esté entre los resultados de la búsqueda: sin esto el <select> no
+    // reflejaría el socio guardado y guardar lo cambiaría en silencio.
+    private RenderFragment OpcionSocioVigente(Guid? seleccion, Guid? vigenteId, string? codigo, string? nombre) => __builder =>
+    {
+        if (seleccion is { } id && socios.Items.All(s => s.Id != id))
+        {
+            <option value="@id" selected="selected">@(vigenteId == id && !string.IsNullOrWhiteSpace(codigo) ? $"{codigo} — {nombre}" : $"Cliente seleccionado ({id})")</option>
+        }
+    };
+
+    private async Task UpdateAsync()
+    {
+        if (OpcionesFallidas)
+        {
+            Show("danger", "No fue posible cargar los clientes o los almacenes; recargue la página.");
+            return;
+        }
+
+        var f = UpdateInput!;
+
+        // Sin permiso la página no carga el borrador: el POST forzado va igualmente a la API, que devuelve su 403 real.
+        if (borradorEnEdicion is null && permisos?.CanModify == true)
+        {
+            Show("warning", "No se encontró el borrador seleccionado: puede haber sido posteado o eliminado por otro usuario.");
+            return;
+        }
+
+        // El vencimiento solo viaja si el usuario lo cambió: si no, "null = conservar" deja que la API lo recalcule cuando
+        // cambia la fecha de documento (reenviar el valor viejo podría quedar antes de la nueva fecha de documento).
+        var vencimiento = borradorEnEdicion is not null && f.FechaVencimiento == borradorEnEdicion.FechaVencimiento ? null : f.FechaVencimiento;
+        var input = new BorradorCabeceraInput(
+            f.SocioNegocioId ?? Guid.Empty, f.SocioNegocioFacturarAId, f.FechaRegistro, f.FechaDocumento, vencimiento, f.AlmacenId,
+            f.Descripcion?.Trim() ?? string.Empty);
+        // R17: la navegación va FUERA del try (NavigateTo puede lanzar NavigationException y el catch se la tragaría).
+        string? destino = null;
+        try
+        {
+            var result = await FacturaApiClient.UpdateBorradorAsync(BorradorId, input, f.Xmin);
+            if (result.Succeeded)
+            {
+                // Como antes de la conversión: tras modificar la cabecera se vuelve al editor del borrador (líneas y totales).
+                destino = $"/facturas-venta/borradores/{BorradorId}?ok=modificado";
+            }
+            else
+            {
+                Show("warning", result.Message, result.Errors);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not update borrador {Id}.", BorradorId);
+            Show("danger", "No fue posible modificar el borrador.");
+        }
+
+        if (destino is not null)
+        {
+            Nav.NavigateTo(destino);
+        }
+    }
+
+    private void Show(string type, string? text, IReadOnlyList<string>? errors = null)
+    {
+        messageType = type;
+        message = text;
+        errores = errors ?? [];
+    }
+}

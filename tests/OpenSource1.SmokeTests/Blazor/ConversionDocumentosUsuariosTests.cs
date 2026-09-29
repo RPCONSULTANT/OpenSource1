@@ -1,0 +1,357 @@
+extern alias BlazorApp;
+
+using System.Net;
+using BlazorApp::OpenSource1.Blazor.Services;
+using Moq;
+using OpenSource1.Application.Features.Almacenes.Dtos;
+using OpenSource1.Application.Features.DiariosInventario.Lotes;
+using OpenSource1.Application.Features.DiariosInventario.Lotes.Dtos;
+using OpenSource1.Application.Features.FacturasVenta.Borradores.Dtos;
+using OpenSource1.Application.Features.NotasCreditoVenta.Borradores.Dtos;
+using OpenSource1.Application.Features.SociosNegocio.Dtos;
+using OpenSource1.Application.Features.Users.Dtos;
+using OpenSource1.Core.Common;
+using OpenSource1.Core.Enums;
+using OpenSource1.SmokeTests.TestInfrastructure;
+
+namespace OpenSource1.SmokeTests.Blazor;
+
+/// <summary>Fix-Features B2d: lotes de diario, cabeceras de borradores y alta de usuarios en página-tarjeta propia.</summary>
+public sealed class ConversionDocumentosUsuariosTests
+{
+    private static readonly Guid IdLote = Guid.Parse("7d0c9a51-0000-0000-0000-00000000b2d1");
+    private static readonly Guid IdBorrador = Guid.Parse("7d0c9a51-0000-0000-0000-00000000b2d2");
+    private static readonly Guid IdBorradorLiberado = Guid.Parse("7d0c9a51-0000-0000-0000-00000000b2d3");
+    private static readonly Guid IdNota = Guid.Parse("7d0c9a51-0000-0000-0000-00000000b2d4");
+    private static readonly Guid IdSocio = Guid.Parse("7d0c9a51-0000-0000-0000-00000000b2d5");
+    private static readonly Guid IdAlmacen = Guid.Parse("7d0c9a51-0000-0000-0000-00000000b2d6");
+
+    [Theory]
+    [InlineData("/diarios-inventario/nuevo", "save-lote-diario")]
+    [InlineData("/facturas-venta/nueva", "add-borrador")]
+    [InlineData("/admin/users/nuevo", "create-user")]
+    public async Task Nuevo_RenderizaFormularioEnTarjeta(string ruta, string formName)
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+
+        var html = await HtmlSsr.HtmlAsync(app.Cliente(), ruta);
+
+        Assert.Contains("data-testid=\"entity-form-page\"", html);
+        Assert.Contains($"name=\"_handler\" value=\"{formName}\"", html);
+        Assert.Contains("data-testid=\"cancelar\"", html);
+    }
+
+    [Theory]
+    [InlineData("/diarios-inventario?editId={0}", "/diarios-inventario/{0}/editar", "/diarios-inventario")]
+    [InlineData("/facturas-venta/borradores?editId={0}", "/facturas-venta/borradores/{0}/editar", "/facturas-venta/borradores")]
+    [InlineData("/notas-credito-venta/borradores?editId={0}", "/notas-credito-venta/borradores/{0}/editar", "/notas-credito-venta/borradores")]
+    public async Task EditIdLegado_RedirigeALaRutaNueva(string origen, string destino, string lista)
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+        var id = Guid.NewGuid();
+
+        var respuesta = await app.Cliente().GetAsync(string.Format(origen, id));
+
+        Assert.Equal(HttpStatusCode.Redirect, respuesta.StatusCode);
+        var location = FormulariosSsr.Destino(respuesta);
+        Assert.StartsWith(string.Format(destino, id) + "?returnUrl=", location);
+        var returnUrl = Uri.UnescapeDataString(location[(location.IndexOf("returnUrl=", StringComparison.Ordinal) + "returnUrl=".Length)..]);
+        Assert.StartsWith(lista, returnUrl);
+        Assert.DoesNotContain("editId", returnUrl);
+    }
+
+    [Fact]
+    public async Task UsuariosNewTrue_RedirigeANuevo_YEditarEsAliasDeLaFicha()
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+
+        var legado = await app.Cliente().GetAsync("/admin/users?new=true");
+        var editar = await app.Cliente().GetAsync("/admin/users/u-1/editar");
+        var nuevo = await HtmlSsr.HtmlAsync(app.Cliente(), "/admin/users/nuevo");
+
+        Assert.Equal("/admin/users/nuevo", FormulariosSsr.Destino(legado));
+        Assert.Equal(HttpStatusCode.OK, editar.StatusCode);
+        Assert.Contains("name=\"CreateInput.Email\"", nuevo);
+    }
+
+    [Fact]
+    public async Task Usuarios_SeleccionHabilitaEditarAliasDeLaFicha_SinEliminar()
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+        app.Simular<IUserAdminApiClient>()
+            .Setup(c => c.ListUsersAsync(It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<bool?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(([new UserSummaryResponse("u-1", "Ana Pérez", "ana@test.local", true, ["Administrador"])], null));
+
+        var valida = await HtmlSsr.HtmlAsync(app.Cliente(), "/admin/users?sel=u-1");
+        var obsoleta = await HtmlSsr.HtmlAsync(app.Cliente(), "/admin/users?sel=u-9");
+
+        Assert.Contains("<a data-testid=\"accion-editar\" href=\"/admin/users/u-1/editar\"", valida);
+        Assert.Contains("aria-current=\"true\"", valida);
+        Assert.Contains("href=\"/admin/users/nuevo\" data-testid=\"accion-nuevo\"", valida);
+        Assert.DoesNotContain("data-testid=\"accion-eliminar\"", valida);
+        Assert.Contains("<span data-testid=\"accion-editar\" aria-disabled=\"true\"", obsoleta);
+    }
+
+    [Fact]
+    public async Task UsuarioNuevo_CreaYVuelveALaLista()
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+        app.Simular<IUserAdminApiClient>()
+            .Setup(c => c.CreateAsync("ana@test.local", "Ana Pérez", "secreto1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, null));
+
+        var respuesta = await FormulariosSsr.EnviarAsync(app.Cliente(), "/admin/users/nuevo", "create-user",
+            new Dictionary<string, string> { ["CreateInput.FullName"] = "Ana Pérez", ["CreateInput.Email"] = "ana@test.local", ["CreateInput.Password"] = "secreto1" });
+
+        Assert.Equal(HttpStatusCode.Redirect, respuesta.StatusCode);
+        Assert.StartsWith("/admin/users?ok=", FormulariosSsr.Destino(respuesta));
+    }
+
+    [Fact]
+    public async Task LoteDiario_AltaRedirigeConOk()
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+        var plantilla = Guid.NewGuid();
+        app.Simular<IDiarioInventarioApiClient>()
+            .Setup(c => c.CreateLoteAsync(It.Is<LoteDiarioInput>(i => i.Codigo == "AJ-01" && i.PlantillaDiarioId == plantilla), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new LoteDiarioOperationResult(true, "ok", new LoteDiarioResponse { Id = Guid.NewGuid(), Codigo = "AJ-01" }));
+
+        var respuesta = await FormulariosSsr.EnviarAsync(app.Cliente(), "/diarios-inventario/nuevo", "save-lote-diario",
+            new Dictionary<string, string> { ["SaveInput.PlantillaDiarioId"] = plantilla.ToString(), ["SaveInput.Codigo"] = "AJ-01", ["SaveInput.Nombre"] = "Ajustes" });
+
+        Assert.True(respuesta.StatusCode == HttpStatusCode.Redirect, HtmlSsr.Decodificar(await respuesta.Content.ReadAsStringAsync()));
+        Assert.Equal("/diarios-inventario?ok=created", FormulariosSsr.Destino(respuesta));
+    }
+
+    [Fact]
+    public async Task LoteDiario_Editar_CargaLoGuardado_YGuardaConElIdDeLaRuta_VolviendoAlReturnUrl()
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+        var api = app.Simular<IDiarioInventarioApiClient>();
+        api.Setup(c => c.UpdateLoteAsync(IdLote, It.Is<LoteDiarioInput>(i => i.Codigo == "AJ-02"), 7, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new LoteDiarioOperationResult(true, "ok"));
+        var url = $"/diarios-inventario/{IdLote}/editar?returnUrl=%2Fdiarios-inventario%3Fcodigo%3DAJ%26sel%3D{IdLote}";
+
+        var html = await HtmlSsr.HtmlAsync(app.Cliente(), url);
+        var respuesta = await FormulariosSsr.EnviarAsync(app.Cliente(), url, "update-lote-diario", new Dictionary<string, string>
+        {
+            ["UpdateInput.Id"] = IdLote.ToString(), ["UpdateInput.PlantillaDiarioId"] = Guid.NewGuid().ToString(), ["UpdateInput.Xmin"] = "7",
+            ["UpdateInput.Codigo"] = "AJ-02", ["UpdateInput.Nombre"] = "Ajustes",
+        });
+
+        Assert.Contains("value=\"AJ-01\"", html);
+        Assert.Contains("name=\"_handler\" value=\"update-lote-diario\"", html);
+        Assert.Equal($"/diarios-inventario?codigo=AJ&sel={IdLote}&ok=updated", FormulariosSsr.Destino(respuesta));
+        api.Verify(c => c.UpdateLoteAsync(IdLote, It.IsAny<LoteDiarioInput>(), 7, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task LoteDiario_Nuevo_SinCanAdd_Mensaje_YPostForzado_DevuelveMensajeDeLaApi()
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+        app.Simular<IDiarioInventarioApiClient>()
+            .Setup(c => c.CreateLoteAsync(It.IsAny<LoteDiarioInput>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new LoteDiarioOperationResult(false, "No tiene permisos para agregar lotes de diario."));
+        var supervisor = app.Cliente("Supervisor");
+
+        var html = await HtmlSsr.HtmlAsync(supervisor, "/diarios-inventario/nuevo");
+        var forzado = await FormulariosSsr.EnviarAsync(supervisor, "/diarios-inventario/nuevo", "save-lote-diario",
+            new Dictionary<string, string> { ["SaveInput.PlantillaDiarioId"] = Guid.NewGuid().ToString(), ["SaveInput.Codigo"] = "AJ-01", ["SaveInput.Nombre"] = "Ajustes" });
+
+        Assert.Contains("No tiene permiso para realizar esta acción.", html);
+        Assert.Contains("value=\"save-lote-diario\"", html);
+        Assert.DoesNotContain("data-testid=\"guardar\"", html);
+        Assert.Equal(HttpStatusCode.OK, forzado.StatusCode);
+        Assert.Contains("No tiene permisos para agregar lotes de diario.", HtmlSsr.Decodificar(await forzado.Content.ReadAsStringAsync()));
+    }
+
+    [Fact]
+    public async Task Diarios_SeleccionValidaHabilitaEditar_YLaQueNoEstaEnLaPaginaLaDeshabilita()
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+
+        var valida = await HtmlSsr.HtmlAsync(app.Cliente(), $"/diarios-inventario?sel={IdLote}");
+        var obsoleta = await HtmlSsr.HtmlAsync(app.Cliente(), $"/diarios-inventario?sel={Guid.NewGuid()}");
+
+        Assert.Contains($"<a data-testid=\"accion-editar\" href=\"/diarios-inventario/{IdLote}/editar?returnUrl=", valida);
+        Assert.Contains($"<a data-testid=\"accion-eliminar\" href=\"/diarios-inventario?sel={IdLote}&deleteId={IdLote}\"", valida);
+        Assert.Contains("aria-current=\"true\"", valida);
+        Assert.Contains("href=\"/diarios-inventario/nuevo?returnUrl=", valida);
+        Assert.Contains("<span data-testid=\"accion-editar\" aria-disabled=\"true\"", obsoleta);
+    }
+
+    [Fact]
+    public async Task Borradores_SoloSeleccionaAbiertos()
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+
+        var abierto = await HtmlSsr.HtmlAsync(app.Cliente(), $"/facturas-venta/borradores?numero=B&sel={IdBorrador}");
+        var liberado = await HtmlSsr.HtmlAsync(app.Cliente(), $"/facturas-venta/borradores?sel={IdBorradorLiberado}");
+
+        Assert.Contains($"<a data-testid=\"accion-editar\" href=\"/facturas-venta/borradores/{IdBorrador}/editar?returnUrl=", abierto);
+        Assert.Contains("href=\"/facturas-venta/nueva?returnUrl=", abierto);
+        Assert.Contains("value=\"B\"", abierto);
+        Assert.Contains("<span data-testid=\"accion-editar\" aria-disabled=\"true\"", liberado);
+    }
+
+    [Fact]
+    public async Task FacturaCabecera_CargaLoGuardado_YGuardaConXmin()
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+        var api = app.Simular<IFacturaVentaApiClient>();
+        api.Setup(c => c.UpdateBorradorAsync(IdBorrador, It.Is<BorradorCabeceraInput>(i => i.SocioNegocioId == IdSocio && i.Descripcion == "Nueva"), 11, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new VentaOperationResult<FacturaVentaBorradorResponse>(true, "ok"));
+        var url = $"/facturas-venta/borradores/{IdBorrador}/editar";
+
+        var html = await HtmlSsr.HtmlAsync(app.Cliente(), url);
+        var respuesta = await FormulariosSsr.EnviarAsync(app.Cliente(), url, "update-borrador", new Dictionary<string, string>
+        {
+            ["UpdateInput.Xmin"] = "11", ["UpdateInput.SocioNegocioId"] = IdSocio.ToString(), ["UpdateInput.AlmacenId"] = IdAlmacen.ToString(),
+            ["UpdateInput.FechaRegistroTexto"] = "2026-09-01", ["UpdateInput.FechaDocumentoTexto"] = "2026-09-01", ["UpdateInput.Descripcion"] = "Nueva",
+        });
+
+        Assert.Contains("data-testid=\"entity-form-page\"", html);
+        Assert.Contains("name=\"_handler\" value=\"update-borrador\"", html);
+        Assert.Contains("value=\"Vieja\"", html);
+        Assert.Contains("name=\"UpdateInput.Xmin\" value=\"11\"", html);
+        Assert.Equal($"/facturas-venta/borradores/{IdBorrador}?ok=modificado", FormulariosSsr.Destino(respuesta));
+        api.Verify(c => c.UpdateBorradorAsync(IdBorrador, It.IsAny<BorradorCabeceraInput>(), 11, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task FacturaCabecera_SinCanModify_Mensaje_YPostForzado_DevuelveMensajeDeLaApi()
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+        app.Simular<IFacturaVentaApiClient>()
+            .Setup(c => c.UpdateBorradorAsync(IdBorrador, It.IsAny<BorradorCabeceraInput>(), It.IsAny<long>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new VentaOperationResult<FacturaVentaBorradorResponse>(false, "No tiene permisos para modificar borradores."));
+        var ejecutor = app.Cliente("Ejecutor");
+        var url = $"/facturas-venta/borradores/{IdBorrador}/editar";
+
+        var html = await HtmlSsr.HtmlAsync(ejecutor, url);
+        var forzado = await FormulariosSsr.EnviarAsync(ejecutor, url, "update-borrador", new Dictionary<string, string>
+        {
+            ["UpdateInput.Xmin"] = "11", ["UpdateInput.SocioNegocioId"] = IdSocio.ToString(),
+            ["UpdateInput.FechaRegistroTexto"] = "2026-09-01", ["UpdateInput.FechaDocumentoTexto"] = "2026-09-01",
+        });
+
+        Assert.Contains("No tiene permiso para realizar esta acción.", html);
+        Assert.Contains("value=\"update-borrador\"", html);
+        Assert.DoesNotContain("data-testid=\"guardar\"", html);
+        Assert.Equal(HttpStatusCode.OK, forzado.StatusCode);
+        Assert.Contains("No tiene permisos para modificar borradores.", HtmlSsr.Decodificar(await forzado.Content.ReadAsStringAsync()));
+    }
+
+    [Fact]
+    public async Task FacturaNueva_CreaYAbreElBorrador()
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+        var nuevo = Guid.NewGuid();
+        app.Simular<IFacturaVentaApiClient>()
+            .Setup(c => c.CreateBorradorAsync(It.Is<BorradorCabeceraInput>(i => i.SocioNegocioId == IdSocio), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new VentaOperationResult<FacturaVentaBorradorResponse>(true, "ok", new FacturaVentaBorradorResponse { Id = nuevo }));
+
+        var html = await HtmlSsr.HtmlAsync(app.Cliente(), "/facturas-venta/nueva");
+        var respuesta = await FormulariosSsr.EnviarAsync(app.Cliente(), "/facturas-venta/nueva", "add-borrador",
+            new Dictionary<string, string> { ["AddInput.SocioNegocioId"] = IdSocio.ToString() });
+
+        Assert.Contains("C-001 — Comercial Uno", html);
+        Assert.Contains("data-testid=\"buscar-socio\"", html);
+        Assert.Equal($"/facturas-venta/borradores/{nuevo}?ok=creado", FormulariosSsr.Destino(respuesta));
+    }
+
+    [Fact]
+    public async Task NotaCabecera_CargaLoGuardado_YGuardaConXmin()
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+        var api = app.Simular<INotaCreditoVentaApiClient>();
+        api.Setup(c => c.UpdateBorradorAsync(IdNota, new DateOnly(2026, 9, 2), new DateOnly(2026, 9, 3), "Devolución", 5, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new VentaOperationResult<NotaCreditoVentaBorradorResponse>(true, "ok"));
+        var url = $"/notas-credito-venta/borradores/{IdNota}/editar";
+
+        var html = await HtmlSsr.HtmlAsync(app.Cliente(), url);
+        var respuesta = await FormulariosSsr.EnviarAsync(app.Cliente(), url, "update-borrador-nota", new Dictionary<string, string>
+        {
+            ["UpdateInput.Xmin"] = "5", ["UpdateInput.FechaRegistroTexto"] = "2026-09-02", ["UpdateInput.FechaDocumentoTexto"] = "2026-09-03",
+            ["UpdateInput.Descripcion"] = "Devolución",
+        });
+
+        Assert.Contains("data-testid=\"entity-form-page\"", html);
+        Assert.Contains("name=\"_handler\" value=\"update-borrador-nota\"", html);
+        Assert.Contains("FAC-0001", html);
+        Assert.Contains("name=\"UpdateInput.Xmin\" value=\"5\"", html);
+        Assert.Equal($"/notas-credito-venta/borradores/{IdNota}?ok=modificado", FormulariosSsr.Destino(respuesta));
+        api.Verify(c => c.UpdateBorradorAsync(IdNota, It.IsAny<DateOnly?>(), It.IsAny<DateOnly?>(), It.IsAny<string>(), 5, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task NotaCabecera_NoEncontrada_Mensaje()
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+
+        var html = await HtmlSsr.HtmlAsync(app.Cliente(), $"/notas-credito-venta/borradores/{Guid.NewGuid()}/editar");
+
+        Assert.Contains("No se encontró el borrador seleccionado", html);
+        Assert.DoesNotContain("data-testid=\"guardar\"", html);
+        Assert.Contains("value=\"update-borrador-nota\"", html);
+    }
+
+    [Theory]
+    [InlineData("/diarios-inventario", "save-lote-diario")]
+    [InlineData("/facturas-venta/borradores", "add-borrador")]
+    [InlineData("/notas-credito-venta/borradores", "update-borrador-nota")]
+    [InlineData("/admin/users", "create-user")]
+    public async Task Listado_SinFormulariosEnLinea(string ruta, string formName)
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+
+        var html = await HtmlSsr.HtmlAsync(app.Cliente(), ruta);
+
+        Assert.Contains("data-testid=\"page-toolbar\"", html);
+        Assert.DoesNotContain($"value=\"{formName}\"", html);
+        Assert.DoesNotContain("id=\"agregar\"", html);
+        Assert.DoesNotContain("id=\"modificar\"", html);
+    }
+
+    private static BlazorSsrFactory Configurar(BlazorSsrFactory app)
+    {
+        var diarios = app.Simular<IDiarioInventarioApiClient>();
+        diarios.Setup(c => c.ListPlantillasAsync(It.IsAny<CancellationToken>())).ReturnsAsync([]);
+        diarios.Setup(c => c.ListLotesAsync(It.IsAny<LoteDiarioSearchCriteria?>(), It.IsAny<PageRequest?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PagedResult<LoteDiarioResponse>([new LoteDiarioResponse { Id = IdLote, Codigo = "AJ-01", Nombre = "Ajustes" }], 1, 50, 1));
+        diarios.Setup(c => c.GetLoteByIdAsync(IdLote, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new LoteDiarioResponse { Id = IdLote, Codigo = "AJ-01", Nombre = "Ajustes", Xmin = 7 });
+
+        var facturas = app.Simular<IFacturaVentaApiClient>();
+        facturas.Setup(c => c.ListBorradoresAsync(It.IsAny<FacturaVentaBorradorFiltro?>(), It.IsAny<PageRequest?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PagedResult<FacturaVentaBorradorResponse>(
+            [
+                new FacturaVentaBorradorResponse { Id = IdBorrador, Numero = "B-1", Estado = EstadoFacturaBorrador.Abierta },
+                new FacturaVentaBorradorResponse { Id = IdBorradorLiberado, Numero = "B-2", Estado = EstadoFacturaBorrador.Liberada },
+            ], 1, 50, 2));
+        facturas.Setup(c => c.GetBorradorAsync(IdBorrador, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new FacturaVentaBorradorResponse
+            {
+                Id = IdBorrador, Numero = "B-1", Estado = EstadoFacturaBorrador.Abierta, SocioNegocioId = IdSocio, SocioNegocioFacturarAId = IdSocio,
+                AlmacenId = IdAlmacen, FechaRegistro = new DateOnly(2026, 9, 1), FechaDocumento = new DateOnly(2026, 9, 1),
+                FechaVencimiento = new DateOnly(2026, 9, 30), Descripcion = "Vieja", Xmin = 11,
+            });
+
+        var notas = app.Simular<INotaCreditoVentaApiClient>();
+        notas.Setup(c => c.GetBorradorAsync(IdNota, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new NotaCreditoVentaBorradorResponse
+            {
+                Id = IdNota, Numero = "NC-1", FacturaVentaNumero = "FAC-0001", FechaRegistro = new DateOnly(2026, 9, 1),
+                FechaDocumento = new DateOnly(2026, 9, 1), Descripcion = "Vieja", Xmin = 5,
+            });
+
+        app.Simular<ISocioNegocioApiClient>()
+            .Setup(c => c.ListAsync(It.IsAny<SocioNegocioSearchFilter?>(), It.IsAny<PageRequest?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PagedResult<SocioNegocioResponse>([new SocioNegocioResponse { Id = IdSocio, Codigo = "C-001", NombreComercial = "Comercial Uno" }], 1, 50, 1));
+        app.Simular<IAlmacenApiClient>()
+            .Setup(c => c.ListAsync(It.IsAny<AlmacenSearchFilter?>(), It.IsAny<PageRequest?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PagedResult<AlmacenResponse>([new AlmacenResponse { Id = IdAlmacen, Codigo = "PRINC", Nombre = "Principal" }], 1, 50, 1));
+        app.Simular<IUserAdminApiClient>();
+        return app;
+    }
+}
