@@ -108,6 +108,7 @@
     [CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
 
     private PermisosPagina? permisos;
+    private bool formularioEdicionRecibido;
     private ProductoResponse? producto;
     private string? message;
     private string messageType = "danger";
@@ -129,23 +130,25 @@
 
     protected override async Task OnInitializedAsync()
     {
+        // Los dos modelos se crean ANTES del primer await: con la API real Blazor pinta un primer lote mientras carga, y un
+        // EditForm (el vacío de "siempre en el árbol") con Model null rompe el render ("renderer does not have a component").
+        // Si llegó un formulario (POST) se respeta tal cual; si no, la edición se rellena con lo guardado al cargarlo.
+        var formularioNuevo = AltaInput is null;
+        formularioEdicionRecibido = EdicionInput is not null;
+        AltaInput ??= new();
+        EdicionInput ??= new();
         permisos = await PermisosPagina.CargarAsync(AuthorizationService, AuthenticationStateTask);
 
         if (EsEdicion)
         {
-            AltaInput ??= new();
             if (CanModify)
             {
                 await CargarEdicionAsync(Id!.Value);
             }
 
-            EdicionInput ??= new();
             return;
         }
 
-        EdicionInput ??= new();
-        var formularioNuevo = AltaInput is null;
-        AltaInput ??= new();
         if (!CanAdd)
         {
             return;
@@ -176,13 +179,16 @@
             }
 
             // Solo se rellena con lo guardado cuando NO llegó un formulario: si el POST trae valores se conservan tal cual.
-            EdicionInput ??= new ProductoEditorForm
+            if (!formularioEdicionRecibido)
             {
-                Codigo = producto.Codigo, Nombre = producto.Nombre, PrecioVentaTexto = EntradaDecimal.Formatear(producto.PrecioVenta),
-                CategoriaId = producto.CategoriaId, UnidadMedidaBaseId = producto.UnidadMedidaBaseId, MetodoCosteo = producto.MetodoCosteo,
-                CostoEstandarTexto = EntradaDecimal.Formatear(producto.CostoEstandar), Bloqueado = producto.Bloqueado, ImagePath = producto.ImagePath,
-                GrupoProductoId = producto.GrupoProductoId, GrupoIvaProductoId = producto.GrupoIvaProductoId, GrupoInventarioId = producto.GrupoInventarioId
-            };
+                EdicionInput = new ProductoEditorForm
+                {
+                    Codigo = producto.Codigo, Nombre = producto.Nombre, PrecioVentaTexto = EntradaDecimal.Formatear(producto.PrecioVenta),
+                    CategoriaId = producto.CategoriaId, UnidadMedidaBaseId = producto.UnidadMedidaBaseId, MetodoCosteo = producto.MetodoCosteo,
+                    CostoEstandarTexto = EntradaDecimal.Formatear(producto.CostoEstandar), Bloqueado = producto.Bloqueado, ImagePath = producto.ImagePath,
+                    GrupoProductoId = producto.GrupoProductoId, GrupoIvaProductoId = producto.GrupoIvaProductoId, GrupoInventarioId = producto.GrupoInventarioId
+                };
+            }
 
             opciones = await ProductoOpciones.CargarAsync(CategoriaProductoApiClient, UnidadMedidaApiClient, Logger);
             edicionBloqueada = opciones.ModificacionBloqueada;
@@ -190,7 +196,7 @@
             if (grupos.CargaFallida)
             {
                 // Los selectores deshabilitados no se envían: que muestren siempre el valor guardado (también al re-renderizar un POST).
-                EdicionInput.GrupoProductoId = producto.GrupoProductoId;
+                EdicionInput!.GrupoProductoId = producto.GrupoProductoId;
                 EdicionInput.GrupoIvaProductoId = producto.GrupoIvaProductoId;
                 EdicionInput.GrupoInventarioId = producto.GrupoInventarioId;
             }

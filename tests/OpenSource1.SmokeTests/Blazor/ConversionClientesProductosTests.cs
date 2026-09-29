@@ -262,6 +262,33 @@ public sealed class ConversionClientesProductosTests
         socios.Verify(c => c.CreateAsync(It.IsAny<SocioNegocioInput>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
+    [Theory]
+    [InlineData("/clientes/{0}/editar", "cliente")]
+    [InlineData("/productos/{0}/editar", "producto")]
+    [InlineData("/clientes/nuevo", "cliente")]
+    [InlineData("/productos/nuevo", "producto")]
+    public async Task Editor_ConApiAsincrona_RenderizaSinError(string ruta, string entidad)
+    {
+        // Con la API real la carga no termina síncronamente: Blazor pinta un primer lote (sin registro cargado) antes del final.
+        using var app = Configurar(new BlazorSsrFactory());
+        var cliente = new SocioNegocioResponse { Id = IdCliente, Codigo = "C0001", NombreComercial = "Comercial Uno", Email = "uno@test.local" };
+        var producto = new ProductoResponse { Id = IdProducto, Codigo = "P0001", Nombre = "Tornillo", CategoriaCodigo = "GENERAL", CategoriaNombre = "General" };
+        app.Simular<ISocioNegocioApiClient>().Setup(c => c.GetByIdAsync(IdCliente, It.IsAny<CancellationToken>()))
+            .Returns(async () => { await Task.Delay(20); return cliente; });
+        app.Simular<IProductoApiClient>().Setup(c => c.GetByIdAsync(IdProducto, It.IsAny<CancellationToken>()))
+            .Returns(async () => { await Task.Delay(20); return producto; });
+        app.Simular<ITerminoPagoApiClient>().Setup(c => c.ListAllAsync(It.IsAny<CancellationToken>()))
+            .Returns(async () => { await Task.Delay(20); return (IReadOnlyList<OpenSource1.Application.Features.TerminosPago.Dtos.TerminoPagoResponse>)[]; });
+        var id = entidad == "cliente" ? IdCliente : IdProducto;
+
+        var respuesta = await app.Cliente().GetAsync(string.Format(ruta, id));
+        var html = HtmlSsr.Decodificar(await respuesta.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, respuesta.StatusCode);
+        Assert.Contains("data-testid=\"entity-form-page\"", html);
+        Assert.Contains("data-testid=\"cancelar\"", html);
+    }
+
     private static BlazorSsrFactory Configurar(BlazorSsrFactory app)
     {
         var cliente = new SocioNegocioResponse { Id = IdCliente, Codigo = "C0001", NombreComercial = "Comercial Uno", Email = "uno@test.local" };

@@ -106,6 +106,7 @@
     [CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
 
     private PermisosPagina? permisos;
+    private bool formularioEdicionRecibido;
     private SocioNegocioResponse? cliente;
     private string? message;
     private string messageType = "danger";
@@ -127,23 +128,25 @@
 
     protected override async Task OnInitializedAsync()
     {
+        // Los dos modelos se crean ANTES del primer await: con la API real Blazor pinta un primer lote mientras carga, y un
+        // EditForm (el vacío de "siempre en el árbol") con Model null rompe el render ("renderer does not have a component").
+        // Si llegó un formulario (POST) se respeta tal cual; si no, la edición se rellena con lo guardado al cargarlo.
+        var formularioNuevo = AltaInput is null;
+        formularioEdicionRecibido = EdicionInput is not null;
+        AltaInput ??= new();
+        EdicionInput ??= new();
         permisos = await PermisosPagina.CargarAsync(AuthorizationService, AuthenticationStateTask);
 
         if (EsEdicion)
         {
-            AltaInput ??= new();
             if (CanModify)
             {
                 await CargarEdicionAsync(Id!.Value);
             }
 
-            EdicionInput ??= new();
             return;
         }
 
-        EdicionInput ??= new();
-        var formularioNuevo = AltaInput is null;
-        AltaInput ??= new();
         if (!CanAdd)
         {
             return;
@@ -175,18 +178,21 @@
 
             // Solo se rellena con lo guardado cuando NO llegó un formulario: si el POST trae valores (incluso un nombre vacío
             // que la validación debe rechazar) se conservan tal cual.
-            EdicionInput ??= new ClienteEditorForm
+            if (!formularioEdicionRecibido)
             {
-                NombreComercial = cliente.NombreComercial, Email = cliente.Email, Telefono = cliente.Telefono,
-                DireccionLinea1 = cliente.DireccionLinea1, DireccionLinea2 = cliente.DireccionLinea2,
-                Sector = cliente.Sector, PaisCodigo = cliente.PaisCodigo, ImagePath = cliente.ImagePath,
-                Tipo = cliente.Tipo, RazonSocial = cliente.RazonSocial, TipoDocumentoFiscal = cliente.TipoDocumentoFiscal,
-                NumeroDocumentoFiscal = cliente.NumeroDocumentoFiscal, Ciudad = cliente.Ciudad,
-                TerminoPagoId = cliente.TerminoPagoId, LimiteCreditoTexto = EntradaDecimal.Formatear(cliente.LimiteCredito),
-                Bloqueado = cliente.Bloqueado,
-                GrupoNegocioId = cliente.GrupoNegocioId, GrupoIvaNegocioId = cliente.GrupoIvaNegocioId,
-                GrupoClienteContableId = cliente.GrupoClienteContableId
-            };
+                EdicionInput = new ClienteEditorForm
+                {
+                    NombreComercial = cliente.NombreComercial, Email = cliente.Email, Telefono = cliente.Telefono,
+                    DireccionLinea1 = cliente.DireccionLinea1, DireccionLinea2 = cliente.DireccionLinea2,
+                    Sector = cliente.Sector, PaisCodigo = cliente.PaisCodigo, ImagePath = cliente.ImagePath,
+                    Tipo = cliente.Tipo, RazonSocial = cliente.RazonSocial, TipoDocumentoFiscal = cliente.TipoDocumentoFiscal,
+                    NumeroDocumentoFiscal = cliente.NumeroDocumentoFiscal, Ciudad = cliente.Ciudad,
+                    TerminoPagoId = cliente.TerminoPagoId, LimiteCreditoTexto = EntradaDecimal.Formatear(cliente.LimiteCredito),
+                    Bloqueado = cliente.Bloqueado,
+                    GrupoNegocioId = cliente.GrupoNegocioId, GrupoIvaNegocioId = cliente.GrupoIvaNegocioId,
+                    GrupoClienteContableId = cliente.GrupoClienteContableId
+                };
+            }
 
             terminos = await TerminoPagoOpciones.CargarAsync(TerminoPagoApiClient, Logger);
             edicionBloqueada = terminos.ModificacionBloqueada(cliente.TerminoPagoId);
@@ -194,7 +200,7 @@
             if (grupos.CargaFallida)
             {
                 // Los selectores deshabilitados no se envían: que muestren siempre el valor guardado (también al re-renderizar un POST).
-                EdicionInput.GrupoNegocioId = cliente.GrupoNegocioId;
+                EdicionInput!.GrupoNegocioId = cliente.GrupoNegocioId;
                 EdicionInput.GrupoIvaNegocioId = cliente.GrupoIvaNegocioId;
                 EdicionInput.GrupoClienteContableId = cliente.GrupoClienteContableId;
             }
