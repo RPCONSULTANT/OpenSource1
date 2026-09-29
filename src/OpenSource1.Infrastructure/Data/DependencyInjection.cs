@@ -7,6 +7,7 @@ using OpenSource1.Application.Data;
 using OpenSource1.Application.Data.Repositories;
 using OpenSource1.Application.Data.UnitOfWork;
 using OpenSource1.Application.Features.SociosNegocio;
+using OpenSource1.Application.Features.Busqueda;
 using OpenSource1.Application.Features.Almacenes;
 using OpenSource1.Application.Features.Cobros;
 using OpenSource1.Application.Features.CategoriasProducto;
@@ -115,6 +116,7 @@ public static class DependencyInjection
         services.AddScoped<ICobroDatos, CobroDatos>();
         services.AddScoped<ISocioNegocioUsoService, SocioNegocioUsoService>();
         services.AddScoped<IFacturaVentaReadRepository, DapperFacturaVentaReadRepository>();
+        services.AddScoped<IBusquedaGlobalRepository, DapperBusquedaGlobalRepository>();
         services.AddScoped<INotaCreditoVentaDatos, NotaCreditoVentaDatos>();
         services.AddScoped<INotaCreditoVentaBorradorReadRepository, DapperNotaCreditoVentaBorradorReadRepository>();
         services.AddScoped<INotaCreditoVentaReadRepository, DapperNotaCreditoVentaReadRepository>();
