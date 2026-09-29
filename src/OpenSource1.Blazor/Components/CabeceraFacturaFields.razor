@@ -56,7 +56,7 @@
             }
             @if (Model.AlmacenId is { } almacenId && Almacenes.All(a => a.Id != almacenId))
             {
-                <option value="@almacenId" selected="selected">@(Vigente?.AlmacenId == almacenId && Vigente.AlmacenCodigo is not null ? $"{Vigente.AlmacenCodigo} (no disponible)" : $"Almacén no disponible ({almacenId})")</option>
+                <option value="@almacenId" selected="selected">@(Vigente?.AlmacenId == almacenId && Vigente?.AlmacenCodigo is not null ? $"{Vigente.AlmacenCodigo} (no disponible)" : $"Almacén no disponible ({almacenId})")</option>
             }
             @foreach (var a in Almacenes)
             {
