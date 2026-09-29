@@ -164,6 +164,7 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
 
 builder.Services.AddAuthorization(PoliticasBlazor.Configurar);
 builder.Services.AddScoped<IRegistroModulos, RegistroModulos>();
+builder.Services.AddScoped<IIndicadoresModulos, IndicadoresModulos>();
 
 var app = builder.Build();
 
