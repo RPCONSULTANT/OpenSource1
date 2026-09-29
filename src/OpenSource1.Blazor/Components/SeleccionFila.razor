@@ -1,0 +1,26 @@
+@* SeleccionFila — radio visual de la vista Lista (Fix-Features B1): enlace a la misma lista con ?sel={id} (conserva filtros).
+   R13 "stretched link": el ::after del enlace (absolute inset-0) cubre toda la fila, que debe llevar ClaseFila (relative),
+   así que pulsar en cualquier parte de la fila la selecciona. Enlaces/botones propios de la fila van por encima con
+   ClaseEncima (relative z-10). Va en la PRIMERA celda. *@
+<a href="@Href" aria-label="@($"Seleccionar {Etiqueta}")" aria-current="@(Seleccionada ? "true" : null)" data-testid="seleccionar-fila"
+   class="inline-flex size-5 items-center justify-center rounded-full border after:absolute after:inset-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-600 @(Seleccionada ? "border-brand-600" : "border-slate-300 dark:border-slate-600")">
+    @if (Seleccionada)
+    {
+        <span class="size-2.5 rounded-full bg-brand-600" aria-hidden="true"></span>
+    }
+</a>
+
+@code {
+    /// <summary>Clase del &lt;tr&gt; seleccionado (resaltado); se combina con <see cref="ClaseFila"/>.</summary>
+    public const string ClaseFilaSeleccionada = "bg-brand-50/70 dark:bg-brand-500/10";
+
+    /// <summary>Clase obligatoria de cada &lt;tr&gt; con SeleccionFila: ancla del enlace estirado y cursor de fila.</summary>
+    public const string ClaseFila = "relative cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/40";
+
+    /// <summary>Clase para enlaces, botones o formularios dentro de la fila que deben seguir siendo pulsables sobre el enlace estirado.</summary>
+    public const string ClaseEncima = "relative z-10";
+
+    [Parameter, EditorRequired] public string Href { get; set; } = string.Empty;
+    [Parameter] public bool Seleccionada { get; set; }
+    [Parameter] public string Etiqueta { get; set; } = "registro";
+}

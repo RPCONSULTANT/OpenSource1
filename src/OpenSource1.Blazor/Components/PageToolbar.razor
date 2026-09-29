@@ -1,0 +1,148 @@
+@* PageToolbar — barra común de listados y fichas (Fix-Features B1): título, migas, + Nuevo, Crear ▾, Ver ▾, Editar y
+   Eliminar. Una acción sin permiso no se renderiza; una que requiere selección, sin selección, se muestra deshabilitada con
+   title explicativo. Menús con <details data-menu> nativos (app.menus.js solo los cierra al pulsar fuera o con Esc).
+   Permisos: PermisosPagina (R6) cargado una vez; la página que ya lo tiene lo pasa en Permisos y la barra no lo recarga. *@
+@inject IAuthorizationService AuthorizationService
+
+<div class="mb-6 flex flex-col gap-3" data-testid="page-toolbar">
+    @if (Migas.Count > 0)
+    {
+        <nav aria-label="Migas de pan" class="text-xs text-slate-500 dark:text-slate-400">
+            <ol class="flex flex-wrap items-center gap-1">
+                @for (var i = 0; i < Migas.Count; i++)
+                {
+                    var miga = Migas[i];
+                    <li class="flex items-center gap-1">
+                        @if (i > 0)
+                        {
+                            <span aria-hidden="true">/</span>
+                        }
+                        @if (miga.Href is null)
+                        {
+                            <span aria-current="page" class="font-semibold text-slate-700 dark:text-slate-200">@miga.Texto</span>
+                        }
+                        else
+                        {
+                            <a href="@miga.Href" class="hover:text-brand-600">@miga.Texto</a>
+                        }
+                    </li>
+                }
+            </ol>
+        </nav>
+    }
+    <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        <div class="min-w-0">
+            <h1 class="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">@Titulo</h1>
+            @if (!string.IsNullOrWhiteSpace(Subtitulo))
+            {
+                <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">@Subtitulo</p>
+            }
+        </div>
+        <div class="flex flex-wrap items-center gap-2" role="toolbar" aria-label="Acciones de la página">
+            @ChildContent
+            @if (NuevoHref is not null && puedeNuevo)
+            {
+                <a href="@NuevoHref" data-testid="accion-nuevo" class="@ClaseNuevo">+ @NuevoTexto</a>
+            }
+            @Menu("Crear", crear, "menu-crear")
+            @Menu("Ver", ver, "menu-ver")
+            @if (EditarUrl is not null && puedeEditar)
+            {
+                @Boton("Editar", SeleccionId is null ? null : EditarUrl(SeleccionId), "accion-editar", ClaseBoton)
+            }
+            @if (EliminarUrl is not null && puedeEliminar)
+            {
+                @Boton("Eliminar", SeleccionId is null ? null : EliminarUrl(SeleccionId), "accion-eliminar", ClaseEliminar)
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    public const string SinSeleccion = "Seleccione un registro de la lista para usar esta acción.";
+
+    private const string ClaseBoton = "btn-press inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700/60";
+    private const string ClaseNuevo = "btn-press inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700";
+    private const string ClaseEliminar = "btn-press inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-100 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400";
+
+    [Parameter, EditorRequired] public string Titulo { get; set; } = string.Empty;
+    [Parameter] public string? Subtitulo { get; set; }
+    [Parameter] public IReadOnlyList<Miga> Migas { get; set; } = [];
+    [Parameter] public string? NuevoHref { get; set; }
+    [Parameter] public string NuevoTexto { get; set; } = "Nuevo";
+    [Parameter] public string? NuevoPermiso { get; set; } = ApplicationPolicies.CanAdd;
+    [Parameter] public IReadOnlyList<AccionPagina> Crear { get; set; } = [];
+    [Parameter] public IReadOnlyList<AccionPagina> Ver { get; set; } = [];
+    [Parameter] public string? SeleccionId { get; set; }
+    [Parameter] public Func<string, string>? EditarUrl { get; set; }
+    [Parameter] public string? EditarPermiso { get; set; } = ApplicationPolicies.CanModify;
+    [Parameter] public Func<string, string>? EliminarUrl { get; set; }
+    [Parameter] public string? EliminarPermiso { get; set; } = ApplicationPolicies.CanDelete;
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    /// <summary>Permisos ya cargados por la página (opcional); si es null la barra los carga del usuario en cascada.</summary>
+    [Parameter] public PermisosPagina? Permisos { get; set; }
+    [CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+    private IReadOnlyList<AccionPagina> crear = [];
+    private IReadOnlyList<AccionPagina> ver = [];
+    private bool puedeNuevo;
+    private bool puedeEditar;
+    private bool puedeEliminar;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var permisos = Permisos ?? await PermisosPagina.CargarAsync(AuthorizationService, AuthenticationStateTask);
+        puedeNuevo = await permisos.PuedeAsync(NuevoPermiso);
+        puedeEditar = await permisos.PuedeAsync(EditarPermiso);
+        puedeEliminar = await permisos.PuedeAsync(EliminarPermiso);
+        crear = await permisos.FiltrarAsync(Crear);
+        ver = await permisos.FiltrarAsync(Ver);
+    }
+
+    private RenderFragment Menu(string etiqueta, IReadOnlyList<AccionPagina> acciones, string testId) => __builder =>
+    {
+        if (acciones.Count == 0)
+        {
+            return;
+        }
+
+        <details class="relative" data-menu data-testid="@testId">
+            <summary class="@ClaseBoton cursor-pointer list-none [&::-webkit-details-marker]:hidden">@etiqueta ▾</summary>
+            <div role="menu" class="absolute right-0 z-30 mt-1 min-w-56 rounded-xl border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-800">
+                @foreach (var accion in acciones)
+                {
+                    @ItemMenu(accion)
+                }
+            </div>
+        </details>
+    };
+
+    private RenderFragment ItemMenu(AccionPagina accion) => __builder =>
+    {
+        if (accion.RequiereSeleccion && SeleccionId is null)
+        {
+            <span role="menuitem" aria-disabled="true" title="@SinSeleccion" class="flex cursor-not-allowed items-center gap-2 px-3 py-2 text-sm text-slate-400">@Icono(accion.Icono) @accion.Etiqueta</span>
+        }
+        else
+        {
+            <a role="menuitem" href="@accion.UrlConId(SeleccionId)" class="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-700/60">@Icono(accion.Icono) @accion.Etiqueta</a>
+        }
+    };
+
+    private static RenderFragment Boton(string etiqueta, string? href, string testId, string clase) => __builder =>
+    {
+        if (href is null)
+        {
+            <span data-testid="@testId" aria-disabled="true" title="@SinSeleccion" class="@clase cursor-not-allowed opacity-50">@etiqueta</span>
+        }
+        else
+        {
+            <a data-testid="@testId" href="@href" class="@clase">@etiqueta</a>
+        }
+    };
+
+    private static RenderFragment Icono(string trazo) => __builder =>
+    {
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4 shrink-0" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="@trazo" /></svg>
+    };
+}

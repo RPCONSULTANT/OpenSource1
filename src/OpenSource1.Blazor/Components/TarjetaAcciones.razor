@@ -1,0 +1,43 @@
+@* TarjetaAcciones — acciones de una tarjeta en la vista Tarjetas (Fix-Features B1): las 2 primeras rápidas permitidas
+   visibles y el resto (rápidas sobrantes + Resto) en un menú ⋯ con <details data-menu>. *@
+@inject IAuthorizationService AuthorizationService
+
+<div class="flex shrink-0 items-center gap-2" data-testid="tarjeta-acciones">
+    @foreach (var accion in visibles)
+    {
+        <a href="@accion.UrlConId(Id)" title="@accion.Etiqueta" class="btn-press inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300">@accion.Etiqueta</a>
+    }
+    @if (enMenu.Count > 0)
+    {
+        <details class="relative" data-menu>
+            <summary aria-label="Más acciones" class="btn-press inline-flex cursor-pointer list-none items-center rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 [&::-webkit-details-marker]:hidden">⋯</summary>
+            <div role="menu" class="absolute right-0 z-30 mt-1 min-w-52 rounded-xl border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-800">
+                @foreach (var accion in enMenu)
+                {
+                    <a role="menuitem" href="@accion.UrlConId(Id)" class="block px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-700/60">@accion.Etiqueta</a>
+                }
+            </div>
+        </details>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Id { get; set; } = string.Empty;
+    [Parameter] public IReadOnlyList<AccionPagina> Rapidas { get; set; } = [];
+    [Parameter] public IReadOnlyList<AccionPagina> Resto { get; set; } = [];
+    /// <summary>Permisos ya cargados por la página (opcional; evita evaluarlos en cada tarjeta).</summary>
+    [Parameter] public PermisosPagina? Permisos { get; set; }
+    [CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+    private IReadOnlyList<AccionPagina> visibles = [];
+    private IReadOnlyList<AccionPagina> enMenu = [];
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var permisos = Permisos ?? await PermisosPagina.CargarAsync(AuthorizationService, AuthenticationStateTask);
+        var rapidas = await permisos.FiltrarAsync(Rapidas);
+        var resto = await permisos.FiltrarAsync(Resto);
+        visibles = rapidas.Take(2).ToList();
+        enMenu = rapidas.Skip(2).Concat(resto).ToList();
+    }
+}
