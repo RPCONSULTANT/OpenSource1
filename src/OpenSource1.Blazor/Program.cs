@@ -529,6 +529,28 @@ app.MapGet("/reports/productos/raw.xlsx", async (
     return Results.File(file.Content, file.ContentType, file.FileName);
 }).RequireAuthorization();
 
+// Paleta Ctrl+K (Fix-Features A4): JSON mínimo del host. El navegador nunca habla con la API: el host la llama con la sesión
+// (BearerTokenHandler) y devuelve solo los resultados. 400 = consulta fuera de 2–100; 502 = la API no respondió.
+app.MapGet("/buscar/sugerencias", async (string? q, IBusquedaApiClient busqueda, ILogger<Program> logger, CancellationToken cancellationToken) =>
+{
+    var termino = q?.Trim() ?? string.Empty;
+    if (termino.Length is < 2 or > 100)
+    {
+        return Results.BadRequest();
+    }
+
+    try
+    {
+        var resultado = await busqueda.BuscarAsync(termino, 5, cancellationToken);
+        return resultado.Succeeded ? Results.Json(resultado.Valor) : Results.StatusCode(StatusCodes.Status502BadGateway);
+    }
+    catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+    {
+        logger.LogWarning(ex, "No fue posible obtener sugerencias de búsqueda.");
+        return Results.StatusCode(StatusCodes.Status502BadGateway);
+    }
+}).RequireAuthorization(ApplicationPolicies.CanConsult);
+
 app.MapStaticAssets();
 app.MapRazorComponents<App>();
 
