@@ -85,6 +85,19 @@ public sealed class InicioYGruposTests
         }
     }
 
+    [Fact]
+    public async Task Productos_SinParametroPagina_PideLaPrimeraPagina()
+    {
+        // Runtime de la puerta A: /productos?estado=without mostraba "página 0 de 1" (el KPI enlaza sin ?pagina=).
+        using var app = new BlazorSsrFactory();
+        var (_, productos) = SimularTotales(app, clientes: 0, productos: 0, sinExistencia: 0);
+
+        var html = await HtmlAsync(app.Cliente("Administrador"), "/productos?estado=without");
+
+        productos.Verify(c => c.ListAsync(It.IsAny<ProductoSearchFilter?>(), It.Is<PageRequest?>(p => p != null && p.Pagina == 1), It.IsAny<CancellationToken>()), Times.Once);
+        Assert.Contains("página 1 de 1", html);
+    }
+
     private static (Mock<ISocioNegocioApiClient> Socios, Mock<IProductoApiClient> Productos) SimularTotales(
         BlazorSsrFactory app, long clientes, long productos, long sinExistencia)
     {
