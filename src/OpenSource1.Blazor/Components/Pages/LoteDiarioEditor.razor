@@ -3,8 +3,10 @@
 @attribute [Authorize(Policy = ApplicationPolicies.CanConsult)]
 @using Microsoft.AspNetCore.Authorization
 @using OpenSource1.Application.Features.DiariosInventario.Plantillas.Dtos
+@using OpenSource1.Application.Features.Productos.Dtos
 @using OpenSource1.Blazor.Services
 @inject IDiarioInventarioApiClient DiarioApiClient
+@inject IProductoApiClient ProductoApiClient
 @inject IAuthorizationService AuthorizationService
 @inject ILogger<LoteDiarioEditor> Logger
 @inject NavigationManager Nav
@@ -28,6 +30,10 @@
         }
         else
         {
+            @if (productoAjuste is not null)
+            {
+                <div class="mb-4"><MessageBox Type="info" Message="@($"Al crear el lote se abrirá con una línea para {productoAjuste.Codigo} — {productoAjuste.Nombre}.")" /></div>
+            }
             <EditForm Model="SaveInput" FormName="save-lote-diario" OnValidSubmit="CreateAsync" Enhance="true">
                 <DataAnnotationsValidator />
                 <LoteDiarioFields Model="SaveInput!" Prefix="SaveInput" Plantillas="@plantillas" EsEdicion="false" />
@@ -73,6 +79,8 @@
 @code {
     [Parameter] public Guid? Id { get; set; }
     [SupplyParameterFromQuery(Name = "returnUrl")] private string? ReturnUrl { get; set; }
+    // Ajuste en diario desde un producto (Fix-Features C2): el EditForm publica en la misma URL, así que llega también en el POST.
+    [SupplyParameterFromQuery(Name = "productoId")] private Guid? ProductoId { get; set; }
     [SupplyParameterFromForm(FormName = "save-lote-diario")] private DiariosInventario.LoteForm? SaveInput { get; set; }
     [SupplyParameterFromForm(FormName = "update-lote-diario")] private DiariosInventario.LoteForm? UpdateInput { get; set; }
     [CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
@@ -85,6 +93,7 @@
     private string? message;
     private string messageType = "warning";
     private IReadOnlyList<string> errores = [];
+    private ProductoResponse? productoAjuste;
 
     private bool EsEdicion => Id.HasValue;
     private string Volver => RetornoLocal.Volver(ReturnUrl, "/diarios-inventario");
@@ -134,6 +143,19 @@
                 Logger.LogWarning(ex, "Could not load lote de diario {Id} from API.", id);
                 cargaFallida = true;
                 Show("danger", "No fue posible cargar el lote a modificar.");
+            }
+        }
+
+        // Solo en el alta: aviso con el producto que se añadirá. Si no carga, el alta sigue funcionando (el lote abrirá la línea igual).
+        if (!EsEdicion && ProductoId is { } productoId)
+        {
+            try
+            {
+                productoAjuste = await ProductoApiClient.GetByIdAsync(productoId);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Could not load producto {Id} for ajuste en diario.", productoId);
             }
         }
     }
@@ -189,9 +211,11 @@
         }
     }
 
-    // C2 amplía este método para abrir el lote con la línea del producto (?productoId=).
+    // Alta desde un producto (?productoId=): abre el lote nuevo con la línea del producto precargada (?addProductoId=).
     private string DestinoTrasGuardar(LoteDiarioOperationResult result, string successCode) =>
-        RetornoLocal.ConParametro(Volver, "ok", successCode);
+        successCode == "created" && ProductoId is { } productoId && result.Valor is { } lote
+            ? $"/diarios-inventario/{lote.Id}?addProductoId={productoId}"
+            : RetornoLocal.ConParametro(Volver, "ok", successCode);
 
     private void Show(string type, string? text, IReadOnlyList<string>? errors = null)
     {

@@ -15,6 +15,7 @@
 <PageToolbar Titulo="Productos" Subtitulo="Listado principal con búsqueda, filtros y reportería." Migas="@migas" Permisos="@permisos"
              NuevoHref="@RetornoLocal.ConRetorno("/productos/nuevo", UrlActual)"
              SeleccionId="@SeleccionValida?.ToString()"
+             Crear="@AccionesProducto.Crear" Ver="@AccionesProducto.Ver"
              EditarUrl="@(id => RetornoLocal.ConRetorno($"/productos/{id}/editar", UrlActual))"
              EliminarUrl="@(id => BuildListUrl(deleteId: Guid.Parse(id)))">
         <a href="@BuildListUrl(view: "grid")" title="Vista cuadrícula" class="btn-press inline-flex items-center justify-center size-10 rounded-lg border shadow-sm @(IsListView ?"border-slate-300 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700/60" : "border-brand-200 bg-brand-50 text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-400")"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-5"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 8.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 8.25 20.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z" /></svg></a>
@@ -215,7 +216,7 @@
             <input type="hidden" name="showFilters" value="true" />
             <input type="hidden" name="view" value="@(View ?? "grid")" />
             <input type="hidden" name="filters" value="@string.Join(",", ActiveFilterFields)" />
-            @if (EstadoExistencia is not null)
+            @if (EstadoExistencia is not null && !ActiveFilterFields.Contains("estado"))
             {
                 <input type="hidden" name="estado" value="@EstadoExistencia" />
             }
@@ -234,7 +235,14 @@
                         <label class="block text-sm font-semibold text-slate-700 dark:text-slate-300">@FieldLabel(field)</label>
                         <a href="@BuildListUrl(activeFiltersOverride: ActiveFilterFields.Where(f => f != field).ToList())" title="Quitar campo" class="text-xs font-semibold text-red-600 hover:text-red-700">✕ quitar</a>
                     </div>
-                    <input type="text" name="@field" value="@GetFieldValue(field)" placeholder="ej: valor, *valor*, a||b, a&&b" class="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200" />
+                    @if (field == "estado")
+                    {
+                        @SelectorEstado()
+                    }
+                    else
+                    {
+                        <input type="text" name="@field" value="@GetFieldValue(field)" placeholder="ej: valor, *valor*, a||b, a&&b" class="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200" />
+                    }
                 </div>
             }
             @if (AvailableFields.Count > 0)
@@ -276,6 +284,10 @@
                 <input type="hidden" name="view" value="@(View ?? "grid")" />
                 <input type="hidden" name="report" value="true" />
                 <input type="hidden" name="filters" value="@string.Join(",", ActiveFilterFields)" />
+                @if (EstadoExistencia is not null && !ActiveFilterFields.Contains("estado"))
+                {
+                    <input type="hidden" name="estado" value="@EstadoExistencia" />
+                }
                 <div><label class="block text-xs font-semibold text-slate-700 mb-1 dark:text-slate-300">Nombre</label><input type="text" name="nombre" value="@SearchNombre" placeholder="ej: mesa, *mesa*, mesa||silla" class="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200" /></div>
                 @foreach (var field in ActiveFilterFields)
                 {
@@ -284,7 +296,14 @@
                             <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300">@FieldLabel(field)</label>
                             <a href="@BuildListUrl(report: true, activeFiltersOverride: ActiveFilterFields.Where(f => f != field).ToList())" title="Quitar campo" class="text-xs font-semibold text-red-600 hover:text-red-700">✕ quitar</a>
                         </div>
-                        <input type="text" name="@field" value="@GetFieldValue(field)" placeholder="ej: valor, *valor*, a||b, a&&b" class="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200" />
+                        @if (field == "estado")
+                        {
+                            @SelectorEstado()
+                        }
+                        else
+                        {
+                            <input type="text" name="@field" value="@GetFieldValue(field)" placeholder="ej: valor, *valor*, a||b, a&&b" class="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200" />
+                        }
                     </div>
                 }
                 @if (AvailableFields.Count > 0)
@@ -340,6 +359,7 @@
         ("unidadMedidaNombre", "Nombre de unidad"),
         ("precioVenta", "Precio de venta"),
         ("existencia", "Existencia"),
+        ("estado", "Estado de existencia"),
     ];
 
     [SupplyParameterFromQuery(Name = "nombre")] private string? SearchNombre { get; set; }
@@ -350,7 +370,8 @@
     [SupplyParameterFromQuery(Name = "unidadMedidaNombre")] private string? SearchUnidadMedidaNombre { get; set; }
     [SupplyParameterFromQuery(Name = "precioVenta")] private string? SearchPrecioVenta { get; set; }
     [SupplyParameterFromQuery(Name = "existencia")] private string? SearchExistencia { get; set; }
-    // Estado de existencia (KPI "Sin existencia" del inicio y del grupo): solo "with" o "without"; cualquier otro valor se ignora.
+    // Estado de existencia (KPI "Sin existencia" del inicio y del grupo, y campo "Estado de existencia" del panel de filtros):
+    // solo "with" o "without" (ProductoSearchFilter.StockState); cualquier otro valor se ignora. Un único ?estado=, con o sin campo activo.
     [SupplyParameterFromQuery(Name = "estado")] private string? SearchEstado { get; set; }
     private string? EstadoExistencia => SearchEstado is "with" or "without" ? SearchEstado : null;
     [SupplyParameterFromQuery(Name = "filters")] private string? FiltersRaw { get; set; }
@@ -414,16 +435,26 @@
     }
     private async Task LoadAsync(){if (Pagina < 1) Pagina = 1; try{var pagina=await ProductoApiClient.ListAsync(new ProductoSearchFilter(GetActiveValue("codigo", SearchCodigo), EmptyAsNull(SearchNombre), GetActiveValue("categoriaCodigo", SearchCategoriaCodigo), GetActiveValue("categoriaNombre", SearchCategoriaNombre), GetActiveValue("unidadMedidaCodigo", SearchUnidadMedidaCodigo), GetActiveValue("unidadMedidaNombre", SearchUnidadMedidaNombre), GetActiveValue("precioVenta", SearchPrecioVenta), GetActiveValue("existencia", SearchExistencia), EstadoExistencia), new PageRequest(Pagina, PageRequest.TamanoPorDefecto)); productos=pagina.Items; totalProductos=pagina.Total; totalPaginas=pagina.TotalPaginas;} catch(Exception ex){Logger.LogWarning(ex,"Could not load productos from API."); message="No fue posible cargar los productos."; messageType="danger";}}
     private async Task DeleteAsync(){if(!DeleteId.HasValue){modalError="No se pudo identificar el producto. Intente de nuevo."; return;} var result=await ProductoApiClient.DeleteAsync(DeleteId.Value); if(result.Succeeded) Nav.NavigateTo(RetornoLocal.ConParametro(UrlActual, "ok", "deleted")); else modalError=result.Message;}
-    // Acciones de cada tarjeta (vista Tarjetas). Fix-Features C2 añade aquí las acciones de Crear/Ver del producto.
+    // Acciones de cada tarjeta (vista Tarjetas): Ficha y Editar visibles; en el menú ⋯ las de Crear/Ver del producto (C2) y Eliminar.
     private RenderFragment TarjetaAccionesDe(ProductoResponse p) => __builder =>
     {
         <TarjetaAcciones Id="@p.Id.ToString()" Permisos="@permisos"
                          Rapidas="@([new AccionPagina("Ficha", IconosModulo.Cubo, id => $"/productos/{id}"),
                                     new AccionPagina("Editar", IconosModulo.Lista, id => RetornoLocal.ConRetorno($"/productos/{id}/editar", UrlActual), ApplicationPolicies.CanModify)])"
-                         Resto="@([new AccionPagina("Eliminar", IconosModulo.Lista, id => BuildListUrl(deleteId: Guid.Parse(id!)), ApplicationPolicies.CanDelete)])" />
+                         Resto="@([.. AccionesProducto.Crear, .. AccionesProducto.VerDesdeFicha,
+                                  new AccionPagina("Eliminar", IconosModulo.Lista, id => BuildListUrl(deleteId: Guid.Parse(id!)), ApplicationPolicies.CanDelete)])" />
+    };
+    // Campo "Estado de existencia" del panel de filtros y del reporte: el mismo ?estado= que los KPI (with/without).
+    private RenderFragment SelectorEstado() => __builder =>
+    {
+        <select name="estado" class="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200">
+            <option value="" selected="@(EstadoExistencia is null)">Todos</option>
+            <option value="with" selected="@(EstadoExistencia == "with")">Con existencia</option>
+            <option value="without" selected="@(EstadoExistencia == "without")">Sin existencia</option>
+        </select>
     };
     private string? GetActiveValue(string key, string? value) => ActiveFilterFields.Contains(key) ? EmptyAsNull(value) : null;
-    private string? GetFieldValue(string key) => key switch { "codigo" => SearchCodigo, "categoriaCodigo" => SearchCategoriaCodigo, "categoriaNombre" => SearchCategoriaNombre, "unidadMedidaCodigo" => SearchUnidadMedidaCodigo, "unidadMedidaNombre" => SearchUnidadMedidaNombre, "precioVenta" => SearchPrecioVenta, "existencia" => SearchExistencia, _ => null };
+    private string? GetFieldValue(string key) => key switch { "codigo" => SearchCodigo, "categoriaCodigo" => SearchCategoriaCodigo, "categoriaNombre" => SearchCategoriaNombre, "unidadMedidaCodigo" => SearchUnidadMedidaCodigo, "unidadMedidaNombre" => SearchUnidadMedidaNombre, "precioVenta" => SearchPrecioVenta, "existencia" => SearchExistencia, "estado" => EstadoExistencia, _ => null };
     private static List<string> ParseActiveFields(string? raw) => string.IsNullOrWhiteSpace(raw) ? [] : [.. raw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Where(f => FilterableFields.Any(field => field.Key == f)).Distinct()];
     // Conserva filtros, estado, vista, página y la selección (por defecto el Sel actual; sinSeleccion la quita). Nunca emite ok ni editId.
     private string BuildListUrl(Guid? deleteId=null, bool? showFilters=null, string? view=null, bool? report=null, Guid? sel=null, IReadOnlyList<string>? activeFiltersOverride=null, int? pagina=null, bool sinEstado=false, bool sinSeleccion=false)
@@ -431,7 +462,9 @@
         var activeFields = activeFiltersOverride ?? ActiveFilterFields;
         var parameters=new List<string>();
         AddParameter(parameters,"nombre",SearchNombre);
-        if (!sinEstado) AddParameter(parameters,"estado",EstadoExistencia);
+        // Quitar el campo "Estado de existencia" del panel (o "Limpiar todo") también quita el estado.
+        var quitaEstado = sinEstado || (ActiveFilterFields.Contains("estado") && !activeFields.Contains("estado"));
+        if (!quitaEstado) AddParameter(parameters,"estado",EstadoExistencia);
         if (activeFields.Contains("codigo")) AddParameter(parameters,"codigo",SearchCodigo);
         if (activeFields.Contains("categoriaCodigo")) AddParameter(parameters,"categoriaCodigo",SearchCategoriaCodigo);
         if (activeFields.Contains("categoriaNombre")) AddParameter(parameters,"categoriaNombre",SearchCategoriaNombre);
