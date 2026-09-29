@@ -20,6 +20,8 @@ public sealed class ConversionClientesProductosTests
     [Theory]
     [InlineData("/clientes/new", "/clientes/nuevo")]
     [InlineData("/productos/new", "/productos/nuevo")]
+    [InlineData("/clientes/new?returnUrl=%2Fclientes%3Fview%3Dlist", "/clientes/nuevo?returnUrl=%2Fclientes%3Fview%3Dlist")]
+    [InlineData("/productos/new?returnUrl=%2Fproductos%3Fpagina%3D2", "/productos/nuevo?returnUrl=%2Fproductos%3Fpagina%3D2")]
     public async Task RutaNewAntigua_RedirigeANuevo(string origen, string destino)
     {
         using var app = Configurar(new BlazorSsrFactory());
@@ -199,6 +201,67 @@ public sealed class ConversionClientesProductosTests
         Assert.DoesNotContain("overflow-hidden", html[tarjetaListado..acciones]);
     }
 
+    [Theory]
+    [InlineData("/clientes?view=list&focusId={0}", "/clientes?view=list&sel={0}", "cliente")]
+    [InlineData("/productos?focusId={0}", "/productos?sel={0}", "producto")]
+    [InlineData("/productos?focusId={0}&ok=updated", "/productos?sel={0}&ok=updated", "producto")]
+    public async Task FocusIdAntiguo_SeMapeaASel(string origen, string destino, string entidad)
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+        var id = entidad == "cliente" ? IdCliente : IdProducto;
+
+        var respuesta = await app.Cliente().GetAsync(string.Format(origen, id));
+
+        Assert.Equal(HttpStatusCode.Redirect, respuesta.StatusCode);
+        Assert.Equal(string.Format(destino, id), FormulariosSsr.Destino(respuesta));
+    }
+
+    [Theory]
+    [InlineData("/clientes", "cliente")]
+    [InlineData("/productos", "producto")]
+    public async Task UrlActual_NoArrastraReporteNiPanelDeFiltros(string lista, string entidad)
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+        var id = entidad == "cliente" ? IdCliente : IdProducto;
+
+        var html = await HtmlSsr.HtmlAsync(app.Cliente(), $"{lista}?showFilters=true&report=true&sel={id}");
+
+        var retorno = Uri.EscapeDataString($"{lista}?sel={id}");
+        Assert.Contains($"<a data-testid=\"accion-editar\" href=\"{lista}/{id}/editar?returnUrl={retorno}\"", html);
+        Assert.Contains($"href=\"{lista}/nuevo?returnUrl={retorno}\" data-testid=\"accion-nuevo\"", html);
+    }
+
+    [Fact]
+    public async Task SubtituloDelCodigo_SoloEnElAlta()
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+
+        var alta = await HtmlSsr.HtmlAsync(app.Cliente(), "/clientes/nuevo");
+        var edicion = await HtmlSsr.HtmlAsync(app.Cliente(), $"/clientes/{IdCliente}/editar");
+
+        Assert.Contains("El código lo asigna el sistema al guardar.", alta);
+        Assert.DoesNotContain("El código lo asigna el sistema", edicion);
+    }
+
+    [Fact]
+    public async Task Alta_Cliente_VuelveALaListaConOkCreated()
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+        var socios = app.Simular<ISocioNegocioApiClient>();
+        socios.Setup(c => c.CreateAsync(It.Is<SocioNegocioInput>(i => i.NombreComercial == "Comercial Dos"), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SocioNegocioOperationResult(true, "ok", Guid.NewGuid()));
+
+        var respuesta = await FormulariosSsr.EnviarAsync(app.Cliente(), "/clientes/nuevo?returnUrl=%2Fclientes%3Fview%3Dlist", "cliente-new",
+            new Dictionary<string, string> { ["Input.NombreComercial"] = "Comercial Dos", ["Input.Email"] = "dos@test.local" });
+        var destino = FormulariosSsr.Destino(respuesta);
+        var lista = await HtmlSsr.HtmlAsync(app.Cliente(), destino);
+
+        Assert.Equal(HttpStatusCode.Redirect, respuesta.StatusCode);
+        Assert.Equal("/clientes?view=list&ok=created", destino);
+        Assert.Contains("Cliente creado satisfactoriamente.", lista);
+        socios.Verify(c => c.CreateAsync(It.IsAny<SocioNegocioInput>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
     private static BlazorSsrFactory Configurar(BlazorSsrFactory app)
     {
         var cliente = new SocioNegocioResponse { Id = IdCliente, Codigo = "C0001", NombreComercial = "Comercial Uno", Email = "uno@test.local" };
@@ -207,10 +270,12 @@ public sealed class ConversionClientesProductosTests
         socios.Setup(c => c.ListAsync(It.IsAny<SocioNegocioSearchFilter?>(), It.IsAny<PageRequest?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new PagedResult<SocioNegocioResponse>([cliente], 1, 50, 1));
         socios.Setup(c => c.GetByIdAsync(IdCliente, It.IsAny<CancellationToken>())).ReturnsAsync(cliente);
+        socios.Setup(c => c.ListAllAsync(It.IsAny<SocioNegocioSearchFilter?>(), It.IsAny<CancellationToken>())).ReturnsAsync([cliente]);
         var productos = app.Simular<IProductoApiClient>();
         productos.Setup(c => c.ListAsync(It.IsAny<ProductoSearchFilter?>(), It.IsAny<PageRequest?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new PagedResult<ProductoResponse>([producto], 1, 50, 1));
         productos.Setup(c => c.GetByIdAsync(IdProducto, It.IsAny<CancellationToken>())).ReturnsAsync(producto);
+        productos.Setup(c => c.ListAllAsync(It.IsAny<ProductoSearchFilter?>(), It.IsAny<CancellationToken>())).ReturnsAsync([producto]);
         app.Simular<ITerminoPagoApiClient>().Setup(c => c.ListAllAsync(It.IsAny<CancellationToken>())).ReturnsAsync([]);
         app.Simular<IGrupoContableApiClient>();
         app.Simular<IGrupoClienteContableApiClient>();

@@ -4,6 +4,6 @@
 @inject NavigationManager Nav
 
 @code {
-    // Ruta antigua (Fix-Features B2c): el alta vive en /clientes/nuevo.
-    protected override void OnInitialized() => Nav.NavigateTo("/clientes/nuevo", replace: true);
+    // Ruta antigua (Fix-Features B2c): el alta vive en /clientes/nuevo. La query (p. ej. returnUrl) se conserva.
+    protected override void OnInitialized() => Nav.NavigateTo("/clientes/nuevo" + new Uri(Nav.Uri).Query, replace: true);
 }

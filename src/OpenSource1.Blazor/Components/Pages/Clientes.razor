@@ -367,6 +367,8 @@
     [SupplyParameterFromQuery(Name = "sel")] private Guid? Sel { get; set; }
     // Solo para redirigir la ruta antigua ?editId= a /clientes/{id}/editar.
     [SupplyParameterFromQuery(Name = "editId")] private Guid? EditId { get; set; }
+    // Solo para mapear la ruta antigua ?focusId= (marcadores anteriores a B2c) a ?sel=.
+    [SupplyParameterFromQuery(Name = "focusId")] private Guid? FocusId { get; set; }
     [SupplyParameterFromQuery(Name = "deleteId")] private Guid? DeleteId { get; set; }
     [SupplyParameterFromQuery(Name = "ok")] private string? Ok { get; set; }
     [SupplyParameterFromQuery(Name = "pagina")] private int Pagina { get; set; } = 1;
@@ -384,7 +386,8 @@
     // Selección obsoleta (Review Focus 4): un ?sel= que no está en la página cargada no cuenta como selección.
     private Guid? SeleccionValida => Sel is { } s && clientes.Any(c => c.Id == s) ? s : null;
     // Única URL de vuelta del listado (filtros, página, vista y selección; nunca ok/deleteId/editId).
-    private string UrlActual => RetornoLocal.SinTransitorios(BuildListUrl());
+    // Tampoco lleva el diálogo de reporte ni el panel de filtros abiertos: volver de editar no debe reabrirlos.
+    private string UrlActual => RetornoLocal.SinTransitorios(BuildListUrl(report: false, showFilters: false));
     private const string EntityFabOnChange = "(function(cb){var fab=document.getElementById('cliente-detail-fab');var link=document.getElementById('cliente-detail-fab-link');if(!fab||!link)return;if(cb.checked){fab.dataset.lastId=cb.value;}else if(fab.dataset.lastId===cb.value){var form=cb.closest('form');var sc=form?form.querySelector('input[name=SelectedIds]:checked'):null;fab.dataset.lastId=sc?sc.value:'';}var base_=fab.getAttribute('data-base-url');var sep=base_.indexOf('?')===-1?'?':'&';var href=fab.dataset.lastId?(base_+sep+'sel='+fab.dataset.lastId):base_;link.setAttribute('href',href);if(fab.getAttribute('data-auto-nav')==='true'){window.location.href=href;return;}if(fab.dataset.lastId){fab.classList.remove('hidden');}else{fab.classList.add('hidden');}})(this)";
     private string GridColsClass => (ShowFactbox, ShowFilters) switch { (true, true) => "xl:grid-cols-[280px_minmax(0,1fr)_320px]", (true, false) => "xl:grid-cols-[280px_minmax(0,1fr)]", (false, true) => "xl:grid-cols-[minmax(0,1fr)_320px]", (false, false) => "xl:grid-cols-1" };
     private List<(string Key, string Label)> AvailableFields => [.. FilterableFields.Where(f => !ActiveFilterFields.Contains(f.Key))];
@@ -397,6 +400,13 @@
         {
             // Ruta antigua ?editId=: la modificación vive en /clientes/{id}/editar (UrlActual no lleva editId: sin bucle).
             Nav.NavigateTo(RetornoLocal.ConRetorno($"/clientes/{editId}/editar", UrlActual), replace: true);
+            return;
+        }
+        if (FocusId is { } focusId && Sel is null)
+        {
+            // Ruta antigua ?focusId=: la selección es ?sel= (BuildListUrl no emite focusId); el aviso ok= se conserva.
+            var destino = BuildListUrl(sel: focusId);
+            Nav.NavigateTo(Ok is null ? destino : RetornoLocal.ConParametro(destino, "ok", Ok), replace: true);
             return;
         }
         if (!string.IsNullOrWhiteSpace(AddField) && FilterableFields.Any(f => f.Key == AddField) && !ActiveFilterFields.Contains(AddField))

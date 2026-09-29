@@ -20,7 +20,7 @@
    Los dos EditForm (cliente-new / cliente-edit) están SIEMPRE en el árbol: si el permiso o la rama los ocultan quedan vacíos,
    para que un POST forzado llegue a su handler y muestre el mensaje real de la API. *@
 <EntityFormPage Titulo="@(EsEdicion ? "Modificar cliente" : "Nuevo cliente")"
-                Subtitulo="Datos generales, fiscales y comerciales. El código lo asigna el sistema al guardar."
+                Subtitulo="@(EsEdicion ? "Datos generales, fiscales y comerciales." : "Datos generales, fiscales y comerciales. El código lo asigna el sistema al guardar.")"
                 Migas="@Migas" Mensaje="@message" TipoMensaje="@messageType" Errores="@errores">
     @if (!Permitido)
     {
