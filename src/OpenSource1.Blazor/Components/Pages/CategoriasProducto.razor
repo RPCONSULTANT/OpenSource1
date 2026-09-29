@@ -13,11 +13,12 @@
 
 <PageTitle>Categorías de Producto – AxionERP</PageTitle>
 
-<div class="mb-6">
-    <p class="text-xs font-bold tracking-widest uppercase text-brand-600 mb-1">Mantenimiento</p>
-    <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">Categorías de Producto</h1>
-    <p class="text-sm text-slate-500 mt-1">Catálogo de categorías de producto con jerarquía opcional (categoría padre).</p>
-</div>
+<PageToolbar Titulo="Categorías de Producto" Subtitulo="Catálogo de categorías de producto con jerarquía opcional (categoría padre)."
+             Migas="@Migas" Permisos="@permisos"
+             NuevoHref="@RetornoLocal.ConRetorno("/categorias-producto/nuevo", UrlActual)"
+             SeleccionId="@SeleccionValida?.ToString()"
+             EditarUrl="@EditarHref"
+             EliminarUrl="@(id => BuildListUrl(deleteId: Guid.Parse(id)))" />
 
 @* Un fallo de borrado se muestra solo dentro del diálogo (donde el usuario está mirando), no también en la página. *@
 @if (!string.IsNullOrWhiteSpace(message) && !(DeleteId.HasValue && canDelete && messageType != "success"))
@@ -74,6 +75,7 @@
         <table class="min-w-full divide-y divide-slate-100 text-sm">
             <thead class="bg-slate-50">
                 <tr>
+                    <th class="px-4 py-3"><span class="sr-only">Seleccionar</span></th>
                     <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Código</th>
                     <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Nombre</th>
                     <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Categoría padre</th>
@@ -85,7 +87,7 @@
                 @if (categorias.Count == 0)
                 {
                     <tr>
-                        <td colspan="5" class="px-6 py-8 text-center text-slate-400 text-sm">
+                        <td colspan="6" class="px-6 py-8 text-center text-slate-400 text-sm">
                             No hay categorías registradas con esos criterios.
                         </td>
                     </tr>
@@ -94,7 +96,9 @@
                 {
                     @foreach (var categoria in categorias)
                     {
-                        <tr @key="categoria.Id" class="hover:bg-slate-50 transition-colors">
+                        var marcada = categoria.Id == SeleccionValida;
+                        <tr @key="categoria.Id" class="@SeleccionFila.ClaseFila transition-colors @(marcada ? SeleccionFila.ClaseFilaSeleccionada : null)">
+                            <td class="px-4 py-3"><SeleccionFila Href="@BuildListUrl(sel: categoria.Id)" Seleccionada="@marcada" Etiqueta="@categoria.Codigo" /></td>
                             <td class="px-6 py-3 font-mono text-xs font-semibold text-brand-700">@categoria.Codigo</td>
                             <td class="px-6 py-3 text-slate-700">@categoria.Nombre</td>
                             <td class="px-6 py-3 text-slate-700">@(string.IsNullOrEmpty(categoria.CategoriaPadreNombre) ? "—" : categoria.CategoriaPadreNombre)</td>
@@ -105,7 +109,7 @@
                                 <div class="flex items-center justify-end gap-2">
                                     @if (canModify)
                                     {
-                                        <a href="@BuildListUrl(editId: categoria.Id)" class="btn-press inline-flex items-center justify-center size-8 rounded-lg border border-amber-200 bg-amber-50 text-amber-600 hover:bg-amber-100" title="Editar categoría">
+                                        <a href="@EditarHref(categoria.Id.ToString())" class="btn-press inline-flex items-center justify-center size-8 rounded-lg border border-amber-200 bg-amber-50 text-amber-600 hover:bg-amber-100" title="Editar categoría">
                                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Z" /></svg>
                                         </a>
                                     }
@@ -141,84 +145,9 @@
     }
 </div>
 
-<!-- ── Formularios de operación ── -->
-<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-
-    <!-- Agregar -->
-    @if (canAdd)
-    {
-        <div id="agregar" class="rounded-2xl border border-green-200 bg-white shadow-sm overflow-hidden">
-            <div class="px-6 py-4 bg-green-50 border-b border-green-100 flex items-center gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-5 text-green-600">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                </svg>
-                <h2 class="text-sm font-bold text-green-800">Agregar categoría</h2>
-            </div>
-            <div class="px-6 py-5">
-                <EditForm Model="SaveInput" FormName="save-categoriaproducto" OnValidSubmit="CreateAsync" Enhance="true">
-                    <DataAnnotationsValidator />
-                    <CategoriaProductoFields Model="SaveInput!" Prefix="SaveInput" Opciones="opcionesPadre" />
-                    <div class="mt-5">
-                        <button type="submit"
-                                class="btn-press flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 transition-colors shadow-sm">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                            </svg>
-                            Agregar
-                        </button>
-                    </div>
-                </EditForm>
-            </div>
-        </div>
-    }
-
-    <!-- Modificar -->
-    @if (canModify)
-    {
-        <div id="modificar" class="rounded-2xl border border-amber-200 bg-white shadow-sm overflow-hidden">
-            <div class="px-6 py-4 bg-amber-50 border-b border-amber-100 flex items-center gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-5 text-amber-600">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
-                </svg>
-                <h2 class="text-sm font-bold text-amber-800">Modificar categoría</h2>
-            </div>
-            <div class="px-6 py-5">
-                @if (opcionesPadreNoDisponibles)
-                {
-                    <div class="mb-4">
-                        <MessageBox Type="warning" Message="Modificar no está disponible hasta que carguen las categorías padre." />
-                    </div>
-                }
-                @if (EditId.HasValue && UpdateInput?.Id != EditId)
-                {
-                    <MessageBox Type="warning" Message="No se encontró la categoría seleccionada. Puede haber sido eliminado por otro usuario." />
-                }
-                <EditForm Model="UpdateInput" FormName="update-categoriaproducto" OnValidSubmit="UpdateAsync" Enhance="true">
-                    <DataAnnotationsValidator />
-                    <input type="hidden" name="UpdateInput.Id" value="@UpdateInput!.Id" />
-                    <CategoriaProductoFields Model="UpdateInput!" Prefix="UpdateInput" Opciones="opcionesPadre" ExcluirId="UpdateInput.Id" PadreActualNombre="@padreActualNombre" />
-                    @if (!opcionesPadreNoDisponibles)
-                    {
-                    <div class="mt-5">
-                        <button type="submit"
-                                class="btn-press flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-600 transition-colors shadow-sm">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125" />
-                            </svg>
-                            Guardar cambios
-                        </button>
-                    </div>
-                    }
-                </EditForm>
-            </div>
-        </div>
-    }
-
-</div>
-
 @if (DeleteId.HasValue && canDelete)
 {
-    <ConfirmDialog Title="Confirmar eliminación" Message="Esta acción eliminará la categoría seleccionada y no se puede deshacer." Variant="danger" CancelHref="/categorias-producto">
+    <ConfirmDialog Title="Confirmar eliminación" Message="Esta acción eliminará la categoría seleccionada y no se puede deshacer." Variant="danger" CancelHref="@UrlActual">
         @if (!string.IsNullOrWhiteSpace(message) && messageType != "success")
         {
             <div class="mb-4"><MessageBox Type="@messageType" Message="@message" /></div>
@@ -227,18 +156,12 @@
         <EditForm Model="DeleteInput" FormName="delete-categoriaproducto" OnValidSubmit="DeleteAsync" class="mt-4">
             <input type="hidden" name="DeleteInput.Id" value="@DeleteId" />
             <button type="submit" class="btn-press rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-700">Sí, eliminar</button>
-            <a href="/categorias-producto" class="btn-press ml-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Cancelar</a>
+            <a href="@UrlActual" class="btn-press ml-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Cancelar</a>
         </EditForm>
     </ConfirmDialog>
 }
 
 @code {
-    [SupplyParameterFromForm(FormName = "save-categoriaproducto")]
-    private CategoriaProductoForm? SaveInput { get; set; }
-
-    [SupplyParameterFromForm(FormName = "update-categoriaproducto")]
-    private CategoriaProductoForm? UpdateInput { get; set; }
-
     [SupplyParameterFromForm(FormName = "delete-categoriaproducto")]
     private DeleteForm? DeleteInput { get; set; }
 
@@ -248,8 +171,12 @@
     [SupplyParameterFromQuery(Name = "nombre")]
     private string? SearchNombre { get; set; }
 
+    // Solo para redirigir la ruta antigua ?editId= a la página-tarjeta de edición (Fix-Features B2).
     [SupplyParameterFromQuery(Name = "editId")]
     private Guid? EditId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "sel")]
+    private Guid? Sel { get; set; }
 
     [SupplyParameterFromQuery(Name = "deleteId")]
     private Guid? DeleteId { get; set; }
@@ -261,14 +188,6 @@
     private int Pagina { get; set; } = 1;
 
     private IReadOnlyList<CategoriaProductoResponse> categorias = [];
-    // Todas las categorías, para poblar el <select> de categoría padre (se pide a la API, no se deriva de la página del listado).
-    private IReadOnlyList<CategoriaProductoResponse> opcionesPadre = [];
-    // Si las opciones de padre no cargaron (excepción o lista vacía) no se permite MODIFICAR: el <select>
-    // no reflejaría la jerarquía real y guardar podría dejar el padre en null sin avisar.
-    private bool opcionesPadreNoDisponibles;
-    private const string MensajeOpcionesPadre = "No fue posible cargar las categorías disponibles como padre. Por seguridad no se puede modificar una categoría hasta que carguen; recargue la página.";
-    // Nombre del padre del registro que se edita (de GetByIdAsync), para rotular su opción en el <select>.
-    private string? padreActualNombre;
     // Registro a eliminar, cargado fresco con GetByIdAsync (no buscado en la página de la lista).
     private CategoriaProductoResponse? itemToDelete;
     private long totalCategorias;
@@ -276,31 +195,37 @@
     private string? message;
     private string messageType = "info";
 
-    // Permisos computados sincrónicamente en OnInitializedAsync
-    private bool canAdd;
-    private bool canModify;
-    private bool canDelete;
+    // Permisos cargados una vez (PermisosPagina); la barra los recibe ya cargados.
+    private PermisosPagina? permisos;
+    private bool canModify => permisos?.CanModify == true;
+    private bool canDelete => permisos?.CanDelete == true;
+
+    private static readonly IReadOnlyList<Miga> Migas = [new("Productos", "/modulos/productos"), new("Categorías de producto")];
+
+    // Solo cuenta la selección si el registro está en la página cargada (Review Focus 4: selección obsoleta => vacía).
+    private Guid? SeleccionValida => Sel is { } s && categorias.Any(x => x.Id == s) ? s : null;
+
+    // Única URL de vuelta del listado (filtros, página y selección; nunca ok/deleteId/editId).
+    private string UrlActual => RetornoLocal.SinTransitorios(BuildListUrl());
+
+    private string EditarHref(string id) => RetornoLocal.ConRetorno($"/categorias-producto/{id}/editar", UrlActual);
 
     [CascadingParameter]
     private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
-        SaveInput ??= new();
-        UpdateInput ??= new();
-        DeleteInput ??= new();
-
-        if (AuthenticationStateTask is not null)
+        if (EditId is { } editId)
         {
-            var authState = await AuthenticationStateTask;
-            var user = authState.User;
-            canAdd = (await AuthorizationService.AuthorizeAsync(user, ApplicationPolicies.CanAdd)).Succeeded;
-            canModify = (await AuthorizationService.AuthorizeAsync(user, ApplicationPolicies.CanModify)).Succeeded;
-            canDelete = (await AuthorizationService.AuthorizeAsync(user, ApplicationPolicies.CanDelete)).Succeeded;
+            // Ruta antigua ?editId= (Fix-Features B2): la edición vive ahora en su página-tarjeta. UrlActual no lleva editId.
+            Nav.NavigateTo(RetornoLocal.ConRetorno($"/categorias-producto/{editId}/editar", UrlActual), replace: true);
+            return;
         }
 
+        DeleteInput ??= new();
+        permisos = await PermisosPagina.CargarAsync(AuthorizationService, AuthenticationStateTask);
+
         await LoadAsync();
-        await LoadOpcionesPadreAsync();
 
         if (Ok is not null)
         {
@@ -322,27 +247,6 @@
             catch (Exception ex)
             {
                 Logger.LogWarning(ex, "Could not load categoría {DeleteId} from API.", DeleteId);
-            }
-        }
-
-        if (EditId.HasValue && UpdateInput.Id == Guid.Empty)
-        {
-            try
-            {
-                var categoria = await CategoriaProductoApiClient.GetByIdAsync(EditId.Value);
-                if (categoria is not null)
-                {
-                    UpdateInput.Id = categoria.Id;
-                    UpdateInput.Codigo = categoria.Codigo;
-                    UpdateInput.Nombre = categoria.Nombre;
-                    UpdateInput.CategoriaPadreId = categoria.CategoriaPadreId;
-                    padreActualNombre = categoria.CategoriaPadreNombre;
-                }
-            }
-            catch (Exception ex)
-            {
-                Logger.LogWarning(ex, "Could not load categoría {EditId} from API.", EditId);
-                Show("danger", "No fue posible cargar la categoría a modificar.");
             }
         }
     }
@@ -378,39 +282,14 @@
         }
     }
 
-    private async Task LoadOpcionesPadreAsync()
-    {
-        if (!canAdd && !canModify)
-        {
-            return;
-        }
-
-        try
-        {
-            opcionesPadre = await CategoriaProductoApiClient.ListAllAsync();
-            // El catálogo siempre tiene al menos GENERAL: una lista vacía es una respuesta anómala, no un dato.
-            opcionesPadreNoDisponibles = opcionesPadre.Count == 0;
-        }
-        catch (Exception ex)
-        {
-            Logger.LogWarning(ex, "Could not load parent category options from API.");
-            opcionesPadreNoDisponibles = true;
-        }
-
-        if (opcionesPadreNoDisponibles)
-        {
-            Show("danger", MensajeOpcionesPadre);
-        }
-    }
-
-    private string BuildListUrl(int? pagina = null, Guid? editId = null, Guid? deleteId = null)
+    private string BuildListUrl(int? pagina = null, Guid? sel = null, Guid? deleteId = null)
     {
         var parameters = new List<string>();
         AddParameter(parameters, "codigo", SearchCodigo);
         AddParameter(parameters, "nombre", SearchNombre);
         var paginaEfectiva = pagina ?? Pagina;
         if (paginaEfectiva > 1) parameters.Add($"pagina={paginaEfectiva}");
-        if (editId.HasValue) parameters.Add($"editId={editId.Value}");
+        if ((sel ?? Sel) is { } seleccion) parameters.Add($"sel={seleccion}");
         if (deleteId.HasValue) parameters.Add($"deleteId={deleteId.Value}");
         return parameters.Count == 0 ? "/categorias-producto" : $"/categorias-producto?{string.Join("&", parameters)}";
     }
@@ -420,47 +299,34 @@
         if (!string.IsNullOrWhiteSpace(value)) parameters.Add($"{key}={Uri.EscapeDataString(value)}");
     }
 
-    private async Task CreateAsync() => await ExecuteAsync(() => CategoriaProductoApiClient.CreateAsync(ToInput(SaveInput!)), "created");
-    private async Task UpdateAsync()
-    {
-        if (UpdateInput!.Id == Guid.Empty)
-        {
-            Show("warning", "Seleccione primero un registro a modificar desde la tabla.");
-            return;
-        }
-
-        // Defensa en profundidad: aunque el botón no se renderice, no se envía un PUT sin opciones de padre fiables.
-        if (opcionesPadreNoDisponibles)
-        {
-            Show("danger", MensajeOpcionesPadre);
-            return;
-        }
-
-        await ExecuteAsync(() => CategoriaProductoApiClient.UpdateAsync(UpdateInput.Id, ToInput(UpdateInput)), "updated");
-    }
     private async Task DeleteAsync() => await ExecuteAsync(() => CategoriaProductoApiClient.DeleteAsync(DeleteInput!.Id), "deleted");
 
     private async Task ExecuteAsync(Func<Task<CategoriaProductoOperationResult>> operation, string successCode)
     {
+        CategoriaProductoOperationResult result;
         try
         {
-            var result = await operation();
-            if (result.Succeeded)
-                Nav.NavigateTo($"/categorias-producto?ok={successCode}");
-            else
-                Show("warning", result.Message);
+            result = await operation();
         }
         catch (Exception ex)
         {
             Logger.LogWarning(ex, "Could not complete categoría operation.");
             Show("danger", "No fue posible completar la operación.");
+            return;
         }
+
+        if (result.Succeeded)
+        {
+            // Fuera del try/catch: si NavigateTo lanza NavigationException (host sin BlazorDisableThrowNavigationException,
+            // p. ej. el de pruebas), el catch no debe convertir la redirección en un error.
+            Nav.NavigateTo(RetornoLocal.ConParametro(UrlActual, "ok", successCode));
+            return;
+        }
+
+        Show("warning", result.Message);
     }
 
     private void Show(string type, string text) { messageType = type; message = text; }
-
-    private static CategoriaProductoInput ToInput(CategoriaProductoForm form) => new(
-        form.Codigo.Trim(), form.Nombre.Trim(), form.CategoriaPadreId);
 
     private static string? EmptyAsNull(string? value) => string.IsNullOrWhiteSpace(value) ? null : value;
 

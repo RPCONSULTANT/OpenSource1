@@ -13,11 +13,12 @@
 
 <PageTitle>Almacenes – AxionERP</PageTitle>
 
-<div class="mb-6">
-    <p class="text-xs font-bold tracking-widest uppercase text-brand-600 mb-1">Mantenimiento</p>
-    <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">Almacenes</h1>
-    <p class="text-sm text-slate-500 mt-1">Catálogo de almacenes para el libro de inventario.</p>
-</div>
+<PageToolbar Titulo="Almacenes" Subtitulo="Catálogo de almacenes para el libro de inventario."
+             Migas="@Migas" Permisos="@permisos"
+             NuevoHref="@RetornoLocal.ConRetorno("/almacenes/nuevo", UrlActual)"
+             SeleccionId="@SeleccionValida?.ToString()"
+             EditarUrl="@EditarHref"
+             EliminarUrl="@(id => BuildListUrl(deleteId: Guid.Parse(id)))" />
 
 @if (!string.IsNullOrWhiteSpace(message))
 {
@@ -82,6 +83,7 @@
         <table class="min-w-full divide-y divide-slate-100 text-sm">
             <thead class="bg-slate-50">
                 <tr>
+                    <th class="px-4 py-3"><span class="sr-only">Seleccionar</span></th>
                     <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Código</th>
                     <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Nombre</th>
                     <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Ciudad / País</th>
@@ -94,7 +96,7 @@
                 @if (almacenes.Count == 0)
                 {
                     <tr>
-                        <td colspan="6" class="px-6 py-8 text-center text-slate-400 text-sm">
+                        <td colspan="7" class="px-6 py-8 text-center text-slate-400 text-sm">
                             No hay almacenes registrados con esos criterios.
                         </td>
                     </tr>
@@ -103,7 +105,9 @@
                 {
                     @foreach (var almacen in almacenes)
                     {
-                        <tr @key="almacen.Id" class="hover:bg-slate-50 transition-colors">
+                        var marcada = almacen.Id == SeleccionValida;
+                        <tr @key="almacen.Id" class="@SeleccionFila.ClaseFila transition-colors @(marcada ? SeleccionFila.ClaseFilaSeleccionada : null)">
+                            <td class="px-4 py-3"><SeleccionFila Href="@BuildListUrl(sel: almacen.Id)" Seleccionada="@marcada" Etiqueta="@almacen.Codigo" /></td>
                             <td class="px-6 py-3 font-mono text-xs font-semibold text-brand-700">@almacen.Codigo</td>
                             <td class="px-6 py-3 text-slate-700">@almacen.Nombre</td>
                             <td class="px-6 py-3 text-slate-500 text-xs">
@@ -128,7 +132,7 @@
                                 <div class="flex items-center justify-end gap-2">
                                     @if (canModify)
                                     {
-                                        <a href="@BuildListUrl(editId: almacen.Id)" class="btn-press inline-flex items-center justify-center size-8 rounded-lg border border-amber-200 bg-amber-50 text-amber-600 hover:bg-amber-100" title="Editar almacén">
+                                        <a href="@EditarHref(almacen.Id.ToString())" class="btn-press inline-flex items-center justify-center size-8 rounded-lg border border-amber-200 bg-amber-50 text-amber-600 hover:bg-amber-100" title="Editar almacén">
                                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Z" /></svg>
                                         </a>
                                     }
@@ -164,75 +168,9 @@
     }
 </div>
 
-<!-- ── Formularios de operación ── -->
-<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-
-    <!-- Agregar -->
-    @if (canAdd)
-    {
-        <div id="agregar" class="rounded-2xl border border-green-200 bg-white shadow-sm overflow-hidden">
-            <div class="px-6 py-4 bg-green-50 border-b border-green-100 flex items-center gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-5 text-green-600">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                </svg>
-                <h2 class="text-sm font-bold text-green-800">Agregar almacén</h2>
-            </div>
-            <div class="px-6 py-5">
-                <EditForm Model="SaveInput" FormName="save-almacen" OnValidSubmit="CreateAsync" Enhance="true">
-                    <DataAnnotationsValidator />
-                    <AlmacenFields Model="SaveInput!" Prefix="SaveInput" />
-                    <div class="mt-5">
-                        <button type="submit"
-                                class="btn-press flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 transition-colors shadow-sm">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                            </svg>
-                            Agregar
-                        </button>
-                    </div>
-                </EditForm>
-            </div>
-        </div>
-    }
-
-    <!-- Modificar -->
-    @if (canModify)
-    {
-        <div id="modificar" class="rounded-2xl border border-amber-200 bg-white shadow-sm overflow-hidden">
-            <div class="px-6 py-4 bg-amber-50 border-b border-amber-100 flex items-center gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-5 text-amber-600">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
-                </svg>
-                <h2 class="text-sm font-bold text-amber-800">Modificar almacén</h2>
-            </div>
-            <div class="px-6 py-5">
-                @if (EditId.HasValue && UpdateInput?.Id != EditId)
-                {
-                    <MessageBox Type="warning" Message="No se encontró el almacén seleccionado. Puede haber sido eliminado por otro usuario." />
-                }
-                <EditForm Model="UpdateInput" FormName="update-almacen" OnValidSubmit="UpdateAsync" Enhance="true">
-                    <DataAnnotationsValidator />
-                    <input type="hidden" name="UpdateInput.Id" value="@UpdateInput!.Id" />
-                    <AlmacenFields Model="UpdateInput!" Prefix="UpdateInput" />
-                    <div class="mt-5">
-                        <button type="submit"
-                                class="btn-press flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-600 transition-colors shadow-sm">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125" />
-                            </svg>
-                            Guardar cambios
-                        </button>
-                    </div>
-                </EditForm>
-            </div>
-        </div>
-    }
-
-</div>
-
 @if (DeleteId.HasValue && canDelete)
 {
-    <ConfirmDialog Title="Confirmar eliminación" Message="Esta acción eliminará el almacén seleccionado y no se puede deshacer." Variant="danger" CancelHref="/almacenes">
+    <ConfirmDialog Title="Confirmar eliminación" Message="Esta acción eliminará el almacén seleccionado y no se puede deshacer." Variant="danger" CancelHref="@UrlActual">
         <p class="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-mono text-red-900">@((itemToDelete is null) ? DeleteId.Value.ToString() : $"{itemToDelete.Codigo} — {itemToDelete.Nombre}")</p>
         @if (itemToDelete is { EsPredeterminado: true })
         {
@@ -243,18 +181,12 @@
         <EditForm Model="DeleteInput" FormName="delete-almacen" OnValidSubmit="DeleteAsync" class="mt-4">
             <input type="hidden" name="DeleteInput.Id" value="@DeleteId" />
             <button type="submit" class="btn-press rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-700">Sí, eliminar</button>
-            <a href="/almacenes" class="btn-press ml-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Cancelar</a>
+            <a href="@UrlActual" class="btn-press ml-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Cancelar</a>
         </EditForm>
     </ConfirmDialog>
 }
 
 @code {
-    [SupplyParameterFromForm(FormName = "save-almacen")]
-    private AlmacenForm? SaveInput { get; set; }
-
-    [SupplyParameterFromForm(FormName = "update-almacen")]
-    private AlmacenForm? UpdateInput { get; set; }
-
     [SupplyParameterFromForm(FormName = "delete-almacen")]
     private DeleteForm? DeleteInput { get; set; }
 
@@ -267,8 +199,12 @@
     [SupplyParameterFromQuery(Name = "bloqueado")]
     private bool? SearchBloqueado { get; set; }
 
+    // Solo para redirigir la ruta antigua ?editId= a la página-tarjeta de edición (Fix-Features B2).
     [SupplyParameterFromQuery(Name = "editId")]
     private Guid? EditId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "sel")]
+    private Guid? Sel { get; set; }
 
     [SupplyParameterFromQuery(Name = "deleteId")]
     private Guid? DeleteId { get; set; }
@@ -288,28 +224,35 @@
     private string messageType = "info";
     private IReadOnlyList<string> errores = [];
 
-    // Permisos computados sincrónicamente en OnInitializedAsync
-    private bool canAdd;
-    private bool canModify;
-    private bool canDelete;
+    // Permisos cargados una vez (PermisosPagina); la barra los recibe ya cargados.
+    private PermisosPagina? permisos;
+    private bool canModify => permisos?.CanModify == true;
+    private bool canDelete => permisos?.CanDelete == true;
+
+    private static readonly IReadOnlyList<Miga> Migas = [new("Inventario", "/modulos/inventario"), new("Almacenes")];
+
+    // Solo cuenta la selección si el registro está en la página cargada (Review Focus 4: selección obsoleta => vacía).
+    private Guid? SeleccionValida => Sel is { } s && almacenes.Any(x => x.Id == s) ? s : null;
+
+    // Única URL de vuelta del listado (filtros, página y selección; nunca ok/deleteId/editId).
+    private string UrlActual => RetornoLocal.SinTransitorios(BuildListUrl());
+
+    private string EditarHref(string id) => RetornoLocal.ConRetorno($"/almacenes/{id}/editar", UrlActual);
 
     [CascadingParameter]
     private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
-        SaveInput ??= new();
-        UpdateInput ??= new();
-        DeleteInput ??= new();
-
-        if (AuthenticationStateTask is not null)
+        if (EditId is { } editId)
         {
-            var authState = await AuthenticationStateTask;
-            var user = authState.User;
-            canAdd = (await AuthorizationService.AuthorizeAsync(user, ApplicationPolicies.CanAdd)).Succeeded;
-            canModify = (await AuthorizationService.AuthorizeAsync(user, ApplicationPolicies.CanModify)).Succeeded;
-            canDelete = (await AuthorizationService.AuthorizeAsync(user, ApplicationPolicies.CanDelete)).Succeeded;
+            // Ruta antigua ?editId= (Fix-Features B2): la edición vive ahora en su página-tarjeta. UrlActual no lleva editId.
+            Nav.NavigateTo(RetornoLocal.ConRetorno($"/almacenes/{editId}/editar", UrlActual), replace: true);
+            return;
         }
+
+        DeleteInput ??= new();
+        permisos = await PermisosPagina.CargarAsync(AuthorizationService, AuthenticationStateTask);
 
         await LoadAsync();
 
@@ -333,31 +276,6 @@
             catch (Exception ex)
             {
                 Logger.LogWarning(ex, "Could not load almacén {DeleteId} from API.", DeleteId);
-            }
-        }
-
-        if (EditId.HasValue && UpdateInput.Id == Guid.Empty)
-        {
-            try
-            {
-                var almacen = await AlmacenApiClient.GetByIdAsync(EditId.Value);
-                if (almacen is not null)
-                {
-                    UpdateInput.Id = almacen.Id;
-                    UpdateInput.Codigo = almacen.Codigo;
-                    UpdateInput.Nombre = almacen.Nombre;
-                    UpdateInput.DireccionLinea1 = almacen.DireccionLinea1;
-                    UpdateInput.DireccionLinea2 = almacen.DireccionLinea2;
-                    UpdateInput.Ciudad = almacen.Ciudad;
-                    UpdateInput.PaisCodigo = almacen.PaisCodigo;
-                    UpdateInput.Bloqueado = almacen.Bloqueado;
-                    UpdateInput.EsPredeterminado = almacen.EsPredeterminado;
-                }
-            }
-            catch (Exception ex)
-            {
-                Logger.LogWarning(ex, "Could not load almacén {EditId} from API.", EditId);
-                Show("danger", "No fue posible cargar el almacén a modificar.");
             }
         }
     }
@@ -393,7 +311,7 @@
         }
     }
 
-    private string BuildListUrl(int? pagina = null, Guid? editId = null, Guid? deleteId = null)
+    private string BuildListUrl(int? pagina = null, Guid? sel = null, Guid? deleteId = null)
     {
         var parameters = new List<string>();
         AddParameter(parameters, "codigo", SearchCodigo);
@@ -401,7 +319,7 @@
         if (SearchBloqueado.HasValue) parameters.Add($"bloqueado={(SearchBloqueado.Value ? "true" : "false")}");
         var paginaEfectiva = pagina ?? Pagina;
         if (paginaEfectiva > 1) parameters.Add($"pagina={paginaEfectiva}");
-        if (editId.HasValue) parameters.Add($"editId={editId.Value}");
+        if ((sel ?? Sel) is { } seleccion) parameters.Add($"sel={seleccion}");
         if (deleteId.HasValue) parameters.Add($"deleteId={deleteId.Value}");
         return parameters.Count == 0 ? "/almacenes" : $"/almacenes?{string.Join("&", parameters)}";
     }
@@ -411,41 +329,32 @@
         if (!string.IsNullOrWhiteSpace(value)) parameters.Add($"{key}={Uri.EscapeDataString(value)}");
     }
 
-    private async Task CreateAsync() => await ExecuteAsync(() => AlmacenApiClient.CreateAsync(ToInput(SaveInput!)), "created");
-
-    private async Task UpdateAsync()
-    {
-        if (UpdateInput!.Id == Guid.Empty)
-        {
-            Show("warning", "Seleccione primero un registro a modificar desde la tabla.");
-            return;
-        }
-
-        await ExecuteAsync(() => AlmacenApiClient.UpdateAsync(UpdateInput.Id, ToInput(UpdateInput)), "updated");
-    }
-
     private async Task DeleteAsync() => await ExecuteAsync(() => AlmacenApiClient.DeleteAsync(DeleteInput!.Id), "deleted");
 
     private async Task ExecuteAsync(Func<Task<AlmacenOperationResult>> operation, string successCode)
     {
+        AlmacenOperationResult result;
         try
         {
-            var result = await operation();
-            if (result.Succeeded)
-            {
-                Nav.NavigateTo($"/almacenes?ok={successCode}");
-            }
-            else
-            {
-                errores = result.Errors ?? [];
-                Show("warning", result.Message);
-            }
+            result = await operation();
         }
         catch (Exception ex)
         {
             Logger.LogWarning(ex, "Could not complete almacén operation.");
             Show("danger", "No fue posible completar la operación.");
+            return;
         }
+
+        if (result.Succeeded)
+        {
+            // Fuera del try/catch: si NavigateTo lanza NavigationException (host sin BlazorDisableThrowNavigationException,
+            // p. ej. el de pruebas), el catch no debe convertir la redirección en un error.
+            Nav.NavigateTo(RetornoLocal.ConParametro(UrlActual, "ok", successCode));
+            return;
+        }
+
+        errores = result.Errors ?? [];
+        Show("warning", result.Message);
     }
 
     private void Show(string type, string text) { messageType = type; message = text; }
@@ -457,16 +366,6 @@
     // el campo y debe limpiarlo (el handler normaliza "" a null internamente), no "no tocar". El
     // binder de formularios SSR ya entrega "" (nunca null) para un input de texto vacío, así que no
     // hace falta normalizar aquí.
-    private static AlmacenInput ToInput(AlmacenForm form) => new(
-        form.Codigo.Trim(),
-        form.Nombre.Trim(),
-        form.DireccionLinea1?.Trim() ?? string.Empty,
-        form.DireccionLinea2?.Trim() ?? string.Empty,
-        form.Ciudad?.Trim() ?? string.Empty,
-        form.PaisCodigo?.Trim() ?? string.Empty,
-        form.Bloqueado,
-        form.EsPredeterminado);
-
     private static string? EmptyAsNull(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     public sealed class AlmacenForm

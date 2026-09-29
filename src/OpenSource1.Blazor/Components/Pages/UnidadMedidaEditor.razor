@@ -1,0 +1,142 @@
+@page "/unidades-medida/nuevo"
+@page "/unidades-medida/{Id:guid}/editar"
+@attribute [Authorize(Policy = ApplicationPolicies.CanConsult)]
+@using OpenSource1.Application.Features.UnidadesMedida.Dtos
+@using OpenSource1.Blazor.Services
+@inject IUnidadMedidaApiClient UnidadMedidaApiClient
+@inject IAuthorizationService AuthorizationService
+@inject ILogger<UnidadMedidaEditor> Logger
+@inject NavigationManager Nav
+
+<EntityFormPage Titulo="@Titulo" Subtitulo="Catálogo de unidades de medida y sus decimales de redondeo." Migas="@Migas" Mensaje="@message" TipoMensaje="@messageType">
+    @if (!Permitido)
+    {
+        <MessageBox Type="warning" Message="@SinPermiso" />
+    }
+    else if (EsEdicion && !encontrado)
+    {
+        <MessageBox Type="warning" Message="No se encontró la unidad de medida seleccionada. Puede haber sido eliminada por otro usuario." />
+    }
+    else if (EsEdicion)
+    {
+        <EditForm Model="UpdateInput" FormName="update-unidadmedida" OnValidSubmit="UpdateAsync" Enhance="true">
+            <DataAnnotationsValidator />
+            <input type="hidden" name="UpdateInput.Id" value="@UpdateInput!.Id" />
+            <UnidadMedidaFields Model="UpdateInput!" Prefix="UpdateInput" />
+            <FormularioAcciones CancelarHref="@Volver" LimpiarHref="@Nav.Uri" TextoGuardar="Guardar cambios" />
+        </EditForm>
+    }
+    else
+    {
+        <EditForm Model="SaveInput" FormName="save-unidadmedida" OnValidSubmit="CreateAsync" Enhance="true">
+            <DataAnnotationsValidator />
+            <UnidadMedidaFields Model="SaveInput!" Prefix="SaveInput" />
+            <FormularioAcciones CancelarHref="@Volver" LimpiarHref="@Nav.Uri" />
+        </EditForm>
+    }
+</EntityFormPage>
+
+@* Formularios siempre en el árbol: sin permiso o sin registro, un POST obsoleto o forzado llega al handler y recibe el
+   mensaje real de la API (403/404), no el 400 genérico de Blazor. *@
+@if (!MuestraAlta)
+{
+    <EditForm Model="SaveInput" FormName="save-unidadmedida" OnValidSubmit="CreateAsync"></EditForm>
+}
+@if (!MuestraEdicion)
+{
+    <EditForm Model="UpdateInput" FormName="update-unidadmedida" OnValidSubmit="UpdateAsync"></EditForm>
+}
+
+@code {
+    private const string SinPermiso = "No tiene permiso para realizar esta acción.";
+
+    [Parameter] public Guid? Id { get; set; }
+    [SupplyParameterFromQuery(Name = "returnUrl")] private string? ReturnUrl { get; set; }
+    [SupplyParameterFromForm(FormName = "save-unidadmedida")] private UnidadesMedida.UnidadMedidaForm? SaveInput { get; set; }
+    [SupplyParameterFromForm(FormName = "update-unidadmedida")] private UnidadesMedida.UnidadMedidaForm? UpdateInput { get; set; }
+    [CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+    private PermisosPagina? permisos;
+    private bool encontrado;
+    private string? message;
+    private string messageType = "warning";
+
+    private bool EsEdicion => Id.HasValue;
+    private bool Permitido => EsEdicion ? permisos?.CanModify == true : permisos?.CanAdd == true;
+    private bool MuestraAlta => !EsEdicion && Permitido;
+    private bool MuestraEdicion => EsEdicion && Permitido && encontrado;
+    private string Volver => RetornoLocal.Volver(ReturnUrl, "/unidades-medida");
+    private string Titulo => EsEdicion ? "Modificar unidad de medida" : "Nueva unidad de medida";
+    private IReadOnlyList<Miga> Migas => [new("Configuración", "/modulos/configuracion"), new("Unidades de medida", Volver), new(EsEdicion ? "Modificar" : "Nueva")];
+
+    protected override async Task OnInitializedAsync()
+    {
+        SaveInput ??= new();
+        UpdateInput ??= new();
+        permisos = await PermisosPagina.CargarAsync(AuthorizationService, AuthenticationStateTask);
+
+        if (Id is { } id && permisos.CanModify)
+        {
+            try
+            {
+                var unidad = await UnidadMedidaApiClient.GetByIdAsync(id);
+                encontrado = unidad is not null;
+                // Solo se rellena con lo guardado cuando NO llegó un formulario de modificación (Id oculto vacío).
+                if (unidad is not null && UpdateInput.Id == Guid.Empty)
+                {
+                    UpdateInput.Id = unidad.Id;
+                    UpdateInput.Codigo = unidad.Codigo;
+                    UpdateInput.Nombre = unidad.Nombre;
+                    UpdateInput.Decimales = unidad.Decimales;
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Could not load unidad de medida {Id} from API.", id);
+                Show("danger", "No fue posible cargar la unidad de medida a modificar.");
+            }
+        }
+    }
+
+    private Task CreateAsync() => ExecuteAsync(() => UnidadMedidaApiClient.CreateAsync(ToInput(SaveInput!)), "created");
+
+    private async Task UpdateAsync()
+    {
+        if (Id is not { } id)
+        {
+            Show("warning", "Seleccione primero un registro a modificar desde la tabla.");
+            return;
+        }
+
+        await ExecuteAsync(() => UnidadMedidaApiClient.UpdateAsync(id, ToInput(UpdateInput!)), "updated");
+    }
+
+    private async Task ExecuteAsync(Func<Task<UnidadMedidaOperationResult>> operation, string successCode)
+    {
+        UnidadMedidaOperationResult result;
+        try
+        {
+            result = await operation();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not complete unidad de medida operation.");
+            Show("danger", "No fue posible completar la operación.");
+            return;
+        }
+
+        if (result.Succeeded)
+        {
+            // Fuera del try/catch: si NavigateTo lanza NavigationException (host sin BlazorDisableThrowNavigationException,
+            // p. ej. el de pruebas), el catch no debe convertir la redirección en un error.
+            Nav.NavigateTo(RetornoLocal.ConParametro(Volver, "ok", successCode));
+            return;
+        }
+
+        Show("warning", result.Message);
+    }
+
+    private void Show(string type, string text) { messageType = type; message = text; }
+
+    private static UnidadMedidaInput ToInput(UnidadesMedida.UnidadMedidaForm form) => new(form.Codigo.Trim(), form.Nombre.Trim(), form.Decimales);
+}
