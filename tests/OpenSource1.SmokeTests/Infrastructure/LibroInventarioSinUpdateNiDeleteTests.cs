@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using OpenSource1.SmokeTests.TestInfrastructure;
 
 namespace OpenSource1.SmokeTests.Infrastructure;
 
@@ -94,7 +95,7 @@ public sealed class LibroInventarioSinUpdateNiDeleteTests
     [Fact]
     public void NingunArchivoFueraDeMigrations_ActualizaOBorraMovimientosValorOAplicaciones()
     {
-        var raiz = EncontrarRaizDelRepositorio();
+        var raiz = BlazorSsrFactory.RaizRepositorio();
         var carpetaSrc = Path.Combine(raiz, "src");
 
         var archivos = Directory.EnumerateFiles(carpetaSrc, "*.cs", SearchOption.AllDirectories)
@@ -257,27 +258,5 @@ public sealed class LibroInventarioSinUpdateNiDeleteTests
         var relativo = Path.GetRelativePath(carpetaSrc, archivo);
         var segmentos = relativo.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         return segmentos.Contains("Migrations");
-    }
-
-    /// <summary>
-    /// Sube desde <see cref="AppContext.BaseDirectory"/> (algo como
-    /// <c>tests/OpenSource1.SmokeTests/bin/Debug/net10.0/</c>) hasta encontrar <c>test.slnx</c>, para no
-    /// depender de rutas relativas frágiles al directorio de ejecución de los tests.
-    /// </summary>
-    private static string EncontrarRaizDelRepositorio()
-    {
-        var directorio = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directorio is not null)
-        {
-            if (File.Exists(Path.Combine(directorio.FullName, "test.slnx")))
-            {
-                return directorio.FullName;
-            }
-
-            directorio = directorio.Parent;
-        }
-
-        throw new InvalidOperationException(
-            $"No se encontró 'test.slnx' subiendo desde {AppContext.BaseDirectory}.");
     }
 }

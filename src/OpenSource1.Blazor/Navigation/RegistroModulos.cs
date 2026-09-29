@@ -1,0 +1,68 @@
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
+
+namespace OpenSource1.Blazor.Navigation;
+
+public sealed class RegistroModulos(IAuthorizationService autorizacion) : IRegistroModulos
+{
+    public IReadOnlyList<GrupoModulo> Grupos => CatalogoModulos.Grupos;
+
+    public IReadOnlyList<Modulo> Todos => CatalogoModulos.Modulos;
+
+    public async Task<IReadOnlyList<Modulo>> VisiblesAsync(ClaimsPrincipal usuario)
+    {
+        ArgumentNullException.ThrowIfNull(usuario);
+        if (usuario.Identity?.IsAuthenticated != true)
+        {
+            return [];
+        }
+
+        var visibles = new List<Modulo>();
+        foreach (var modulo in Todos)
+        {
+            if (modulo.Roles is { Count: > 0 } roles && !roles.Any(usuario.IsInRole))
+            {
+                continue;
+            }
+
+            if (modulo.Politica is { } politica && !(await autorizacion.AuthorizeAsync(usuario, politica)).Succeeded)
+            {
+                continue;
+            }
+
+            visibles.Add(modulo);
+        }
+
+        return visibles;
+    }
+
+    public async Task<IReadOnlyList<GrupoModulo>> GruposVisiblesAsync(ClaimsPrincipal usuario)
+    {
+        var claves = (await VisiblesAsync(usuario)).Select(m => m.Grupo).ToHashSet(StringComparer.Ordinal);
+        return Grupos.Where(g => claves.Contains(g.Clave)).OrderBy(g => g.Orden).ToList();
+    }
+
+    public GrupoModulo? BuscarGrupo(string? clave) =>
+        Grupos.FirstOrDefault(g => string.Equals(g.Clave, clave, StringComparison.OrdinalIgnoreCase));
+
+    public Modulo? ModuloDeRuta(string? ruta)
+    {
+        if (string.IsNullOrWhiteSpace(ruta))
+        {
+            return null;
+        }
+
+        var sinQuery = ruta.Split('?', '#')[0];
+        var camino = "/" + sinQuery.Trim('/');
+        if (camino == "/")
+        {
+            return null;
+        }
+
+        return Todos
+            .Where(m => string.Equals(camino, m.Ruta, StringComparison.OrdinalIgnoreCase)
+                        || camino.StartsWith(m.Ruta + "/", StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(m => m.Ruta.Length)
+            .FirstOrDefault();
+    }
+}

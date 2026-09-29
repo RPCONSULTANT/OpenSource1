@@ -7,6 +7,7 @@ using OpenSource1.Application.Services.Auth.Dtos;
 using OpenSource1.Application.Security;
 using OpenSource1.Application.Storage;
 using OpenSource1.Blazor.Components;
+using OpenSource1.Blazor.Navigation;
 using OpenSource1.Blazor.Reporting;
 using OpenSource1.Blazor.Security;
 using OpenSource1.Blazor.Services;
@@ -155,14 +156,8 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         options.ExpireTimeSpan = TimeSpan.FromMinutes(30);
     });
 
-builder.Services.AddAuthorization(options =>
-{
-    options.AddPolicy(ApplicationPolicies.CanAdd, policy => policy.RequireClaim("permission", ApplicationPolicies.CanAdd));
-    options.AddPolicy(ApplicationPolicies.CanModify, policy => policy.RequireClaim("permission", ApplicationPolicies.CanModify));
-    options.AddPolicy(ApplicationPolicies.CanDelete, policy => policy.RequireClaim("permission", ApplicationPolicies.CanDelete));
-    options.AddPolicy(ApplicationPolicies.CanConsult, policy => policy.RequireClaim("permission", ApplicationPolicies.CanConsult));
-    options.AddPolicy(ApplicationPolicies.CanAdministrar, policy => policy.RequireClaim("permission", ApplicationPolicies.CanAdministrar));
-});
+builder.Services.AddAuthorization(PoliticasBlazor.Configurar);
+builder.Services.AddScoped<IRegistroModulos, RegistroModulos>();
 
 var app = builder.Build();
 
