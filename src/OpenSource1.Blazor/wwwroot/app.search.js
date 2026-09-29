@@ -15,6 +15,9 @@
   let temporizador = 0;
   let controlador = null;
   let ultimaConsulta = '';
+  // Inputs ya cableados. La navegación mejorada de Blazor conserva el <input> del layout (con sus listeners) pero borra
+  // los atributos data-* que no vienen del servidor, así que la marca de "ya inicializado" vive aquí y no en el DOM.
+  const cableados = new WeakSet();
 
   const porId = (id) => document.getElementById(id);
   const normalizar = (texto) => (texto || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
@@ -182,10 +185,16 @@
   function inicializar() {
     modulos = leerModulos();
     const el = elementos();
-    if (!el || el.input.dataset.paletaLista === 'true') return;
-    el.input.dataset.paletaLista = 'true';
+    if (!el || cableados.has(el.input)) return;
+    cableados.add(el.input);
 
     el.input.addEventListener('focus', () => { if (el.panel.hidden) abrir(); });
+    // Tras Esc el foco sigue en el input: un clic lo vuelve a abrir.
+    el.input.addEventListener('click', () => { if (el.panel.hidden) abrir(); });
+    // Al salir con Tab (o llevar el foco fuera de la caja) se cierra; los clics en la lista no quitan el foco (mousedown).
+    el.input.addEventListener('focusout', (evento) => {
+      if (!el.panel.hidden && !(evento.relatedTarget instanceof Node && el.panel.contains(evento.relatedTarget))) cerrar();
+    });
     el.input.addEventListener('input', () => { if (el.panel.hidden) abrir(); else actualizar(el.input.value); });
     el.input.addEventListener('keydown', (evento) => {
       if (evento.key === 'ArrowDown') { evento.preventDefault(); if (!estaAbierta()) abrir(); marcar(activo + 1); }
@@ -205,6 +214,8 @@
 
   document.addEventListener('keydown', (evento) => {
     const tecla = (evento.key || '').toLowerCase();
+    // Sin caja de búsqueda en la página no se intercepta nada (Ctrl+K conserva su función del navegador).
+    if (!elementos()) return;
     if ((evento.ctrlKey || evento.metaKey) && tecla === 'k') { evento.preventDefault(); abrir(); }
     else if (tecla === '/' && !evento.ctrlKey && !evento.metaKey && !evento.altKey && !esCampoEditable(evento.target)) {
       evento.preventDefault();

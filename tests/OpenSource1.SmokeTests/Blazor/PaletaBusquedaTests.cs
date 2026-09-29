@@ -68,7 +68,7 @@ public sealed class PaletaBusquedaTests
     public async Task Sugerencias_QCorta_400_Anonimo_Login_SinCanConsult_Prohibido()
     {
         using var app = new BlazorSsrFactory();
-        app.Simular<IBusquedaApiClient>();
+        var api = app.Simular<IBusquedaApiClient>();
 
         Assert.Equal(HttpStatusCode.BadRequest, (await app.Cliente().GetAsync("/buscar/sugerencias?q=a")).StatusCode);
 
@@ -79,6 +79,22 @@ public sealed class PaletaBusquedaTests
         var sinPermiso = await app.Cliente("Supervisor", permisos: "CanModify").GetAsync("/buscar/sugerencias?q=abc");
         Assert.Equal(HttpStatusCode.Redirect, sinPermiso.StatusCode);
         Assert.StartsWith("/access-denied", FormulariosSsr.Destino(sinPermiso));
+
+        // Ni la consulta corta ni los rechazos de autorización llegan a llamar a la API.
+        api.Verify(c => c.BuscarAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public void Script_NoDuplicaListenersTrasNavegacionMejorada()
+    {
+        // La sincronización de atributos de la navegación mejorada de Blazor borra los data-* que no vienen del servidor,
+        // pero conserva el <input> del layout con sus listeners: el "ya cableado" debe vivir en JS (WeakSet), no en el DOM.
+        var fuente = File.ReadAllText(Path.Combine(BlazorSsrFactory.RaizRepositorio(), "src", "OpenSource1.Blazor", "wwwroot", "app.search.js"));
+
+        Assert.Contains("new WeakSet()", fuente);
+        Assert.Matches(new Regex(@"if \(!el \|\| cableados\.has\(el\.input\)\) return;\s*cableados\.add\(el\.input\);"), fuente);
+        Assert.DoesNotContain("dataset.", fuente);
+        Assert.Contains("window.Blazor.addEventListener('enhancedload'", fuente);
     }
 
     [Fact]

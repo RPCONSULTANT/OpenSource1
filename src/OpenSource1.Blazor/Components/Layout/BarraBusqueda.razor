@@ -48,9 +48,10 @@
 
         var visibles = await Registro.VisiblesAsync((await AuthenticationStateTask).User);
         var titulos = Registro.Grupos.ToDictionary(g => g.Clave, g => g.Titulo, StringComparer.Ordinal);
+        // Un módulo con un grupo no registrado muestra la clave del grupo en vez de romper todas las páginas.
         // El codificador por defecto de System.Text.Json escapa <, >, & y ' (<…): la isla no puede cerrar el <script>.
         islaJson = JsonSerializer.Serialize(
-            visibles.Select(m => new { m.Titulo, m.Descripcion, m.Ruta, Grupo = titulos[m.Grupo], Palabras = string.Join(' ', m.PalabrasClave) }),
+            visibles.Select(m => new { m.Titulo, m.Descripcion, m.Ruta, Grupo = titulos.GetValueOrDefault(m.Grupo, m.Grupo), Palabras = string.Join(' ', m.PalabrasClave) }),
             OpcionesJson);
     }
 }
