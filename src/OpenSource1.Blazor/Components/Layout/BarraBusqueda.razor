@@ -1,0 +1,57 @@
+@* BarraBusqueda — caja de búsqueda global (Fix-Features A3/A4). Sin JS es un formulario GET a /buscar. Con JS
+   (app.search.js), Ctrl/Cmd+K o "/" abren la capa: módulos filtrados en el navegador desde la isla #modulos-data (solo
+   los visibles para este usuario) y registros desde /buscar/sugerencias. *@
+@using System.Text.Json
+@using Microsoft.AspNetCore.WebUtilities
+@inject NavigationManager Nav
+@inject IRegistroModulos Registro
+
+<form method="get" action="/buscar" role="search" class="relative w-full max-w-xl" data-testid="busqueda-global-form">
+    <label for="busqueda-global" class="sr-only">Buscar módulos, clientes, productos y documentos</label>
+    <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400" aria-hidden="true">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4">
+            <path stroke-linecap="round" stroke-linejoin="round" d="@IconosModulo.Buscar" />
+        </svg>
+    </span>
+    <input id="busqueda-global" name="q" type="search" autocomplete="off" maxlength="100" value="@consultaActual"
+           role="combobox" aria-expanded="false" aria-controls="busqueda-paleta-lista" aria-autocomplete="list" aria-haspopup="listbox"
+           placeholder="Buscar módulos, clientes, productos, documentos… (Ctrl+K)"
+           class="block w-full rounded-lg border border-slate-300 bg-slate-50 py-2 pl-9 pr-3 text-sm text-slate-800 shadow-sm placeholder:text-slate-400 focus:border-brand-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-600/20 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100" />
+    <div id="busqueda-paleta" role="dialog" aria-label="Resultados de la búsqueda" hidden
+         class="absolute left-0 right-0 top-full z-40 mt-2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-800">
+        <ul id="busqueda-paleta-lista" role="listbox" aria-label="Sugerencias" class="max-h-96 overflow-y-auto py-1"></ul>
+        <p class="border-t border-slate-100 px-3 py-2 text-[11px] text-slate-400 dark:border-slate-700">↑↓ para moverse · Enter para abrir · Enter sin selección: ver todos · Esc para cerrar</p>
+    </div>
+</form>
+<script type="application/json" id="modulos-data">@((MarkupString)islaJson)</script>
+
+@code {
+    private static readonly JsonSerializerOptions OpcionesJson = new(JsonSerializerDefaults.Web);
+
+    [CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+    private string? consultaActual;
+    private string islaJson = "[]";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var uri = new Uri(Nav.Uri);
+        consultaActual = uri.AbsolutePath.Equals("/buscar", StringComparison.OrdinalIgnoreCase)
+                         && QueryHelpers.ParseQuery(uri.Query).TryGetValue("q", out var q)
+            ? q.ToString()
+            : null;
+
+        if (AuthenticationStateTask is null)
+        {
+            return;
+        }
+
+        var visibles = await Registro.VisiblesAsync((await AuthenticationStateTask).User);
+        var titulos = Registro.Grupos.ToDictionary(g => g.Clave, g => g.Titulo, StringComparer.Ordinal);
+        // Un módulo con un grupo no registrado muestra la clave del grupo en vez de romper todas las páginas.
+        // El codificador por defecto de System.Text.Json escapa <, >, & y ' (<…): la isla no puede cerrar el <script>.
+        islaJson = JsonSerializer.Serialize(
+            visibles.Select(m => new { m.Titulo, m.Descripcion, m.Ruta, Grupo = titulos.GetValueOrDefault(m.Grupo, m.Grupo), Palabras = string.Join(' ', m.PalabrasClave) }),
+            OpcionesJson);
+    }
+}

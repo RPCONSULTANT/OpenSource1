@@ -1,0 +1,13 @@
+erDiagram
+  AspNetUsers {
+    text Id PK
+  }
+  AspNetRoles {
+    text Id PK
+  }
+  AspNetUserRoles {
+    text UserId PK, FK
+    text RoleId PK, FK
+  }
+  AspNetRoles ||--o{ AspNetUserRoles : "RoleId"
+  AspNetUsers ||--o{ AspNetUserRoles : "UserId"

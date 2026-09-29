@@ -1,0 +1,49 @@
+erDiagram
+  SociosNegocio {
+    uuid Id PK
+    uuid TerminoPagoId FK
+    uuid GrupoClienteContableId FK
+    uuid GrupoIvaNegocioId FK
+    uuid GrupoNegocioId FK
+  }
+  Productos {
+    uuid Id PK
+    uuid CategoriaId FK
+    uuid UnidadMedidaBaseId FK
+    uuid GrupoInventarioId FK
+    uuid GrupoIvaProductoId FK
+    uuid GrupoProductoId FK
+  }
+  FacturasVenta {
+    character_varying Numero PK
+    uuid SocioNegocioId FK
+    uuid SocioNegocioFacturarAId FK
+    uuid TerminoPagoId FK
+    uuid GrupoNegocioId FK
+    uuid GrupoIvaNegocioId FK
+    uuid GrupoClienteContableId FK
+    uuid AlmacenId FK
+    bigint RegistroContableId FK
+  }
+  LineasFacturaVenta {
+    bigint Id PK
+    character_varying FacturaVentaNumero FK
+    uuid ProductoId FK
+    uuid CuentaContableId FK
+    uuid AlmacenId FK
+    uuid UnidadMedidaId FK
+    uuid GrupoProductoId FK
+    uuid GrupoIvaProductoId FK
+    uuid GrupoInventarioId FK
+    bigint MovimientoProductoId FK
+  }
+  LineasIvaFacturaVenta {
+    bigint Id PK
+    character_varying FacturaVentaNumero FK
+    uuid CuentaIvaId FK
+  }
+  SociosNegocio ||--o{ FacturasVenta : "SocioNegocioFacturarAId"
+  SociosNegocio ||--o{ FacturasVenta : "SocioNegocioId"
+  FacturasVenta ||--o{ LineasFacturaVenta : "FacturaVentaNumero"
+  Productos ||--o{ LineasFacturaVenta : "ProductoId"
+  FacturasVenta ||--o{ LineasIvaFacturaVenta : "FacturaVentaNumero"

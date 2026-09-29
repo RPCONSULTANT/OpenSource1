@@ -336,7 +336,9 @@ else
     [SupplyParameterFromQuery(Name = "registrar")] private bool RegistrarConfirm { get; set; }
 
     [SupplyParameterFromQuery(Name = "addProductoQuery")] private string? AddProductoQuery { get; set; }
-    [SupplyParameterFromQuery(Name = "addProductoId")] private Guid? AddProductoId { get; set; }
+    // String tolerante: un ?addProductoId= no interpretable se ignora en vez de romper la página.
+    [SupplyParameterFromQuery(Name = "addProductoId")] private string? AddProductoIdTexto { get; set; }
+    private Guid? AddProductoId => InventarioVistasOpciones.ParseGuid(AddProductoIdTexto);
     [SupplyParameterFromQuery(Name = "editProductoQuery")] private string? EditProductoQuery { get; set; }
     [SupplyParameterFromQuery(Name = "editProductoId")] private Guid? EditProductoIdOverride { get; set; }
 

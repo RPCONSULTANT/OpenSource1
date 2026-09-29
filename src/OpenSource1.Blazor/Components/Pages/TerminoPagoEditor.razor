@@ -1,0 +1,151 @@
+@page "/terminos-pago/nuevo"
+@page "/terminos-pago/{Id:guid}/editar"
+@attribute [Authorize(Policy = ApplicationPolicies.CanConsult)]
+@using OpenSource1.Application.Features.TerminosPago.Dtos
+@using OpenSource1.Blazor.Services
+@inject ITerminoPagoApiClient TerminoPagoApiClient
+@inject IAuthorizationService AuthorizationService
+@inject ILogger<TerminoPagoEditor> Logger
+@inject NavigationManager Nav
+
+<EntityFormPage Titulo="@Titulo" Subtitulo="Condiciones de vencimiento y descuento por pronto pago." Migas="@Migas" Mensaje="@message" TipoMensaje="@messageType">
+    @if (!Permitido)
+    {
+        <MessageBox Type="warning" Message="@SinPermiso" />
+    }
+    else if (EsEdicion && !encontrado)
+    {
+        @* Si la carga falló no se sabe si existe: solo el aviso de fallo (Mensaje), no el de "no encontrado". *@
+        @if (!cargaFallida)
+        {
+            <MessageBox Type="warning" Message="No se encontró el término de pago seleccionado. Puede haber sido eliminado por otro usuario." />
+        }
+    }
+    else if (EsEdicion)
+    {
+        <EditForm Model="UpdateInput" FormName="update-terminopago" OnValidSubmit="UpdateAsync" Enhance="true">
+            <DataAnnotationsValidator />
+            <input type="hidden" name="UpdateInput.Id" value="@UpdateInput!.Id" />
+            <TerminoPagoFields Model="UpdateInput!" Prefix="UpdateInput" />
+            <FormularioAcciones CancelarHref="@Volver" LimpiarHref="@Nav.Uri" TextoGuardar="Guardar cambios" />
+        </EditForm>
+    }
+    else
+    {
+        <EditForm Model="SaveInput" FormName="save-terminopago" OnValidSubmit="CreateAsync" Enhance="true">
+            <DataAnnotationsValidator />
+            <TerminoPagoFields Model="SaveInput!" Prefix="SaveInput" />
+            <FormularioAcciones CancelarHref="@Volver" LimpiarHref="@Nav.Uri" />
+        </EditForm>
+    }
+</EntityFormPage>
+
+@* Formularios siempre en el árbol: sin permiso o sin registro, un POST obsoleto o forzado llega al handler y recibe el
+   mensaje real de la API (403/404), no el 400 genérico de Blazor. *@
+@if (!MuestraAlta)
+{
+    <EditForm Model="SaveInput" FormName="save-terminopago" OnValidSubmit="CreateAsync"></EditForm>
+}
+@if (!MuestraEdicion)
+{
+    <EditForm Model="UpdateInput" FormName="update-terminopago" OnValidSubmit="UpdateAsync"></EditForm>
+}
+
+@code {
+    private const string SinPermiso = "No tiene permiso para realizar esta acción.";
+
+    [Parameter] public Guid? Id { get; set; }
+    [SupplyParameterFromQuery(Name = "returnUrl")] private string? ReturnUrl { get; set; }
+    [SupplyParameterFromForm(FormName = "save-terminopago")] private TerminosPago.TerminoPagoForm? SaveInput { get; set; }
+    [SupplyParameterFromForm(FormName = "update-terminopago")] private TerminosPago.TerminoPagoForm? UpdateInput { get; set; }
+    [CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+    private PermisosPagina? permisos;
+    private bool encontrado;
+    private bool cargaFallida;
+    private string? message;
+    private string messageType = "warning";
+
+    private bool EsEdicion => Id.HasValue;
+    private bool Permitido => EsEdicion ? permisos?.CanModify == true : permisos?.CanAdd == true;
+    private bool MuestraAlta => !EsEdicion && Permitido;
+    private bool MuestraEdicion => EsEdicion && Permitido && encontrado;
+    private string Volver => RetornoLocal.Volver(ReturnUrl, "/terminos-pago");
+    private string Titulo => EsEdicion ? "Modificar término de pago" : "Nuevo término de pago";
+    private IReadOnlyList<Miga> Migas => [new("Configuración", "/modulos/configuracion"), new("Términos de pago", Volver), new(EsEdicion ? "Modificar" : "Nuevo")];
+
+    protected override async Task OnInitializedAsync()
+    {
+        SaveInput ??= new();
+        UpdateInput ??= new();
+        permisos = await PermisosPagina.CargarAsync(AuthorizationService, AuthenticationStateTask);
+
+        if (Id is { } id && permisos.CanModify)
+        {
+            try
+            {
+                var termino = await TerminoPagoApiClient.GetByIdAsync(id);
+                encontrado = termino is not null;
+                // Solo se rellena con lo guardado cuando NO llegó un formulario de modificación (Id oculto vacío).
+                if (termino is not null && UpdateInput.Id == Guid.Empty)
+                {
+                    UpdateInput.Id = termino.Id;
+                    UpdateInput.Codigo = termino.Codigo;
+                    UpdateInput.Descripcion = termino.Descripcion;
+                    UpdateInput.DiasVencimiento = termino.DiasVencimiento;
+                    UpdateInput.DiasDescuento = termino.DiasDescuento;
+                    UpdateInput.PorcentajeDescuento = termino.PorcentajeDescuento;
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Could not load termino de pago {Id} from API.", id);
+                cargaFallida = true;
+                Show("danger", "No fue posible cargar el término de pago a modificar.");
+            }
+        }
+    }
+
+    private Task CreateAsync() => ExecuteAsync(() => TerminoPagoApiClient.CreateAsync(ToInput(SaveInput!)), "created");
+
+    private async Task UpdateAsync()
+    {
+        if (Id is not { } id)
+        {
+            Show("warning", "Seleccione primero un registro a modificar desde la tabla.");
+            return;
+        }
+
+        await ExecuteAsync(() => TerminoPagoApiClient.UpdateAsync(id, ToInput(UpdateInput!)), "updated");
+    }
+
+    private async Task ExecuteAsync(Func<Task<TerminoPagoOperationResult>> operation, string successCode)
+    {
+        TerminoPagoOperationResult result;
+        try
+        {
+            result = await operation();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not complete termino de pago operation.");
+            Show("danger", "No fue posible completar la operación.");
+            return;
+        }
+
+        if (result.Succeeded)
+        {
+            // Fuera del try/catch: si NavigateTo lanza NavigationException (host sin BlazorDisableThrowNavigationException,
+            // p. ej. el de pruebas), el catch no debe convertir la redirección en un error.
+            Nav.NavigateTo(RetornoLocal.ConParametro(Volver, "ok", successCode));
+            return;
+        }
+
+        Show("warning", result.Message);
+    }
+
+    private void Show(string type, string text) { messageType = type; message = text; }
+
+    private static TerminoPagoInput ToInput(TerminosPago.TerminoPagoForm form) =>
+        new(form.Codigo.Trim(), form.Descripcion.Trim(), form.DiasVencimiento, form.DiasDescuento, form.PorcentajeDescuento);
+}

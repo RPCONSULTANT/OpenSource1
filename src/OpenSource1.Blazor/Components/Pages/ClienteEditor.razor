@@ -1,0 +1,396 @@
+@page "/clientes/nuevo"
+@page "/clientes/{Id:guid}/editar"
+@attribute [Authorize(Policy = ApplicationPolicies.CanConsult)]
+@using Microsoft.AspNetCore.Authorization
+@using OpenSource1.Application.Features.SociosNegocio.Dtos
+@using OpenSource1.Application.Storage
+@using OpenSource1.Blazor.Services
+@using OpenSource1.Core.Entities.Contabilidad
+@inject ISocioNegocioApiClient SocioNegocioApiClient
+@inject ITerminoPagoApiClient TerminoPagoApiClient
+@inject IGrupoContableApiClient GrupoContableApiClient
+@inject IGrupoClienteContableApiClient GrupoClienteContableApiClient
+@inject IHttpContextAccessor HttpContextAccessor
+@inject IFileStorageService FileStorageService
+@inject IAuthorizationService AuthorizationService
+@inject ILogger<ClienteEditor> Logger
+@inject NavigationManager Nav
+
+@* Página-tarjeta de alta y modificación de clientes (Fix-Features B2c): sustituye a ClienteNew y al modo ?edit=true de la ficha.
+   Los dos EditForm (cliente-new / cliente-edit) están SIEMPRE en el árbol: si el permiso o la rama los ocultan quedan vacíos,
+   para que un POST forzado llegue a su handler y muestre el mensaje real de la API. *@
+<EntityFormPage Titulo="@(EsEdicion ? "Modificar cliente" : "Nuevo cliente")"
+                Subtitulo="@(EsEdicion ? "Datos generales, fiscales y comerciales." : "Datos generales, fiscales y comerciales. El código lo asigna el sistema al guardar.")"
+                Migas="@Migas" Mensaje="@message" TipoMensaje="@messageType" Errores="@errores">
+    @if (!Permitido)
+    {
+        <MessageBox Type="warning" Message="No tiene permiso para realizar esta acción." />
+    }
+    else if (EsEdicion && cliente is null)
+    {
+        <MessageBox Type="warning" Message="@(loadError ?? "No se encontró el cliente solicitado.")" />
+    }
+    else if (EsEdicion)
+    {
+        @if (edicionBloqueada)
+        {
+            <div class="mb-4"><MessageBox Type="danger" Message="@TerminoPagoOpciones.MensajeNoDisponibles" /></div>
+        }
+        @if (grupos.CargaFallida)
+        {
+            <div class="mb-4"><MessageBox Type="warning" Message="@GruposSocioOpciones.MensajeNoDisponibles" /></div>
+        }
+        <EditForm Model="EdicionInput" FormName="cliente-edit" OnValidSubmit="SaveAsync" Enhance="true" enctype="multipart/form-data">
+            <DataAnnotationsValidator />
+            <div class="mb-6 grid grid-cols-1 items-start gap-6 md:grid-cols-[220px_1fr]">
+                <div>
+                    <p class="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-300">Imagen actual</p>
+                    @if (!string.IsNullOrWhiteSpace(cliente!.ImagePath))
+                    {
+                        <img src="@cliente.ImagePath" alt="Imagen del cliente" class="h-40 w-40 rounded-2xl border border-slate-200 bg-slate-50 object-cover dark:border-slate-700 dark:bg-slate-900/40" />
+                    }
+                    else
+                    {
+                        <div class="flex h-40 w-40 items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 text-sm text-slate-400 dark:border-slate-600 dark:bg-slate-900/40 dark:text-slate-500">Sin imagen</div>
+                    }
+                </div>
+                <div>
+                    <label class="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-300">Cambiar imagen</label>
+                    <input type="file" name="ClientImage" accept=".jpg,.jpeg,.png,.webp" class="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300" />
+                    <p class="mt-1 text-xs text-slate-400 dark:text-slate-500">Formatos permitidos: JPG, PNG, WEBP. Máximo 2 MB.</p>
+                </div>
+            </div>
+            <ClienteFields Model="EdicionInput!" Prefix="Input" EsEdicion="true" Codigo="@cliente.Codigo" Terminos="@terminos.Items" TerminoActualId="@cliente.TerminoPagoId" TerminoActualNombre="@terminoActualNombre"
+                           Grupos="@grupos" GrupoNegocioVigente="@cliente.GrupoNegocioCodigo" GrupoIvaNegocioVigente="@cliente.GrupoIvaNegocioCodigo" GrupoClienteContableVigente="@cliente.GrupoClienteContableCodigo" />
+            <FormularioAcciones CancelarHref="@Volver" LimpiarHref="@Nav.Uri" TextoGuardar="Guardar cambios" Deshabilitado="@edicionBloqueada" />
+        </EditForm>
+    }
+    else
+    {
+        @if (terminos.CargaFallida)
+        {
+            <div class="mb-4"><MessageBox Type="warning" Message="@TerminoPagoOpciones.MensajeNoDisponiblesAlta" /></div>
+        }
+        @if (grupos.CargaFallida)
+        {
+            <div class="mb-4"><MessageBox Type="warning" Message="@GruposSocioOpciones.MensajeNoDisponiblesAlta" /></div>
+        }
+        <EditForm Model="AltaInput" FormName="cliente-new" OnValidSubmit="CreateAsync" Enhance="true" enctype="multipart/form-data">
+            <DataAnnotationsValidator />
+            <div class="mb-6">
+                <label class="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-300">Imagen del cliente</label>
+                <input type="file" name="ClientImage" accept=".jpg,.jpeg,.png,.webp" class="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300" />
+                <p class="mt-1 text-xs text-slate-400 dark:text-slate-500">Formatos permitidos: JPG, PNG, WEBP. Máximo 2 MB.</p>
+            </div>
+            <ClienteFields Model="AltaInput!" Prefix="Input" Terminos="@terminos.Items" Grupos="@grupos" />
+            <FormularioAcciones CancelarHref="@Volver" LimpiarHref="@Nav.Uri" TextoGuardar="Guardar cliente" />
+        </EditForm>
+    }
+</EntityFormPage>
+
+@if (!(!EsEdicion && CanAdd))
+{
+    <EditForm Model="AltaInput" FormName="cliente-new" OnValidSubmit="CreateAsync"></EditForm>
+}
+@if (!(EsEdicion && CanModify && cliente is not null))
+{
+    <EditForm Model="EdicionInput" FormName="cliente-edit" OnValidSubmit="SaveAsync"></EditForm>
+}
+
+@code {
+    [Parameter] public Guid? Id { get; set; }
+    [SupplyParameterFromQuery(Name = "returnUrl")] private string? ReturnUrl { get; set; }
+    // Ambos formularios usan el prefijo "Input" (ClienteFields Prefix="Input"), cada uno con su FormName.
+    [SupplyParameterFromForm(FormName = "cliente-new", Name = "Input")] private ClienteEditorForm? AltaInput { get; set; }
+    [SupplyParameterFromForm(FormName = "cliente-edit", Name = "Input")] private ClienteEditorForm? EdicionInput { get; set; }
+    [CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+    private PermisosPagina? permisos;
+    private bool formularioEdicionRecibido;
+    private SocioNegocioResponse? cliente;
+    private string? message;
+    private string messageType = "danger";
+    private IReadOnlyList<string> errores = [];
+    private string? loadError;
+    private TerminoPagoOpciones terminos = TerminoPagoOpciones.SinCargar;
+    private string? terminoActualNombre;
+    // La modificación se bloquea si las opciones de término no son fiables: guardar a ciegas podría borrar el término.
+    private bool edicionBloqueada;
+    // Grupos contables (Task 5.3): si no cargan NO bloquean la edición; solo impiden cambiar los grupos (se envían null = conservar).
+    private GruposSocioOpciones grupos = GruposSocioOpciones.SinCargar;
+
+    private bool CanAdd => permisos?.CanAdd == true;
+    private bool CanModify => permisos?.CanModify == true;
+    private bool EsEdicion => Id.HasValue;
+    private bool Permitido => EsEdicion ? CanModify : CanAdd;
+    private string Volver => RetornoLocal.Volver(ReturnUrl, "/clientes");
+    private IReadOnlyList<Miga> Migas => [new("Clientes", "/modulos/clientes"), new("Clientes", Volver), new(EsEdicion ? "Modificar" : "Nuevo")];
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Los dos modelos se crean ANTES del primer await: con la API real Blazor pinta un primer lote mientras carga, y un
+        // EditForm (el vacío de "siempre en el árbol") con Model null rompe el render ("renderer does not have a component").
+        // Si llegó un formulario (POST) se respeta tal cual; si no, la edición se rellena con lo guardado al cargarlo.
+        var formularioNuevo = AltaInput is null;
+        formularioEdicionRecibido = EdicionInput is not null;
+        AltaInput ??= new();
+        EdicionInput ??= new();
+        permisos = await PermisosPagina.CargarAsync(AuthorizationService, AuthenticationStateTask);
+
+        if (EsEdicion)
+        {
+            if (CanModify)
+            {
+                await CargarEdicionAsync(Id!.Value);
+            }
+
+            return;
+        }
+
+        if (!CanAdd)
+        {
+            return;
+        }
+
+        // Opciones del <select> de término de pago; si no cargan el alta sigue siendo posible (sin término).
+        terminos = await TerminoPagoOpciones.CargarAsync(TerminoPagoApiClient, Logger);
+        // Grupos contables (Task 5.3): si no cargan, el alta sigue siendo posible y la API asigna los grupos por defecto.
+        grupos = await GruposSocioOpciones.CargarAsync(GrupoContableApiClient, GrupoClienteContableApiClient, Logger);
+        if (formularioNuevo)
+        {
+            // Preselecciona los grupos semilla por defecto (NACIONAL / ITBIS18 / GENERAL): los mismos que la API asigna a un alta
+            // sin grupos. En un POST se respeta lo que envió el usuario.
+            AltaInput.GrupoNegocioId = GruposOpciones.PorDefecto(grupos.Negocio, GrupoContableIds.NegocioNacional);
+            AltaInput.GrupoIvaNegocioId = GruposOpciones.PorDefecto(grupos.IvaNegocio, GrupoContableIds.IvaNegocioItbis18);
+            AltaInput.GrupoClienteContableId = GruposOpciones.PorDefecto(grupos.ClienteContable, GrupoContableIds.ClienteContableGeneral);
+        }
+    }
+
+    private async Task CargarEdicionAsync(Guid id)
+    {
+        try
+        {
+            cliente = await SocioNegocioApiClient.GetByIdAsync(id);
+            if (cliente is null)
+            {
+                return;
+            }
+
+            // Solo se rellena con lo guardado cuando NO llegó un formulario: si el POST trae valores (incluso un nombre vacío
+            // que la validación debe rechazar) se conservan tal cual.
+            if (!formularioEdicionRecibido)
+            {
+                EdicionInput = new ClienteEditorForm
+                {
+                    NombreComercial = cliente.NombreComercial, Email = cliente.Email, Telefono = cliente.Telefono,
+                    DireccionLinea1 = cliente.DireccionLinea1, DireccionLinea2 = cliente.DireccionLinea2,
+                    Sector = cliente.Sector, PaisCodigo = cliente.PaisCodigo, ImagePath = cliente.ImagePath,
+                    Tipo = cliente.Tipo, RazonSocial = cliente.RazonSocial, TipoDocumentoFiscal = cliente.TipoDocumentoFiscal,
+                    NumeroDocumentoFiscal = cliente.NumeroDocumentoFiscal, Ciudad = cliente.Ciudad,
+                    TerminoPagoId = cliente.TerminoPagoId, LimiteCreditoTexto = EntradaDecimal.Formatear(cliente.LimiteCredito),
+                    Bloqueado = cliente.Bloqueado,
+                    GrupoNegocioId = cliente.GrupoNegocioId, GrupoIvaNegocioId = cliente.GrupoIvaNegocioId,
+                    GrupoClienteContableId = cliente.GrupoClienteContableId
+                };
+            }
+
+            terminos = await TerminoPagoOpciones.CargarAsync(TerminoPagoApiClient, Logger);
+            edicionBloqueada = terminos.ModificacionBloqueada(cliente.TerminoPagoId);
+            grupos = await GruposSocioOpciones.CargarAsync(GrupoContableApiClient, GrupoClienteContableApiClient, Logger);
+            if (grupos.CargaFallida)
+            {
+                // Los selectores deshabilitados no se envían: que muestren siempre el valor guardado (también al re-renderizar un POST).
+                EdicionInput!.GrupoNegocioId = cliente.GrupoNegocioId;
+                EdicionInput.GrupoIvaNegocioId = cliente.GrupoIvaNegocioId;
+                EdicionInput.GrupoClienteContableId = cliente.GrupoClienteContableId;
+            }
+
+            // Si la carga de la lista falló no se reintenta por el nombre (sumaría otro tiempo de espera): la opción vigente se rotula con su Guid.
+            if (cliente.TerminoPagoId is { } terminoId && terminos.Items.All(t => t.Id != terminoId))
+            {
+                if (!terminos.CargaFallida)
+                {
+                    terminoActualNombre = await TerminoPagoOpciones.NombreAsync(TerminoPagoApiClient, terminoId, Logger);
+                }
+            }
+            else if (cliente.TerminoPagoId is { } enLista)
+            {
+                var t = terminos.Items.First(x => x.Id == enLista);
+                terminoActualNombre = $"{t.Codigo} — {t.Descripcion}";
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not load cliente {Id} for edit.", id);
+            cliente = null;
+            loadError = "No fue posible cargar la ficha del cliente.";
+        }
+    }
+
+    // R17: Nav.NavigateTo va DESPUÉS del try/catch (en SSR puede lanzar NavigationException, que el catch se tragaría).
+    private async Task CreateAsync()
+    {
+        string? imagenNueva = null;
+        string? destino = null;
+        try
+        {
+            var httpContext = HttpContextAccessor.HttpContext ?? throw new InvalidOperationException("No hay HttpContext disponible para cargar la imagen.");
+            // El formulario no envía ImagePath (lo manipulable por el cliente no se confía): en el alta parte de null. Un POST forzado
+            // sin CanAdd no guarda ficheros: va directo a la API para devolver su 403.
+            imagenNueva = CanAdd ? await FileStorageService.SaveClientImageAsync(httpContext, "ClientImage", null) : null;
+            AltaInput!.ImagePath = imagenNueva;
+            var result = await SocioNegocioApiClient.CreateAsync(ToInputAlta(AltaInput));
+            if (result.Succeeded)
+            {
+                destino = RetornoLocal.ConParametro(Volver, "ok", "created");
+            }
+            else
+            {
+                // La API rechazó el alta (incluido un 403 de un POST forzado): la imagen recién subida quedaría huérfana.
+                await FileStorageService.DeleteIfExistsAsync(imagenNueva, RutaImagen.CarpetaClientes);
+                Show("warning", result.Message, result.Errors);
+            }
+        }
+        catch (Exception ex)
+        {
+            await FileStorageService.DeleteIfExistsAsync(imagenNueva, RutaImagen.CarpetaClientes);
+            Logger.LogWarning(ex, "Could not create cliente.");
+            Show("danger", ex is InvalidOperationException ? ex.Message : "No fue posible crear el cliente.");
+        }
+
+        if (destino is not null)
+        {
+            Nav.NavigateTo(destino);
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (cliente is null)
+        {
+            if (CanModify)
+            {
+                // Con permiso pero sin registro cargado (404 o fallo de la API): no se envía un PUT a ciegas.
+                Show("warning", loadError ?? "No se encontró el cliente indicado.");
+                return;
+            }
+
+            // POST forzado sin permiso: el PUT se intenta igual para devolver el mensaje real de la API (403).
+            // Nunca se tocan imágenes ni grupos en este camino.
+            if (Id is { } idSinCarga)
+            {
+                var forzadoGuardado = false;
+                try
+                {
+                    var forzado = await SocioNegocioApiClient.UpdateAsync(idSinCarga, ToInputEdicion(EdicionInput!, imagePath: null, gruposModificables: false));
+                    forzadoGuardado = forzado.Succeeded;
+                    if (!forzado.Succeeded)
+                    {
+                        Show("warning", forzado.Message, forzado.Errors);
+                    }
+                }
+                catch (InvalidOperationException ex)
+                {
+                    Logger.LogWarning(ex, "Could not update cliente {Id}.", idSinCarga);
+                    Show("danger", "No fue posible actualizar el cliente.");
+                }
+                catch (System.Net.Http.HttpRequestException ex)
+                {
+                    Logger.LogWarning(ex, "Could not update cliente {Id}.", idSinCarga);
+                    Show("danger", "No fue posible actualizar el cliente.");
+                }
+                catch (TaskCanceledException ex)
+                {
+                    Logger.LogWarning(ex, "Could not update cliente {Id}.", idSinCarga);
+                    Show("danger", "No fue posible actualizar el cliente.");
+                }
+
+                if (forzadoGuardado)
+                {
+                    Nav.NavigateTo(RetornoLocal.ConParametro(Volver, "ok", "updated"));
+                }
+            }
+
+            return;
+        }
+
+        // Defensa en profundidad: aunque el botón no se renderice, no se envía un PUT sin opciones de término fiables.
+        if (edicionBloqueada)
+        {
+            return;
+        }
+
+        var imagenAnterior = cliente.ImagePath;
+        string? imagenNueva = null;
+        var guardado = false;
+        try
+        {
+            var httpContext = HttpContextAccessor.HttpContext ?? throw new InvalidOperationException("No hay HttpContext disponible para cargar la imagen.");
+            // La imagen vigente es la GUARDADA en el servidor (nunca un valor del formulario); sin fichero subido se conserva.
+            imagenNueva = await FileStorageService.SaveClientImageAsync(httpContext, "ClientImage", imagenAnterior);
+            var result = await SocioNegocioApiClient.UpdateAsync(cliente.Id, ToInputEdicion(EdicionInput!, imagenNueva, gruposModificables: !grupos.CargaFallida));
+            guardado = result.Succeeded;
+            if (!result.Succeeded)
+            {
+                await DescartarImagenNuevaAsync(imagenNueva, imagenAnterior);
+                Show("warning", result.Message, result.Errors);
+            }
+        }
+        catch (Exception ex)
+        {
+            await DescartarImagenNuevaAsync(imagenNueva, imagenAnterior);
+            Logger.LogWarning(ex, "Could not update cliente/image.");
+            Show("danger", ex is InvalidOperationException ? ex.Message : "No fue posible actualizar el cliente.");
+        }
+
+        if (!guardado)
+        {
+            return;
+        }
+
+        // Solo ahora que la API confirmó el cambio se retira la imagen anterior (un fallo aquí no deshace el guardado).
+        if (imagenNueva != imagenAnterior)
+        {
+            try { await FileStorageService.DeleteIfExistsAsync(imagenAnterior, RutaImagen.CarpetaClientes); }
+            catch (Exception ex) { Logger.LogWarning(ex, "Could not delete previous cliente image."); }
+        }
+
+        Nav.NavigateTo(RetornoLocal.ConParametro(Volver, "ok", "updated"));
+    }
+
+    // Si el cambio no se guardó, la imagen recién subida quedaría huérfana (la vigente sigue siendo la anterior).
+    private async Task DescartarImagenNuevaAsync(string? imagenNueva, string? imagenAnterior)
+    {
+        if (imagenNueva is not null && imagenNueva != imagenAnterior)
+        {
+            await FileStorageService.DeleteIfExistsAsync(imagenNueva, RutaImagen.CarpetaClientes);
+        }
+    }
+
+    private void Show(string type, string? text, IReadOnlyList<string>? errors = null)
+    {
+        messageType = type;
+        message = text;
+        errores = errors ?? [];
+    }
+
+    private static SocioNegocioInput ToInputAlta(ClienteEditorForm form) => new(
+        form.NombreComercial.Trim(), form.Email?.Trim(), form.Telefono?.Trim(), form.DireccionLinea1?.Trim(), form.DireccionLinea2?.Trim(),
+        form.Sector?.Trim(), form.PaisCodigo, form.ImagePath, form.RazonSocial?.Trim(), form.Tipo, form.TipoDocumentoFiscal,
+        form.NumeroDocumentoFiscal?.Trim(), form.Ciudad?.Trim(), form.TerminoPagoId is { } id && id != Guid.Empty ? id : null,
+        form.LimiteCredito, form.Bloqueado, form.GrupoNegocioId, form.GrupoIvaNegocioId, form.GrupoClienteContableId);
+
+    // Edición: la API trata RazonSocial/NumeroDocumentoFiscal/Ciudad ausentes (null) como "conservar" y "" como "limpiar";
+    // TerminoPagoId null como "conservar" y Guid.Empty como "limpiar". El formulario muestra siempre el valor completo, así que
+    // se envía "" y Guid.Empty para que vaciar un campo lo vacíe de verdad. Email, Teléfono, dirección, Sector, País e ImagePath
+    // son de reemplazo completo. Grupos: null = conservar; si la API de grupos no cargó se envían siempre null.
+    // ImagePath nunca sale del formulario (manipulable): lo decide el servidor.
+    private static SocioNegocioInput ToInputEdicion(ClienteEditorForm form, string? imagePath, bool gruposModificables) => new(
+        form.NombreComercial.Trim(), form.Email?.Trim(), form.Telefono?.Trim(), form.DireccionLinea1?.Trim(), form.DireccionLinea2?.Trim(),
+        form.Sector?.Trim(), form.PaisCodigo, imagePath, form.RazonSocial?.Trim() ?? string.Empty, form.Tipo, form.TipoDocumentoFiscal,
+        form.NumeroDocumentoFiscal?.Trim() ?? string.Empty, form.Ciudad?.Trim() ?? string.Empty, form.TerminoPagoId ?? Guid.Empty,
+        form.LimiteCredito, form.Bloqueado,
+        gruposModificables ? form.GrupoNegocioId : null,
+        gruposModificables ? form.GrupoIvaNegocioId : null,
+        gruposModificables ? form.GrupoClienteContableId : null);
+}

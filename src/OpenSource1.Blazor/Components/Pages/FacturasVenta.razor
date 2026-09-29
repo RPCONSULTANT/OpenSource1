@@ -9,32 +9,40 @@
 @using OpenSource1.Application.Features.NotasCreditoVenta.Borradores.Dtos
 @using OpenSource1.Application.Features.NotasCreditoVenta.Posteadas
 @using OpenSource1.Application.Features.NotasCreditoVenta.Posteadas.Dtos
+@using OpenSource1.Application.Features.SociosNegocio.Dtos
 @using OpenSource1.Application.Security
 @using OpenSource1.Blazor.Services
 @using OpenSource1.Core.Common
 @using OpenSource1.Core.Enums
 @inject IFacturaVentaApiClient FacturaApiClient
 @inject INotaCreditoVentaApiClient NotaApiClient
+@inject ISocioNegocioApiClient SocioApiClient
 @inject IAuthorizationService AuthorizationService
 @inject ILogger<FacturasVenta> Logger
 @inject NavigationManager Nav
 
 <PageTitle>@(Numero is null ? "Facturas de venta" : $"Factura {Numero}") – AxionERP</PageTitle>
 
-<div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-    <div>
-        <p class="text-xs font-bold tracking-widest uppercase text-brand-600 mb-1">Ventas</p>
-        <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">@(Numero is null ? "Facturas de venta" : $"Factura {Numero}")</h1>
-        <p class="text-sm text-slate-500 mt-1">@(Numero is null ? "Facturas posteadas (documento legal, sin modificación)." : "Documento legal posteado: cabecera, líneas y líneas de IVA.")</p>
-    </div>
-    <div class="flex flex-wrap items-center gap-2">
-        @if (Numero is not null)
-        {
-            <a href="/facturas-venta" class="btn-press rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Volver al listado</a>
-        }
-        <a href="/facturas-venta/borradores" class="btn-press rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Borradores</a>
-    </div>
-</div>
+@if (Numero is null)
+{
+    <PageToolbar Titulo="Facturas" Subtitulo="Facturas de venta posteadas (documento legal, sin modificación)."
+                 Migas="@MigasListado" Permisos="@permisos"
+                 NuevoHref="@RetornoLocal.ConRetorno("/facturas-venta/nueva", UrlActual)" NuevoTexto="Nueva factura"
+                 SeleccionId="@FacturaSeleccionada?.Numero"
+                 Crear="@CrearFactura" Ver="@VerFactura" RetornoUrl="@UrlActual">
+        <a href="/facturas-venta/borradores" class="btn-press rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">Borradores</a>
+    </PageToolbar>
+}
+else
+{
+    <PageToolbar Titulo="@($"Factura {Numero}")" Subtitulo="Documento legal posteado: cabecera, líneas y líneas de IVA."
+                 Migas="@MigasDetalle" Permisos="@permisos"
+                 SeleccionId="@detalle?.Cabecera.Numero"
+                 Crear="@CrearDetalle" Ver="@VerDetalle" RetornoUrl="@UrlFactura">
+        <a href="/facturas-venta" class="btn-press rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">Volver al listado</a>
+        <a href="/facturas-venta/borradores" class="btn-press rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">Borradores</a>
+    </PageToolbar>
+}
 
 @if (!string.IsNullOrWhiteSpace(message))
 {
@@ -55,6 +63,10 @@
     <!-- ── Filtros ── -->
     <div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden mb-6">
         <form method="get" action="/facturas-venta" data-enhance class="p-4 sm:p-6">
+            @if (SocioId is not null)
+            {
+                <input type="hidden" name="socioId" value="@SocioId" />
+            }
             <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                 <div class="grid flex-1 grid-cols-1 gap-3 sm:grid-cols-4 max-w-5xl">
                     <div>
@@ -76,9 +88,16 @@
                 </div>
                 <div class="flex items-center gap-2">
                     <button type="submit" class="btn-press rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700">Consultar</button>
-                    <a href="/facturas-venta" title="Limpiar campos" class="btn-press rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Limpiar campos</a>
+                    <a href="@(SocioId is null ? "/facturas-venta" : $"/facturas-venta?socioId={SocioId}")" title="Limpiar campos" class="btn-press rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Limpiar campos</a>
                 </div>
             </div>
+            @if (SocioId is not null)
+            {
+                <p class="mt-4 inline-flex flex-wrap items-center gap-2 rounded-full border border-brand-200 bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-700" data-testid="filtro-cliente">
+                    Cliente: @(socioFiltro is null ? SocioId.ToString() : $"{socioFiltro.Codigo} — {socioFiltro.NombreComercial}")
+                    <a href="@BuildListUrl(1, conSocio: false, conSel: false)" class="underline hover:text-brand-900">Quitar</a>
+                </p>
+            }
         </form>
     </div>
 
@@ -91,6 +110,7 @@
             <table class="min-w-full divide-y divide-slate-100 text-sm" data-testid="tabla-facturas">
                 <thead class="bg-slate-50">
                     <tr>
+                        <th class="px-4 py-3"><span class="sr-only">Seleccionar</span></th>
                         <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Número</th>
                         <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Facturar a</th>
                         <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Fecha reg.</th>
@@ -104,11 +124,13 @@
                 <tbody class="divide-y divide-slate-50 bg-white">
                     @if (facturas.Count == 0)
                     {
-                        <tr><td colspan="8" class="px-4 py-8 text-center text-slate-400 text-sm">No hay facturas con esos criterios.</td></tr>
+                        <tr><td colspan="9" class="px-4 py-8 text-center text-slate-400 text-sm">No hay facturas con esos criterios.</td></tr>
                     }
                     @foreach (var f in facturas)
                     {
-                        <tr @key="f.Numero" class="hover:bg-slate-50">
+                        var marcada = f.Numero == FacturaSeleccionada?.Numero;
+                        <tr @key="f.Numero" class="@SeleccionFila.ClaseFila @(marcada ? SeleccionFila.ClaseFilaSeleccionada : null)">
+                            <td class="px-4 py-3"><SeleccionFila Href="@BuildListUrl(Pagina, sel: f.Numero)" Seleccionada="@marcada" Etiqueta="@f.Numero" /></td>
                             <td class="px-4 py-3"><a href="@($"/facturas-venta/{Uri.EscapeDataString(f.Numero)}")" class="font-mono text-xs font-semibold text-brand-700 hover:underline">@f.Numero</a></td>
                             <td class="px-4 py-3 text-slate-700">@f.SocioNegocioFacturarACodigo <span class="text-xs text-slate-400">@f.NombreFacturacion</span></td>
                             <td class="px-4 py-3 text-xs text-slate-500">@EntradaFecha.Formatear(f.FechaRegistro)</td>
@@ -276,11 +298,8 @@ else
                 <h2 class="text-sm font-semibold text-slate-700">Notas de crédito</h2>
                 <p class="mt-1 text-xs text-slate-500">@(notasCargaFallida ? "No fue posible cargar las notas de crédito de la factura." : $"{notasFactura.Count} posteada(s) por {VentasOpciones.Importe(notasFactura.Sum(n => n.ImporteTotal))} · {borradoresNota.Count} borrador(es).")</p>
             </div>
-            @if (canAdd && TienePendiente)
-            {
-                <a href="@($"/facturas-venta/{Uri.EscapeDataString(Numero!)}?crearNota=true")" class="btn-press rounded-lg border border-brand-200 bg-brand-50 px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-100" data-testid="crear-nota">Crear nota de crédito</a>
-            }
-            else if (!notasCargaFallida && !TienePendiente)
+            @* La nota se crea desde Crear ▾ de la barra (solo con importe pendiente); aquí solo se informa si ya no queda nada. *@
+            @if (!notasCargaFallida && !TienePendiente)
             {
                 <span class="text-xs font-semibold text-slate-500">Factura acreditada por completo.</span>
             }
@@ -323,7 +342,7 @@ else
 
     @if (MuestraFormCrearNota)
     {
-        <ConfirmDialog Title="Crear nota de crédito" Message="@($"Se creará un borrador de nota de crédito de la factura {c.Numero}. Después podrá elegir las líneas y cantidades a acreditar.")" Variant="warning" CancelHref="@($"/facturas-venta/{Uri.EscapeDataString(Numero!)}")">
+        <ConfirmDialog Title="Crear nota de crédito" Message="@($"Se creará un borrador de nota de crédito de la factura {c.Numero}. Después podrá elegir las líneas y cantidades a acreditar.")" Variant="warning" CancelHref="@VolverNota">
             @if (crearNotaError is not null)
             {
                 <div class="mb-4" data-testid="errores-crear-nota"><MessageBox Type="warning" Message="@crearNotaError" Errors="@crearNotaErrores" /></div>
@@ -358,8 +377,8 @@ else
                 <p class="mt-2 text-xs text-slate-400">Fechas vacías: registro = hoy, documento = registro. La fecha de registro no puede ser anterior a la de la factura (@EntradaFecha.Formatear(c.FechaRegistro)).</p>
                 <div class="mt-5 flex items-center gap-3">
                     <button type="submit" class="btn-press rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700">Crear borrador</button>
-                    <a href="@($"/facturas-venta/{Uri.EscapeDataString(Numero!)}?crearNota=true")" class="btn-press rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Limpiar campos</a>
-                    <a href="@($"/facturas-venta/{Uri.EscapeDataString(Numero!)}")" class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">Cancelar</a>
+                    <a href="@LimpiarNotaHref" class="btn-press rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Limpiar campos</a>
+                    <a href="@VolverNota" class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">Cancelar</a>
                 </div>
             </EditForm>
         </ConfirmDialog>
@@ -387,6 +406,11 @@ else
     [SupplyParameterFromQuery(Name = "ok")] private string? Ok { get; set; }
     [SupplyParameterFromQuery(Name = "registro")] private string? Registro { get; set; }
     [SupplyParameterFromQuery(Name = "crearNota")] private bool CrearNota { get; set; }
+    [SupplyParameterFromQuery(Name = "returnUrl")] private string? ReturnUrl { get; set; }
+    // Tolerante (ola final Fix-Features): un ?socioId= ilegible se ignora; con Guid? el binder lanzaría (página de error).
+    [SupplyParameterFromQuery(Name = "socioId")] private string? SocioIdTexto { get; set; }
+    private Guid? SocioId => InventarioVistasOpciones.ParseGuid(SocioIdTexto);
+    [SupplyParameterFromQuery(Name = "sel")] private string? Sel { get; set; }
 
     [SupplyParameterFromForm(FormName = "crear-nota")] private CrearNotaForm? CrearNotaInput { get; set; }
 
@@ -401,12 +425,52 @@ else
     private string messageType = "info";
     private IReadOnlyList<string> errores = [];
     private bool canAdd;
+    private PermisosPagina? permisos;
+    private SocioNegocioResponse? socioFiltro;
     private IReadOnlyList<NotaCreditoVentaResponse> notasFactura = [];
     private IReadOnlyList<NotaCreditoVentaBorradorResponse> borradoresNota = [];
     private Dictionary<long, (decimal Cantidad, decimal Importe, decimal Devuelto)> acreditadoPorLinea = [];
     private bool notasCargaFallida;
     private string? crearNotaError;
     private IReadOnlyList<string> crearNotaErrores = [];
+
+    private static readonly IReadOnlyList<Miga> MigasListado = [new("Facturación", "/modulos/facturacion"), new("Facturas")];
+
+    private IReadOnlyList<Miga> MigasDetalle => [new("Facturación", "/modulos/facturacion"), new("Facturas", "/facturas-venta"), new(Numero!)];
+
+    /// <summary>Selección válida: solo una factura de la página cargada (una selección obsoleta deja las acciones deshabilitadas).</summary>
+    private FacturaVentaResponse? FacturaSeleccionada => Sel is null ? null : facturas.FirstOrDefault(f => f.Numero == Sel);
+
+    /// <summary>URL de vuelta del listado (filtros, cliente, página y selección).</summary>
+    private string UrlActual => RetornoLocal.SinTransitorios(BuildListUrl(Pagina));
+
+    private static readonly IReadOnlyList<AccionPagina> CrearFactura =
+    [
+        new("Nota de crédito de la factura", IconosModulo.Documento, id => $"/facturas-venta/{Uri.EscapeDataString(id!)}?crearNota=true", ApplicationPolicies.CanAdd, RequiereSeleccion: true, LlevaRetorno: true),
+    ];
+
+    /// <summary>En el detalle, la nota solo se ofrece si queda importe por acreditar (una sola entrada: la de la barra).</summary>
+    private IReadOnlyList<AccionPagina> CrearDetalle => TienePendiente ? CrearFactura : [];
+
+    private string UrlFactura => $"/facturas-venta/{Uri.EscapeDataString(Numero ?? string.Empty)}";
+
+    /// <summary>Cancelar del diálogo de la nota: vuelve al origen (lista con filtros y selección, o la factura).</summary>
+    private string VolverNota => RetornoLocal.Volver(ReturnUrl, UrlFactura);
+
+    private string LimpiarNotaHref => string.IsNullOrWhiteSpace(ReturnUrl)
+        ? $"{UrlFactura}?crearNota=true"
+        : RetornoLocal.ConRetorno($"{UrlFactura}?crearNota=true", VolverNota);
+
+    private IReadOnlyList<AccionPagina> VerFactura =>
+    [
+        new("Detalle", IconosModulo.Documento, id => $"/facturas-venta/{Uri.EscapeDataString(id!)}", null, RequiereSeleccion: true),
+        new("Movimientos del cliente", IconosModulo.Lista, _ => $"/ventas/movimientos-cliente?socioId={FacturaSeleccionada?.SocioNegocioId}", ApplicationPolicies.CanConsult, RequiereSeleccion: true),
+    ];
+
+    private IReadOnlyList<AccionPagina> VerDetalle =>
+    [
+        new("Movimientos del cliente", IconosModulo.Lista, _ => $"/ventas/movimientos-cliente?socioId={detalle?.Cabecera.SocioNegocioId}", ApplicationPolicies.CanConsult, RequiereSeleccion: true),
+    ];
 
     private bool MuestraFormCrearNota => detalle is not null && canAdd && CrearNota;
 
@@ -421,11 +485,8 @@ else
     protected override async Task OnInitializedAsync()
     {
         CrearNotaInput ??= new();
-        if (AuthenticationStateTask is not null)
-        {
-            var user = (await AuthenticationStateTask).User;
-            canAdd = (await AuthorizationService.AuthorizeAsync(user, ApplicationPolicies.CanAdd)).Succeeded;
-        }
+        permisos = await PermisosPagina.CargarAsync(AuthorizationService, AuthenticationStateTask);
+        canAdd = permisos.CanAdd;
     }
 
     protected override async Task OnParametersSetAsync()
@@ -541,6 +602,7 @@ else
 
     private async Task CargarListadoAsync()
     {
+        await CargarSocioFiltroAsync();
         DateOnly? desde = null, hasta = null;
         if (!string.IsNullOrWhiteSpace(SearchDesde))
         {
@@ -556,7 +618,8 @@ else
 
         try
         {
-            var filtro = new FacturaVentaSearchCriteria(EmptyAsNull(SearchNumero), EmptyAsNull(SearchNombre), null, desde, hasta);
+            // ?socioId= (desde la ficha del cliente) filtra por vender-a o facturar-a en la API.
+            var filtro = new FacturaVentaSearchCriteria(EmptyAsNull(SearchNumero), EmptyAsNull(SearchNombre), SocioId, desde, hasta);
             if (Pagina < 1) Pagina = 1;
             // Orden explícito: por número descendente (lo último posteado primero).
             var pagina = await FacturaApiClient.ListFacturasAsync(filtro, new PageRequest(Pagina, PageRequest.TamanoPorDefecto, "Numero", Descendente: true));
@@ -577,14 +640,35 @@ else
         }
     }
 
-    private string BuildListUrl(int pagina)
+    /// <summary>Cliente del filtro ?socioId= para el chip (si no carga, el chip muestra el id; el filtro se aplica igual).</summary>
+    private async Task CargarSocioFiltroAsync()
+    {
+        if (SocioId is not { } socioId || socioFiltro?.Id == socioId)
+        {
+            return;
+        }
+
+        try
+        {
+            socioFiltro = await SocioApiClient.GetByIdAsync(socioId);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not load socio {Id} for the facturas filter.", socioId);
+        }
+    }
+
+    private string BuildListUrl(int pagina, bool conSocio = true, string? sel = null, bool conSel = true)
     {
         var parameters = new List<string>();
+        if (conSocio && SocioId is { } socioId) parameters.Add($"socioId={socioId}");
         if (!string.IsNullOrWhiteSpace(SearchNumero)) parameters.Add($"numero={Uri.EscapeDataString(SearchNumero)}");
         if (!string.IsNullOrWhiteSpace(SearchNombre)) parameters.Add($"nombre={Uri.EscapeDataString(SearchNombre)}");
         if (!string.IsNullOrWhiteSpace(SearchDesde)) parameters.Add($"desde={Uri.EscapeDataString(SearchDesde)}");
         if (!string.IsNullOrWhiteSpace(SearchHasta)) parameters.Add($"hasta={Uri.EscapeDataString(SearchHasta)}");
         if (pagina > 1) parameters.Add($"pagina={pagina}");
+        var selEfectiva = sel ?? (conSel ? Sel : null);
+        if (!string.IsNullOrWhiteSpace(selEfectiva)) parameters.Add($"sel={Uri.EscapeDataString(selEfectiva)}");
         return parameters.Count == 0 ? "/facturas-venta" : $"/facturas-venta?{string.Join("&", parameters)}";
     }
 

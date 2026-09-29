@@ -1,0 +1,228 @@
+@page "/diarios-inventario/nuevo"
+@page "/diarios-inventario/{Id:guid}/editar"
+@attribute [Authorize(Policy = ApplicationPolicies.CanConsult)]
+@using Microsoft.AspNetCore.Authorization
+@using OpenSource1.Application.Features.DiariosInventario.Plantillas.Dtos
+@using OpenSource1.Application.Features.Productos.Dtos
+@using OpenSource1.Blazor.Services
+@inject IDiarioInventarioApiClient DiarioApiClient
+@inject IProductoApiClient ProductoApiClient
+@inject IAuthorizationService AuthorizationService
+@inject ILogger<LoteDiarioEditor> Logger
+@inject NavigationManager Nav
+
+@* Editor de lotes de diario (Fix-Features B2d): alta y modificación de la cabecera del lote en página-tarjeta propia.
+   Los dos EditForm (save/update) están siempre en el árbol: si el permiso o la rama los ocultan quedan vacíos, para que un
+   POST forzado llegue al handler y reciba el mensaje real de la API. *@
+<EntityFormPage Titulo="@(EsEdicion ? "Modificar lote" : "Nuevo lote de diario")" Subtitulo="Lotes de ajustes y reclasificaciones de inventario."
+                Migas="@Migas" Mensaje="@message" TipoMensaje="@messageType" Errores="@errores">
+    @if (!EsEdicion)
+    {
+        @if (permisos?.CanAdd != true)
+        {
+            <p class="text-sm text-slate-600 dark:text-slate-300">No tiene permiso para realizar esta acción.</p>
+            <EditForm Model="SaveInput" FormName="save-lote-diario" OnValidSubmit="CreateAsync"></EditForm>
+        }
+        else if (plantillasCargaFallida)
+        {
+            <MessageBox Type="danger" Message="No se puede agregar un lote hasta que las plantillas carguen; recargue la página." />
+            <EditForm Model="SaveInput" FormName="save-lote-diario" OnValidSubmit="CreateAsync"></EditForm>
+        }
+        else
+        {
+            @if (productoAjuste is not null)
+            {
+                <div class="mb-4"><MessageBox Type="info" Message="@($"Al crear el lote se abrirá con una línea para {productoAjuste.Codigo} — {productoAjuste.Nombre}.")" /></div>
+            }
+            <EditForm Model="SaveInput" FormName="save-lote-diario" OnValidSubmit="CreateAsync" Enhance="true">
+                <DataAnnotationsValidator />
+                <LoteDiarioFields Model="SaveInput!" Prefix="SaveInput" Plantillas="@plantillas" EsEdicion="false" />
+                <FormularioAcciones CancelarHref="@Volver" LimpiarHref="@Nav.Uri" />
+            </EditForm>
+        }
+        <EditForm Model="UpdateInput" FormName="update-lote-diario" OnValidSubmit="UpdateAsync"></EditForm>
+    }
+    else
+    {
+        @if (permisos?.CanModify == true && encontrado && !plantillasCargaFallida)
+        {
+            <EditForm Model="UpdateInput" FormName="update-lote-diario" OnValidSubmit="UpdateAsync" Enhance="true">
+                <DataAnnotationsValidator />
+                <input type="hidden" name="UpdateInput.Id" value="@UpdateInput!.Id" />
+                <input type="hidden" name="UpdateInput.PlantillaDiarioId" value="@UpdateInput.PlantillaDiarioId" />
+                <input type="hidden" name="UpdateInput.Xmin" value="@UpdateInput.Xmin" />
+                <LoteDiarioFields Model="UpdateInput!" Prefix="UpdateInput" Plantillas="@plantillas" EsEdicion="true" />
+                <FormularioAcciones CancelarHref="@Volver" LimpiarHref="@Nav.Uri" TextoGuardar="Guardar cambios" />
+            </EditForm>
+        }
+        else
+        {
+            @if (permisos?.CanModify != true)
+            {
+                <p class="text-sm text-slate-600 dark:text-slate-300">No tiene permiso para realizar esta acción.</p>
+            }
+            else if (plantillasCargaFallida)
+            {
+                <MessageBox Type="danger" Message="No se puede modificar un lote hasta que las plantillas carguen; recargue la página." />
+            }
+            else if (!encontrado && !cargaFallida)
+            {
+                <MessageBox Type="warning" Message="No se encontró el lote seleccionado. Puede haber sido eliminado por otro usuario." />
+            }
+            <EditForm Model="UpdateInput" FormName="update-lote-diario" OnValidSubmit="UpdateAsync"></EditForm>
+            <div class="mt-4"><a href="@Volver" class="text-sm font-semibold text-brand-600 hover:underline">Volver a la lista</a></div>
+        }
+        <EditForm Model="SaveInput" FormName="save-lote-diario" OnValidSubmit="CreateAsync"></EditForm>
+    }
+</EntityFormPage>
+
+@code {
+    [Parameter] public Guid? Id { get; set; }
+    [SupplyParameterFromQuery(Name = "returnUrl")] private string? ReturnUrl { get; set; }
+    // Ajuste en diario desde un producto (Fix-Features C2): el EditForm publica en la misma URL, así que llega también en el POST.
+    // String tolerante (C2 minor): el binder lanza con un Guid? no interpretable; un id inválido se ignora (alta normal).
+    [SupplyParameterFromQuery(Name = "productoId")] private string? ProductoIdTexto { get; set; }
+    private Guid? ProductoId => InventarioVistasOpciones.ParseGuid(ProductoIdTexto);
+    [SupplyParameterFromForm(FormName = "save-lote-diario")] private DiariosInventario.LoteForm? SaveInput { get; set; }
+    [SupplyParameterFromForm(FormName = "update-lote-diario")] private DiariosInventario.LoteForm? UpdateInput { get; set; }
+    [CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+    private PermisosPagina? permisos;
+    private IReadOnlyList<PlantillaDiarioResponse> plantillas = [];
+    private bool plantillasCargaFallida;
+    private bool encontrado;
+    private bool cargaFallida;
+    private string? message;
+    private string messageType = "warning";
+    private IReadOnlyList<string> errores = [];
+    private ProductoResponse? productoAjuste;
+
+    private bool EsEdicion => Id.HasValue;
+    private string Volver => RetornoLocal.Volver(ReturnUrl, "/diarios-inventario");
+    private IReadOnlyList<Miga> Migas =>
+        [new("Inventario", "/modulos/inventario"), new("Diarios de inventario", Volver), new(EsEdicion ? "Modificar" : "Nuevo")];
+
+    protected override async Task OnInitializedAsync()
+    {
+        SaveInput ??= new();
+        UpdateInput ??= new();
+        permisos = await PermisosPagina.CargarAsync(AuthorizationService, AuthenticationStateTask);
+
+        if (EsEdicion ? !permisos.CanModify : !permisos.CanAdd)
+        {
+            return;
+        }
+
+        try
+        {
+            plantillas = await DiarioApiClient.ListPlantillasAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not load plantillas de diario from API.");
+            plantillasCargaFallida = true;
+        }
+
+        if (Id is { } id)
+        {
+            try
+            {
+                var lote = await DiarioApiClient.GetLoteByIdAsync(id);
+                encontrado = lote is not null;
+                // Solo se rellena con lo guardado cuando NO llegó un formulario de modificación (Id vacío).
+                if (lote is not null && UpdateInput.Id == Guid.Empty)
+                {
+                    UpdateInput.Id = lote.Id;
+                    UpdateInput.PlantillaDiarioId = lote.PlantillaDiarioId;
+                    UpdateInput.Codigo = lote.Codigo;
+                    UpdateInput.Nombre = lote.Nombre;
+                    UpdateInput.Bloqueado = lote.Bloqueado;
+                    UpdateInput.Xmin = lote.Xmin;
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Could not load lote de diario {Id} from API.", id);
+                cargaFallida = true;
+                Show("danger", "No fue posible cargar el lote a modificar.");
+            }
+        }
+
+        // Solo en el alta: aviso con el producto que se añadirá. Si no carga, el alta sigue funcionando (el lote abrirá la línea igual).
+        if (!EsEdicion && ProductoId is { } productoId)
+        {
+            try
+            {
+                productoAjuste = await ProductoApiClient.GetByIdAsync(productoId);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Could not load producto {Id} for ajuste en diario.", productoId);
+            }
+        }
+    }
+
+    private async Task CreateAsync()
+    {
+        if (SaveInput!.PlantillaDiarioId == Guid.Empty)
+        {
+            Show("warning", "Seleccione una plantilla.");
+            return;
+        }
+
+        await ExecuteAsync(() => DiarioApiClient.CreateLoteAsync(new LoteDiarioInput(SaveInput.PlantillaDiarioId, SaveInput.Codigo.Trim(), SaveInput.Nombre.Trim(), SaveInput.Bloqueado)), "created");
+    }
+
+    private async Task UpdateAsync()
+    {
+        if (Id is not { } id)
+        {
+            Show("warning", "Seleccione primero un registro a modificar desde la tabla.");
+            return;
+        }
+
+        await ExecuteAsync(() => DiarioApiClient.UpdateLoteAsync(
+            id, new LoteDiarioInput(UpdateInput!.PlantillaDiarioId, UpdateInput.Codigo.Trim(), UpdateInput.Nombre.Trim(), UpdateInput.Bloqueado), UpdateInput.Xmin), "updated");
+    }
+
+    private async Task ExecuteAsync(Func<Task<LoteDiarioOperationResult>> operation, string successCode)
+    {
+        // R17: la navegación va FUERA del try (NavigateTo puede lanzar NavigationException y el catch se la tragaría).
+        string? destino = null;
+        try
+        {
+            var result = await operation();
+            if (result.Succeeded)
+            {
+                destino = DestinoTrasGuardar(result, successCode);
+            }
+            else
+            {
+                Show("warning", result.Message, result.Errors);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not complete lote de diario operation.");
+            Show("danger", "No fue posible completar la operación.");
+        }
+
+        if (destino is not null)
+        {
+            Nav.NavigateTo(destino);
+        }
+    }
+
+    // Alta desde un producto (?productoId=): abre el lote nuevo con la línea del producto precargada (?addProductoId=).
+    private string DestinoTrasGuardar(LoteDiarioOperationResult result, string successCode) =>
+        successCode == "created" && ProductoId is { } productoId && result.Valor is { } lote
+            ? $"/diarios-inventario/{lote.Id}?addProductoId={productoId}"
+            : RetornoLocal.ConParametro(Volver, "ok", successCode);
+
+    private void Show(string type, string? text, IReadOnlyList<string>? errors = null)
+    {
+        messageType = type;
+        message = text;
+        errores = errors ?? [];
+    }
+}

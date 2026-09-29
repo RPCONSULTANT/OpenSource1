@@ -1,0 +1,362 @@
+@page "/productos/nuevo"
+@page "/productos/{Id:guid}/editar"
+@attribute [Authorize(Policy = ApplicationPolicies.CanConsult)]
+@using Microsoft.AspNetCore.Authorization
+@using OpenSource1.Application.Features.Productos.Dtos
+@using OpenSource1.Application.Storage
+@using OpenSource1.Blazor.Services
+@using OpenSource1.Core.Entities.Contabilidad
+@inject IProductoApiClient ProductoApiClient
+@inject ICategoriaProductoApiClient CategoriaProductoApiClient
+@inject IUnidadMedidaApiClient UnidadMedidaApiClient
+@inject IGrupoContableApiClient GrupoContableApiClient
+@inject IHttpContextAccessor HttpContextAccessor
+@inject IFileStorageService FileStorageService
+@inject IAuthorizationService AuthorizationService
+@inject ILogger<ProductoEditor> Logger
+@inject NavigationManager Nav
+
+@* Página-tarjeta de alta y modificación de productos (Fix-Features B2c): sustituye a ProductoNew y al modo ?edit=true de la
+   ficha (la tabla de existencia por almacén se queda en la ficha). Los dos EditForm (producto-new / producto-edit) están
+   SIEMPRE en el árbol: un POST forzado sin permiso llega a su handler y muestra el mensaje real de la API. *@
+<EntityFormPage Titulo="@(EsEdicion ? "Modificar producto" : "Nuevo producto")"
+                Subtitulo="Datos generales, clasificación, costeo y grupos contables del producto."
+                Migas="@Migas" Mensaje="@message" TipoMensaje="@messageType" Errores="@errores">
+    @if (!Permitido)
+    {
+        <MessageBox Type="warning" Message="No tiene permiso para realizar esta acción." />
+    }
+    else if (EsEdicion && producto is null)
+    {
+        <MessageBox Type="warning" Message="@(loadError ?? "No se encontró el producto solicitado.")" />
+    }
+    else if (EsEdicion)
+    {
+        @if (edicionBloqueada)
+        {
+            <div class="mb-4"><MessageBox Type="danger" Message="@ProductoOpciones.MensajeNoDisponibles" /></div>
+        }
+        @if (grupos.CargaFallida)
+        {
+            <div class="mb-4"><MessageBox Type="warning" Message="@GruposProductoOpciones.MensajeNoDisponibles" /></div>
+        }
+        <EditForm Model="EdicionInput" FormName="producto-edit" OnValidSubmit="SaveAsync" Enhance="true" enctype="multipart/form-data">
+            <DataAnnotationsValidator />
+            <div class="mb-6 grid grid-cols-1 items-start gap-6 md:grid-cols-[220px_1fr]">
+                <div>
+                    <p class="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-300">Imagen actual</p>
+                    @if (!string.IsNullOrWhiteSpace(producto!.ImagePath))
+                    {
+                        <img src="@producto.ImagePath" alt="Imagen del producto" class="h-40 w-40 rounded-2xl border border-slate-200 bg-slate-50 object-cover dark:border-slate-700 dark:bg-slate-900/40" />
+                    }
+                    else
+                    {
+                        <div class="flex h-40 w-40 items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 text-sm text-slate-400 dark:border-slate-600 dark:bg-slate-900/40 dark:text-slate-500">Sin imagen</div>
+                    }
+                </div>
+                <div>
+                    <label class="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-300">Cambiar imagen</label>
+                    <input type="file" name="ProductImage" accept=".jpg,.jpeg,.png,.webp" class="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300" />
+                    <p class="mt-1 text-xs text-slate-400 dark:text-slate-500">Formatos permitidos: JPG, PNG, WEBP. Máximo 2 MB.</p>
+                </div>
+            </div>
+            <ProductoFields Model="EdicionInput!" Prefix="Input" EsEdicion="true" Categorias="@opciones.Categorias" Unidades="@opciones.Unidades"
+                            CategoriaActualId="@producto.CategoriaId" CategoriaActualNombre="@($"{producto.CategoriaCodigo} — {producto.CategoriaNombre}")"
+                            UnidadActualId="@producto.UnidadMedidaBaseId" UnidadActualNombre="@($"{producto.UnidadMedidaNombre} ({producto.UnidadMedidaCodigo})")"
+                            Grupos="@grupos" GrupoProductoVigente="@producto.GrupoProductoCodigo" GrupoIvaProductoVigente="@producto.GrupoIvaProductoCodigo" GrupoInventarioVigente="@producto.GrupoInventarioCodigo" />
+            <FormularioAcciones CancelarHref="@Volver" LimpiarHref="@Nav.Uri" TextoGuardar="Guardar cambios" Deshabilitado="@edicionBloqueada" />
+        </EditForm>
+    }
+    else
+    {
+        @if (opciones.CargaFallida)
+        {
+            <div class="mb-4"><MessageBox Type="warning" Message="@ProductoOpciones.MensajeNoDisponiblesAlta" /></div>
+        }
+        @if (grupos.CargaFallida)
+        {
+            <div class="mb-4"><MessageBox Type="warning" Message="@GruposProductoOpciones.MensajeNoDisponiblesAlta" /></div>
+        }
+        <EditForm Model="AltaInput" FormName="producto-new" OnValidSubmit="CreateAsync" Enhance="true" enctype="multipart/form-data">
+            <DataAnnotationsValidator />
+            <div class="mb-6">
+                <label class="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-300">Imagen del producto</label>
+                <input type="file" name="ProductImage" accept=".jpg,.jpeg,.png,.webp" class="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300" />
+                <p class="mt-1 text-xs text-slate-400 dark:text-slate-500">Formatos permitidos: JPG, PNG, WEBP. Máximo 2 MB.</p>
+            </div>
+            <ProductoFields Model="AltaInput!" Prefix="Input" Categorias="@opciones.Categorias" Unidades="@opciones.Unidades" Grupos="@grupos" />
+            <FormularioAcciones CancelarHref="@Volver" LimpiarHref="@Nav.Uri" TextoGuardar="Guardar producto" />
+        </EditForm>
+    }
+</EntityFormPage>
+
+@if (!(!EsEdicion && CanAdd))
+{
+    <EditForm Model="AltaInput" FormName="producto-new" OnValidSubmit="CreateAsync"></EditForm>
+}
+@if (!(EsEdicion && CanModify && producto is not null))
+{
+    <EditForm Model="EdicionInput" FormName="producto-edit" OnValidSubmit="SaveAsync"></EditForm>
+}
+
+@code {
+    [Parameter] public Guid? Id { get; set; }
+    [SupplyParameterFromQuery(Name = "returnUrl")] private string? ReturnUrl { get; set; }
+    // Ambos formularios usan el prefijo "Input" (ProductoFields Prefix="Input"), cada uno con su FormName.
+    [SupplyParameterFromForm(FormName = "producto-new", Name = "Input")] private ProductoEditorForm? AltaInput { get; set; }
+    [SupplyParameterFromForm(FormName = "producto-edit", Name = "Input")] private ProductoEditorForm? EdicionInput { get; set; }
+    [CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+    private PermisosPagina? permisos;
+    private bool formularioEdicionRecibido;
+    private ProductoResponse? producto;
+    private string? message;
+    private string messageType = "danger";
+    private IReadOnlyList<string> errores = [];
+    private string? loadError;
+    // Opciones de los <select> de categoría y unidad. La modificación se bloquea si no son fiables: guardar a ciegas podría
+    // cambiar la categoría o la unidad.
+    private ProductoOpciones opciones = ProductoOpciones.SinCargar;
+    private bool edicionBloqueada;
+    // Grupos contables (Task 5.3): si no cargan NO bloquean la edición; solo impiden cambiar los grupos (se envían null = conservar).
+    private GruposProductoOpciones grupos = GruposProductoOpciones.SinCargar;
+
+    private bool CanAdd => permisos?.CanAdd == true;
+    private bool CanModify => permisos?.CanModify == true;
+    private bool EsEdicion => Id.HasValue;
+    private bool Permitido => EsEdicion ? CanModify : CanAdd;
+    private string Volver => RetornoLocal.Volver(ReturnUrl, "/productos");
+    private IReadOnlyList<Miga> Migas => [new("Productos", "/modulos/productos"), new("Productos", Volver), new(EsEdicion ? "Modificar" : "Nuevo")];
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Los dos modelos se crean ANTES del primer await: con la API real Blazor pinta un primer lote mientras carga, y un
+        // EditForm (el vacío de "siempre en el árbol") con Model null rompe el render ("renderer does not have a component").
+        // Si llegó un formulario (POST) se respeta tal cual; si no, la edición se rellena con lo guardado al cargarlo.
+        var formularioNuevo = AltaInput is null;
+        formularioEdicionRecibido = EdicionInput is not null;
+        AltaInput ??= new();
+        EdicionInput ??= new();
+        permisos = await PermisosPagina.CargarAsync(AuthorizationService, AuthenticationStateTask);
+
+        if (EsEdicion)
+        {
+            if (CanModify)
+            {
+                await CargarEdicionAsync(Id!.Value);
+            }
+
+            return;
+        }
+
+        if (!CanAdd)
+        {
+            return;
+        }
+
+        // Opciones de los <select> de categoría y unidad; si no cargan el alta sigue siendo posible (categoría General, unidad Unidad).
+        opciones = await ProductoOpciones.CargarAsync(CategoriaProductoApiClient, UnidadMedidaApiClient, Logger);
+        // Grupos contables (Task 5.3): si no cargan, el alta sigue siendo posible y la API asigna los grupos por defecto.
+        grupos = await GruposProductoOpciones.CargarAsync(GrupoContableApiClient, Logger);
+        if (formularioNuevo)
+        {
+            // Preselecciona los grupos semilla por defecto: los mismos que la API asigna a un alta sin grupos. Si una semilla no
+            // está en la lista, el select muestra "— Por defecto —" (null). En un POST se respeta lo que envió el usuario.
+            AltaInput.GrupoProductoId = GruposOpciones.PorDefecto(grupos.Producto, GrupoContableIds.ProductoBienes);
+            AltaInput.GrupoIvaProductoId = GruposOpciones.PorDefecto(grupos.IvaProducto, GrupoContableIds.IvaProductoItbis18);
+            AltaInput.GrupoInventarioId = GruposOpciones.PorDefecto(grupos.Inventario, GrupoContableIds.InventarioGeneral);
+        }
+    }
+
+    private async Task CargarEdicionAsync(Guid id)
+    {
+        try
+        {
+            producto = await ProductoApiClient.GetByIdAsync(id);
+            if (producto is null)
+            {
+                return;
+            }
+
+            // Solo se rellena con lo guardado cuando NO llegó un formulario: si el POST trae valores se conservan tal cual.
+            if (!formularioEdicionRecibido)
+            {
+                EdicionInput = new ProductoEditorForm
+                {
+                    Codigo = producto.Codigo, Nombre = producto.Nombre, PrecioVentaTexto = EntradaDecimal.Formatear(producto.PrecioVenta),
+                    CategoriaId = producto.CategoriaId, UnidadMedidaBaseId = producto.UnidadMedidaBaseId, MetodoCosteo = producto.MetodoCosteo,
+                    CostoEstandarTexto = EntradaDecimal.Formatear(producto.CostoEstandar), Bloqueado = producto.Bloqueado, ImagePath = producto.ImagePath,
+                    GrupoProductoId = producto.GrupoProductoId, GrupoIvaProductoId = producto.GrupoIvaProductoId, GrupoInventarioId = producto.GrupoInventarioId
+                };
+            }
+
+            opciones = await ProductoOpciones.CargarAsync(CategoriaProductoApiClient, UnidadMedidaApiClient, Logger);
+            edicionBloqueada = opciones.ModificacionBloqueada;
+            grupos = await GruposProductoOpciones.CargarAsync(GrupoContableApiClient, Logger);
+            if (grupos.CargaFallida)
+            {
+                // Los selectores deshabilitados no se envían: que muestren siempre el valor guardado (también al re-renderizar un POST).
+                EdicionInput!.GrupoProductoId = producto.GrupoProductoId;
+                EdicionInput.GrupoIvaProductoId = producto.GrupoIvaProductoId;
+                EdicionInput.GrupoInventarioId = producto.GrupoInventarioId;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not load producto {Id} for edit.", id);
+            producto = null;
+            loadError = "No fue posible cargar la ficha del producto.";
+        }
+    }
+
+    // R17: Nav.NavigateTo va DESPUÉS del try/catch (en SSR puede lanzar NavigationException, que el catch se tragaría).
+    private async Task CreateAsync()
+    {
+        string? imagenNueva = null;
+        string? destino = null;
+        try
+        {
+            var httpContext = HttpContextAccessor.HttpContext ?? throw new InvalidOperationException("No hay HttpContext disponible para cargar la imagen.");
+            // El formulario no envía ninguna ruta que el servidor use: en el alta la imagen vigente es null. Un POST forzado sin
+            // CanAdd no guarda ficheros: va directo a la API para devolver su 403.
+            imagenNueva = CanAdd ? await FileStorageService.SaveProductImageAsync(httpContext, "ProductImage", null) : null;
+            AltaInput!.ImagePath = imagenNueva;
+            var result = await ProductoApiClient.CreateAsync(ToInputAlta(AltaInput));
+            if (result.Succeeded)
+            {
+                destino = RetornoLocal.ConParametro(Volver, "ok", "created");
+            }
+            else
+            {
+                await FileStorageService.DeleteIfExistsAsync(imagenNueva, RutaImagen.CarpetaProductos);
+                Show("warning", result.Message, result.Errors);
+            }
+        }
+        catch (Exception ex)
+        {
+            await FileStorageService.DeleteIfExistsAsync(imagenNueva, RutaImagen.CarpetaProductos);
+            Logger.LogWarning(ex, "Could not create producto.");
+            Show("danger", ex is InvalidOperationException ? ex.Message : "No fue posible crear el producto.");
+        }
+
+        if (destino is not null)
+        {
+            Nav.NavigateTo(destino);
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (producto is null)
+        {
+            if (CanModify)
+            {
+                // Con permiso pero sin registro cargado (404 o fallo de la API): no se envía un PUT a ciegas.
+                Show("warning", loadError ?? "No se encontró el producto indicado.");
+                return;
+            }
+
+            // POST forzado sin permiso: el PUT se intenta igual para devolver el mensaje real de la API (403).
+            if (Id is { } idSinCarga)
+            {
+                var forzadoGuardado = false;
+                try
+                {
+                    var forzado = await ProductoApiClient.UpdateAsync(idSinCarga, ToInputEdicion(EdicionInput!, imagePath: null, gruposModificables: false));
+                    forzadoGuardado = forzado.Succeeded;
+                    if (!forzado.Succeeded)
+                    {
+                        Show("warning", forzado.Message, forzado.Errors);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogWarning(ex, "Could not update producto {Id}.", idSinCarga);
+                    Show("danger", "No fue posible actualizar el producto.");
+                }
+
+                if (forzadoGuardado)
+                {
+                    Nav.NavigateTo(RetornoLocal.ConParametro(Volver, "ok", "updated"));
+                }
+            }
+
+            return;
+        }
+
+        // Defensa en profundidad: aunque el botón no se renderice, no se envía un PUT sin opciones de categoría/unidad fiables.
+        if (edicionBloqueada)
+        {
+            return;
+        }
+
+        var imagenAnterior = producto.ImagePath;
+        string? imagenNueva = null;
+        var guardado = false;
+        try
+        {
+            var httpContext = HttpContextAccessor.HttpContext ?? throw new InvalidOperationException("No hay HttpContext disponible para cargar la imagen.");
+            // La imagen vigente es la GUARDADA en el servidor (nunca un valor del formulario); sin fichero subido se conserva.
+            imagenNueva = await FileStorageService.SaveProductImageAsync(httpContext, "ProductImage", imagenAnterior);
+            var result = await ProductoApiClient.UpdateAsync(producto.Id, ToInputEdicion(EdicionInput!, imagenNueva, gruposModificables: !grupos.CargaFallida));
+            guardado = result.Succeeded;
+            if (!result.Succeeded)
+            {
+                await DescartarImagenNuevaAsync(imagenNueva, imagenAnterior);
+                Show("warning", result.Message, result.Errors);
+            }
+        }
+        catch (Exception ex)
+        {
+            await DescartarImagenNuevaAsync(imagenNueva, imagenAnterior);
+            Logger.LogWarning(ex, "Could not update producto/image.");
+            Show("danger", ex is InvalidOperationException ? ex.Message : "No fue posible actualizar el producto.");
+        }
+
+        if (!guardado)
+        {
+            return;
+        }
+
+        // Solo ahora que la API confirmó el cambio se retira la imagen anterior (un fallo aquí no deshace el guardado).
+        if (imagenNueva != imagenAnterior)
+        {
+            try { await FileStorageService.DeleteIfExistsAsync(imagenAnterior, RutaImagen.CarpetaProductos); }
+            catch (Exception ex) { Logger.LogWarning(ex, "Could not delete previous producto image."); }
+        }
+
+        Nav.NavigateTo(RetornoLocal.ConParametro(Volver, "ok", "updated"));
+    }
+
+    private async Task DescartarImagenNuevaAsync(string? imagenNueva, string? imagenAnterior)
+    {
+        if (imagenNueva is not null && imagenNueva != imagenAnterior)
+        {
+            await FileStorageService.DeleteIfExistsAsync(imagenNueva, RutaImagen.CarpetaProductos);
+        }
+    }
+
+    private void Show(string type, string? text, IReadOnlyList<string>? errors = null)
+    {
+        messageType = type;
+        message = text;
+        errores = errors ?? [];
+    }
+
+    // Alta: CategoriaId/UnidadMedidaBaseId nulos = categoría General y unidad Unidad por defecto (la API los resuelve).
+    private static ProductoInput ToInputAlta(ProductoEditorForm form) => new(
+        form.Codigo.Trim(), form.Nombre.Trim(), form.PrecioVenta,
+        form.CategoriaId is { } categoriaId && categoriaId != Guid.Empty ? categoriaId : null,
+        form.UnidadMedidaBaseId is { } unidadId && unidadId != Guid.Empty ? unidadId : null,
+        form.MetodoCosteo, form.CostoEstandar, form.Bloqueado, form.ImagePath,
+        form.GrupoProductoId, form.GrupoIvaProductoId, form.GrupoInventarioId);
+
+    // Edición: se envían todos los campos (semántica parcial en la API: null = conservar). Grupos: si la API de grupos no cargó
+    // se envían null = conservar (defensa en profundidad frente a un POST manipulado). ImagePath lo decide el servidor.
+    private static ProductoInput ToInputEdicion(ProductoEditorForm form, string? imagePath, bool gruposModificables) => new(
+        form.Codigo.Trim(), form.Nombre.Trim(), form.PrecioVenta, form.CategoriaId, form.UnidadMedidaBaseId,
+        form.MetodoCosteo, form.CostoEstandar, form.Bloqueado, imagePath,
+        gruposModificables ? form.GrupoProductoId : null,
+        gruposModificables ? form.GrupoIvaProductoId : null,
+        gruposModificables ? form.GrupoInventarioId : null);
+}

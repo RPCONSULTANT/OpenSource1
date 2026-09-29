@@ -1,4 +1,5 @@
 @page "/admin/users/{UserId}"
+@page "/admin/users/{UserId}/editar"
 @attribute [Authorize(Roles = ApplicationRoles.Administrator)]
 @using System.ComponentModel.DataAnnotations
 @using OpenSource1.Application.Security
@@ -10,7 +11,7 @@
 <PageTitle>Perfil de Usuario – AxionERP</PageTitle>
 
 <!-- ── Migas de pan ── -->
-<nav class="flex items-center gap-1.5 text-sm text-slate-500 mb-5 animate-fade-in dark:text-slate-400">
+<nav class="flex items-center gap-1.5 text-sm text-slate-500 mb-5 dark:text-slate-400">
     <a href="/admin/users" class="hover:text-brand-600 transition-colors font-medium">Usuarios</a>
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-3.5 text-slate-400 dark:text-slate-500">
         <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
@@ -61,7 +62,7 @@ else
         </div>
     }
 
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-slide-up">
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
         <!-- ── Tarjeta de datos del usuario ── -->
         <div class="lg:col-span-1">

@@ -1,4 +1,6 @@
 @page "/setups-contables"
+@page "/setups-contables/nuevo"
+@page "/setups-contables/{Id:guid}/editar"
 @attribute [Authorize(Policy = ApplicationPolicies.CanConsult)]
 @using Microsoft.AspNetCore.Authorization
 @using OpenSource1.Application.Features.CuentasContables.Dtos
@@ -21,213 +23,246 @@
     [SupplyParameterFromQuery] no admite enums). Un solo formulario para los tres tipos (SetupContableForm): el eje secundario
     vacío es el COMODÍN ("cualquiera") y las cuentas van en ranuras cuyo rótulo da el tipo. Los formularios hacen POST a la URL
     vigente, así que el tipo viaja con ellos. Si las opciones (grupos, almacenes o cuentas) no cargan, no se puede guardar.
+
+    Fix-Features B2b, variante "mismo componente": el alta (/setups-contables/nuevo?tipo=…) y la edición
+    (/setups-contables/{id}/editar?tipo=…) se sirven como página-tarjeta desde ESTE componente, porque comparten con el listado
+    CargarOpcionesAsync (también alimenta los filtros), LeerAsync (también lo usa el borrado) y los records Ranura/Vigente/Fila.
+    En la página-tarjeta los dos EditForm (save/update) están SIEMPRE en el árbol (vacíos si el permiso o la rama los ocultan);
+    en el listado ya no existen.
 *@
 
-<PageTitle>Setups contables – AxionERP</PageTitle>
-
-<div class="mb-6">
-    <p class="text-xs font-bold tracking-widest uppercase text-brand-600 mb-1">Contabilidad</p>
-    <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">Setups contables</h1>
-    <p class="text-sm text-slate-500 mt-1">Intersecciones de grupos de las que se derivan las cuentas al postear. Un eje vacío (<em>cualquiera</em>) es el comodín: se usa cuando no hay una fila exacta.</p>
-</div>
-
-<!-- ── Selector de tipo ── -->
-<nav class="mb-6 flex flex-wrap gap-2" aria-label="Tipo de setup contable" data-testid="selector-tipo">
-    @foreach (var descriptor in TiposSetupContable.Todos)
-    {
-        var activo = descriptor.Tipo == Tipo;
-        <a href="/setups-contables?tipo=@descriptor.Ruta" aria-current="@(activo ? "page" : null)"
-           class="@(activo ? "rounded-lg bg-brand-600 px-3 py-2 text-sm font-semibold text-white shadow-sm" : "rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50")">
-            @descriptor.NombrePlural
-        </a>
-    }
-</nav>
-
-@if (tipoInvalido)
+@if (!EsPaginaTarjeta)
 {
-    <div class="mb-6"><MessageBox Type="warning" Message="@($"El tipo de setup '{TipoRuta}' no existe; se muestra el {Descriptor.NombrePlural.ToLowerInvariant()}.")" /></div>
-}
+    <PageTitle>Setups contables – AxionERP</PageTitle>
 
-@if (opcionesCargaFallida && (canAdd || canModify))
-{
-    <div class="mb-6"><MessageBox Type="danger" Message="No fue posible cargar los grupos, almacenes o cuentas contables. Por seguridad no se puede agregar ni modificar un setup hasta que carguen; recargue la página." /></div>
-}
+    <PageToolbar Titulo="@Descriptor.NombrePlural" Migas="@([new("Configuración", "/modulos/configuracion"), new(Descriptor.NombrePlural)])" Permisos="@permisos"
+                 Subtitulo="Intersecciones de grupos de las que se derivan las cuentas al postear. Un eje vacío (cualquiera) es el comodín: se usa cuando no hay una fila exacta."
+                 NuevoHref="@RetornoLocal.ConRetorno($"/setups-contables/nuevo?tipo={Descriptor.Ruta}", UrlActual)"
+                 SeleccionId="@SeleccionValida?.ToString()"
+                 EditarUrl="@(id => EditarUrl(Guid.Parse(id)))"
+                 EliminarUrl="@(id => BuildListUrl(deleteId: Guid.Parse(id)))" />
 
-@if (!string.IsNullOrWhiteSpace(message))
-{
-    <div class="mb-6">
-        @if (messageType == "success")
+    @* ── Selector de tipo ── *@
+    <nav class="mb-6 flex flex-wrap gap-2" aria-label="Tipo de setup contable" data-testid="selector-tipo">
+        @foreach (var descriptor in TiposSetupContable.Todos)
         {
-            <ActionFeedback Type="success" Message="@message" />
+            var activo = descriptor.Tipo == Tipo;
+            <a href="/setups-contables?tipo=@descriptor.Ruta" aria-current="@(activo ? "page" : null)"
+               class="@(activo ? "rounded-lg bg-brand-600 px-3 py-2 text-sm font-semibold text-white shadow-sm" : "rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50")">
+                @descriptor.NombrePlural
+            </a>
+        }
+    </nav>
+
+    if (tipoInvalido)
+    {
+        <div class="mb-6"><MessageBox Type="warning" Message="@($"El tipo de setup '{TipoRuta}' no existe; se muestra el {Descriptor.NombrePlural.ToLowerInvariant()}.")" /></div>
+    }
+
+    if (opcionesCargaFallida)
+    {
+        <div class="mb-6"><MessageBox Type="warning" Message="No fue posible cargar los grupos o almacenes de los filtros; recargue la página." /></div>
+    }
+
+    if (!string.IsNullOrWhiteSpace(message))
+    {
+        <div class="mb-6">
+            @if (messageType == "success")
+            {
+                <ActionFeedback Type="success" Message="@message" />
+            }
+            else
+            {
+                <MessageBox Type="@messageType" Message="@message" Errors="@errores" />
+            }
+        </div>
+    }
+
+    @* ── Filtros ── *@
+    <div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden mb-6">
+        <form method="get" action="/setups-contables" data-enhance class="p-4 sm:p-6">
+            <input type="hidden" name="tipo" value="@Descriptor.Ruta" />
+            <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div class="grid flex-1 grid-cols-1 gap-3 sm:grid-cols-2 max-w-3xl">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 mb-1" for="filtroSecundario">@Descriptor.RotuloSecundario</label>
+                        <select id="filtroSecundario" name="secundario" class="@FiltroCss">
+                            <option value="" selected="@(FiltroSecundario is null)">— Todos —</option>
+                            @OpcionesEje(opcionesSecundario, FiltroSecundario, null)
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 mb-1" for="filtroPrincipal">@Descriptor.RotuloPrincipal</label>
+                        <select id="filtroPrincipal" name="principal" class="@FiltroCss">
+                            <option value="" selected="@(FiltroPrincipal is null)">— Todos —</option>
+                            @OpcionesEje(opcionesPrincipal, FiltroPrincipal, null)
+                        </select>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button type="submit" class="btn-press inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700">Consultar</button>
+                    <a href="@($"/setups-contables?tipo={Descriptor.Ruta}")" title="Limpiar campos" class="btn-press inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Limpiar campos</a>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    @* ── Tabla ── *@
+    <div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden mb-8">
+        <div class="px-6 py-4 border-b border-slate-100">
+            <h2 class="text-sm font-semibold text-slate-700">@Descriptor.NombrePlural</h2>
+            <p class="mt-1 text-xs text-slate-500">@total resultado(s) · página @Pagina de @Math.Max(totalPaginas, 1).</p>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-slate-100 text-sm">
+                <thead class="bg-slate-50">
+                    <tr>
+                        <th class="px-4 py-3"><span class="sr-only">Seleccionar</span></th>
+                        <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">@Descriptor.RotuloPrincipal</th>
+                        <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">@Descriptor.RotuloSecundario</th>
+                        @if (Tipo == TipoSetupContable.Iva)
+                        {
+                            <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">IVA</th>
+                        }
+                        @foreach (var ranura in Ranuras)
+                        {
+                            <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">@ranura.Rotulo</th>
+                        }
+                        <th class="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-50 bg-white">
+                    @if (filas.Count == 0)
+                    {
+                        <tr><td colspan="@(Ranuras.Count + (Tipo == TipoSetupContable.Iva ? 5 : 4))" class="px-6 py-8 text-center text-slate-400 text-sm">No hay setups registrados con esos criterios.</td></tr>
+                    }
+                    else
+                    {
+                        @foreach (var fila in filas)
+                        {
+                            var marcada = fila.Id == SeleccionValida;
+                            <tr @key="fila.Id" class="@SeleccionFila.ClaseFila transition-colors @(marcada ? SeleccionFila.ClaseFilaSeleccionada : null)">
+                                <td class="px-4 py-3"><SeleccionFila Href="@BuildListUrl(sel: fila.Id)" Seleccionada="@marcada" Etiqueta="@($"{fila.Principal} × {fila.Secundario ?? "cualquiera"}")" /></td>
+                                <td class="px-6 py-3 font-mono text-xs font-semibold text-brand-700">@fila.Principal</td>
+                                <td class="px-6 py-3 font-mono text-xs @(fila.Secundario is null ? "italic text-slate-400" : "text-slate-700")">@(fila.Secundario ?? "cualquiera")</td>
+                                @if (Tipo == TipoSetupContable.Iva)
+                                {
+                                    <td class="px-6 py-3 text-xs text-slate-700">@fila.Detalle</td>
+                                }
+                                @foreach (var cuenta in fila.Cuentas)
+                                {
+                                    <td class="px-6 py-3 text-xs text-slate-600">@cuenta</td>
+                                }
+                                <td class="px-6 py-3 text-right">
+                                    <div class="flex items-center justify-end gap-2">
+                                        @if (canModify)
+                                        {
+                                            <a href="@EditarUrl(fila.Id)" class="btn-press inline-flex items-center justify-center size-8 rounded-lg border border-amber-200 bg-amber-50 text-amber-600 hover:bg-amber-100" title="Editar setup">✎</a>
+                                        }
+                                        @if (canDelete)
+                                        {
+                                            <a href="@BuildListUrl(deleteId: fila.Id)" class="btn-press inline-flex items-center justify-center size-8 rounded-lg border border-red-200 bg-red-50 text-red-600 hover:bg-red-100" title="Eliminar setup">🗑</a>
+                                        }
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+        @if (totalPaginas > 1)
+        {
+            <div class="flex items-center justify-between gap-3 border-t border-slate-100 px-6 py-4">
+                <p class="text-xs text-slate-500">Página @Pagina de @totalPaginas</p>
+                <div class="flex items-center gap-2">
+                    @if (Pagina > 1)
+                    {
+                        <a href="@BuildListUrl(pagina: Pagina - 1)" class="btn-press rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">« Anterior</a>
+                    }
+                    @if (Pagina < totalPaginas)
+                    {
+                        <a href="@BuildListUrl(pagina: Pagina + 1)" class="btn-press rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">Siguiente »</a>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+
+    if (DeleteId.HasValue && canDelete)
+    {
+        <ConfirmDialog Title="Confirmar eliminación" Message="@($"Esta acción eliminará la fila seleccionada del {Descriptor.NombrePlural.ToLowerInvariant()} y no se puede deshacer.")" Variant="danger" CancelHref="@UrlActual">
+            <p class="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-mono text-red-900">@(filaABorrar is null ? DeleteId.Value.ToString() : $"{filaABorrar.Principal} × {filaABorrar.Secundario ?? "cualquiera"}")</p>
+            <EditForm Model="DeleteInput" FormName="delete-setup-contable" OnValidSubmit="DeleteAsync" class="mt-4">
+                <input type="hidden" name="DeleteInput.Id" value="@DeleteId" />
+                <button type="submit" class="btn-press rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-700">Sí, eliminar</button>
+                <a href="@UrlActual" class="btn-press ml-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Cancelar</a>
+            </EditForm>
+        </ConfirmDialog>
+    }
+    else
+    {
+        @* Diálogo oculto (sin CanDelete o sin deleteId): EditForm vacío con el MISMO FormName para que un POST obsoleto o
+           forzado llegue al handler y reciba el mensaje real de la API, no el 400 genérico de Blazor. *@
+        <EditForm Model="DeleteInput" FormName="delete-setup-contable" OnValidSubmit="DeleteAsync"></EditForm>
+    }
+}
+else
+{
+    <EntityFormPage Titulo="@(EsPaginaEdicion ? $"Modificar fila del {Descriptor.NombrePlural.ToLowerInvariant()}" : $"Agregar fila al {Descriptor.NombrePlural.ToLowerInvariant()}")"
+                    Migas="@([new("Configuración", "/modulos/configuracion"), new(Descriptor.NombrePlural, Volver), new(EsPaginaEdicion ? "Modificar" : "Nueva")])"
+                    Mensaje="@message" TipoMensaje="@messageType" Errores="@errores">
+        @if (tipoInvalido)
+        {
+            <div class="mb-4"><MessageBox Type="warning" Message="@($"El tipo de setup '{TipoRuta}' no existe; se usa el {Descriptor.NombrePlural.ToLowerInvariant()}.")" /></div>
+        }
+        @if (EsPaginaEdicion ? !canModify : !canAdd)
+        {
+            <MessageBox Type="warning" Message="No tiene permiso para realizar esta acción." />
+        }
+        else if (EsPaginaEdicion && vigente is null)
+        {
+            @* Si la carga falló no se sabe si existe: solo el aviso de fallo (Mensaje), no el de "no encontrado". *@
+            @if (!edicionCargaFallida)
+            {
+                <MessageBox Type="warning" Message="No se encontró el setup seleccionado. Puede haber sido eliminado por otro usuario." />
+            }
         }
         else
         {
-            <MessageBox Type="@messageType" Message="@message" Errors="@errores" />
-        }
-    </div>
-}
-
-<!-- ── Filtros ── -->
-<div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden mb-6">
-    <form method="get" action="/setups-contables" data-enhance class="p-4 sm:p-6">
-        <input type="hidden" name="tipo" value="@Descriptor.Ruta" />
-        <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div class="grid flex-1 grid-cols-1 gap-3 sm:grid-cols-2 max-w-3xl">
-                <div>
-                    <label class="block text-xs font-semibold text-slate-500 mb-1" for="filtroSecundario">@Descriptor.RotuloSecundario</label>
-                    <select id="filtroSecundario" name="secundario" class="@FiltroCss">
-                        <option value="" selected="@(FiltroSecundario is null)">— Todos —</option>
-                        @OpcionesEje(opcionesSecundario, FiltroSecundario, null)
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-slate-500 mb-1" for="filtroPrincipal">@Descriptor.RotuloPrincipal</label>
-                    <select id="filtroPrincipal" name="principal" class="@FiltroCss">
-                        <option value="" selected="@(FiltroPrincipal is null)">— Todos —</option>
-                        @OpcionesEje(opcionesPrincipal, FiltroPrincipal, null)
-                    </select>
-                </div>
-            </div>
-            <div class="flex items-center gap-2">
-                <button type="submit" class="btn-press inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700">Consultar</button>
-                <a href="@($"/setups-contables?tipo={Descriptor.Ruta}")" title="Limpiar campos" class="btn-press inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Limpiar campos</a>
-            </div>
-        </div>
-    </form>
-</div>
-
-<!-- ── Tabla ── -->
-<div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden mb-8">
-    <div class="px-6 py-4 border-b border-slate-100">
-        <h2 class="text-sm font-semibold text-slate-700">@Descriptor.NombrePlural</h2>
-        <p class="mt-1 text-xs text-slate-500">@total resultado(s) · página @Pagina de @Math.Max(totalPaginas, 1).</p>
-    </div>
-    <div class="overflow-x-auto">
-        <table class="min-w-full divide-y divide-slate-100 text-sm">
-            <thead class="bg-slate-50">
-                <tr>
-                    <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">@Descriptor.RotuloPrincipal</th>
-                    <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">@Descriptor.RotuloSecundario</th>
-                    @if (Tipo == TipoSetupContable.Iva)
-                    {
-                        <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">IVA</th>
-                    }
-                    @foreach (var ranura in Ranuras)
-                    {
-                        <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">@ranura.Rotulo</th>
-                    }
-                    <th class="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Acciones</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-slate-50 bg-white">
-                @if (filas.Count == 0)
-                {
-                    <tr><td colspan="@(Ranuras.Count + (Tipo == TipoSetupContable.Iva ? 4 : 3))" class="px-6 py-8 text-center text-slate-400 text-sm">No hay setups registrados con esos criterios.</td></tr>
-                }
-                else
-                {
-                    @foreach (var fila in filas)
-                    {
-                        <tr @key="fila.Id" class="hover:bg-slate-50 transition-colors">
-                            <td class="px-6 py-3 font-mono text-xs font-semibold text-brand-700">@fila.Principal</td>
-                            <td class="px-6 py-3 font-mono text-xs @(fila.Secundario is null ? "italic text-slate-400" : "text-slate-700")">@(fila.Secundario ?? "cualquiera")</td>
-                            @if (Tipo == TipoSetupContable.Iva)
-                            {
-                                <td class="px-6 py-3 text-xs text-slate-700">@fila.Detalle</td>
-                            }
-                            @foreach (var cuenta in fila.Cuentas)
-                            {
-                                <td class="px-6 py-3 text-xs text-slate-600">@cuenta</td>
-                            }
-                            <td class="px-6 py-3 text-right">
-                                <div class="flex items-center justify-end gap-2">
-                                    @if (canModify)
-                                    {
-                                        <a href="@BuildListUrl(editId: fila.Id)" class="btn-press inline-flex items-center justify-center size-8 rounded-lg border border-amber-200 bg-amber-50 text-amber-600 hover:bg-amber-100" title="Editar setup">✎</a>
-                                    }
-                                    @if (canDelete)
-                                    {
-                                        <a href="@BuildListUrl(deleteId: fila.Id)" class="btn-press inline-flex items-center justify-center size-8 rounded-lg border border-red-200 bg-red-50 text-red-600 hover:bg-red-100" title="Eliminar setup">🗑</a>
-                                    }
-                                </div>
-                            </td>
-                        </tr>
-                    }
-                }
-            </tbody>
-        </table>
-    </div>
-    @if (totalPaginas > 1)
-    {
-        <div class="flex items-center justify-between gap-3 border-t border-slate-100 px-6 py-4">
-            <p class="text-xs text-slate-500">Página @Pagina de @totalPaginas</p>
-            <div class="flex items-center gap-2">
-                @if (Pagina > 1)
-                {
-                    <a href="@BuildListUrl(pagina: Pagina - 1)" class="btn-press rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">« Anterior</a>
-                }
-                @if (Pagina < totalPaginas)
-                {
-                    <a href="@BuildListUrl(pagina: Pagina + 1)" class="btn-press rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">Siguiente »</a>
-                }
-            </div>
-        </div>
-    }
-</div>
-
-<!-- ── Formularios de operación ── -->
-<div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
-    @if (canAdd)
-    {
-        <div id="agregar" class="rounded-2xl border border-green-200 bg-white shadow-sm overflow-hidden">
-            <div class="px-6 py-4 bg-green-50 border-b border-green-100"><h2 class="text-sm font-bold text-green-800">Agregar fila al @Descriptor.NombrePlural.ToLowerInvariant()</h2></div>
-            <div class="px-6 py-5">
-                <EditForm Model="SaveInput" FormName="save-setup-contable" OnValidSubmit="CreateAsync" Enhance="true">
-                    <DataAnnotationsValidator />
-                    @Campos(SaveInput!, "SaveInput", null)
-                    @if (!opcionesCargaFallida)
-                    {
-                        <div class="mt-5"><button type="submit" class="btn-press rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 shadow-sm">Agregar</button></div>
-                    }
-                </EditForm>
-            </div>
-        </div>
-    }
-
-    @if (canModify)
-    {
-        <div id="modificar" class="rounded-2xl border border-amber-200 bg-white shadow-sm overflow-hidden">
-            <div class="px-6 py-4 bg-amber-50 border-b border-amber-100"><h2 class="text-sm font-bold text-amber-800">Modificar fila del @Descriptor.NombrePlural.ToLowerInvariant()</h2></div>
-            <div class="px-6 py-5">
-                @if (EditId.HasValue && UpdateInput?.Id != EditId)
-                {
-                    <MessageBox Type="warning" Message="No se encontró el setup seleccionado. Puede haber sido eliminado por otro usuario." />
-                }
+            @if (opcionesCargaFallida)
+            {
+                <div class="mb-4"><MessageBox Type="danger" Message="No fue posible cargar los grupos, almacenes o cuentas contables. Por seguridad no se puede agregar ni modificar un setup hasta que carguen; recargue la página." /></div>
+            }
+            @if (EsPaginaEdicion)
+            {
                 <EditForm Model="UpdateInput" FormName="update-setup-contable" OnValidSubmit="UpdateAsync" Enhance="true">
                     <DataAnnotationsValidator />
                     <input type="hidden" name="UpdateInput.Id" value="@UpdateInput!.Id" />
                     <input type="hidden" name="UpdateInput.Xmin" value="@UpdateInput.Xmin" />
                     @Campos(UpdateInput, "UpdateInput", vigente)
-                    @if (!opcionesCargaFallida)
-                    {
-                        <div class="mt-5"><button type="submit" class="btn-press rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-600 shadow-sm">Guardar cambios</button></div>
-                    }
+                    <FormularioAcciones CancelarHref="@Volver" LimpiarHref="@Nav.Uri" TextoGuardar="Guardar cambios" Deshabilitado="@opcionesCargaFallida" />
                 </EditForm>
-            </div>
-        </div>
-    }
-</div>
+            }
+            else
+            {
+                <EditForm Model="SaveInput" FormName="save-setup-contable" OnValidSubmit="CreateAsync" Enhance="true">
+                    <DataAnnotationsValidator />
+                    @Campos(SaveInput!, "SaveInput", null)
+                    <FormularioAcciones CancelarHref="@Volver" LimpiarHref="@Nav.Uri" Deshabilitado="@opcionesCargaFallida" />
+                </EditForm>
+            }
+        }
+    </EntityFormPage>
 
-@if (DeleteId.HasValue && canDelete)
-{
-    <ConfirmDialog Title="Confirmar eliminación" Message="@($"Esta acción eliminará la fila seleccionada del {Descriptor.NombrePlural.ToLowerInvariant()} y no se puede deshacer.")" Variant="danger" CancelHref="@BuildListUrl()">
-        <p class="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-mono text-red-900">@(filaABorrar is null ? DeleteId.Value.ToString() : $"{filaABorrar.Principal} × {filaABorrar.Secundario ?? "cualquiera"}")</p>
-        <EditForm Model="DeleteInput" FormName="delete-setup-contable" OnValidSubmit="DeleteAsync" class="mt-4">
-            <input type="hidden" name="DeleteInput.Id" value="@DeleteId" />
-            <button type="submit" class="btn-press rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-700">Sí, eliminar</button>
-            <a href="@BuildListUrl()" class="btn-press ml-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Cancelar</a>
-        </EditForm>
-    </ConfirmDialog>
+    @if (!(EsPaginaAlta && canAdd))
+    {
+        <EditForm Model="SaveInput" FormName="save-setup-contable" OnValidSubmit="CreateAsync"></EditForm>
+    }
+    @if (!(EsPaginaEdicion && canModify && vigente is not null))
+    {
+        <EditForm Model="UpdateInput" FormName="update-setup-contable" OnValidSubmit="UpdateAsync"></EditForm>
+    }
 }
 
 @code {
@@ -268,8 +303,21 @@
     [SupplyParameterFromQuery(Name = "principal")]
     private Guid? FiltroPrincipal { get; set; }
 
+    /// <summary>Id de la ruta /setups-contables/{id}/editar (página-tarjeta de edición).</summary>
+    [Parameter]
+    public Guid? Id { get; set; }
+
+    [SupplyParameterFromQuery(Name = "returnUrl")]
+    private string? ReturnUrl { get; set; }
+
+    // Solo para redirigir la ruta antigua ?editId= al editor en página propia.
     [SupplyParameterFromQuery(Name = "editId")]
     private Guid? EditId { get; set; }
+
+    // Tolerante (ola final Fix-Features): un ?sel= ilegible se ignora como selección vacía; con Guid? el binder lanzaría.
+    [SupplyParameterFromQuery(Name = "sel")]
+    private string? SelTexto { get; set; }
+    private Guid? Sel => InventarioVistasOpciones.ParseGuid(SelTexto);
 
     [SupplyParameterFromQuery(Name = "deleteId")]
     private Guid? DeleteId { get; set; }
@@ -285,6 +333,18 @@
     private TiposSetupContable.Descriptor Descriptor => TiposSetupContable.De(Tipo);
     private IReadOnlyList<Ranura> Ranuras => RanurasPorTipo[Tipo];
     private bool tipoInvalido;
+    /// <summary>La carga de la fila a modificar falló (API caída): no se sabe si existe, así que no se dice "no encontrado".</summary>
+    private bool edicionCargaFallida;
+
+    private bool EsPaginaAlta => Nav.ToBaseRelativePath(Nav.Uri).Split('?', '#')[0].TrimEnd('/').EndsWith("setups-contables/nuevo", StringComparison.OrdinalIgnoreCase);
+    private bool EsPaginaEdicion => Id.HasValue;
+    private bool EsPaginaTarjeta => EsPaginaAlta || EsPaginaEdicion;
+    // Vuelta de la página-tarjeta: el returnUrl local (sin transitorios) o la lista del tipo vigente.
+    private string Volver => RetornoLocal.Volver(ReturnUrl, $"/setups-contables?tipo={Descriptor.Ruta}");
+    // Selección obsoleta (no está en la página cargada) => null: la barra deshabilita Editar/Eliminar.
+    private Guid? SeleccionValida => Sel is { } s && filas.Any(f => f.Id == s) ? s : null;
+    private string UrlActual => RetornoLocal.SinTransitorios(BuildListUrl());
+    private string EditarUrl(Guid id) => RetornoLocal.ConRetorno($"/setups-contables/{id}/editar?tipo={Descriptor.Ruta}", UrlActual);
 
     private IReadOnlyList<Fila> filas = [];
     private Fila? filaABorrar;
@@ -299,6 +359,7 @@
     private string? message;
     private string messageType = "info";
     private IReadOnlyList<string> errores = [];
+    private PermisosPagina? permisos;
     private bool canAdd;
     private bool canModify;
     private bool canDelete;
@@ -308,20 +369,34 @@
 
     protected override async Task OnInitializedAsync()
     {
+        if (EditId is { } editId)
+        {
+            Nav.NavigateTo(RetornoLocal.ConRetorno($"/setups-contables/{editId}/editar?tipo={Descriptor.Ruta}", UrlActual), replace: true);
+            return;
+        }
+
         SaveInput ??= new();
         UpdateInput ??= new();
         DeleteInput ??= new();
         tipoInvalido = !string.IsNullOrWhiteSpace(TipoRuta) && TiposSetupContable.DesdeRuta(TipoRuta) is null;
 
-        if (AuthenticationStateTask is not null)
+        permisos = await PermisosPagina.CargarAsync(AuthorizationService, AuthenticationStateTask);
+        canAdd = permisos.CanAdd;
+        canModify = permisos.CanModify;
+        canDelete = permisos.CanDelete;
+
+        // En la página-tarjeta sin permiso solo se muestra el aviso: no se piden opciones (el POST forzado no las necesita).
+        if (!EsPaginaTarjeta || (EsPaginaEdicion ? canModify : canAdd))
         {
-            var user = (await AuthenticationStateTask).User;
-            canAdd = (await AuthorizationService.AuthorizeAsync(user, ApplicationPolicies.CanAdd)).Succeeded;
-            canModify = (await AuthorizationService.AuthorizeAsync(user, ApplicationPolicies.CanModify)).Succeeded;
-            canDelete = (await AuthorizationService.AuthorizeAsync(user, ApplicationPolicies.CanDelete)).Succeeded;
+            await CargarOpcionesAsync();
         }
 
-        await CargarOpcionesAsync();
+        if (EsPaginaTarjeta)
+        {
+            await CargarEdicionAsync();
+            return;
+        }
+
         await LoadAsync();
 
         if (Ok is not null)
@@ -346,29 +421,35 @@
                 Logger.LogWarning(ex, "Could not load setup contable {DeleteId} from API.", DeleteId);
             }
         }
+    }
 
-        var editarId = EditId ?? (UpdateInput.Id != Guid.Empty ? UpdateInput.Id : null);
-        if (editarId.HasValue && canModify)
+    /// <summary>Página-tarjeta de edición: la fila guardada (valores vigentes) y, si no llegó un formulario, el formulario relleno.</summary>
+    private async Task CargarEdicionAsync()
+    {
+        if (Id is not { } id || !canModify)
         {
-            try
+            return;
+        }
+
+        try
+        {
+            var (_, guardado, formulario) = await LeerAsync(id);
+            vigente = guardado;
+            // Solo se rellena con lo guardado cuando NO llegó un formulario de modificación.
+            if (formulario is not null && UpdateInput!.Id == Guid.Empty)
             {
-                var (_, guardado, formulario) = await LeerAsync(editarId.Value);
-                vigente = guardado;
-                // Solo se rellena con lo guardado cuando NO llegó un formulario de modificación.
-                if (formulario is not null && UpdateInput.Id == Guid.Empty)
-                {
-                    UpdateInput = formulario;
-                }
+                UpdateInput = formulario;
             }
-            catch (Exception ex)
-            {
-                Logger.LogWarning(ex, "Could not load setup contable {EditId} from API.", editarId);
-                Show("danger", "No fue posible cargar el setup a modificar.");
-            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not load setup contable {Id} from API.", id);
+            edicionCargaFallida = true;
+            Show("danger", "No fue posible cargar el setup a modificar.");
         }
     }
 
-    /// <summary>Opciones de los dos ejes (siempre: también las usan los filtros) y, si puede escribir, las cuentas elegibles.</summary>
+    /// <summary>Opciones de los dos ejes (siempre: también las usan los filtros) y, en la página-tarjeta con permiso, las cuentas elegibles.</summary>
     private async Task CargarOpcionesAsync()
     {
         using var cts = new CancellationTokenSource(ProductoOpciones.TiempoMaximo);
@@ -386,7 +467,7 @@
                 ? GruposOpciones.Mapear(await GrupoContableApiClient.ListAllAsync(tipoSecundario, cts.Token))
                 : await CargarAlmacenesAsync(cts.Token);
 
-            if (canAdd || canModify)
+            if (EsPaginaTarjeta && (EsPaginaEdicion ? canModify : canAdd))
             {
                 var todas = new List<CuentaContableResponse>();
                 var filtro = new CuentaContableSearchFilter(null, null, TipoCuentaContable.Posteo, null, Bloqueada: false);
@@ -607,14 +688,14 @@
         }
     };
 
-    private string BuildListUrl(int? pagina = null, Guid? editId = null, Guid? deleteId = null)
+    private string BuildListUrl(int? pagina = null, Guid? sel = null, Guid? deleteId = null)
     {
         var parameters = new List<string> { $"tipo={Descriptor.Ruta}" };
         if (FiltroSecundario.HasValue) parameters.Add($"secundario={FiltroSecundario.Value}");
         if (FiltroPrincipal.HasValue) parameters.Add($"principal={FiltroPrincipal.Value}");
         var paginaEfectiva = pagina ?? Pagina;
         if (paginaEfectiva > 1) parameters.Add($"pagina={paginaEfectiva}");
-        if (editId.HasValue) parameters.Add($"editId={editId.Value}");
+        if ((sel ?? Sel) is { } seleccion) parameters.Add($"sel={seleccion}");
         if (deleteId.HasValue) parameters.Add($"deleteId={deleteId.Value}");
         return $"/setups-contables?{string.Join("&", parameters)}";
     }
@@ -653,30 +734,33 @@
     private async Task UpdateAsync()
     {
         if (opcionesCargaFallida) return;
-        if (UpdateInput!.Id == Guid.Empty)
+        if (Id is not { } id)
         {
             Show("warning", "Seleccione primero un registro a modificar desde la tabla.");
             return;
         }
 
-        await ExecuteAsync(() => SetupApiClient.UpdateAsync(Tipo, UpdateInput.Id, Cuerpo(UpdateInput)), "updated");
+        await ExecuteAsync(() => SetupApiClient.UpdateAsync(Tipo, id, Cuerpo(UpdateInput!)), "updated");
     }
 
     private async Task DeleteAsync() => await ExecuteAsync(() => SetupApiClient.DeleteAsync(Tipo, DeleteInput!.Id), "deleted");
 
     private async Task ExecuteAsync(Func<Task<GrupoOperationResult>> operation, string successCode)
     {
+        // La navegación va FUERA del try: si NavigateTo lanza NavigationException (SSR sin el switch que la desactiva),
+        // el catch genérico no debe tragársela como un fallo de la operación.
+        string? destino = null;
         try
         {
             var result = await operation();
             if (result.Succeeded)
             {
-                Nav.NavigateTo($"/setups-contables?tipo={Descriptor.Ruta}&ok={successCode}");
+                // Alta/edición vuelven al returnUrl (filtros, página y selección); el borrado, a la lista vigente.
+                destino = RetornoLocal.ConParametro(successCode == "deleted" ? UrlActual : Volver, "ok", successCode);
             }
             else
             {
-                errores = result.Errors ?? [];
-                Show("warning", result.Message);
+                Show("warning", result.Message, result.Errors);
             }
         }
         catch (Exception ex)
@@ -684,9 +768,19 @@
             Logger.LogWarning(ex, "Could not complete setup contable operation.");
             Show("danger", "No fue posible completar la operación.");
         }
+
+        if (destino is not null)
+        {
+            Nav.NavigateTo(destino);
+        }
     }
 
-    private void Show(string type, string text) { messageType = type; message = text; }
+    private void Show(string type, string? text, IReadOnlyList<string>? errors = null)
+    {
+        messageType = type;
+        message = text;
+        errores = errors ?? [];
+    }
 
     public sealed class DeleteForm
     {

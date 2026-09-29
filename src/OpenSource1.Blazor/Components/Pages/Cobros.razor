@@ -2,7 +2,6 @@
 @attribute [Authorize(Policy = ApplicationPolicies.CanConsult)]
 @using System.ComponentModel.DataAnnotations
 @using Microsoft.AspNetCore.Authorization
-@using OpenSource1.Application.Features.CuentasContables.Dtos
 @using OpenSource1.Application.Features.MovimientosCliente.Dtos
 @using OpenSource1.Application.Features.SociosNegocio.Dtos
 @using OpenSource1.Application.Security
@@ -11,18 +10,17 @@
 @using OpenSource1.Core.Enums
 @inject ICobroApiClient CobroApiClient
 @inject ISocioNegocioApiClient SocioApiClient
-@inject ICuentaContableApiClient CuentaApiClient
 @inject IAuthorizationService AuthorizationService
 @inject ILogger<Cobros> Logger
 @inject NavigationManager Nav
 
 <PageTitle>Cobros – AxionERP</PageTitle>
 
-<div class="mb-6">
-    <p class="text-xs font-bold tracking-widest uppercase text-brand-600 mb-1">Ventas</p>
-    <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">Cobros de clientes</h1>
-    <p class="text-sm text-slate-500 mt-1">Registrar pagos, consultar los movimientos abiertos de un cliente y aplicar pagos a sus facturas.</p>
-</div>
+@* Fix-Features C1: el alta de cobros vive en /cobros/nuevo (+ Nuevo cobro, con el cliente elegido precargado). *@
+<PageToolbar Titulo="Cobros de clientes" Subtitulo="Consultar los movimientos abiertos de un cliente y aplicar pagos a sus facturas."
+             Migas="@migas" Permisos="@permisos"
+             NuevoHref="@(SocioId is { } elegido ? $"/cobros/nuevo?socioId={elegido}" : "/cobros/nuevo")" NuevoTexto="Nuevo cobro"
+             NuevoPermiso="@ApplicationPolicies.CanModify" />
 
 @if (!string.IsNullOrWhiteSpace(message))
 {
@@ -40,11 +38,7 @@
 
 @if (socios.CargaFallida)
 {
-    <div class="mb-6"><MessageBox Type="danger" Message="No fue posible cargar los clientes. No se puede elegir un cliente ni registrar pagos hasta que carguen; recargue la página." /></div>
-}
-@if (canModify && cuentas.CargaFallida)
-{
-    <div class="mb-6"><MessageBox Type="danger" Message="No fue posible cargar las cuentas de caja/banco. No se puede registrar un pago hasta que carguen; recargue la página." /></div>
+    <div class="mb-6"><MessageBox Type="danger" Message="No fue posible cargar los clientes. No se puede elegir un cliente hasta que carguen; recargue la página." /></div>
 }
 
 <!-- ── Elegir cliente (consultar) ── -->
@@ -60,7 +54,7 @@
                     <label class="block text-xs font-semibold text-slate-500 mb-1" for="socioId">Cliente</label>
                     <select id="socioId" name="socioId" class="@FiltroCss">
                         <option value="" selected="@(SocioId is null)">— Seleccione —</option>
-                        @OpcionSocioVigente(SocioId)
+                        @OpcionSocioVigente(SocioId, socios.Items, socioActual)
                         @foreach (var s in socios.Items)
                         {
                             <option value="@s.Id" selected="@(s.Id == SocioId)">@s.Codigo — @s.NombreComercial</option>
@@ -169,64 +163,7 @@
 
 @if (canModify)
 {
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div id="registrar-pago" class="rounded-2xl border border-green-200 bg-white shadow-sm overflow-hidden">
-            <div class="px-6 py-4 bg-green-50 border-b border-green-100"><h2 class="text-sm font-bold text-green-800">Registrar pago</h2></div>
-            <div class="px-6 py-5">
-                <EditForm Model="PagoInput" FormName="registrar-pago" OnValidSubmit="RegistrarPagoAsync" Enhance="true">
-                    <DataAnnotationsValidator />
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div class="sm:col-span-2">
-                            <label class="block text-sm font-medium text-slate-700 mb-1" for="PagoInput_SocioNegocioId">Cliente <span class="text-red-500">*</span></label>
-                            <select id="PagoInput_SocioNegocioId" name="PagoInput.SocioNegocioId" class="@InputCss">
-                                <option value="" selected="@(PagoInput!.SocioNegocioId is null)">— Seleccione —</option>
-                                @OpcionSocioVigente(PagoInput.SocioNegocioId)
-                                @foreach (var s in socios.Items)
-                                {
-                                    <option value="@s.Id" selected="@(s.Id == PagoInput.SocioNegocioId)">@s.Codigo — @s.NombreComercial</option>
-                                }
-                            </select>
-                            <ValidationMessage For="() => PagoInput.SocioNegocioId" />
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-slate-700 mb-1" for="PagoInput_ImporteTexto">Importe <span class="text-red-500">*</span></label>
-                            <input id="PagoInput_ImporteTexto" type="text" inputmode="decimal" name="PagoInput.ImporteTexto" value="@PagoInput.ImporteTexto" placeholder="ej. 500.00" class="@InputCss" />
-                            <ValidationMessage For="() => PagoInput.ImporteTexto" />
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-slate-700 mb-1" for="PagoInput_FechaRegistroTexto">Fecha <span class="text-red-500">*</span></label>
-                            <input id="PagoInput_FechaRegistroTexto" type="date" name="PagoInput.FechaRegistroTexto" value="@PagoInput.FechaRegistroTexto" class="@InputCss" />
-                            <ValidationMessage For="() => PagoInput.FechaRegistroTexto" />
-                        </div>
-                        <div class="sm:col-span-2">
-                            <label class="block text-sm font-medium text-slate-700 mb-1" for="PagoInput_CuentaCajaId">Cuenta de caja / banco <span class="text-red-500">*</span></label>
-                            <select id="PagoInput_CuentaCajaId" name="PagoInput.CuentaCajaId" class="@InputCss">
-                                <option value="" selected="@(PagoInput.CuentaCajaId is null)">— Seleccione —</option>
-                                @foreach (var c in cuentas.Items)
-                                {
-                                    <option value="@c.Id" selected="@(c.Id == PagoInput.CuentaCajaId)">@c.Numero — @c.Nombre</option>
-                                }
-                            </select>
-                            <ValidationMessage For="() => PagoInput.CuentaCajaId" />
-                            <p class="mt-1 text-xs text-slate-400">Cuentas de posteo, no bloqueadas y de posteo directo (por defecto @VentasOpciones.NumeroCuentaCajaPorDefecto Caja).</p>
-                        </div>
-                        <div class="sm:col-span-2">
-                            <label class="block text-sm font-medium text-slate-700 mb-1" for="PagoInput_Descripcion">Descripción</label>
-                            <input id="PagoInput_Descripcion" type="text" name="PagoInput.Descripcion" value="@PagoInput.Descripcion" maxlength="200" class="@InputCss" />
-                            <ValidationMessage For="() => PagoInput.Descripcion" />
-                        </div>
-                    </div>
-                    <div class="mt-5 flex items-center gap-3">
-                        @if (!socios.CargaFallida && !cuentas.CargaFallida)
-                        {
-                            <button type="submit" class="btn-press rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 shadow-sm">Registrar pago</button>
-                        }
-                        <a href="@BuildUrl()" class="btn-press rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Limpiar campos</a>
-                    </div>
-                </EditForm>
-            </div>
-        </div>
-
+    <div class="grid grid-cols-1 gap-6">
         <div id="aplicar-pago" class="rounded-2xl border border-brand-200 bg-white shadow-sm overflow-hidden">
             <div class="px-6 py-4 bg-brand-50 border-b border-brand-100"><h2 class="text-sm font-bold text-brand-800">Aplicar pago a factura</h2></div>
             <div class="px-6 py-5">
@@ -291,7 +228,6 @@ else
 {
     @* Sin CanModify no se muestran los formularios, pero siguen en el árbol de render: un POST forzado llega al handler y
        recibe el 403 real de la API (la autorización real la hace la API con [Authorize(Policy = CanModify)]). *@
-    <EditForm Model="PagoInput" FormName="registrar-pago" OnValidSubmit="RegistrarPagoAsync"></EditForm>
     <EditForm Model="AplicacionInput" FormName="aplicar-pago" OnValidSubmit="AplicarPagoAsync"></EditForm>
 }
 
@@ -306,11 +242,9 @@ else
     [SupplyParameterFromQuery(Name = "ok")] private string? Ok { get; set; }
     [SupplyParameterFromQuery(Name = "numero")] private string? NumeroCobro { get; set; }
 
-    [SupplyParameterFromForm(FormName = "registrar-pago")] private PagoForm? PagoInput { get; set; }
     [SupplyParameterFromForm(FormName = "aplicar-pago")] private AplicacionForm? AplicacionInput { get; set; }
 
     private OpcionesCargadas<SocioNegocioResponse> socios = OpcionesCargadas<SocioNegocioResponse>.SinCargar;
-    private OpcionesCargadas<CuentaContableResponse> cuentas = OpcionesCargadas<CuentaContableResponse>.SinCargar;
     private SocioNegocioResponse? socioActual;
     private SaldoClienteResponse? saldo;
     private IReadOnlyList<MovimientoClienteResponse> movimientos = [];
@@ -321,31 +255,17 @@ else
     private string? message;
     private string messageType = "info";
     private IReadOnlyList<string> errores = [];
-    private bool canModify;
+    private PermisosPagina? permisos;
+    private bool canModify => permisos?.CanModify == true;
+    private static readonly IReadOnlyList<Miga> migas = [new("Ventas", "/modulos/ventas"), new("Cobros")];
 
     [CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
-        PagoInput ??= new() { SocioNegocioId = SocioId, FechaRegistroTexto = EntradaFecha.Formatear(DateOnly.FromDateTime(DateTime.Today)) };
         AplicacionInput ??= new();
-
-        if (AuthenticationStateTask is not null)
-        {
-            var user = (await AuthenticationStateTask).User;
-            canModify = (await AuthorizationService.AuthorizeAsync(user, ApplicationPolicies.CanModify)).Succeeded;
-        }
-
+        permisos = await PermisosPagina.CargarAsync(AuthorizationService, AuthenticationStateTask);
         socios = await VentasOpciones.SociosAsync(SocioApiClient, SocioQuery, Logger);
-        if (canModify)
-        {
-            cuentas = await VentasOpciones.CuentasCapturaDirectaAsync(CuentaApiClient, Logger);
-            // Cuenta por defecto: 1101 Caja (la misma que usa la API si no se indica), solo si el formulario no llegó en un POST.
-            if (PagoInput.CuentaCajaId is null && string.IsNullOrEmpty(PagoInput.ImporteTexto))
-            {
-                PagoInput.CuentaCajaId = cuentas.Items.FirstOrDefault(c => c.Numero == VentasOpciones.NumeroCuentaCajaPorDefecto)?.Id;
-            }
-        }
 
         if (SocioId is { } socioId)
         {
@@ -403,59 +323,46 @@ else
         }
     }
 
-    private RenderFragment OpcionSocioVigente(Guid? seleccion) => __builder =>
+    /// <summary>
+    /// Opción del cliente elegido cuando no está entre los primeros de la lista (p. ej. llegó por ?socioId=): se muestra con su
+    /// código si se cargó (<paramref name="actual"/>) o como "Cliente seleccionado". La comparten /cobros y /cobros/nuevo.
+    /// </summary>
+    public static RenderFragment OpcionSocioVigente(Guid? seleccion, IReadOnlyList<SocioNegocioResponse> items, SocioNegocioResponse? socioActual) => __builder =>
     {
-        if (seleccion is { } id && socios.Items.All(s => s.Id != id))
+        if (seleccion is { } id && items.All(s => s.Id != id))
         {
             <option value="@id" selected="selected">@(socioActual?.Id == id ? $"{socioActual.Codigo} — {socioActual.NombreComercial}" : $"Cliente seleccionado ({id})")</option>
         }
     };
 
-    private async Task RegistrarPagoAsync()
-    {
-        if (canModify && (socios.CargaFallida || cuentas.CargaFallida)) return;
-
-        var f = PagoInput!;
-        var input = new RegistrarPagoInput(f.SocioNegocioId ?? Guid.Empty, f.Importe, f.FechaRegistro ?? default, f.CuentaCajaId, EmptyAsNull(f.Descripcion));
-        try
-        {
-            var result = await CobroApiClient.RegistrarPagoAsync(input);
-            if (result.Succeeded)
-            {
-                Nav.NavigateTo($"/cobros?socioId={input.SocioNegocioId}&ok=pago&numero={Uri.EscapeDataString(result.Valor!.Numero)}");
-                return;
-            }
-
-            errores = result.Errors ?? [];
-            Show("warning", result.Message);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogWarning(ex, "Could not registrar pago.");
-            Show("danger", "No fue posible registrar el pago.");
-        }
-    }
-
     private async Task AplicarPagoAsync()
     {
         var f = AplicacionInput!;
         var input = new AplicarPagoInput(f.MovimientoFacturaId ?? 0, f.MovimientoPagoId ?? 0, f.Importe, f.FechaRegistro);
+        var aplicado = false;
         try
         {
             var result = await CobroApiClient.AplicarPagoAsync(input);
             if (result.Succeeded)
             {
-                Nav.NavigateTo(BuildUrl(ok: "aplicado"));
-                return;
+                aplicado = true;
             }
-
-            errores = result.Errors ?? [];
-            Show("warning", result.Message);
+            else
+            {
+                errores = result.Errors ?? [];
+                Show("warning", result.Message);
+            }
         }
         catch (Exception ex)
         {
             Logger.LogWarning(ex, "Could not aplicar pago.");
             Show("danger", "No fue posible aplicar el pago.");
+        }
+
+        // R17: la navegación va fuera del try/catch.
+        if (aplicado)
+        {
+            Nav.NavigateTo(BuildUrl(ok: "aplicado"));
         }
     }
 
@@ -475,8 +382,7 @@ else
 
     private void Show(string type, string text) { messageType = type; message = text; }
 
-    private static string? EmptyAsNull(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-
+    /// <summary>Formulario de alta de cobro: lo usa la página <see cref="CobroNuevo"/> (Fix-Features C1).</summary>
     public sealed class PagoForm : IValidatableObject
     {
         [Required(ErrorMessage = "Seleccione el cliente.")]

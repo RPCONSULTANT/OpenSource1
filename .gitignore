@@ -38,3 +38,6 @@ Thumbs.db
 # Subidas locales de la UI (imágenes de clientes/productos/perfil): LocalFileStorageService escribe SOLO en
 # <raíz de contenido de Blazor>/storage/uploads (Program.cs las sirve como /uploads). Anclado: no afecta a otras carpetas "uploads".
 /src/OpenSource1.Blazor/storage/
+
+# Maquetas del compañero visual de brainstorming
+.superpowers/brainstorm/

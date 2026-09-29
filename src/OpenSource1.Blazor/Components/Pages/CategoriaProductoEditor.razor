@@ -1,0 +1,199 @@
+@page "/categorias-producto/nuevo"
+@page "/categorias-producto/{Id:guid}/editar"
+@attribute [Authorize(Policy = ApplicationPolicies.CanConsult)]
+@using OpenSource1.Application.Features.CategoriasProducto.Dtos
+@using OpenSource1.Blazor.Services
+@using System.Net.Http
+@inject ICategoriaProductoApiClient CategoriaProductoApiClient
+@inject IAuthorizationService AuthorizationService
+@inject ILogger<CategoriaProductoEditor> Logger
+@inject NavigationManager Nav
+
+<EntityFormPage Titulo="@Titulo" Subtitulo="Jerarquía de categorías de producto." Migas="@Migas" Mensaje="@message" TipoMensaje="@messageType">
+    @if (Permitido && opcionesPadreNoDisponibles)
+    {
+        @* Aviso propio (no Mensaje): así no lo pisa el de fallo de carga de la categoría, y se ve también en el alta. *@
+        <div class="mb-4"><MessageBox Type="@(EsEdicion ? "danger" : "warning")" Message="@(EsEdicion ? MensajeOpcionesPadre : MensajeOpcionesPadreAlta)" /></div>
+    }
+    @if (!Permitido)
+    {
+        <MessageBox Type="warning" Message="@SinPermiso" />
+    }
+    else if (EsEdicion && !encontrado)
+    {
+        @* Si la carga falló no se sabe si existe: solo el aviso de fallo (Mensaje), no el de "no encontrado". *@
+        @if (!cargaFallida)
+        {
+            <MessageBox Type="warning" Message="No se encontró la categoría seleccionada. Puede haber sido eliminada por otro usuario." />
+        }
+    }
+    else if (EsEdicion)
+    {
+        <EditForm Model="UpdateInput" FormName="update-categoriaproducto" OnValidSubmit="UpdateAsync" Enhance="true">
+            <DataAnnotationsValidator />
+            <input type="hidden" name="UpdateInput.Id" value="@UpdateInput!.Id" />
+            <CategoriaProductoFields Model="UpdateInput!" Prefix="UpdateInput" Opciones="opcionesPadre" ExcluirId="UpdateInput.Id" PadreActualNombre="@padreActualNombre" />
+            <FormularioAcciones CancelarHref="@Volver" LimpiarHref="@Nav.Uri" TextoGuardar="Guardar cambios" Deshabilitado="@opcionesPadreNoDisponibles" />
+        </EditForm>
+    }
+    else
+    {
+        <EditForm Model="SaveInput" FormName="save-categoriaproducto" OnValidSubmit="CreateAsync" Enhance="true">
+            <DataAnnotationsValidator />
+            <CategoriaProductoFields Model="SaveInput!" Prefix="SaveInput" Opciones="opcionesPadre" />
+            <FormularioAcciones CancelarHref="@Volver" LimpiarHref="@Nav.Uri" />
+        </EditForm>
+    }
+</EntityFormPage>
+
+@* Formularios siempre en el árbol: sin permiso o sin registro, un POST obsoleto o forzado llega al handler y recibe el
+   mensaje real de la API (403/404), no el 400 genérico de Blazor. *@
+@if (!MuestraAlta)
+{
+    <EditForm Model="SaveInput" FormName="save-categoriaproducto" OnValidSubmit="CreateAsync"></EditForm>
+}
+@if (!MuestraEdicion)
+{
+    <EditForm Model="UpdateInput" FormName="update-categoriaproducto" OnValidSubmit="UpdateAsync"></EditForm>
+}
+
+@code {
+    private const string SinPermiso = "No tiene permiso para realizar esta acción.";
+    private const string MensajeOpcionesPadreAlta = "No fue posible cargar las categorías disponibles como padre: si guarda ahora, la categoría se creará sin categoría padre. Recargue la página para poder elegirla.";
+    private const string MensajeOpcionesPadre = "No fue posible cargar las categorías disponibles como padre. Por seguridad no se puede modificar una categoría hasta que carguen; recargue la página.";
+
+    [Parameter] public Guid? Id { get; set; }
+    [SupplyParameterFromQuery(Name = "returnUrl")] private string? ReturnUrl { get; set; }
+    [SupplyParameterFromForm(FormName = "save-categoriaproducto")] private CategoriasProducto.CategoriaProductoForm? SaveInput { get; set; }
+    [SupplyParameterFromForm(FormName = "update-categoriaproducto")] private CategoriasProducto.CategoriaProductoForm? UpdateInput { get; set; }
+    [CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+    // Todas las categorías, para poblar el <select> de categoría padre (se pide a la API, no se deriva de un listado paginado).
+    private IReadOnlyList<CategoriaProductoResponse> opcionesPadre = [];
+    // Si las opciones de padre no cargaron (excepción o lista vacía) no se permite MODIFICAR: el <select>
+    // no reflejaría la jerarquía real y guardar podría dejar el padre en null sin avisar.
+    private bool opcionesPadreNoDisponibles;
+    // Nombre del padre del registro que se edita (de GetByIdAsync), para rotular su opción en el <select>.
+    private string? padreActualNombre;
+    private PermisosPagina? permisos;
+    private bool encontrado;
+    private bool cargaFallida;
+    private string? message;
+    private string messageType = "warning";
+
+    private bool EsEdicion => Id.HasValue;
+    private bool Permitido => EsEdicion ? permisos?.CanModify == true : permisos?.CanAdd == true;
+    private bool MuestraAlta => !EsEdicion && Permitido;
+    private bool MuestraEdicion => EsEdicion && Permitido && encontrado;
+    private string Volver => RetornoLocal.Volver(ReturnUrl, "/categorias-producto");
+    private string Titulo => EsEdicion ? "Modificar categoría" : "Nueva categoría";
+    private IReadOnlyList<Miga> Migas => [new("Productos", "/modulos/productos"), new("Categorías de producto", Volver), new(EsEdicion ? "Modificar" : "Nueva")];
+
+    protected override async Task OnInitializedAsync()
+    {
+        SaveInput ??= new();
+        UpdateInput ??= new();
+        permisos = await PermisosPagina.CargarAsync(AuthorizationService, AuthenticationStateTask);
+
+        if (Permitido)
+        {
+            await LoadOpcionesPadreAsync();
+        }
+
+        if (Id is { } id && permisos.CanModify)
+        {
+            try
+            {
+                var categoria = await CategoriaProductoApiClient.GetByIdAsync(id);
+                encontrado = categoria is not null;
+                // Solo se rellena con lo guardado cuando NO llegó un formulario de modificación (Id oculto vacío).
+                if (categoria is not null && UpdateInput.Id == Guid.Empty)
+                {
+                    UpdateInput.Id = categoria.Id;
+                    UpdateInput.Codigo = categoria.Codigo;
+                    UpdateInput.Nombre = categoria.Nombre;
+                    UpdateInput.CategoriaPadreId = categoria.CategoriaPadreId;
+                }
+
+                padreActualNombre = categoria?.CategoriaPadreNombre;
+            }
+            catch (HttpRequestException ex)
+            {
+                Logger.LogWarning(ex, "Could not load categoría {Id} from API.", id);
+                cargaFallida = true;
+                Show("danger", "No fue posible cargar la categoría a modificar.");
+            }
+            catch (TaskCanceledException ex)
+            {
+                Logger.LogWarning(ex, "Could not load categoría {Id} from API.", id);
+                cargaFallida = true;
+                Show("danger", "No fue posible cargar la categoría a modificar.");
+            }
+        }
+    }
+
+    private async Task LoadOpcionesPadreAsync()
+    {
+        try
+        {
+            opcionesPadre = await CategoriaProductoApiClient.ListAllAsync();
+            // El catálogo siempre tiene al menos GENERAL: una lista vacía es una respuesta anómala, no un dato.
+            opcionesPadreNoDisponibles = opcionesPadre.Count == 0;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not load parent category options from API.");
+            opcionesPadreNoDisponibles = true;
+        }
+    }
+
+    private Task CreateAsync() => ExecuteAsync(() => CategoriaProductoApiClient.CreateAsync(ToInput(SaveInput!)), "created");
+
+    private async Task UpdateAsync()
+    {
+        if (Id is not { } id)
+        {
+            Show("warning", "Seleccione primero un registro a modificar desde la tabla.");
+            return;
+        }
+
+        // Defensa en profundidad: aunque el botón no se renderice, no se envía un PUT sin opciones de padre fiables
+        // (el aviso MensajeOpcionesPadre ya se pinta en la página).
+        if (opcionesPadreNoDisponibles)
+        {
+            return;
+        }
+
+        await ExecuteAsync(() => CategoriaProductoApiClient.UpdateAsync(id, ToInput(UpdateInput!)), "updated");
+    }
+
+    private async Task ExecuteAsync(Func<Task<CategoriaProductoOperationResult>> operation, string successCode)
+    {
+        CategoriaProductoOperationResult result;
+        try
+        {
+            result = await operation();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not complete categoría operation.");
+            Show("danger", "No fue posible completar la operación.");
+            return;
+        }
+
+        if (result.Succeeded)
+        {
+            // Fuera del try/catch: si NavigateTo lanza NavigationException (host sin BlazorDisableThrowNavigationException,
+            // p. ej. el de pruebas), el catch no debe convertir la redirección en un error.
+            Nav.NavigateTo(RetornoLocal.ConParametro(Volver, "ok", successCode));
+            return;
+        }
+
+        Show("warning", result.Message);
+    }
+
+    private void Show(string type, string text) { messageType = type; message = text; }
+
+    private static CategoriaProductoInput ToInput(CategoriasProducto.CategoriaProductoForm form) =>
+        new(form.Codigo.Trim(), form.Nombre.Trim(), form.CategoriaPadreId);
+}

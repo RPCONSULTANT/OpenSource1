@@ -1,0 +1,56 @@
+@* EntityFormPage — página-tarjeta de alta/edición (Fix-Features B1). La página pone su EditForm en ChildContent, con
+   <FormularioAcciones /> dentro del form (Guardar / Limpiar campos / Cancelar → vuelve a la lista con sus filtros). *@
+
+<PageTitle>@Titulo – AxionERP</PageTitle>
+
+<div class="mx-auto w-full max-w-3xl" data-testid="entity-form-page">
+    @if (Migas.Count > 0)
+    {
+        <nav aria-label="Migas de pan" class="mb-2 text-xs text-slate-500 dark:text-slate-400">
+            <ol class="flex flex-wrap items-center gap-1">
+                @for (var i = 0; i < Migas.Count; i++)
+                {
+                    var miga = Migas[i];
+                    <li class="flex items-center gap-1">
+                        @if (i > 0)
+                        {
+                            <span aria-hidden="true">/</span>
+                        }
+                        @if (miga.Href is null)
+                        {
+                            <span aria-current="page" class="font-semibold text-slate-700 dark:text-slate-200">@miga.Texto</span>
+                        }
+                        else
+                        {
+                            <a href="@miga.Href" class="hover:text-brand-600">@miga.Texto</a>
+                        }
+                    </li>
+                }
+            </ol>
+        </nav>
+    }
+    <div class="mb-6">
+        <h1 class="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">@Titulo</h1>
+        @if (!string.IsNullOrWhiteSpace(Subtitulo))
+        {
+            <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">@Subtitulo</p>
+        }
+    </div>
+    @if (!string.IsNullOrWhiteSpace(Mensaje) || Errores.Count > 0)
+    {
+        <div class="mb-6"><MessageBox Type="@TipoMensaje" Message="@Mensaje" Errors="@Errores" /></div>
+    }
+    <section class="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
+        <div class="px-6 py-6">@ChildContent</div>
+    </section>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Titulo { get; set; } = string.Empty;
+    [Parameter] public string? Subtitulo { get; set; }
+    [Parameter] public IReadOnlyList<Miga> Migas { get; set; } = [];
+    [Parameter] public string? Mensaje { get; set; }
+    [Parameter] public string TipoMensaje { get; set; } = "warning";
+    [Parameter] public IReadOnlyList<string> Errores { get; set; } = [];
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

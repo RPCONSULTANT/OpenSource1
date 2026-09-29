@@ -38,7 +38,7 @@
         <a href="/facturas-venta/borradores" class="btn-press rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Volver al listado</a>
         @if (borrador is not null && canModify && borrador.Estado == EstadoFacturaBorrador.Abierta)
         {
-            <a href="@($"/facturas-venta/borradores?editId={BorradorId}")" class="btn-press rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-amber-600">Modificar cabecera</a>
+            <a href="@RetornoLocal.ConRetorno($"/facturas-venta/borradores/{BorradorId}/editar", $"/facturas-venta/borradores/{BorradorId}")" class="btn-press rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-amber-600">Modificar cabecera</a>
         }
     </div>
 </div>

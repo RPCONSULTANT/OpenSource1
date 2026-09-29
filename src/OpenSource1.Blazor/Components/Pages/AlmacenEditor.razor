@@ -1,0 +1,174 @@
+@page "/almacenes/nuevo"
+@page "/almacenes/{Id:guid}/editar"
+@attribute [Authorize(Policy = ApplicationPolicies.CanConsult)]
+@using OpenSource1.Application.Features.Almacenes.Dtos
+@using OpenSource1.Blazor.Services
+@inject IAlmacenApiClient AlmacenApiClient
+@inject IAuthorizationService AuthorizationService
+@inject ILogger<AlmacenEditor> Logger
+@inject NavigationManager Nav
+
+<EntityFormPage Titulo="@Titulo" Subtitulo="Almacenes y almacén predeterminado." Migas="@Migas" Mensaje="@message" TipoMensaje="@messageType" Errores="@errores">
+    @if (!Permitido)
+    {
+        <MessageBox Type="warning" Message="@SinPermiso" />
+    }
+    else if (EsEdicion && !encontrado)
+    {
+        @* Si la carga falló no se sabe si existe: solo el aviso de fallo (Mensaje), no el de "no encontrado". *@
+        @if (!cargaFallida)
+        {
+            <MessageBox Type="warning" Message="No se encontró el almacén seleccionado. Puede haber sido eliminado por otro usuario." />
+        }
+    }
+    else if (EsEdicion)
+    {
+        <EditForm Model="UpdateInput" FormName="update-almacen" OnValidSubmit="UpdateAsync" Enhance="true">
+            <DataAnnotationsValidator />
+            <input type="hidden" name="UpdateInput.Id" value="@UpdateInput!.Id" />
+            <AlmacenFields Model="UpdateInput!" Prefix="UpdateInput" />
+            <FormularioAcciones CancelarHref="@Volver" LimpiarHref="@Nav.Uri" TextoGuardar="Guardar cambios" />
+        </EditForm>
+    }
+    else
+    {
+        <EditForm Model="SaveInput" FormName="save-almacen" OnValidSubmit="CreateAsync" Enhance="true">
+            <DataAnnotationsValidator />
+            <AlmacenFields Model="SaveInput!" Prefix="SaveInput" />
+            <FormularioAcciones CancelarHref="@Volver" LimpiarHref="@Nav.Uri" />
+        </EditForm>
+    }
+</EntityFormPage>
+
+@* Formularios siempre en el árbol: sin permiso o sin registro, un POST obsoleto o forzado llega al handler y recibe el
+   mensaje real de la API (403/404), no el 400 genérico de Blazor. *@
+@if (!MuestraAlta)
+{
+    <EditForm Model="SaveInput" FormName="save-almacen" OnValidSubmit="CreateAsync"></EditForm>
+}
+@if (!MuestraEdicion)
+{
+    <EditForm Model="UpdateInput" FormName="update-almacen" OnValidSubmit="UpdateAsync"></EditForm>
+}
+
+@code {
+    private const string SinPermiso = "No tiene permiso para realizar esta acción.";
+
+    [Parameter] public Guid? Id { get; set; }
+    [SupplyParameterFromQuery(Name = "returnUrl")] private string? ReturnUrl { get; set; }
+    [SupplyParameterFromForm(FormName = "save-almacen")] private Almacenes.AlmacenForm? SaveInput { get; set; }
+    [SupplyParameterFromForm(FormName = "update-almacen")] private Almacenes.AlmacenForm? UpdateInput { get; set; }
+    [CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+    private PermisosPagina? permisos;
+    private bool encontrado;
+    private bool cargaFallida;
+    private string? message;
+    private string messageType = "warning";
+    private IReadOnlyList<string> errores = [];
+
+    private bool EsEdicion => Id.HasValue;
+    private bool Permitido => EsEdicion ? permisos?.CanModify == true : permisos?.CanAdd == true;
+    private bool MuestraAlta => !EsEdicion && Permitido;
+    private bool MuestraEdicion => EsEdicion && Permitido && encontrado;
+    private string Volver => RetornoLocal.Volver(ReturnUrl, "/almacenes");
+    private string Titulo => EsEdicion ? "Modificar almacén" : "Nuevo almacén";
+    private IReadOnlyList<Miga> Migas => [new("Inventario", "/modulos/inventario"), new("Almacenes", Volver), new(EsEdicion ? "Modificar" : "Nuevo")];
+
+    protected override async Task OnInitializedAsync()
+    {
+        SaveInput ??= new();
+        UpdateInput ??= new();
+        permisos = await PermisosPagina.CargarAsync(AuthorizationService, AuthenticationStateTask);
+
+        if (Id is { } id && permisos.CanModify)
+        {
+            try
+            {
+                var almacen = await AlmacenApiClient.GetByIdAsync(id);
+                encontrado = almacen is not null;
+                // Solo se rellena con lo guardado cuando NO llegó un formulario de modificación (Id oculto vacío).
+                if (almacen is not null && UpdateInput.Id == Guid.Empty)
+                {
+                    UpdateInput.Id = almacen.Id;
+                    UpdateInput.Codigo = almacen.Codigo;
+                    UpdateInput.Nombre = almacen.Nombre;
+                    UpdateInput.DireccionLinea1 = almacen.DireccionLinea1;
+                    UpdateInput.DireccionLinea2 = almacen.DireccionLinea2;
+                    UpdateInput.Ciudad = almacen.Ciudad;
+                    UpdateInput.PaisCodigo = almacen.PaisCodigo;
+                    UpdateInput.Bloqueado = almacen.Bloqueado;
+                    UpdateInput.EsPredeterminado = almacen.EsPredeterminado;
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Could not load almacén {Id} from API.", id);
+                cargaFallida = true;
+                Show("danger", "No fue posible cargar el almacén a modificar.");
+            }
+        }
+    }
+
+    private Task CreateAsync() => ExecuteAsync(() => AlmacenApiClient.CreateAsync(ToInput(SaveInput!)), "created");
+
+    private async Task UpdateAsync()
+    {
+        if (Id is not { } id)
+        {
+            Show("warning", "Seleccione primero un registro a modificar desde la tabla.");
+            return;
+        }
+
+        await ExecuteAsync(() => AlmacenApiClient.UpdateAsync(id, ToInput(UpdateInput!)), "updated");
+    }
+
+    private async Task ExecuteAsync(Func<Task<AlmacenOperationResult>> operation, string successCode)
+    {
+        AlmacenOperationResult result;
+        try
+        {
+            result = await operation();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not complete almacén operation.");
+            Show("danger", "No fue posible completar la operación.");
+            return;
+        }
+
+        if (result.Succeeded)
+        {
+            // Fuera del try/catch: si NavigateTo lanza NavigationException (host sin BlazorDisableThrowNavigationException,
+            // p. ej. el de pruebas), el catch no debe convertir la redirección en un error.
+            Nav.NavigateTo(RetornoLocal.ConParametro(Volver, "ok", successCode));
+            return;
+        }
+
+        Show("warning", result.Message, result.Errors);
+    }
+
+    private void Show(string type, string text, IReadOnlyList<string>? errors = null)
+    {
+        messageType = type;
+        message = text;
+        errores = errors ?? [];
+    }
+
+    // OJO: a diferencia del filtro (donde "" debe volverse null para no filtrar), aquí "" se envía
+    // TAL CUAL (nunca se convierte a null) para Dirección/Ciudad/País. La API trata null como
+    // "conservar el valor actual" en el PUT (ver UpdateAlmacenCommand); como este formulario es de
+    // un solo paso y reenvía siempre el valor visible, "" significa que el usuario dejó/dejó vacío
+    // el campo y debe limpiarlo (el handler normaliza "" a null internamente), no "no tocar". El
+    // binder de formularios SSR ya entrega "" (nunca null) para un input de texto vacío, así que no
+    // hace falta normalizar aquí.
+    private static AlmacenInput ToInput(Almacenes.AlmacenForm form) => new(
+        form.Codigo.Trim(),
+        form.Nombre.Trim(),
+        form.DireccionLinea1?.Trim() ?? string.Empty,
+        form.DireccionLinea2?.Trim() ?? string.Empty,
+        form.Ciudad?.Trim() ?? string.Empty,
+        form.PaisCodigo?.Trim() ?? string.Empty,
+        form.Bloqueado,
+        form.EsPredeterminado);
+}

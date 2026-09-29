@@ -1,6 +1,6 @@
 (() => {
   const overlayId = 'global-loading-overlay';
-  const loadingDelayMs = 180;
+  const loadingDelayMs = 150;
   const failsafeHideMs = 4000;
   let showTimer = 0;
   let hideTimer = 0;
@@ -8,6 +8,9 @@
   let hardNavigationPending = false;
 
   let progressBarActive = false;
+  // El velo de pantalla completa solo acompaña envíos de formulario (operaciones que escriben); en la navegación por enlaces
+  // únicamente puede aparecer la barra fina, y solo si tarda más de loadingDelayMs (Fix-Features A6).
+  let overlayPermitido = false;
 
   function overlay() {
     return document.getElementById(overlayId);
@@ -31,6 +34,7 @@
   function scheduleShowLoading() {
     cancelPendingShow();
     showTimer = window.setTimeout(() => {
+      showTimer = 0;
       if (pendingFetches > 0 || hardNavigationPending) {
         showLoading();
       }
@@ -44,7 +48,7 @@
 
   function showLoading() {
     const el = overlay();
-    if (el) {
+    if (el && overlayPermitido) {
       el.classList.add('is-visible');
       el.setAttribute('aria-hidden', 'false');
     }
@@ -59,6 +63,7 @@
   }
 
   function hideLoading() {
+    overlayPermitido = false;
     hardNavigationPending = false;
     cancelPendingShow();
     clearTimer(hideTimer);
@@ -148,6 +153,7 @@
       submitter.setAttribute('aria-busy', 'true');
     }
 
+    overlayPermitido = true;
     if (!form.hasAttribute('data-enhance')) {
       hardNavigationPending = true;
       beginTrackedActivity();
@@ -170,6 +176,7 @@
     if (targetUrl.origin !== currentUrl.origin) return;
     if (targetUrl.href === currentUrl.href) return;
 
+    overlayPermitido = false;
     hardNavigationPending = true;
     beginTrackedActivity();
   }, true);
@@ -178,9 +185,11 @@
     hideLoading();
   });
 
+  // Al descargar la página también se respeta loadingDelayMs: si ya hay un temporizador pendiente (clic o envío) se deja
+  // correr; si no, se programa uno. Nunca se muestra de inmediato (Fix-Features A6).
   window.addEventListener('beforeunload', () => {
-    if (pendingFetches > 0 || hardNavigationPending) {
-      showLoading();
+    if ((pendingFetches > 0 || hardNavigationPending) && !showTimer && !progressBarActive) {
+      scheduleShowLoading();
     }
   });
 

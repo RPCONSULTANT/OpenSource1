@@ -1,0 +1,176 @@
+@page "/cobros/nuevo"
+@attribute [Authorize(Policy = ApplicationPolicies.CanConsult)]
+@using OpenSource1.Application.Features.CuentasContables.Dtos
+@using OpenSource1.Application.Features.SociosNegocio.Dtos
+@using OpenSource1.Blazor.Services
+@inject ICobroApiClient CobroApiClient
+@inject ISocioNegocioApiClient SocioApiClient
+@inject ICuentaContableApiClient CuentaApiClient
+@inject IAuthorizationService AuthorizationService
+@inject ILogger<CobroNuevo> Logger
+@inject NavigationManager Nav
+
+@* Fix-Features C1: alta de cobro en página propia (antes tarjeta "Registrar pago" de /cobros); ?socioId= precarga el cliente
+   (Crear ▾ Cobro de la lista, la tarjeta y la ficha de clientes). Tras registrar vuelve a Cobros del cliente para aplicarlo. *@
+<EntityFormPage Titulo="Nuevo cobro" Subtitulo="Registra el pago del cliente; después podrá aplicarlo a sus facturas pendientes."
+                Migas="@Migas" Mensaje="@message" TipoMensaje="@messageType" Errores="@errores">
+    @if (permisos?.CanModify != true)
+    {
+        <p class="text-sm text-slate-600 dark:text-slate-300">No tiene permiso para realizar esta acción.</p>
+        @* Formulario en el árbol (vacío): un POST forzado llega al handler y recibe el 403 real de la API. *@
+        <EditForm Model="PagoInput" FormName="registrar-pago" OnValidSubmit="RegistrarPagoAsync"></EditForm>
+    }
+    else
+    {
+        @if (socios.CargaFallida)
+        {
+            <div class="mb-4"><MessageBox Type="danger" Message="No fue posible cargar los clientes. No se puede registrar un pago hasta que carguen; recargue la página." /></div>
+        }
+        @if (cuentas.CargaFallida)
+        {
+            <div class="mb-4"><MessageBox Type="danger" Message="No fue posible cargar las cuentas de caja/banco. No se puede registrar un pago hasta que carguen; recargue la página." /></div>
+        }
+        <form method="get" action="/cobros/nuevo" data-enhance class="mb-6 flex flex-wrap items-end gap-2" data-testid="buscar-socio">
+            @if (!string.IsNullOrWhiteSpace(ReturnUrl))
+            {
+                <input type="hidden" name="returnUrl" value="@ReturnUrl" />
+            }
+            <div class="min-w-60 flex-1">
+                <label class="mb-1 block text-xs font-semibold text-slate-500 dark:text-slate-400" for="socioQuery">Buscar cliente por nombre</label>
+                <input id="socioQuery" type="text" name="socioQuery" value="@SocioQuery" placeholder="ej. Comercial" class="@InputCss" />
+            </div>
+            <button type="submit" class="btn-press rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700/60">Buscar</button>
+        </form>
+        <EditForm Model="PagoInput" FormName="registrar-pago" OnValidSubmit="RegistrarPagoAsync" Enhance="true">
+            <DataAnnotationsValidator />
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div class="sm:col-span-2">
+                    <label class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300" for="PagoInput_SocioNegocioId">Cliente <span class="text-red-500">*</span></label>
+                    <select id="PagoInput_SocioNegocioId" name="PagoInput.SocioNegocioId" class="@InputCss">
+                        <option value="" selected="@(PagoInput!.SocioNegocioId is null)">— Seleccione —</option>
+                        @Cobros.OpcionSocioVigente(PagoInput.SocioNegocioId, socios.Items, socioActual)
+                        @foreach (var s in socios.Items)
+                        {
+                            <option value="@s.Id" selected="@(s.Id == PagoInput.SocioNegocioId)">@s.Codigo — @s.NombreComercial</option>
+                        }
+                    </select>
+                    <ValidationMessage For="() => PagoInput.SocioNegocioId" />
+                    <p class="mt-1 text-xs text-slate-400">Primeros @VentasOpciones.MaximoSocios clientes por nombre; use Buscar para acotar la lista.</p>
+                </div>
+                <div>
+                    <label class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300" for="PagoInput_ImporteTexto">Importe <span class="text-red-500">*</span></label>
+                    <input id="PagoInput_ImporteTexto" type="text" inputmode="decimal" name="PagoInput.ImporteTexto" value="@PagoInput.ImporteTexto" placeholder="ej. 500.00" class="@InputCss" />
+                    <ValidationMessage For="() => PagoInput.ImporteTexto" />
+                </div>
+                <div>
+                    <label class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300" for="PagoInput_FechaRegistroTexto">Fecha <span class="text-red-500">*</span></label>
+                    <input id="PagoInput_FechaRegistroTexto" type="date" name="PagoInput.FechaRegistroTexto" value="@PagoInput.FechaRegistroTexto" class="@InputCss" />
+                    <ValidationMessage For="() => PagoInput.FechaRegistroTexto" />
+                </div>
+                <div class="sm:col-span-2">
+                    <label class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300" for="PagoInput_CuentaCajaId">Cuenta de caja / banco <span class="text-red-500">*</span></label>
+                    <select id="PagoInput_CuentaCajaId" name="PagoInput.CuentaCajaId" class="@InputCss">
+                        <option value="" selected="@(PagoInput.CuentaCajaId is null)">— Seleccione —</option>
+                        @foreach (var c in cuentas.Items)
+                        {
+                            <option value="@c.Id" selected="@(c.Id == PagoInput.CuentaCajaId)">@c.Numero — @c.Nombre</option>
+                        }
+                    </select>
+                    <ValidationMessage For="() => PagoInput.CuentaCajaId" />
+                    <p class="mt-1 text-xs text-slate-400">Cuentas de posteo, no bloqueadas y de posteo directo (por defecto @VentasOpciones.NumeroCuentaCajaPorDefecto Caja).</p>
+                </div>
+                <div class="sm:col-span-2">
+                    <label class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300" for="PagoInput_Descripcion">Descripción</label>
+                    <input id="PagoInput_Descripcion" type="text" name="PagoInput.Descripcion" value="@PagoInput.Descripcion" maxlength="200" class="@InputCss" />
+                    <ValidationMessage For="() => PagoInput.Descripcion" />
+                </div>
+            </div>
+            <FormularioAcciones CancelarHref="@Volver" LimpiarHref="@Nav.Uri" TextoGuardar="Registrar pago" Deshabilitado="@(socios.CargaFallida || cuentas.CargaFallida)" />
+        </EditForm>
+    }
+</EntityFormPage>
+
+@code {
+    private const string InputCss = "block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200";
+
+    // Tolerante (ola final Fix-Features): un ?socioId= ilegible se ignora; con Guid? el binder lanzaría (página de error).
+    [SupplyParameterFromQuery(Name = "socioId")] private string? SocioIdTexto { get; set; }
+    private Guid? SocioId => InventarioVistasOpciones.ParseGuid(SocioIdTexto);
+    [SupplyParameterFromQuery(Name = "socioQuery")] private string? SocioQuery { get; set; }
+    [SupplyParameterFromQuery(Name = "returnUrl")] private string? ReturnUrl { get; set; }
+    [SupplyParameterFromForm(FormName = "registrar-pago")] private Cobros.PagoForm? PagoInput { get; set; }
+    [CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+    private OpcionesCargadas<SocioNegocioResponse> socios = OpcionesCargadas<SocioNegocioResponse>.SinCargar;
+    private OpcionesCargadas<CuentaContableResponse> cuentas = OpcionesCargadas<CuentaContableResponse>.SinCargar;
+    private SocioNegocioResponse? socioActual;
+    private PermisosPagina? permisos;
+    private string? message;
+    private string messageType = "warning";
+    private IReadOnlyList<string> errores = [];
+
+    private string Volver => RetornoLocal.Volver(ReturnUrl, SocioId is { } id ? $"/cobros?socioId={id}" : "/cobros");
+    private IReadOnlyList<Miga> Migas => [new("Ventas", "/modulos/ventas"), new("Cobros", Volver), new("Nuevo cobro")];
+
+    protected override async Task OnInitializedAsync()
+    {
+        // El modelo existe antes de la primera espera: la página se pinta mientras cargan las opciones.
+        PagoInput ??= new() { SocioNegocioId = SocioId, FechaRegistroTexto = EntradaFecha.Formatear(DateOnly.FromDateTime(DateTime.Today)) };
+        permisos = await PermisosPagina.CargarAsync(AuthorizationService, AuthenticationStateTask);
+        if (!permisos.CanModify)
+        {
+            return;
+        }
+
+        socios = await VentasOpciones.SociosAsync(SocioApiClient, SocioQuery, Logger);
+        cuentas = await VentasOpciones.CuentasCapturaDirectaAsync(CuentaApiClient, Logger);
+        // Cuenta por defecto: 1101 Caja (la misma que usa la API si no se indica), solo si el formulario no llegó en un POST.
+        if (PagoInput.CuentaCajaId is null && string.IsNullOrEmpty(PagoInput.ImporteTexto))
+        {
+            PagoInput.CuentaCajaId = cuentas.Items.FirstOrDefault(c => c.Numero == VentasOpciones.NumeroCuentaCajaPorDefecto)?.Id;
+        }
+
+        if (PagoInput.SocioNegocioId is { } socioId && socios.Items.All(s => s.Id != socioId))
+        {
+            try { socioActual = await SocioApiClient.GetByIdAsync(socioId); }
+            catch (Exception ex) { Logger.LogWarning(ex, "Could not load socio {Id}.", socioId); }
+        }
+    }
+
+    private async Task RegistrarPagoAsync()
+    {
+        if (permisos?.CanModify == true && (socios.CargaFallida || cuentas.CargaFallida)) return;
+
+        var f = PagoInput!;
+        var input = new RegistrarPagoInput(f.SocioNegocioId ?? Guid.Empty, f.Importe, f.FechaRegistro ?? default, f.CuentaCajaId,
+            string.IsNullOrWhiteSpace(f.Descripcion) ? null : f.Descripcion.Trim());
+        string? destino = null;
+        try
+        {
+            var result = await CobroApiClient.RegistrarPagoAsync(input);
+            if (result.Succeeded)
+            {
+                // A Cobros del cliente, para aplicar el pago a sus facturas pendientes.
+                destino = $"/cobros?socioId={input.SocioNegocioId}&ok=pago&numero={Uri.EscapeDataString(result.Valor!.Numero)}";
+            }
+            else
+            {
+                errores = result.Errors ?? [];
+                messageType = "warning";
+                message = result.Message;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not registrar pago.");
+            messageType = "danger";
+            message = "No fue posible registrar el pago.";
+        }
+
+        // R17: la navegación va fuera del try/catch (en el host de pruebas NavigateTo lanza NavigationException).
+        if (destino is not null)
+        {
+            Nav.NavigateTo(destino);
+        }
+    }
+}

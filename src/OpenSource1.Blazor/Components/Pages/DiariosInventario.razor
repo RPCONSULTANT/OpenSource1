@@ -15,11 +15,12 @@
 
 <PageTitle>Diarios de inventario – AxionERP</PageTitle>
 
-<div class="mb-6">
-    <p class="text-xs font-bold tracking-widest uppercase text-brand-600 mb-1">Inventario</p>
-    <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">Diarios de inventario — Lotes</h1>
-    <p class="text-sm text-slate-500 mt-1">Lotes de ajustes y reclasificaciones de inventario. Las líneas y el registro se administran desde la ficha de cada lote.</p>
-</div>
+<PageToolbar Titulo="Diarios de inventario" Subtitulo="Lotes de ajustes y reclasificaciones de inventario. Las líneas y el registro se administran desde la ficha de cada lote."
+             Migas="@Migas" Permisos="@permisos"
+             NuevoHref="@RetornoLocal.ConRetorno("/diarios-inventario/nuevo", UrlActual)"
+             SeleccionId="@SeleccionValida?.ToString()"
+             EditarUrl="@(id => RetornoLocal.ConRetorno($"/diarios-inventario/{id}/editar", UrlActual))"
+             EliminarUrl="@(id => BuildListUrl(deleteId: Guid.Parse(id)))" />
 
 @if (!string.IsNullOrWhiteSpace(message))
 {
@@ -38,7 +39,7 @@
 @if (plantillasCargaFallida)
 {
     <div class="mb-6">
-        <MessageBox Type="warning" Message="No fue posible cargar las plantillas de diario. El filtro por plantilla y el alta de lotes no están disponibles hasta que carguen; recargue la página." />
+        <MessageBox Type="warning" Message="No fue posible cargar las plantillas de diario. El filtro por plantilla no está disponible hasta que carguen; recargue la página." />
     </div>
 }
 
@@ -93,6 +94,7 @@
         <table class="min-w-full divide-y divide-slate-100 text-sm">
             <thead class="bg-slate-50">
                 <tr>
+                    <th class="px-4 py-3"><span class="sr-only">Seleccionar</span></th>
                     <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Código</th>
                     <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Nombre</th>
                     <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Plantilla</th>
@@ -106,7 +108,7 @@
                 @if (lotes.Count == 0)
                 {
                     <tr>
-                        <td colspan="7" class="px-6 py-8 text-center text-slate-400 text-sm">
+                        <td colspan="8" class="px-6 py-8 text-center text-slate-400 text-sm">
                             No hay lotes de diario registrados con esos criterios.
                         </td>
                     </tr>
@@ -116,7 +118,9 @@
                     @foreach (var lote in lotes)
                     {
                         var plantilla = plantillas.FirstOrDefault(p => p.Id == lote.PlantillaDiarioId);
-                        <tr @key="lote.Id" class="hover:bg-slate-50 transition-colors">
+                        var marcada = lote.Id == SeleccionValida;
+                        <tr @key="lote.Id" class="@SeleccionFila.ClaseFila transition-colors @(marcada ? SeleccionFila.ClaseFilaSeleccionada : null)">
+                            <td class="px-4 py-3"><SeleccionFila Href="@BuildListUrl(sel: lote.Id)" Seleccionada="@marcada" Etiqueta="@lote.Codigo" /></td>
                             <td class="px-6 py-3 font-mono text-xs font-semibold text-brand-700">@lote.Codigo</td>
                             <td class="px-6 py-3 text-slate-700">@lote.Nombre</td>
                             <td class="px-6 py-3 text-slate-500 text-xs">@(plantilla is null ? "—" : $"{plantilla.Codigo} — {plantilla.Nombre}")</td>
@@ -139,13 +143,13 @@
                                     <a href="@($"/diarios-inventario/{lote.Id}")" class="btn-press inline-flex items-center justify-center size-8 rounded-lg border border-brand-200 bg-brand-50 text-brand-700 hover:bg-brand-100" title="Ver líneas del lote">
                                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0ZM3.75 12h.007v.008H3.75V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-.375 5.25h.007v.008H3.75v-.008Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" /></svg>
                                     </a>
-                                    @if (canModify)
+                                    @if (permisos?.CanModify == true)
                                     {
-                                        <a href="@BuildListUrl(editId: lote.Id)" class="btn-press inline-flex items-center justify-center size-8 rounded-lg border border-amber-200 bg-amber-50 text-amber-600 hover:bg-amber-100" title="Editar lote">
+                                        <a href="@RetornoLocal.ConRetorno($"/diarios-inventario/{lote.Id}/editar", UrlActual)" class="btn-press inline-flex items-center justify-center size-8 rounded-lg border border-amber-200 bg-amber-50 text-amber-600 hover:bg-amber-100" title="Editar lote">
                                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Z" /></svg>
                                         </a>
                                     }
-                                    @if (canDelete)
+                                    @if (permisos?.CanDelete == true)
                                     {
                                         <a href="@BuildListUrl(deleteId: lote.Id)" class="btn-press inline-flex items-center justify-center size-8 rounded-lg border border-red-200 bg-red-50 text-red-600 hover:bg-red-100" title="Eliminar lote">
                                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79" /></svg>
@@ -177,92 +181,10 @@
     }
 </div>
 
-<!-- ── Formularios de operación ── -->
-<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-
-    <!-- Agregar -->
-    @if (canAdd)
-    {
-        <div id="agregar" class="rounded-2xl border border-green-200 bg-white shadow-sm overflow-hidden">
-            <div class="px-6 py-4 bg-green-50 border-b border-green-100 flex items-center gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-5 text-green-600">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                </svg>
-                <h2 class="text-sm font-bold text-green-800">Agregar lote</h2>
-            </div>
-            <div class="px-6 py-5">
-                @if (plantillasCargaFallida)
-                {
-                    <p class="text-sm text-slate-400">No se puede agregar un lote hasta que las plantillas carguen.</p>
-                }
-                else
-                {
-                    <EditForm Model="SaveInput" FormName="save-lote-diario" OnValidSubmit="CreateAsync" Enhance="true">
-                        <DataAnnotationsValidator />
-                        <LoteDiarioFields Model="SaveInput!" Prefix="SaveInput" Plantillas="@plantillas" EsEdicion="false" />
-                        <div class="mt-5">
-                            <button type="submit"
-                                    class="btn-press flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 transition-colors shadow-sm">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                                </svg>
-                                Agregar
-                            </button>
-                        </div>
-                    </EditForm>
-                }
-            </div>
-        </div>
-    }
-
-    <!-- Modificar -->
-    @if (canModify)
-    {
-        <div id="modificar" class="rounded-2xl border border-amber-200 bg-white shadow-sm overflow-hidden">
-            <div class="px-6 py-4 bg-amber-50 border-b border-amber-100 flex items-center gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-5 text-amber-600">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
-                </svg>
-                <h2 class="text-sm font-bold text-amber-800">Modificar lote</h2>
-            </div>
-            <div class="px-6 py-5">
-                @if (EditId.HasValue && UpdateInput?.Id != EditId)
-                {
-                    <MessageBox Type="warning" Message="No se encontró el lote seleccionado. Puede haber sido eliminado por otro usuario." />
-                }
-                else if (!EditId.HasValue && UpdateInput?.Id == Guid.Empty)
-                {
-                    <p class="text-sm text-slate-400">Seleccione "Editar" en un lote de la tabla para modificarlo.</p>
-                }
-                <EditForm Model="UpdateInput" FormName="update-lote-diario" OnValidSubmit="UpdateAsync" Enhance="true">
-                    <DataAnnotationsValidator />
-                    <input type="hidden" name="UpdateInput.Id" value="@UpdateInput!.Id" />
-                    <input type="hidden" name="UpdateInput.PlantillaDiarioId" value="@UpdateInput.PlantillaDiarioId" />
-                    <input type="hidden" name="UpdateInput.Xmin" value="@UpdateInput.Xmin" />
-                    @if (UpdateInput.Id != Guid.Empty)
-                    {
-                        <LoteDiarioFields Model="UpdateInput!" Prefix="UpdateInput" Plantillas="@plantillas" EsEdicion="true" />
-                        <div class="mt-5">
-                            <button type="submit"
-                                    class="btn-press flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-600 transition-colors shadow-sm">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125" />
-                                </svg>
-                                Guardar cambios
-                            </button>
-                        </div>
-                    }
-                </EditForm>
-            </div>
-        </div>
-    }
-
-</div>
-
-@if (DeleteId.HasValue && canDelete)
+@if (MuestraDialogoBorrar)
 {
-    <ConfirmDialog Title="Confirmar eliminación" Message="Esta acción eliminará el lote de diario seleccionado y no se puede deshacer." Variant="danger" CancelHref="/diarios-inventario">
-        <p class="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-mono text-red-900">@((itemToDelete is null) ? DeleteId.Value.ToString() : $"{itemToDelete.Codigo} — {itemToDelete.Nombre}")</p>
+    <ConfirmDialog Title="Confirmar eliminación" Message="Esta acción eliminará el lote de diario seleccionado y no se puede deshacer." Variant="danger" CancelHref="@UrlActual">
+        <p class="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-mono text-red-900">@((itemToDelete is null) ? DeleteId?.ToString() : $"{itemToDelete.Codigo} — {itemToDelete.Nombre}")</p>
         @if (itemToDelete is { NumeroLineas: > 0 })
         {
             <div class="mt-3">
@@ -272,18 +194,17 @@
         <EditForm Model="DeleteInput" FormName="delete-lote-diario" OnValidSubmit="DeleteAsync" class="mt-4">
             <input type="hidden" name="DeleteInput.Id" value="@DeleteId" />
             <button type="submit" class="btn-press rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-700">Sí, eliminar</button>
-            <a href="/diarios-inventario" class="btn-press ml-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Cancelar</a>
+            <a href="@UrlActual" class="btn-press ml-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Cancelar</a>
         </EditForm>
     </ConfirmDialog>
 }
+else
+{
+    @* Formulario de borrado siempre en el árbol: un POST obsoleto o forzado recibe el mensaje real de la API. *@
+    <EditForm Model="DeleteInput" FormName="delete-lote-diario" OnValidSubmit="DeleteAsync"></EditForm>
+}
 
 @code {
-    [SupplyParameterFromForm(FormName = "save-lote-diario")]
-    private LoteForm? SaveInput { get; set; }
-
-    [SupplyParameterFromForm(FormName = "update-lote-diario")]
-    private LoteForm? UpdateInput { get; set; }
-
     [SupplyParameterFromForm(FormName = "delete-lote-diario")]
     private DeleteForm? DeleteInput { get; set; }
 
@@ -296,6 +217,12 @@
     [SupplyParameterFromQuery(Name = "nombre")]
     private string? SearchNombre { get; set; }
 
+    // Tolerante (ola final Fix-Features): un ?sel= ilegible se ignora como selección vacía; con Guid? el binder lanzaría.
+    [SupplyParameterFromQuery(Name = "sel")]
+    private string? SelTexto { get; set; }
+    private Guid? Sel => InventarioVistasOpciones.ParseGuid(SelTexto);
+
+    // Solo para redirigir la ruta antigua (?editId=) al editor propio.
     [SupplyParameterFromQuery(Name = "editId")]
     private Guid? EditId { get; set; }
 
@@ -308,6 +235,8 @@
     [SupplyParameterFromQuery(Name = "pagina")]
     private int Pagina { get; set; } = 1;
 
+    private static readonly IReadOnlyList<Miga> Migas = [new("Inventario", "/modulos/inventario"), new("Diarios de inventario")];
+
     private IReadOnlyList<LoteDiarioResponse> lotes = [];
     private IReadOnlyList<PlantillaDiarioResponse> plantillas = [];
     private bool plantillasCargaFallida;
@@ -318,28 +247,29 @@
     private string? message;
     private string messageType = "info";
     private IReadOnlyList<string> errores = [];
-
-    private bool canAdd;
-    private bool canModify;
-    private bool canDelete;
+    private PermisosPagina? permisos;
 
     [CascadingParameter]
     private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
 
+    /// <summary>Selección de la lista (?sel=) solo si el lote está en la página cargada; si no, la barra la trata como vacía.</summary>
+    private Guid? SeleccionValida => Sel is { } s && lotes.Any(l => l.Id == s) ? s : null;
+
+    private bool MuestraDialogoBorrar => DeleteId.HasValue && permisos?.CanDelete == true;
+
+    /// <summary>URL de vuelta del listado (filtros, página y selección; sin ok/deleteId/editId).</summary>
+    private string UrlActual => RetornoLocal.SinTransitorios(BuildListUrl());
+
     protected override async Task OnInitializedAsync()
     {
-        SaveInput ??= new();
-        UpdateInput ??= new();
-        DeleteInput ??= new();
-
-        if (AuthenticationStateTask is not null)
+        if (EditId is { } editId)
         {
-            var authState = await AuthenticationStateTask;
-            var user = authState.User;
-            canAdd = (await AuthorizationService.AuthorizeAsync(user, ApplicationPolicies.CanAdd)).Succeeded;
-            canModify = (await AuthorizationService.AuthorizeAsync(user, ApplicationPolicies.CanModify)).Succeeded;
-            canDelete = (await AuthorizationService.AuthorizeAsync(user, ApplicationPolicies.CanDelete)).Succeeded;
+            Nav.NavigateTo(RetornoLocal.ConRetorno($"/diarios-inventario/{editId}/editar", UrlActual), replace: true);
+            return;
         }
+
+        DeleteInput ??= new();
+        permisos = await PermisosPagina.CargarAsync(AuthorizationService, AuthenticationStateTask);
 
         try
         {
@@ -364,37 +294,15 @@
             };
         }
 
-        if (DeleteId.HasValue && canDelete)
+        if (MuestraDialogoBorrar)
         {
             try
             {
-                itemToDelete = await DiarioApiClient.GetLoteByIdAsync(DeleteId.Value);
+                itemToDelete = await DiarioApiClient.GetLoteByIdAsync(DeleteId!.Value);
             }
             catch (Exception ex)
             {
                 Logger.LogWarning(ex, "Could not load lote de diario {DeleteId} from API.", DeleteId);
-            }
-        }
-
-        if (EditId.HasValue && UpdateInput.Id == Guid.Empty)
-        {
-            try
-            {
-                var lote = await DiarioApiClient.GetLoteByIdAsync(EditId.Value);
-                if (lote is not null)
-                {
-                    UpdateInput.Id = lote.Id;
-                    UpdateInput.PlantillaDiarioId = lote.PlantillaDiarioId;
-                    UpdateInput.Codigo = lote.Codigo;
-                    UpdateInput.Nombre = lote.Nombre;
-                    UpdateInput.Bloqueado = lote.Bloqueado;
-                    UpdateInput.Xmin = lote.Xmin;
-                }
-            }
-            catch (Exception ex)
-            {
-                Logger.LogWarning(ex, "Could not load lote de diario {EditId} from API.", EditId);
-                Show("danger", "No fue posible cargar el lote a modificar.");
             }
         }
     }
@@ -428,7 +336,7 @@
         }
     }
 
-    private string BuildListUrl(int? pagina = null, Guid? editId = null, Guid? deleteId = null)
+    private string BuildListUrl(int? pagina = null, Guid? sel = null, Guid? deleteId = null)
     {
         var parameters = new List<string>();
         if (SearchPlantillaId.HasValue) parameters.Add($"plantillaId={SearchPlantillaId.Value}");
@@ -436,7 +344,8 @@
         AddParameter(parameters, "nombre", SearchNombre);
         var paginaEfectiva = pagina ?? Pagina;
         if (paginaEfectiva > 1) parameters.Add($"pagina={paginaEfectiva}");
-        if (editId.HasValue) parameters.Add($"editId={editId.Value}");
+        var selEfectiva = sel ?? Sel;
+        if (selEfectiva.HasValue) parameters.Add($"sel={selEfectiva.Value}");
         if (deleteId.HasValue) parameters.Add($"deleteId={deleteId.Value}");
         return parameters.Count == 0 ? "/diarios-inventario" : $"/diarios-inventario?{string.Join("&", parameters)}";
     }
@@ -446,37 +355,16 @@
         if (!string.IsNullOrWhiteSpace(value)) parameters.Add($"{key}={Uri.EscapeDataString(value)}");
     }
 
-    private async Task CreateAsync()
-    {
-        if (SaveInput!.PlantillaDiarioId == Guid.Empty)
-        {
-            Show("warning", "Seleccione una plantilla.");
-            return;
-        }
-
-        await ExecuteAsync(() => DiarioApiClient.CreateLoteAsync(new LoteDiarioInput(SaveInput.PlantillaDiarioId, SaveInput.Codigo.Trim(), SaveInput.Nombre.Trim(), SaveInput.Bloqueado)), "created");
-    }
-
-    private async Task UpdateAsync()
-    {
-        if (UpdateInput!.Id == Guid.Empty)
-        {
-            Show("warning", "Seleccione primero un registro a modificar desde la tabla.");
-            return;
-        }
-
-        await ExecuteAsync(() => DiarioApiClient.UpdateLoteAsync(
-            UpdateInput.Id, new LoteDiarioInput(UpdateInput.PlantillaDiarioId, UpdateInput.Codigo.Trim(), UpdateInput.Nombre.Trim(), UpdateInput.Bloqueado), UpdateInput.Xmin), "updated");
-    }
-
     private async Task DeleteAsync()
     {
+        // R17: la navegación va FUERA del try (NavigateTo puede lanzar NavigationException y el catch se la tragaría).
+        string? destino = null;
         try
         {
             var result = await DiarioApiClient.DeleteLoteAsync(DeleteInput!.Id);
             if (result.Succeeded)
             {
-                Nav.NavigateTo("/diarios-inventario?ok=deleted");
+                destino = RetornoLocal.ConParametro(UrlActual, "ok", "deleted");
             }
             else
             {
@@ -489,27 +377,10 @@
             Logger.LogWarning(ex, "Could not delete lote de diario.");
             Show("danger", "No fue posible completar la operación.");
         }
-    }
 
-    private async Task ExecuteAsync(Func<Task<LoteDiarioOperationResult>> operation, string successCode)
-    {
-        try
+        if (destino is not null)
         {
-            var result = await operation();
-            if (result.Succeeded)
-            {
-                Nav.NavigateTo($"/diarios-inventario?ok={successCode}");
-            }
-            else
-            {
-                errores = result.Errors ?? [];
-                Show("warning", result.Message);
-            }
-        }
-        catch (Exception ex)
-        {
-            Logger.LogWarning(ex, "Could not complete lote de diario operation.");
-            Show("danger", "No fue posible completar la operación.");
+            Nav.NavigateTo(destino);
         }
     }
 

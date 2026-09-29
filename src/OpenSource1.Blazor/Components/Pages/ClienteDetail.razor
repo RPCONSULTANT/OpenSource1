@@ -4,47 +4,27 @@
 @using OpenSource1.Application.Features.SociosNegocio.Dtos
 @using OpenSource1.Application.Security
 @using System.Globalization
-@using OpenSource1.Application.Storage
 @using OpenSource1.Blazor.Services
 @inject ISocioNegocioApiClient SocioNegocioApiClient
 @inject ITerminoPagoApiClient TerminoPagoApiClient
-@inject IGrupoContableApiClient GrupoContableApiClient
-@inject IGrupoClienteContableApiClient GrupoClienteContableApiClient
 @inject ICobroApiClient CobroApiClient
-@inject IHttpContextAccessor HttpContextAccessor
-@inject IFileStorageService FileStorageService
 @inject IAuthorizationService AuthorizationService
 @inject ILogger<ClienteDetail> Logger
 @inject NavigationManager Nav
 
 <PageTitle>Ficha cliente – AxionERP</PageTitle>
 
-<div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-    <div>
-        <p class="text-xs font-bold tracking-widest uppercase text-brand-600 mb-1">Ficha</p>
-        <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight dark:text-slate-100">Cliente</h1>
-        <p class="text-sm text-slate-500 mt-1 dark:text-slate-400">Vista detallada, edición y eliminación desde ficha.</p>
-    </div>
-    <div class="flex items-center gap-3">
-        <a href="/clientes" class="btn-press rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700/60">Volver al listado</a>
-        @if (cliente is not null && !EditMode && canModify)
-        {
-            <a href="@BuildDetailUrl(edit: true)" class="btn-press inline-flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-amber-600">Editar</a>
-        }
-    </div>
-</div>
+@* Fix-Features C1: barra común con Crear ▾ / Ver ▾ del cliente (las mismas acciones que la lista y la tarjeta), Editar y Eliminar. *@
+<PageToolbar Titulo="@(cliente?.NombreComercial ?? "Cliente")" Subtitulo="@(cliente is null ? null : $"Código {cliente.Codigo}")"
+             Migas="@migas" Permisos="@permisos"
+             SeleccionId="@(cliente?.Id.ToString())"
+             Crear="@AccionesCliente.Crear" Ver="@AccionesCliente.VerSinFicha" RetornoUrl="@($"/clientes/{Id}")"
+             EditarUrl="@(_ => UrlEditar)"
+             EliminarUrl="@(_ => BuildDetailUrl(delete: true))" />
 
 @if (!string.IsNullOrWhiteSpace(message) || errores.Count > 0)
 {
     <div class="mb-6">@(messageType == "success" ? (RenderFragment)(@<ActionFeedback Type="success" Message="@message" />) : @<MessageBox Type="@messageType" Message="@message" Errors="@errores" />)</div>
-}
-@if (EditMode && canModify && cliente is not null && edicionBloqueada)
-{
-    <div class="mb-6"><MessageBox Type="danger" Message="@TerminoPagoOpciones.MensajeNoDisponibles" /></div>
-}
-@if (EditMode && canModify && cliente is not null && grupos.CargaFallida)
-{
-    <div class="mb-6"><MessageBox Type="warning" Message="@GruposSocioOpciones.MensajeNoDisponibles" /></div>
 }
 
 @if (loadError is not null)
@@ -63,53 +43,9 @@ else
                 <h2 class="text-xl font-extrabold text-slate-900 dark:text-slate-100">@cliente.NombreComercial</h2>
                 <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Código: <span class="font-semibold text-slate-700 dark:text-slate-300">@cliente.Codigo</span> · ID: <span class="font-semibold text-slate-700 dark:text-slate-300">@cliente.Id</span></p>
             </div>
-            <div class="flex items-center gap-2">
-                @if (!EditMode && canModify)
-                {
-                    <a href="@BuildDetailUrl(edit: true)" class="btn-press inline-flex items-center justify-center size-9 rounded-lg border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100" title="Editar ficha"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z" /></svg></a>
-                }
-                @if (canDelete)
-                {
-                    <a href="@BuildDetailUrl(delete: true)" class="btn-press inline-flex items-center justify-center size-9 rounded-lg border border-red-200 bg-red-50 text-red-700 hover:bg-red-100" title="Eliminar cliente"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79" /></svg></a>
-                }
-            </div>
         </div>
         <div class="px-6 py-6">
-            @if (EditMode && canModify)
-            {
-                <EditForm Model="Input" FormName="cliente-edit" OnValidSubmit="SaveAsync" Enhance="true" enctype="multipart/form-data">
-                    <DataAnnotationsValidator />
-                    <div class="mb-6 grid grid-cols-1 md:grid-cols-[220px_1fr] gap-6 items-start">
-                        <div>
-                            <p class="text-sm font-semibold text-slate-700 mb-2 dark:text-slate-300">Imagen actual</p>
-                            @if (!string.IsNullOrWhiteSpace(cliente.ImagePath))
-                            {
-                                <img src="@cliente.ImagePath" alt="Imagen del cliente" class="h-40 w-40 rounded-2xl object-cover border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900/40" />
-                            }
-                            else
-                            {
-                                <div class="flex h-40 w-40 items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 text-slate-400 text-sm dark:border-slate-600 dark:bg-slate-900/40 dark:text-slate-500">Sin imagen</div>
-                            }
-                        </div>
-                        <div>
-                            <label class="block text-sm font-semibold text-slate-700 mb-1.5 dark:text-slate-300">Cambiar imagen</label>
-                            <input type="file" name="ClientImage" accept=".jpg,.jpeg,.png,.webp" class="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300" />
-                            <p class="mt-1 text-xs text-slate-400 dark:text-slate-500">Formatos permitidos: JPG, PNG, WEBP. Máximo 2 MB.</p>
-                        </div>
-                    </div>
-                    <ClienteFields Model="Input!" Prefix="Input" EsEdicion="true" Codigo="@cliente.Codigo" Terminos="@terminos.Items" TerminoActualId="@cliente.TerminoPagoId" TerminoActualNombre="@terminoActualNombre"
-                                   Grupos="@grupos" GrupoNegocioVigente="@cliente.GrupoNegocioCodigo" GrupoIvaNegocioVigente="@cliente.GrupoIvaNegocioCodigo" GrupoClienteContableVigente="@cliente.GrupoClienteContableCodigo" />
-                    <div class="mt-6 flex flex-wrap items-center gap-3">
-                        @if (!edicionBloqueada)
-                        {
-                            <button type="submit" class="btn-press inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-700">Guardar cambios</button>
-                        }
-                        <a href="@BuildDetailUrl()" class="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700/60">Cancelar</a>
-                    </div>
-                </EditForm>
-            }
-            else
-            {
+            @* Fix-Features B2c: la modificación vive en /clientes/{id}/editar; la ficha es solo de consulta. *@
                 <div class="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-6 items-start">
                     <div>
                         <p class="text-sm font-semibold text-slate-700 mb-2 dark:text-slate-300">Imagen</p>
@@ -140,14 +76,13 @@ else
                         <div class="rounded-xl border border-slate-100 bg-slate-50 px-4 py-4 md:col-span-2 dark:border-slate-700/60 dark:bg-slate-900/40"><p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Dirección</p><p class="mt-1 text-sm text-slate-700 dark:text-slate-300">@(string.IsNullOrWhiteSpace(cliente.DireccionLinea1) ? "No indicada" : $"{cliente.DireccionLinea1}{(string.IsNullOrWhiteSpace(cliente.DireccionLinea2) ? "" : $", {cliente.DireccionLinea2}")}")</p></div>
                     </div>
                 </div>
-            }
         </div>
     </div>
 }
 
 @if (DeleteMode && cliente is not null && canDelete)
 {
-    <ConfirmDialog Title="Confirmar eliminación" Message="Esta acción eliminará el cliente desde su ficha y no se puede deshacer." Variant="danger" CancelHref="@BuildDetailUrl(edit: EditMode)">
+    <ConfirmDialog Title="Confirmar eliminación" Message="Esta acción eliminará el cliente desde su ficha y no se puede deshacer." Variant="danger" CancelHref="@BuildDetailUrl()">
         <p class="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-semibold text-red-900">@cliente.NombreComercial</p>
         @if (!string.IsNullOrWhiteSpace(deleteError))
         {
@@ -155,17 +90,23 @@ else
         }
         <EditForm Model="DeleteInput" FormName="cliente-delete" OnValidSubmit="DeleteAsync" class="mt-4" Enhance="true">
             <button type="submit" class="btn-press rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700">Sí, eliminar</button>
-            <a href="@BuildDetailUrl(edit: EditMode)" class="btn-press ml-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700/60">Cancelar</a>
+            <a href="@BuildDetailUrl()" class="btn-press ml-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700/60">Cancelar</a>
         </EditForm>
     </ConfirmDialog>
+}
+else
+{
+    @* Diálogo oculto (sin CanDelete, sin ?delete=true o sin ficha): EditForm vacío con el MISMO FormName para que un POST
+       obsoleto o forzado llegue al handler y reciba el mensaje real de la API (arriba, en el aviso de la ficha). *@
+    <EditForm Model="DeleteInput" FormName="cliente-delete" OnValidSubmit="DeleteAsync"></EditForm>
 }
 
 @code {
     [Parameter] public Guid Id { get; set; }
+    // Solo para redirigir la ruta antigua ?edit=true a /clientes/{id}/editar.
     [SupplyParameterFromQuery(Name = "edit")] private bool EditMode { get; set; }
     [SupplyParameterFromQuery(Name = "delete")] private bool DeleteMode { get; set; }
     [SupplyParameterFromQuery(Name = "ok")] private string? Ok { get; set; }
-    [SupplyParameterFromForm(FormName = "cliente-edit")] private ClienteEditorForm? Input { get; set; }
     [SupplyParameterFromForm(FormName = "cliente-delete")] private DeleteConfirmForm? DeleteInput { get; set; }
     private SocioNegocioResponse? cliente;
     // Saldo derivado del libro de clientes (Task 6.6): informativo; si la API falla la ficha se muestra igual ("No disponible").
@@ -175,28 +116,30 @@ else
     private IReadOnlyList<string> errores = [];
     private string? loadError;
     private string? deleteError;
-    private bool canModify;
-    private bool canDelete;
-    // Opciones del <select> de término de pago (solo se cargan al editar) y nombre del término vigente.
+    private PermisosPagina? permisos;
+    private bool canDelete => permisos?.CanDelete == true;
+    private static readonly IReadOnlyList<Miga> migas = [new("Clientes", "/modulos/clientes"), new("Clientes", "/clientes"), new("Ficha")];
+    // Lista de términos (en la ficha no se carga: el nombre del término vigente se pide por su id) y nombre del término vigente.
     private TerminoPagoOpciones terminos = TerminoPagoOpciones.SinCargar;
     private string? terminoActualNombre;
-    // La modificación se bloquea si las opciones de término no son fiables: guardar a ciegas podría borrar el término.
-    private bool edicionBloqueada;
-    // Grupos contables (Task 5.3): si no cargan NO bloquean la edición; solo impiden cambiar los grupos (se envían null = conservar).
-    private GruposSocioOpciones grupos = GruposSocioOpciones.SinCargar;
     [CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+    // Fix-Features B2c: Editar abre la página-tarjeta y vuelve a esta ficha.
+    private string UrlEditar => RetornoLocal.ConRetorno($"/clientes/{Id}/editar", $"/clientes/{Id}");
 
     protected override async Task OnInitializedAsync()
     {
-        DeleteInput ??= new();
-        if (AuthenticationStateTask is not null)
+        if (EditMode)
         {
-            var user = (await AuthenticationStateTask).User;
-            canModify = (await AuthorizationService.AuthorizeAsync(user, ApplicationPolicies.CanModify)).Succeeded;
-            canDelete = (await AuthorizationService.AuthorizeAsync(user, ApplicationPolicies.CanDelete)).Succeeded;
+            // Ruta antigua ?edit=true: la modificación vive en /clientes/{id}/editar.
+            Nav.NavigateTo(UrlEditar, replace: true);
+            return;
         }
+
+        DeleteInput ??= new();
+        permisos = await PermisosPagina.CargarAsync(AuthorizationService, AuthenticationStateTask);
         await LoadAsync();
-        if (cliente is not null && !EditMode)
+        if (cliente is not null)
         {
             try { saldo = await CobroApiClient.GetSaldoAsync(cliente.Id); }
             catch (Exception ex) { Logger.LogWarning(ex, "Could not load saldo of cliente {Id}.", cliente.Id); }
@@ -217,35 +160,6 @@ else
                 return;
             }
 
-            // Solo se rellena con lo guardado cuando NO llegó un formulario: si el POST trae valores (incluso un
-            // nombre vacío que la validación debe rechazar) se conservan tal cual, no se sustituyen por los guardados.
-            Input ??= new ClienteEditorForm
-            {
-                NombreComercial = cliente.NombreComercial, Email = cliente.Email, Telefono = cliente.Telefono,
-                DireccionLinea1 = cliente.DireccionLinea1, DireccionLinea2 = cliente.DireccionLinea2,
-                Sector = cliente.Sector, PaisCodigo = cliente.PaisCodigo, ImagePath = cliente.ImagePath,
-                Tipo = cliente.Tipo, RazonSocial = cliente.RazonSocial, TipoDocumentoFiscal = cliente.TipoDocumentoFiscal,
-                NumeroDocumentoFiscal = cliente.NumeroDocumentoFiscal, Ciudad = cliente.Ciudad,
-                TerminoPagoId = cliente.TerminoPagoId, LimiteCreditoTexto = EntradaDecimal.Formatear(cliente.LimiteCredito),
-                Bloqueado = cliente.Bloqueado,
-                GrupoNegocioId = cliente.GrupoNegocioId, GrupoIvaNegocioId = cliente.GrupoIvaNegocioId,
-                GrupoClienteContableId = cliente.GrupoClienteContableId
-            };
-
-            if (EditMode && canModify)
-            {
-                terminos = await TerminoPagoOpciones.CargarAsync(TerminoPagoApiClient, Logger);
-                edicionBloqueada = terminos.ModificacionBloqueada(cliente.TerminoPagoId);
-                grupos = await GruposSocioOpciones.CargarAsync(GrupoContableApiClient, GrupoClienteContableApiClient, Logger);
-                if (grupos.CargaFallida)
-                {
-                    // Los selectores deshabilitados no se envían: que muestren siempre el valor guardado (también al re-renderizar un POST).
-                    Input.GrupoNegocioId = cliente.GrupoNegocioId;
-                    Input.GrupoIvaNegocioId = cliente.GrupoIvaNegocioId;
-                    Input.GrupoClienteContableId = cliente.GrupoClienteContableId;
-                }
-            }
-
             // Si la carga de la lista falló no se reintenta por el nombre (sumaría otro tiempo de espera): la opción vigente se rotula con su Guid.
             if (cliente.TerminoPagoId is { } terminoId && terminos.Items.All(t => t.Id != terminoId))
             {
@@ -263,71 +177,17 @@ else
         catch (Exception ex) { Logger.LogWarning(ex, "Could not load cliente detail."); loadError = "No fue posible cargar la ficha del cliente."; }
     }
 
-    private async Task SaveAsync()
-    {
-        if (cliente is null)
-        {
-            message = "No se encontró el cliente indicado."; messageType = "warning";
-            return;
-        }
-
-        // Defensa en profundidad: aunque el botón no se renderice, no se envía un PUT sin opciones de término fiables.
-        // El aviso ya se muestra en el encabezado de la página mientras la edición esté bloqueada.
-        if (edicionBloqueada)
-        {
-            return;
-        }
-
-        string? imagenAnterior = cliente.ImagePath;
-        string? imagenNueva = null;
-        try
-        {
-            var httpContext = HttpContextAccessor.HttpContext ?? throw new InvalidOperationException("No hay HttpContext disponible para cargar la imagen.");
-            // La imagen vigente es la GUARDADA en el servidor (nunca un valor del formulario, que el usuario podría manipular).
-            // Sin fichero subido conserva la vigente (o null si esa ruta no cumple la regla).
-            imagenNueva = await FileStorageService.SaveClientImageAsync(httpContext, "ClientImage", imagenAnterior);
-            Input!.ImagePath = imagenNueva;
-            var result = await SocioNegocioApiClient.UpdateAsync(Id, ToInput(Input, gruposModificables: !grupos.CargaFallida));
-            if (result.Succeeded)
-            {
-                // Solo ahora que la API confirmó el cambio se retira la imagen anterior.
-                if (imagenNueva != imagenAnterior) await FileStorageService.DeleteIfExistsAsync(imagenAnterior, RutaImagen.CarpetaClientes);
-                Nav.NavigateTo(BuildDetailUrl(ok: "updated"));
-                return;
-            }
-
-            await DescartarImagenNuevaAsync(imagenNueva, imagenAnterior);
-            message = result.Message; errores = result.Errors ?? []; messageType = "warning";
-        }
-        catch (Exception ex)
-        {
-            await DescartarImagenNuevaAsync(imagenNueva, imagenAnterior);
-            Logger.LogWarning(ex, "Could not update cliente detail/image.");
-            message = ex is InvalidOperationException ? ex.Message : "No fue posible actualizar el cliente.";
-            messageType = "danger";
-        }
-    }
-
-    // Si el cambio no se guardó, la imagen recién subida quedaría huérfana (la vigente sigue siendo la anterior).
-    private async Task DescartarImagenNuevaAsync(string? imagenNueva, string? imagenAnterior)
-    {
-        if (imagenNueva is not null && imagenNueva != imagenAnterior)
-        {
-            await FileStorageService.DeleteIfExistsAsync(imagenNueva, RutaImagen.CarpetaClientes);
-        }
-    }
-
     private async Task DeleteAsync()
     {
         var result = await SocioNegocioApiClient.DeleteAsync(Id);
         if (result.Succeeded) { Nav.NavigateTo("/clientes?ok=deleted"); return; }
-        deleteError = result.Message;
+        if (DeleteMode && cliente is not null && canDelete) deleteError = result.Message;
+        else { messageType = "warning"; message = result.Message; }
     }
 
-    private string BuildDetailUrl(bool edit = false, bool delete = false, string? ok = null)
+    private string BuildDetailUrl(bool delete = false, string? ok = null)
     {
         var parameters = new List<string>();
-        if (edit) parameters.Add("edit=true");
         if (delete) parameters.Add("delete=true");
         if (!string.IsNullOrWhiteSpace(ok)) parameters.Add($"ok={Uri.EscapeDataString(ok)}");
         return parameters.Count == 0 ? $"/clientes/{Id}" : $"/clientes/{Id}?{string.Join("&", parameters)}";
@@ -336,33 +196,6 @@ else
     private string TerminoDisplay() => cliente?.TerminoPagoId is { } id
         ? (string.IsNullOrWhiteSpace(terminoActualNombre) ? $"Término no disponible ({id})" : terminoActualNombre)
         : "Sin término";
-
-    // Edición: la API trata RazonSocial/NumeroDocumentoFiscal/Ciudad ausentes (null) como "conservar" y "" como
-    // "limpiar"; TerminoPagoId null como "conservar" y Guid.Empty como "limpiar". El formulario muestra siempre el
-    // valor completo, así que se envía "" y Guid.Empty para que vaciar un campo lo vacíe de verdad.
-    // Email, Teléfono, dirección, Sector, País e ImagePath son de reemplazo completo: se envían siempre.
-    // Grupos contables (Task 5.3): null = conservar; si la API de grupos no cargó se envían siempre null (defensa en profundidad
-    // frente a un POST manipulado: los selectores ya estaban deshabilitados).
-    private static SocioNegocioInput ToInput(ClienteEditorForm form, bool gruposModificables) => new(
-        form.NombreComercial.Trim(),
-        form.Email?.Trim(),
-        form.Telefono?.Trim(),
-        form.DireccionLinea1?.Trim(),
-        form.DireccionLinea2?.Trim(),
-        form.Sector?.Trim(),
-        form.PaisCodigo,
-        form.ImagePath,
-        form.RazonSocial?.Trim() ?? string.Empty,
-        form.Tipo,
-        form.TipoDocumentoFiscal,
-        form.NumeroDocumentoFiscal?.Trim() ?? string.Empty,
-        form.Ciudad?.Trim() ?? string.Empty,
-        form.TerminoPagoId ?? Guid.Empty,
-        form.LimiteCredito,
-        form.Bloqueado,
-        gruposModificables ? form.GrupoNegocioId : null,
-        gruposModificables ? form.GrupoIvaNegocioId : null,
-        gruposModificables ? form.GrupoClienteContableId : null);
 
     private static string RotuloGrupo(Guid? id, string? codigo) => id is null ? "Sin asignar" : codigo ?? $"No disponible ({id})";
     private sealed class DeleteConfirmForm { }

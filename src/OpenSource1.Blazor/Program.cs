@@ -7,6 +7,7 @@ using OpenSource1.Application.Services.Auth.Dtos;
 using OpenSource1.Application.Security;
 using OpenSource1.Application.Storage;
 using OpenSource1.Blazor.Components;
+using OpenSource1.Blazor.Navigation;
 using OpenSource1.Blazor.Reporting;
 using OpenSource1.Blazor.Security;
 using OpenSource1.Blazor.Services;
@@ -141,6 +142,12 @@ builder.Services.AddHttpClient<IFechasRegistroApiClient, FechasRegistroApiClient
     client.BaseAddress = options.BaseAddress;
 }).AddHttpMessageHandler<BearerTokenHandler>();
 
+builder.Services.AddHttpClient<IBusquedaApiClient, BusquedaApiClient>((serviceProvider, client) =>
+{
+    var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<ApiClientOptions>>().Value;
+    client.BaseAddress = options.BaseAddress;
+}).AddHttpMessageHandler<BearerTokenHandler>();
+
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
     {
@@ -155,14 +162,9 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         options.ExpireTimeSpan = TimeSpan.FromMinutes(30);
     });
 
-builder.Services.AddAuthorization(options =>
-{
-    options.AddPolicy(ApplicationPolicies.CanAdd, policy => policy.RequireClaim("permission", ApplicationPolicies.CanAdd));
-    options.AddPolicy(ApplicationPolicies.CanModify, policy => policy.RequireClaim("permission", ApplicationPolicies.CanModify));
-    options.AddPolicy(ApplicationPolicies.CanDelete, policy => policy.RequireClaim("permission", ApplicationPolicies.CanDelete));
-    options.AddPolicy(ApplicationPolicies.CanConsult, policy => policy.RequireClaim("permission", ApplicationPolicies.CanConsult));
-    options.AddPolicy(ApplicationPolicies.CanAdministrar, policy => policy.RequireClaim("permission", ApplicationPolicies.CanAdministrar));
-});
+builder.Services.AddAuthorization(PoliticasBlazor.Configurar);
+builder.Services.AddScoped<IRegistroModulos, RegistroModulos>();
+builder.Services.AddScoped<IIndicadoresModulos, IndicadoresModulos>();
 
 var app = builder.Build();
 
@@ -527,6 +529,31 @@ app.MapGet("/reports/productos/raw.xlsx", async (
     var file = reportDocumentService.GenerateProductosRawExcel(productos);
     return Results.File(file.Content, file.ContentType, file.FileName);
 }).RequireAuthorization();
+
+// Paleta Ctrl+K (Fix-Features A4): JSON mínimo del host. El navegador nunca habla con la API: el host la llama con la sesión
+// (BearerTokenHandler) y devuelve solo los resultados. 400 = consulta fuera de 2–100; 502 = la API no respondió.
+app.MapGet("/buscar/sugerencias", async (string? q, HttpContext http, IBusquedaApiClient busqueda, ILogger<Program> logger, CancellationToken cancellationToken) =>
+{
+    // Nombres y RNC/cédula de clientes: no-store explícito en el propio endpoint (no depende solo del middleware global de
+    // caché para usuarios autenticados, que podría cambiar).
+    http.Response.Headers.CacheControl = "no-store";
+    var termino = q?.Trim() ?? string.Empty;
+    if (termino.Length is < 2 or > 100)
+    {
+        return Results.BadRequest();
+    }
+
+    try
+    {
+        var resultado = await busqueda.BuscarAsync(termino, 5, cancellationToken);
+        return resultado.Succeeded ? Results.Json(resultado.Valor) : Results.StatusCode(StatusCodes.Status502BadGateway);
+    }
+    catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+    {
+        logger.LogWarning(ex, "No fue posible obtener sugerencias de búsqueda.");
+        return Results.StatusCode(StatusCodes.Status502BadGateway);
+    }
+}).RequireAuthorization(ApplicationPolicies.CanConsult);
 
 app.MapStaticAssets();
 app.MapRazorComponents<App>();

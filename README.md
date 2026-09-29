@@ -66,6 +66,17 @@ Actualmente el proyecto cuenta con:
 - Bitácora operativa.
 - Reportería histórica y exportación a Excel.
 - Validaciones y mensajes en español.
+- Navegación por grupos: menú lateral generado desde un registro único de módulos (visibilidad por permiso) y un
+  inicio compacto con tarjetas de grupo; cada grupo abre `/modulos/{grupo}` con sus enlaces e indicadores.
+- Búsqueda global de módulos y registros (clientes, productos y documentos): barra superior con resultados en
+  `/buscar?q=` y paleta **Ctrl+K** (también `/`) como mejora progresiva; funciona sin JavaScript.
+- Patrón de página común en los mantenimientos: barra de acciones (`+ Nuevo`, `Crear ▾`, `Ver ▾`, `Editar`,
+  `Eliminar`) según permisos, selección de fila con `?sel=`, alta y edición en página-tarjeta propia (`/x/nuevo`,
+  `/x/{id}/editar`) con vuelta segura al listado de origen (`returnUrl` local).
+- Acciones contextuales: nueva factura o nota de crédito desde un cliente, facturas filtradas por cliente, cobro en
+  página propia y ajuste de inventario precargado desde un producto.
+- Entregable Parte 1 en `docs/entregable-parte-1/` (documento Word, presentación, diagramas, capturas y evidencias) y
+  suite E2E Playwright en `tests/e2e/`.
 
 ## Entregable 3
 
@@ -206,6 +217,8 @@ Endpoints principales:
 │   ├── OpenSource1.Api/
 │   └── OpenSource1.Blazor/
 ├── tests/OpenSource1.SmokeTests/
+├── tests/e2e/                     # E2E Playwright (Node), fuera de test.slnx
+├── docs/entregable-parte-1/       # documento .docx, presentación, diagramas, capturas y evidencias
 ├── Dockerfile.api
 ├── Dockerfile.blazor
 ├── docker-compose.yml
@@ -424,6 +437,25 @@ tests/OpenSource1.SmokeTests
 ```
 
 ## Changelog
+
+### Versión 0.4 — Fix-Features
+
+Navegación, acciones por página, búsqueda global y entregable Parte 1 (rama `Fix-Features`).
+
+Incluye:
+
+- Registro único de módulos y grupos con visibilidad por permiso; menú lateral por grupos con el grupo actual abierto.
+- Inicio compacto con tarjetas de grupo y páginas `/modulos/{grupo}` con indicadores (los gráficos siguen en
+  `/dashboard/*`).
+- Búsqueda global de solo lectura en la API (Dapper) para clientes, productos y documentos; página `/buscar` y paleta
+  Ctrl+K con sugerencias desde el servidor; los metacaracteres se buscan literalmente.
+- Barra de acciones, selección de filas y página-tarjeta de alta y edición en todos los listados de mantenimiento,
+  con `returnUrl` validado contra redirecciones externas.
+- Acciones contextuales de clientes, productos, facturas y notas de crédito; alta de cobro en `/cobros/nuevo`.
+- Navegación sin destello azul (barra de progreso con retardo de 150 ms).
+- Suite xUnit ampliada a 1684 tests (0 avisos) y suite E2E Playwright en `tests/e2e/` con capturas.
+- Documento técnico `.docx` sin portada, presentación `.pptx`, guion de demostración, diagramas y modelo ER generados
+  del esquema real, con generadores versionados en `tests/e2e/scripts/entregable/`.
 
 ### Versión 0.3 — Entregable 3
 

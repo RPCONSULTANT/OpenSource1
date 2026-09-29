@@ -30,7 +30,7 @@
         <a href="/notas-credito-venta/borradores" class="btn-press rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Volver al listado</a>
         @if (borrador is not null && canModify)
         {
-            <a href="@($"/notas-credito-venta/borradores?editId={BorradorId}")" class="btn-press rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-amber-600">Modificar cabecera</a>
+            <a href="@RetornoLocal.ConRetorno($"/notas-credito-venta/borradores/{BorradorId}/editar", $"/notas-credito-venta/borradores/{BorradorId}")" class="btn-press rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-amber-600">Modificar cabecera</a>
         }
     </div>
 </div>

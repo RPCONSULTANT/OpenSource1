@@ -1,0 +1,287 @@
+@page "/grupos-cliente-contable/nuevo"
+@page "/grupos-cliente-contable/{Id:guid}/editar"
+@attribute [Authorize(Policy = ApplicationPolicies.CanConsult)]
+@using Microsoft.AspNetCore.Authorization
+@using OpenSource1.Application.Features.CuentasContables.Dtos
+@using OpenSource1.Application.Features.GruposClienteContable.Dtos
+@using OpenSource1.Blazor.Services
+@using OpenSource1.Core.Common
+@using OpenSource1.Core.Enums
+@inject IGrupoClienteContableApiClient GrupoClienteContableApiClient
+@inject ICuentaContableApiClient CuentaContableApiClient
+@inject IAuthorizationService AuthorizationService
+@inject ILogger<GrupoClienteContableEditor> Logger
+@inject NavigationManager Nav
+
+@*
+    Alta y edición de un grupo contable de cliente en página propia (Fix-Features B2b). Si las cuentas elegibles no cargan no se
+    puede guardar (Guardar oculto y handler defensivo). Los dos EditForm están SIEMPRE en el árbol (vacíos si el permiso o la
+    rama los ocultan): un POST forzado recibe el mensaje real de la API.
+*@
+
+<EntityFormPage Titulo="@Titulo" Subtitulo="Cuenta por cobrar (y, opcionalmente, de descuentos e intereses) de cada grupo de clientes." Migas="@Migas"
+                Mensaje="@message" TipoMensaje="@messageType" Errores="@errores">
+    @if (!Permitido)
+    {
+        <MessageBox Type="warning" Message="@SinPermiso" />
+    }
+    else if (EsEdicion && !encontrado)
+    {
+        @* Si la carga falló no se sabe si existe: solo el aviso de fallo (Mensaje), no el de "no encontrado". *@
+        @if (!cargaFallida)
+        {
+            <MessageBox Type="warning" Message="No se encontró el grupo seleccionado. Puede haber sido eliminado por otro usuario." />
+        }
+    }
+    else
+    {
+        @if (cuentasCargaFallida)
+        {
+            <div class="mb-4"><MessageBox Type="danger" Message="No fue posible cargar las cuentas contables. Por seguridad no se puede agregar ni modificar un grupo hasta que carguen; recargue la página." /></div>
+        }
+        @if (EsEdicion)
+        {
+            <EditForm Model="UpdateInput" FormName="update-grupo-cliente-contable" OnValidSubmit="UpdateAsync" Enhance="true">
+                <DataAnnotationsValidator />
+                <input type="hidden" name="UpdateInput.Id" value="@UpdateInput!.Id" />
+                <input type="hidden" name="UpdateInput.Xmin" value="@UpdateInput.Xmin" />
+                <GrupoContableFields Model="UpdateInput!" Prefix="UpdateInput" />
+                @CamposCuentas(UpdateInput, "UpdateInput", grupoEnEdicion)
+                <FormularioAcciones CancelarHref="@Volver" LimpiarHref="@Nav.Uri" TextoGuardar="Guardar cambios" Deshabilitado="@cuentasCargaFallida" />
+            </EditForm>
+        }
+        else
+        {
+            <EditForm Model="SaveInput" FormName="save-grupo-cliente-contable" OnValidSubmit="CreateAsync" Enhance="true">
+                <DataAnnotationsValidator />
+                <GrupoContableFields Model="SaveInput!" Prefix="SaveInput" />
+                @CamposCuentas(SaveInput!, "SaveInput", null)
+                <FormularioAcciones CancelarHref="@Volver" LimpiarHref="@Nav.Uri" Deshabilitado="@cuentasCargaFallida" />
+            </EditForm>
+        }
+    }
+</EntityFormPage>
+
+@if (!MuestraAlta)
+{
+    <EditForm Model="SaveInput" FormName="save-grupo-cliente-contable" OnValidSubmit="CreateAsync"></EditForm>
+}
+@if (!MuestraEdicion)
+{
+    <EditForm Model="UpdateInput" FormName="update-grupo-cliente-contable" OnValidSubmit="UpdateAsync"></EditForm>
+}
+
+@code {
+    private const string SinPermiso = "No tiene permiso para realizar esta acción.";
+    private const string InputCss = "block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20";
+
+    [Parameter] public Guid? Id { get; set; }
+
+    [SupplyParameterFromQuery(Name = "returnUrl")]
+    private string? ReturnUrl { get; set; }
+
+    [SupplyParameterFromForm(FormName = "save-grupo-cliente-contable")]
+    private GrupoClienteContableForm? SaveInput { get; set; }
+
+    [SupplyParameterFromForm(FormName = "update-grupo-cliente-contable")]
+    private GrupoClienteContableForm? UpdateInput { get; set; }
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+    private PermisosPagina? permisos;
+    private bool encontrado;
+    private bool cargaFallida;
+    // Grupo en edición tal como está guardado: rotula sus cuentas vigentes aunque ya no sean elegibles (bloqueadas, no de posteo).
+    private GrupoClienteContableResponse? grupoEnEdicion;
+    // Cuentas elegibles: de Posteo y no bloqueadas (las únicas que la API acepta al asignar o cambiar una cuenta).
+    private IReadOnlyList<CuentaContableResponse> cuentas = [];
+    private bool cuentasCargaFallida;
+    private string? message;
+    private string messageType = "warning";
+    private IReadOnlyList<string> errores = [];
+
+    private bool EsEdicion => Id.HasValue;
+    private bool Permitido => EsEdicion ? permisos?.CanModify == true : permisos?.CanAdd == true;
+    private bool MuestraAlta => !EsEdicion && Permitido;
+    private bool MuestraEdicion => EsEdicion && Permitido && encontrado;
+    private string Volver => RetornoLocal.Volver(ReturnUrl, "/grupos-cliente-contable");
+    private string Titulo => EsEdicion ? "Modificar grupo contable de cliente" : "Nuevo grupo contable de cliente";
+    private IReadOnlyList<Miga> Migas =>
+        [new("Configuración", "/modulos/configuracion"), new("Grupos de cliente contable", Volver), new(EsEdicion ? "Modificar" : "Nuevo")];
+
+    protected override async Task OnInitializedAsync()
+    {
+        SaveInput ??= new();
+        UpdateInput ??= new();
+        permisos = await PermisosPagina.CargarAsync(AuthorizationService, AuthenticationStateTask);
+
+        if (Id is { } id && permisos.CanModify)
+        {
+            try
+            {
+                grupoEnEdicion = await GrupoClienteContableApiClient.GetByIdAsync(id);
+                encontrado = grupoEnEdicion is not null;
+                // Solo se rellena con lo guardado cuando NO llegó un formulario de modificación.
+                if (grupoEnEdicion is not null && UpdateInput.Id == Guid.Empty)
+                {
+                    UpdateInput.Id = grupoEnEdicion.Id;
+                    UpdateInput.Codigo = grupoEnEdicion.Codigo;
+                    UpdateInput.Descripcion = grupoEnEdicion.Descripcion;
+                    UpdateInput.CuentaCxCId = grupoEnEdicion.CuentaCxCId;
+                    UpdateInput.CuentaDescuentoId = grupoEnEdicion.CuentaDescuentoId;
+                    UpdateInput.CuentaInteresId = grupoEnEdicion.CuentaInteresId;
+                    UpdateInput.Xmin = grupoEnEdicion.Xmin;
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Could not load grupo cliente contable {Id} from API.", id);
+                cargaFallida = true;
+                Show("danger", "No fue posible cargar el grupo a modificar.");
+            }
+        }
+
+        // Las cuentas se piden solo si hay formulario que mostrar: en una edición cuyo grupo no existe no hacen falta.
+        if (Permitido && (!EsEdicion || encontrado))
+        {
+            await CargarCuentasAsync();
+        }
+    }
+
+    /// <summary>Todas las cuentas de Posteo no bloqueadas (todas las páginas), con un tiempo máximo común.</summary>
+    private async Task CargarCuentasAsync()
+    {
+        using var cts = new CancellationTokenSource(ProductoOpciones.TiempoMaximo);
+        try
+        {
+            var todas = new List<CuentaContableResponse>();
+            var filtro = new CuentaContableSearchFilter(null, null, TipoCuentaContable.Posteo, null, Bloqueada: false);
+            for (var pagina = 1; ; pagina++)
+            {
+                var resultado = await CuentaContableApiClient.ListAsync(filtro, new PageRequest(pagina, PageRequest.TamanoMaximo, "Numero", Descendente: false), cts.Token);
+                todas.AddRange(resultado.Items);
+                if (resultado.Items.Count == 0 || pagina >= resultado.TotalPaginas)
+                {
+                    break;
+                }
+            }
+
+            cuentas = todas;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not load cuentas contables options from API.");
+            cuentasCargaFallida = true;
+        }
+    }
+
+    private RenderFragment CamposCuentas(GrupoClienteContableForm model, string prefix, GrupoClienteContableResponse? vigente) => __builder =>
+    {
+        <div class="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{prefix}_CuentaCxCId")">Cuenta por cobrar <span class="text-red-500">*</span></label>
+                <select id="@($"{prefix}_CuentaCxCId")" name="@($"{prefix}.CuentaCxCId")" class="@InputCss">
+                    <option value="" selected="@(model.CuentaCxCId is null)">— Seleccione —</option>
+                    @OpcionVigente(model.CuentaCxCId, vigente?.CuentaCxCId, vigente?.CuentaCxCNumero, vigente?.CuentaCxCNombre)
+                    @foreach (var cuenta in cuentas)
+                    {
+                        <option value="@cuenta.Id" selected="@(cuenta.Id == model.CuentaCxCId)">@cuenta.Numero — @cuenta.Nombre</option>
+                    }
+                </select>
+                <ValidationMessage For="() => model.CuentaCxCId" />
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{prefix}_CuentaDescuentoId")">Cuenta de descuentos</label>
+                <select id="@($"{prefix}_CuentaDescuentoId")" name="@($"{prefix}.CuentaDescuentoId")" class="@InputCss">
+                    <option value="" selected="@(model.CuentaDescuentoId is null)">— Ninguna —</option>
+                    @OpcionVigente(model.CuentaDescuentoId, vigente?.CuentaDescuentoId, vigente?.CuentaDescuentoNumero, vigente?.CuentaDescuentoNombre)
+                    @foreach (var cuenta in cuentas)
+                    {
+                        <option value="@cuenta.Id" selected="@(cuenta.Id == model.CuentaDescuentoId)">@cuenta.Numero — @cuenta.Nombre</option>
+                    }
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{prefix}_CuentaInteresId")">Cuenta de intereses</label>
+                <select id="@($"{prefix}_CuentaInteresId")" name="@($"{prefix}.CuentaInteresId")" class="@InputCss">
+                    <option value="" selected="@(model.CuentaInteresId is null)">— Ninguna —</option>
+                    @OpcionVigente(model.CuentaInteresId, vigente?.CuentaInteresId, vigente?.CuentaInteresNumero, vigente?.CuentaInteresNombre)
+                    @foreach (var cuenta in cuentas)
+                    {
+                        <option value="@cuenta.Id" selected="@(cuenta.Id == model.CuentaInteresId)">@cuenta.Numero — @cuenta.Nombre</option>
+                    }
+                </select>
+            </div>
+        </div>
+        <p class="mt-2 text-xs text-slate-400">Solo se ofrecen cuentas de posteo no bloqueadas.</p>
+    };
+
+    // La cuenta seleccionada se ofrece SIEMPRE aunque ya no sea elegible (bloqueada o de otro tipo): sin esto el <select>
+    // no reflejaría la cuenta guardada y guardar la cambiaría en silencio.
+    private RenderFragment OpcionVigente(Guid? seleccion, Guid? vigenteId, string? numero, string? nombre) => __builder =>
+    {
+        if (seleccion is { } id && cuentas.All(c => c.Id != id))
+        {
+            <option value="@id" selected="selected">@(vigenteId == id && !string.IsNullOrWhiteSpace(numero) ? $"{numero} — {nombre} (no elegible)" : $"Cuenta no disponible ({id})")</option>
+        }
+    };
+
+    private async Task CreateAsync()
+    {
+        // Defensa en profundidad: sin cuentas fiables no se envía nada aunque el botón no se haya renderizado.
+        if (cuentasCargaFallida) return;
+        await ExecuteAsync(() => GrupoClienteContableApiClient.CreateAsync(ToInput(SaveInput!)), "created");
+    }
+
+    private async Task UpdateAsync()
+    {
+        if (cuentasCargaFallida) return;
+        if (Id is not { } id)
+        {
+            Show("warning", "Seleccione primero un registro a modificar desde la tabla.");
+            return;
+        }
+
+        await ExecuteAsync(() => GrupoClienteContableApiClient.UpdateAsync(id, ToInput(UpdateInput!), UpdateInput!.Xmin), "updated");
+    }
+
+    private async Task ExecuteAsync(Func<Task<GrupoOperationResult>> operation, string successCode)
+    {
+        // La navegación va FUERA del try: si NavigateTo lanza NavigationException (SSR sin el switch que la desactiva),
+        // el catch genérico no debe tragársela como un fallo de la operación.
+        string? destino = null;
+        try
+        {
+            var result = await operation();
+            if (result.Succeeded)
+            {
+                destino = RetornoLocal.ConParametro(Volver, "ok", successCode);
+            }
+            else
+            {
+                Show("warning", result.Message, result.Errors);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not complete grupo cliente contable operation.");
+            Show("danger", "No fue posible completar la operación.");
+        }
+
+        if (destino is not null)
+        {
+            Nav.NavigateTo(destino);
+        }
+    }
+
+    private void Show(string type, string? text, IReadOnlyList<string>? errors = null)
+    {
+        messageType = type;
+        message = text;
+        errores = errors ?? [];
+    }
+
+    private static GrupoClienteContableInput ToInput(GrupoClienteContableForm form) => new(
+        form.Codigo.Trim(), form.Descripcion.Trim(), form.CuentaCxCId ?? Guid.Empty, form.CuentaDescuentoId, form.CuentaInteresId);
+}

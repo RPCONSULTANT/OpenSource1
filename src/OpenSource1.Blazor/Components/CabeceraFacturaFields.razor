@@ -1,0 +1,110 @@
+@using OpenSource1.Application.Features.Almacenes.Dtos
+@using OpenSource1.Application.Features.FacturasVenta.Borradores.Dtos
+@using OpenSource1.Application.Features.SociosNegocio.Dtos
+@using OpenSource1.Blazor.Components.Pages
+
+@* Campos de la cabecera de un borrador de factura, compartidos por el alta (/facturas-venta/nueva, Vigente = null) y la
+   modificación de cabecera (/facturas-venta/borradores/{id}/editar, Vigente = borrador guardado). Va dentro del EditForm. *@
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-4" data-testid="cabecera-factura-fields">
+    @if (!SocioBloqueado)
+    {
+        <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{Prefix}_SocioNegocioId")">Vender a <span class="text-red-500">*</span></label>
+            <select id="@($"{Prefix}_SocioNegocioId")" name="@($"{Prefix}.SocioNegocioId")" class="@VentasCss.Input">
+                <option value="" selected="@(Model.SocioNegocioId is null)">— Seleccione —</option>
+                @OpcionSocioVigente(Model.SocioNegocioId, Vigente?.SocioNegocioId, Vigente?.SocioNegocioCodigo, Vigente?.SocioNegocioNombre)
+                @foreach (var s in Socios)
+                {
+                    <option value="@s.Id" selected="@(s.Id == Model.SocioNegocioId)">@s.Codigo — @s.NombreComercial</option>
+                }
+            </select>
+            <ValidationMessage For="() => Model.SocioNegocioId" />
+        </div>
+    }
+    <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{Prefix}_SocioNegocioFacturarAId")">Facturar a</label>
+        <select id="@($"{Prefix}_SocioNegocioFacturarAId")" name="@($"{Prefix}.SocioNegocioFacturarAId")" class="@VentasCss.Input">
+            <option value="" selected="@(Model.SocioNegocioFacturarAId is null)">— Igual que vender a —</option>
+            @OpcionSocioVigente(Model.SocioNegocioFacturarAId, Vigente?.SocioNegocioFacturarAId, Vigente?.SocioNegocioFacturarACodigo, Vigente?.NombreFacturacion)
+            @foreach (var s in Socios)
+            {
+                <option value="@s.Id" selected="@(s.Id == Model.SocioNegocioFacturarAId)">@s.Codigo — @s.NombreComercial</option>
+            }
+        </select>
+    </div>
+    <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{Prefix}_FechaRegistroTexto")">@($"Fecha de registro{Obligatoria}")</label>
+        <input id="@($"{Prefix}_FechaRegistroTexto")" type="date" name="@($"{Prefix}.FechaRegistroTexto")" value="@Model.FechaRegistroTexto" class="@VentasCss.Input" />
+        <ValidationMessage For="() => Model.FechaRegistroTexto" />
+    </div>
+    <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{Prefix}_FechaDocumentoTexto")">@($"Fecha de documento{Obligatoria}")</label>
+        <input id="@($"{Prefix}_FechaDocumentoTexto")" type="date" name="@($"{Prefix}.FechaDocumentoTexto")" value="@Model.FechaDocumentoTexto" class="@VentasCss.Input" />
+        <ValidationMessage For="() => Model.FechaDocumentoTexto" />
+    </div>
+    <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{Prefix}_FechaVencimientoTexto")">Fecha de vencimiento</label>
+        <input id="@($"{Prefix}_FechaVencimientoTexto")" type="date" name="@($"{Prefix}.FechaVencimientoTexto")" value="@Model.FechaVencimientoTexto" class="@VentasCss.Input" />
+        <ValidationMessage For="() => Model.FechaVencimientoTexto" />
+    </div>
+    <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{Prefix}_AlmacenId")">Almacén</label>
+        <select id="@($"{Prefix}_AlmacenId")" name="@($"{Prefix}.AlmacenId")" class="@VentasCss.Input">
+            @if (EsAlta)
+            {
+                <option value="" selected="@(Model.AlmacenId is null)">— Predeterminado —</option>
+            }
+            @if (Model.AlmacenId is { } almacenId && Almacenes.All(a => a.Id != almacenId))
+            {
+                <option value="@almacenId" selected="selected">@(Vigente?.AlmacenId == almacenId && Vigente?.AlmacenCodigo is not null ? $"{Vigente.AlmacenCodigo} (no disponible)" : $"Almacén no disponible ({almacenId})")</option>
+            }
+            @foreach (var a in Almacenes)
+            {
+                <option value="@a.Id" selected="@(a.Id == Model.AlmacenId)">@a.Codigo — @a.Nombre</option>
+            }
+        </select>
+    </div>
+    <div class="sm:col-span-2">
+        <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{Prefix}_Descripcion")">Descripción</label>
+        <input id="@($"{Prefix}_Descripcion")" type="text" name="@($"{Prefix}.Descripcion")" value="@Model.Descripcion" maxlength="200" class="@VentasCss.Input" />
+        <ValidationMessage For="() => Model.Descripcion" />
+    </div>
+</div>
+<p class="mt-2 text-xs text-slate-400">
+    @(EsAlta
+        ? "Fechas vacías: registro = hoy, documento = registro, vencimiento = documento + días del término de pago del cliente."
+        : "Si cambia la fecha de documento y deja el vencimiento como estaba, la API lo recalcula con el término de pago.")
+</p>
+
+@code {
+    /// <summary>Formulario enlazado (AddInput en el alta, UpdateInput en la cabecera).</summary>
+    [Parameter, EditorRequired] public FacturasVentaBorradores.BorradorForm Model { get; set; } = default!;
+
+    /// <summary>Prefijo de los <c>name</c>/<c>id</c>: debe coincidir con la propiedad <c>[SupplyParameterFromForm]</c> de la página.</summary>
+    [Parameter, EditorRequired] public string Prefix { get; set; } = default!;
+
+    [Parameter] public IReadOnlyList<SocioNegocioResponse> Socios { get; set; } = [];
+    [Parameter] public IReadOnlyList<AlmacenResponse> Almacenes { get; set; } = [];
+
+    /// <summary>
+    /// Cliente vender-a fijado por la página (alta con <c>?socioId=</c>): no se pinta su <c>&lt;select&gt;</c>; la página envía el
+    /// id en un campo oculto con el mismo <c>name</c> y muestra el cliente precargado.
+    /// </summary>
+    [Parameter] public bool SocioBloqueado { get; set; }
+
+    /// <summary>Borrador guardado en la modificación de cabecera; null en el alta.</summary>
+    [Parameter] public FacturaVentaBorradorResponse? Vigente { get; set; }
+
+    private bool EsAlta => Vigente is null;
+    private string Obligatoria => EsAlta ? "" : " *";
+
+    // El socio seleccionado se ofrece SIEMPRE aunque no esté entre los resultados de la búsqueda: sin esto el <select> no
+    // reflejaría la elección (o el socio guardado) y guardar la cambiaría en silencio.
+    private RenderFragment OpcionSocioVigente(Guid? seleccion, Guid? vigenteId, string? codigo, string? nombre) => __builder =>
+    {
+        if (seleccion is { } id && Socios.All(s => s.Id != id))
+        {
+            <option value="@id" selected="selected">@(vigenteId == id && !string.IsNullOrWhiteSpace(codigo) ? $"{codigo} — {nombre}" : $"Cliente seleccionado ({id})")</option>
+        }
+    };
+}

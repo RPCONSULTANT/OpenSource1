@@ -1,0 +1,31 @@
+@* SeleccionFila — radio visual de la vista Lista (Fix-Features B1): enlace a la misma lista con ?sel={id} (conserva filtros).
+   R13 fila entera clicable, con CSS central en wwwroot/app.css (no depende de variantes de Tailwind CDN):
+   - el <tr> lleva ClaseFila (marcador "fila-seleccionable": position:relative);
+   - este enlace lleva "seleccion-fila-enlace", cuyo ::after (absolute, inset 0) cubre toda la fila;
+   - cualquier a/button/input/select/textarea/label/form/summary/details de la fila queda por encima (z-index 1)
+     automáticamente, sin marcarlo a mano. Va en la PRIMERA celda. *@
+<a href="@Href" aria-label="@($"Seleccionar {Etiqueta}")" aria-current="@(Seleccionada ? "true" : null)" data-testid="seleccionar-fila"
+   class="@ClaseEnlace inline-flex size-5 items-center justify-center rounded-full border focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-600 @(Seleccionada ? "border-brand-600" : "border-slate-300 dark:border-slate-600")">
+    @if (Seleccionada)
+    {
+        <span class="size-2.5 rounded-full bg-brand-600" aria-hidden="true"></span>
+    }
+</a>
+
+@code {
+    /// <summary>Marcador del &lt;tr&gt; (regla de app.css).</summary>
+    public const string ClaseMarcadorFila = "fila-seleccionable";
+
+    /// <summary>Marcador del enlace de selección (regla ::after de app.css).</summary>
+    public const string ClaseEnlace = "seleccion-fila-enlace";
+
+    /// <summary>Clase obligatoria de cada &lt;tr&gt; con SeleccionFila: marcador + cursor y hover de fila.</summary>
+    public const string ClaseFila = ClaseMarcadorFila + " cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/40";
+
+    /// <summary>Clase adicional del &lt;tr&gt; seleccionado (resaltado); se combina con <see cref="ClaseFila"/>.</summary>
+    public const string ClaseFilaSeleccionada = "bg-brand-50/70 dark:bg-brand-500/10";
+
+    [Parameter, EditorRequired] public string Href { get; set; } = string.Empty;
+    [Parameter] public bool Seleccionada { get; set; }
+    [Parameter] public string Etiqueta { get; set; } = "registro";
+}
