@@ -9,13 +9,22 @@
 @inject NavigationManager Nav
 
 <EntityFormPage Titulo="@Titulo" Subtitulo="Jerarquía de categorías de producto." Migas="@Migas" Mensaje="@message" TipoMensaje="@messageType">
+    @if (Permitido && opcionesPadreNoDisponibles)
+    {
+        @* Aviso propio (no Mensaje): así no lo pisa el de fallo de carga de la categoría, y se ve también en el alta. *@
+        <div class="mb-4"><MessageBox Type="@(EsEdicion ? "danger" : "warning")" Message="@(EsEdicion ? MensajeOpcionesPadre : MensajeOpcionesPadreAlta)" /></div>
+    }
     @if (!Permitido)
     {
         <MessageBox Type="warning" Message="@SinPermiso" />
     }
     else if (EsEdicion && !encontrado)
     {
-        <MessageBox Type="warning" Message="No se encontró la categoría seleccionada. Puede haber sido eliminada por otro usuario." />
+        @* Si la carga falló no se sabe si existe: solo el aviso de fallo (Mensaje), no el de "no encontrado". *@
+        @if (!cargaFallida)
+        {
+            <MessageBox Type="warning" Message="No se encontró la categoría seleccionada. Puede haber sido eliminada por otro usuario." />
+        }
     }
     else if (EsEdicion)
     {
@@ -49,6 +58,7 @@
 
 @code {
     private const string SinPermiso = "No tiene permiso para realizar esta acción.";
+    private const string MensajeOpcionesPadreAlta = "No fue posible cargar las categorías disponibles como padre: si guarda ahora, la categoría se creará sin categoría padre. Recargue la página para poder elegirla.";
     private const string MensajeOpcionesPadre = "No fue posible cargar las categorías disponibles como padre. Por seguridad no se puede modificar una categoría hasta que carguen; recargue la página.";
 
     [Parameter] public Guid? Id { get; set; }
@@ -66,6 +76,7 @@
     private string? padreActualNombre;
     private PermisosPagina? permisos;
     private bool encontrado;
+    private bool cargaFallida;
     private string? message;
     private string messageType = "warning";
 
@@ -108,6 +119,7 @@
             catch (Exception ex)
             {
                 Logger.LogWarning(ex, "Could not load categoría {Id} from API.", id);
+                cargaFallida = true;
                 Show("danger", "No fue posible cargar la categoría a modificar.");
             }
         }
@@ -126,11 +138,6 @@
             Logger.LogWarning(ex, "Could not load parent category options from API.");
             opcionesPadreNoDisponibles = true;
         }
-
-        if (opcionesPadreNoDisponibles && EsEdicion)
-        {
-            Show("danger", MensajeOpcionesPadre);
-        }
     }
 
     private Task CreateAsync() => ExecuteAsync(() => CategoriaProductoApiClient.CreateAsync(ToInput(SaveInput!)), "created");
@@ -143,10 +150,10 @@
             return;
         }
 
-        // Defensa en profundidad: aunque el botón no se renderice, no se envía un PUT sin opciones de padre fiables.
+        // Defensa en profundidad: aunque el botón no se renderice, no se envía un PUT sin opciones de padre fiables
+        // (el aviso MensajeOpcionesPadre ya se pinta en la página).
         if (opcionesPadreNoDisponibles)
         {
-            Show("danger", MensajeOpcionesPadre);
             return;
         }
 

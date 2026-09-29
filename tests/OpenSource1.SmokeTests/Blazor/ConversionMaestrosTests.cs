@@ -17,6 +17,8 @@ namespace OpenSource1.SmokeTests.Blazor;
 public sealed class ConversionMaestrosTests
 {
     private static readonly Guid IdUnidad = Guid.Parse("7a000000-0000-0000-0000-000000000001");
+    private static readonly Guid IdFallo = Guid.Parse("7a000000-0000-0000-0000-0000000000f1");
+    private const string SinSeleccion = "Seleccione un registro de la lista para usar esta acción.";
 
     [Theory]
     [InlineData("/unidades-medida/nuevo", "save-unidadmedida", "/unidades-medida")]
@@ -71,7 +73,7 @@ public sealed class ConversionMaestrosTests
     }
 
     [Fact]
-    public async Task Seleccion_ValidaHabilitaEditar_YLaQueNoEstaEnLaPaginaLaDeshabilita()
+    public async Task SeleccionQueNoEstaEnLaPagina_DeshabilitaAcciones()
     {
         using var app = Configurar(new BlazorSsrFactory());
 
@@ -80,7 +82,9 @@ public sealed class ConversionMaestrosTests
 
         Assert.Contains($"<a data-testid=\"accion-editar\" href=\"/unidades-medida/{IdUnidad}/editar?returnUrl=", valida);
         Assert.Contains("aria-current=\"true\"", valida);
-        Assert.Contains("<span data-testid=\"accion-editar\" aria-disabled=\"true\"", invalida);
+        Assert.Contains($"<span data-testid=\"accion-editar\" aria-disabled=\"true\" title=\"{SinSeleccion}\"", invalida);
+        Assert.Contains($"<span data-testid=\"accion-eliminar\" aria-disabled=\"true\" title=\"{SinSeleccion}\"", invalida);
+        Assert.DoesNotContain("<a data-testid=\"accion-eliminar\"", invalida);
         Assert.DoesNotContain("aria-current=\"true\"", invalida);
     }
 
@@ -124,17 +128,24 @@ public sealed class ConversionMaestrosTests
         Assert.Equal("/unidades-medida?codigo=K&ok=created", FormulariosSsr.Destino(respuesta));
     }
 
-    [Fact]
-    public async Task Guardar_ConReturnUrlExterno_VuelveALaLista()
+    [Theory]
+    [InlineData("%2F%2Fevil.com")]
+    [InlineData("https%3A%2F%2Fevil.com")]
+    public async Task Guardar_ConReturnUrlExterno_VuelveALaLista(string returnUrlHostil)
     {
         using var app = Configurar(new BlazorSsrFactory());
         app.Simular<IUnidadMedidaApiClient>()
             .Setup(c => c.CreateAsync(It.IsAny<UnidadMedidaInput>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new UnidadMedidaOperationResult(true, "ok"));
+        var url = $"/unidades-medida/nuevo?returnUrl={returnUrlHostil}";
 
-        var respuesta = await FormulariosSsr.EnviarAsync(app.Cliente(), "/unidades-medida/nuevo?returnUrl=%2F%2Fevil.com",
+        var html = await HtmlAsync(app.Cliente(), url);
+        var respuesta = await FormulariosSsr.EnviarAsync(app.Cliente(), url,
             "save-unidadmedida", new Dictionary<string, string> { ["SaveInput.Codigo"] = "KG", ["SaveInput.Nombre"] = "Kilogramo", ["SaveInput.Decimales"] = "2" });
 
+        // Review Focus 2: Cancelar y la redirección tras guardar vuelven a la lista local, nunca al destino externo.
+        Assert.Contains("href=\"/unidades-medida\" data-testid=\"cancelar\"", html);
+        Assert.DoesNotContain("evil.com\" data-testid=\"cancelar\"", html);
         Assert.Equal("/unidades-medida?ok=created", FormulariosSsr.Destino(respuesta));
     }
 
@@ -167,7 +178,7 @@ public sealed class ConversionMaestrosTests
     }
 
     [Fact]
-    public async Task Nuevo_SinCanAdd_Mensaje_YPostForzado_DevuelveMensajeDeLaApi()
+    public async Task PostForzado_SinPermiso_DevuelveMensajeDeLaApi()
     {
         using var app = Configurar(new BlazorSsrFactory());
         app.Simular<IUnidadMedidaApiClient>()
@@ -184,6 +195,76 @@ public sealed class ConversionMaestrosTests
         Assert.DoesNotContain("data-testid=\"guardar\"", html);
         Assert.Equal(HttpStatusCode.OK, forzado.StatusCode);
         Assert.Contains("No tiene permisos para agregar unidades de medida.", Decodificar(await forzado.Content.ReadAsStringAsync()));
+    }
+
+    [Theory]
+    [InlineData("/unidades-medida/{0}/editar", "No fue posible cargar la unidad de medida a modificar.")]
+    [InlineData("/terminos-pago/{0}/editar", "No fue posible cargar el término de pago a modificar.")]
+    [InlineData("/categorias-producto/{0}/editar", "No fue posible cargar la categoría a modificar.")]
+    [InlineData("/almacenes/{0}/editar", "No fue posible cargar el almacén a modificar.")]
+    public async Task Editar_CargaFallida_SoloAvisaDelFallo_SinNoEncontrado(string ruta, string mensaje)
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+        var fallo = new HttpRequestException("API caída");
+        app.Simular<IUnidadMedidaApiClient>().Setup(c => c.GetByIdAsync(IdFallo, It.IsAny<CancellationToken>())).ThrowsAsync(fallo);
+        app.Simular<ITerminoPagoApiClient>().Setup(c => c.GetByIdAsync(IdFallo, It.IsAny<CancellationToken>())).ThrowsAsync(fallo);
+        app.Simular<ICategoriaProductoApiClient>().Setup(c => c.GetByIdAsync(IdFallo, It.IsAny<CancellationToken>())).ThrowsAsync(fallo);
+        app.Simular<IAlmacenApiClient>().Setup(c => c.GetByIdAsync(IdFallo, It.IsAny<CancellationToken>())).ThrowsAsync(fallo);
+
+        var html = await HtmlAsync(app.Cliente(), string.Format(ruta, IdFallo));
+
+        Assert.Contains(mensaje, html);
+        Assert.DoesNotContain("No se encontró", html);
+        Assert.DoesNotContain("data-testid=\"guardar\"", html);
+    }
+
+    [Fact]
+    public async Task CategoriaNueva_OpcionesPadreFallidas_Avisa()
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+        app.Simular<ICategoriaProductoApiClient>().Setup(c => c.ListAllAsync(It.IsAny<CancellationToken>())).ThrowsAsync(new HttpRequestException("API caída"));
+
+        var html = await HtmlAsync(app.Cliente(), "/categorias-producto/nuevo");
+
+        Assert.Contains("No fue posible cargar las categorías disponibles como padre", html);
+        Assert.Contains("se creará sin categoría padre", html);
+        Assert.Contains("value=\"save-categoriaproducto\"", html);
+    }
+
+    [Fact]
+    public async Task CategoriaEditar_OpcionesYCargaFallidas_MuestraAmbosMensajes()
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+        var categorias = app.Simular<ICategoriaProductoApiClient>();
+        categorias.Setup(c => c.ListAllAsync(It.IsAny<CancellationToken>())).ThrowsAsync(new HttpRequestException("API caída"));
+        categorias.Setup(c => c.GetByIdAsync(IdFallo, It.IsAny<CancellationToken>())).ThrowsAsync(new HttpRequestException("API caída"));
+
+        var html = await HtmlAsync(app.Cliente(), $"/categorias-producto/{IdFallo}/editar");
+
+        Assert.Contains("No fue posible cargar las categorías disponibles como padre. Por seguridad no se puede modificar", html);
+        Assert.Contains("No fue posible cargar la categoría a modificar.", html);
+        Assert.DoesNotContain("No se encontró", html);
+    }
+
+    [Fact]
+    public async Task Almacenes_SeleccionDelPredeterminado_DeshabilitaEliminarEnLaBarra()
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+        var predeterminado = Guid.Parse("7a000000-0000-0000-0000-0000000000a1");
+        var otro = Guid.Parse("7a000000-0000-0000-0000-0000000000a2");
+        app.Simular<IAlmacenApiClient>().Setup(c => c.ListAsync(It.IsAny<AlmacenSearchFilter?>(), It.IsAny<PageRequest?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PagedResult<AlmacenResponse>(
+            [
+                new AlmacenResponse { Id = predeterminado, Codigo = "PRINC", Nombre = "Principal", EsPredeterminado = true },
+                new AlmacenResponse { Id = otro, Codigo = "SEC", Nombre = "Secundario" },
+            ], 1, 50, 2));
+
+        var conPredeterminado = await HtmlAsync(app.Cliente(), $"/almacenes?sel={predeterminado}");
+        var conOtro = await HtmlAsync(app.Cliente(), $"/almacenes?sel={otro}");
+
+        Assert.Contains("<span data-testid=\"accion-eliminar\" aria-disabled=\"true\" title=\"El almacén predeterminado no se puede eliminar.\"", conPredeterminado);
+        Assert.Contains($"<a data-testid=\"accion-editar\" href=\"/almacenes/{predeterminado}/editar?returnUrl=", conPredeterminado);
+        Assert.Contains($"<a data-testid=\"accion-eliminar\" href=\"/almacenes?sel={otro}&deleteId={otro}\"", conOtro);
     }
 
     private static BlazorSsrFactory Configurar(BlazorSsrFactory app)

@@ -15,7 +15,11 @@
     }
     else if (EsEdicion && !encontrado)
     {
-        <MessageBox Type="warning" Message="No se encontró la unidad de medida seleccionada. Puede haber sido eliminada por otro usuario." />
+        @* Si la carga falló no se sabe si existe: solo el aviso de fallo (Mensaje), no el de "no encontrado". *@
+        @if (!cargaFallida)
+        {
+            <MessageBox Type="warning" Message="No se encontró la unidad de medida seleccionada. Puede haber sido eliminada por otro usuario." />
+        }
     }
     else if (EsEdicion)
     {
@@ -58,6 +62,7 @@
 
     private PermisosPagina? permisos;
     private bool encontrado;
+    private bool cargaFallida;
     private string? message;
     private string messageType = "warning";
 
@@ -93,6 +98,7 @@
             catch (Exception ex)
             {
                 Logger.LogWarning(ex, "Could not load unidad de medida {Id} from API.", id);
+                cargaFallida = true;
                 Show("danger", "No fue posible cargar la unidad de medida a modificar.");
             }
         }

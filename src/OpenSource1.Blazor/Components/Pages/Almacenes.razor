@@ -18,7 +18,8 @@
              NuevoHref="@RetornoLocal.ConRetorno("/almacenes/nuevo", UrlActual)"
              SeleccionId="@SeleccionValida?.ToString()"
              EditarUrl="@EditarHref"
-             EliminarUrl="@(id => BuildListUrl(deleteId: Guid.Parse(id)))" />
+             EliminarUrl="@(id => BuildListUrl(deleteId: Guid.Parse(id)))"
+             EliminarDeshabilitadoMotivo="@(SeleccionEsPredeterminado ? "El almacén predeterminado no se puede eliminar." : null)" />
 
 @if (!string.IsNullOrWhiteSpace(message))
 {
@@ -233,6 +234,9 @@
 
     // Solo cuenta la selección si el registro está en la página cargada (Review Focus 4: selección obsoleta => vacía).
     private Guid? SeleccionValida => Sel is { } s && almacenes.Any(x => x.Id == s) ? s : null;
+
+    // Como la fila (que no pinta Eliminar para el predeterminado), la barra lo deshabilita con su motivo.
+    private bool SeleccionEsPredeterminado => SeleccionValida is { } s && almacenes.Any(x => x.Id == s && x.EsPredeterminado);
 
     // Única URL de vuelta del listado (filtros, página y selección; nunca ok/deleteId/editId).
     private string UrlActual => RetornoLocal.SinTransitorios(BuildListUrl());

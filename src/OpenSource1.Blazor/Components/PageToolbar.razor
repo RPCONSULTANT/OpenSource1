@@ -49,11 +49,12 @@
             @Menu("Ver", ver, "menu-ver")
             @if (EditarUrl is not null && puedeEditar)
             {
-                @Boton("Editar", SeleccionId is null ? null : EditarUrl(SeleccionId), "accion-editar", ClaseBoton)
+                @Boton("Editar", SeleccionId is null ? null : EditarUrl(SeleccionId), "accion-editar", ClaseBoton, SinSeleccion)
             }
             @if (EliminarUrl is not null && puedeEliminar)
             {
-                @Boton("Eliminar", SeleccionId is null ? null : EliminarUrl(SeleccionId), "accion-eliminar", ClaseEliminar)
+                @Boton("Eliminar", SeleccionId is null || EliminarDeshabilitadoMotivo is not null ? null : EliminarUrl(SeleccionId), "accion-eliminar", ClaseEliminar,
+                       SeleccionId is null ? SinSeleccion : EliminarDeshabilitadoMotivo!)
             }
         </div>
     </div>
@@ -79,6 +80,8 @@
     [Parameter] public string? EditarPermiso { get; set; } = ApplicationPolicies.CanModify;
     [Parameter] public Func<string, string>? EliminarUrl { get; set; }
     [Parameter] public string? EliminarPermiso { get; set; } = ApplicationPolicies.CanDelete;
+    /// <summary>Si no es null y hay selección, Eliminar sale deshabilitado con este motivo como title (p. ej. el almacén predeterminado).</summary>
+    [Parameter] public string? EliminarDeshabilitadoMotivo { get; set; }
     [Parameter] public RenderFragment? ChildContent { get; set; }
     /// <summary>Permisos ya cargados por la página (opcional); si es null la barra los carga del usuario en cascada.</summary>
     [Parameter] public PermisosPagina? Permisos { get; set; }
@@ -130,11 +133,11 @@
         }
     };
 
-    private static RenderFragment Boton(string etiqueta, string? href, string testId, string clase) => __builder =>
+    private static RenderFragment Boton(string etiqueta, string? href, string testId, string clase, string motivo) => __builder =>
     {
         if (href is null)
         {
-            <span data-testid="@testId" aria-disabled="true" title="@SinSeleccion" tabindex="0" class="@(clase.Replace("btn-press ", string.Empty)) cursor-not-allowed opacity-50">@etiqueta</span>
+            <span data-testid="@testId" aria-disabled="true" title="@motivo" tabindex="0" class="@(clase.Replace("btn-press ", string.Empty)) cursor-not-allowed opacity-50">@etiqueta</span>
         }
         else
         {
