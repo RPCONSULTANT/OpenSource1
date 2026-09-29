@@ -1,0 +1,29 @@
+@* BarraBusqueda — caja de búsqueda global (Fix-Features A3). Sin JS es un formulario GET a /buscar; la paleta Ctrl+K (A4)
+   se monta sobre este mismo input. *@
+@using Microsoft.AspNetCore.WebUtilities
+@inject NavigationManager Nav
+
+<form method="get" action="/buscar" role="search" class="relative w-full max-w-xl" data-testid="busqueda-global-form">
+    <label for="busqueda-global" class="sr-only">Buscar módulos, clientes, productos y documentos</label>
+    <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400" aria-hidden="true">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4">
+            <path stroke-linecap="round" stroke-linejoin="round" d="@IconosModulo.Buscar" />
+        </svg>
+    </span>
+    <input id="busqueda-global" name="q" type="search" autocomplete="off" maxlength="100" value="@consultaActual"
+           placeholder="Buscar módulos, clientes, productos, documentos… (Ctrl+K)"
+           class="block w-full rounded-lg border border-slate-300 bg-slate-50 py-2 pl-9 pr-3 text-sm text-slate-800 shadow-sm placeholder:text-slate-400 focus:border-brand-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-600/20 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100" />
+</form>
+
+@code {
+    private string? consultaActual;
+
+    protected override void OnParametersSet()
+    {
+        var uri = new Uri(Nav.Uri);
+        consultaActual = uri.AbsolutePath.Equals("/buscar", StringComparison.OrdinalIgnoreCase)
+                         && QueryHelpers.ParseQuery(uri.Query).TryGetValue("q", out var q)
+            ? q.ToString()
+            : null;
+    }
+}

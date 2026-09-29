@@ -1,0 +1,135 @@
+@page "/buscar"
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Authorization
+@using OpenSource1.Application.Features.Busqueda.Dtos
+@using OpenSource1.Application.Security
+@using OpenSource1.Blazor.Services
+@inject IRegistroModulos Registro
+@inject IBusquedaApiClient BusquedaApiClient
+@inject IAuthorizationService AuthorizationService
+@inject ILogger<Buscar> Logger
+
+<PageTitle>Buscar – AxionERP</PageTitle>
+
+<div class="mb-6">
+    <p class="text-xs font-bold uppercase tracking-widest text-brand-600 dark:text-brand-400">Búsqueda</p>
+    <h1 class="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">@(consulta is null ? "Buscar" : $"Resultados para «{consulta}»")</h1>
+</div>
+
+@if (consulta is null)
+{
+    <MessageBox Type="info" Message="Escriba al menos 2 caracteres para buscar módulos, clientes, productos o documentos." />
+}
+else
+{
+    <section class="mb-6 rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800" data-testid="resultados-modulos">
+        <h2 class="border-b border-slate-100 px-5 py-3 text-xs font-bold uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:text-slate-400">Módulos</h2>
+        @if (modulos.Count == 0)
+        {
+            <p class="px-5 py-4 text-sm text-slate-500 dark:text-slate-400">Ningún módulo coincide con la búsqueda.</p>
+        }
+        else
+        {
+            <ul class="divide-y divide-slate-100 dark:divide-slate-700/60">
+                @foreach (var modulo in modulos)
+                {
+                    <li><a href="@modulo.Ruta" class="flex flex-col px-5 py-3 hover:bg-slate-50 dark:hover:bg-slate-700/40"><span class="text-sm font-semibold text-slate-800 dark:text-slate-100">@modulo.Titulo</span><span class="text-xs text-slate-500 dark:text-slate-400">@modulo.Descripcion</span></a></li>
+                }
+            </ul>
+        }
+    </section>
+
+    @if (errorRegistros is not null)
+    {
+        <MessageBox Type="warning" Message="@errorRegistros" Errors="@erroresRegistros" />
+    }
+    else if (canConsult)
+    {
+        var conResultados = grupos.Where(g => g.Items.Count > 0).ToList();
+        if (conResultados.Count == 0)
+        {
+            <p class="text-sm text-slate-500 dark:text-slate-400" data-testid="sin-registros">No se encontraron clientes, productos ni documentos.</p>
+        }
+        foreach (var grupo in conResultados)
+        {
+            <section class="mb-6 rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800" data-testid="@($"resultados-{grupo.Tipo}")">
+                <div class="flex items-center justify-between border-b border-slate-100 px-5 py-3 dark:border-slate-700">
+                    <h2 class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">@grupo.Titulo</h2>
+                    <a href="@VerTodosUrl(grupo.Tipo, consulta)" class="text-xs font-semibold text-brand-600 hover:text-brand-700 dark:text-brand-400">Ver todos</a>
+                </div>
+                <ul class="divide-y divide-slate-100 dark:divide-slate-700/60">
+                    @foreach (var item in grupo.Items)
+                    {
+                        <li><a href="@item.Ruta" class="flex flex-col px-5 py-3 hover:bg-slate-50 dark:hover:bg-slate-700/40"><span class="text-sm font-semibold text-slate-800 dark:text-slate-100">@item.Titulo</span>@if (!string.IsNullOrWhiteSpace(item.Subtitulo)){<span class="text-xs text-slate-500 dark:text-slate-400">@item.Subtitulo</span>}</a></li>
+                    }
+                </ul>
+            </section>
+        }
+    }
+}
+
+@code {
+    [SupplyParameterFromQuery(Name = "q")] private string? Q { get; set; }
+    [CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+    private string? consulta;
+    private IReadOnlyList<Modulo> modulos = [];
+    private IReadOnlyList<GrupoResultadosBusqueda> grupos = [];
+    private bool canConsult;
+    private string? errorRegistros;
+    private IReadOnlyList<string> erroresRegistros = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var q = Q?.Trim() ?? string.Empty;
+        if (q.Length < 2 || AuthenticationStateTask is null)
+        {
+            return;
+        }
+
+        consulta = q.Length > 100 ? q[..100] : q;
+        var usuario = (await AuthenticationStateTask).User;
+        modulos = TextoBusqueda.FiltrarModulos(await Registro.VisiblesAsync(usuario), consulta);
+        canConsult = (await AuthorizationService.AuthorizeAsync(usuario, ApplicationPolicies.CanConsult)).Succeeded;
+        if (!canConsult)
+        {
+            return;
+        }
+
+        try
+        {
+            var resultado = await BusquedaApiClient.BuscarAsync(consulta);
+            if (resultado.Succeeded)
+            {
+                grupos = resultado.Valor!.Grupos;
+            }
+            else
+            {
+                errorRegistros = resultado.Message;
+                erroresRegistros = resultado.Errors ?? [];
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "No fue posible consultar la búsqueda global.");
+            errorRegistros = "No fue posible buscar registros en este momento. Los módulos siguen disponibles.";
+        }
+    }
+
+    /// <summary>"Ver todos": el listado del tipo filtrado por la consulta (número si la consulta tiene dígitos, si no nombre).</summary>
+    public static string VerTodosUrl(string tipo, string q)
+    {
+        var valor = Uri.EscapeDataString(q);
+        var campo = q.Any(char.IsDigit) ? "numero" : "nombre";
+        return tipo switch
+        {
+            TiposResultadoBusqueda.Clientes => $"/clientes?nombre={valor}",
+            TiposResultadoBusqueda.Productos => $"/productos?nombre={valor}",
+            TiposResultadoBusqueda.Facturas => $"/facturas-venta?{campo}={valor}",
+            TiposResultadoBusqueda.BorradoresFactura => $"/facturas-venta/borradores?{campo}={valor}",
+            TiposResultadoBusqueda.NotasCredito => $"/notas-credito-venta?numero={valor}",
+            TiposResultadoBusqueda.BorradoresNotaCredito => $"/notas-credito-venta/borradores?numero={valor}",
+            _ => $"/buscar?q={valor}",
+        };
+    }
+}
