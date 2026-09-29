@@ -11,7 +11,7 @@
 
 <PageTitle>Panel de Clientes – AxionERP</PageTitle>
 
-<div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between animate-fade-in">
+<div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
     <div>
         <p class="mb-1 text-xs font-bold uppercase tracking-widest text-brand-600">Panel de detalle</p>
         <h1 class="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">Clientes</h1>
@@ -29,7 +29,7 @@
 }
 else
 {
-    <div class="grid grid-cols-2 gap-4 mb-8 lg:grid-cols-4 animate-slide-up">
+    <div class="grid grid-cols-2 gap-4 mb-8 lg:grid-cols-4">
         <div class="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
             <p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Total clientes</p>
             <p class="mt-1 text-2xl font-extrabold text-slate-900 dark:text-slate-100">@total</p>
@@ -48,7 +48,7 @@ else
         </div>
     </div>
 
-    <div class="grid grid-cols-2 gap-4 mb-8 lg:grid-cols-4 animate-slide-up">
+    <div class="grid grid-cols-2 gap-4 mb-8 lg:grid-cols-4">
         <div class="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
             <p class="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Clientes / proveedores / ambos</p>
             <p class="mt-1 text-2xl font-extrabold text-slate-900 dark:text-slate-100" data-testid="kpi-tipos">@porTipo[TipoSocioNegocio.Cliente] / @porTipo[TipoSocioNegocio.Proveedor] / @porTipo[TipoSocioNegocio.Ambos]</p>
@@ -67,7 +67,7 @@ else
         </div>
     </div>
 
-    <div class="grid grid-cols-1 gap-5 mb-8 lg:grid-cols-2 animate-slide-up">
+    <div class="grid grid-cols-1 gap-5 mb-8 lg:grid-cols-2">
         <div class="rounded-2xl border border-slate-200 bg-white shadow-sm p-5 dark:border-slate-700 dark:bg-slate-800">
             <h2 class="mb-4 text-sm font-bold uppercase tracking-wide text-slate-700 dark:text-slate-300">Distribución por tipo de socio</h2>
             @if (total > 0)
@@ -96,7 +96,7 @@ else
         </div>
     </div>
 
-    <div class="grid grid-cols-1 gap-5 mb-8 lg:grid-cols-2 animate-slide-up">
+    <div class="grid grid-cols-1 gap-5 mb-8 lg:grid-cols-2">
         <div class="rounded-2xl border border-slate-200 bg-white shadow-sm p-5 dark:border-slate-700 dark:bg-slate-800">
             <h2 class="mb-4 text-sm font-bold uppercase tracking-wide text-slate-700 dark:text-slate-300">Altas por mes (últimos 6 meses)</h2>
             <ChartCanvas Id="chart-clientes-altas" Type="bar" Labels="@altasPorMes.Keys.ToList()"

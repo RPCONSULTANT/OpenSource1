@@ -4,13 +4,13 @@
 
 <PageTitle>Reportería – AxionERP</PageTitle>
 
-<div class="mb-6 animate-fade-in">
+<div class="mb-6">
     <p class="text-xs font-bold tracking-widest uppercase text-brand-600 mb-1">Reportería</p>
     <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight dark:text-slate-100">Reportes históricos</h1>
     <p class="text-sm text-slate-500 mt-1 dark:text-slate-400">Genere reportes PDF de clientes o productos aplicando filtros previos, o descargue el dato crudo completo para análisis externo (Power BI, Excel avanzado, etc.).</p>
 </div>
 
-<div class="mb-6 flex flex-wrap items-center gap-3 animate-fade-in">
+<div class="mb-6 flex flex-wrap items-center gap-3">
     <a href="/reports/clientes/raw.xlsx" title="Todos los clientes, todos los campos, sin filtros" class="btn-press inline-flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-2 text-sm font-semibold text-green-700 shadow-sm hover:bg-green-100 dark:border-green-500/30 dark:bg-green-500/10 dark:text-green-400 dark:hover:bg-green-500/20">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
         Excel crudo de clientes
@@ -26,7 +26,7 @@
     <div class="mb-6"><MessageBox Type="@messageType" Message="@message" /></div>
 }
 
-<div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden max-w-5xl animate-slide-up dark:border-slate-700 dark:bg-slate-800">
+<div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden max-w-5xl dark:border-slate-700 dark:bg-slate-800">
     <div class="px-6 py-4 border-b border-slate-100 bg-slate-50 dark:border-slate-700/60 dark:bg-slate-900/40"><h2 class="text-sm font-bold text-slate-800 uppercase tracking-wide dark:text-slate-200">Generador de reportes</h2></div>
     <div class="p-6">
         <form method="get" action="/reporteria" data-enhance class="mb-6 flex items-end gap-4">

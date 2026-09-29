@@ -14,7 +14,7 @@
 
 <PageTitle>Clientes – AxionERP</PageTitle>
 
-<div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between animate-fade-in">
+<div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
     <div>
         <p class="text-xs font-bold tracking-widest uppercase text-brand-600 mb-1">Mantenimiento</p>
         <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight dark:text-slate-100">Clientes</h1>
@@ -63,7 +63,7 @@
     </div>
 }
 
-<div class="mb-8 grid grid-cols-1 gap-6 items-start @GridColsClass animate-slide-up">
+<div class="mb-8 grid grid-cols-1 gap-6 items-start @GridColsClass">
     @if (ShowFactbox)
     {
         var factCliente = clientes.FirstOrDefault(x => x.Id == FocusClienteId!.Value);
@@ -252,7 +252,7 @@
 
     @if (ShowFilters)
     {
-        <aside class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden animate-fade-in sticky top-24 dark:border-slate-700 dark:bg-slate-800">
+        <aside class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden sticky top-24 dark:border-slate-700 dark:bg-slate-800">
             <form method="get" action="/clientes" data-enhance class="p-5 space-y-4">
                 <input type="hidden" name="showFilters" value="true" />
                 <input type="hidden" name="view" value="@(View ?? "grid")" />

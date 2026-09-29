@@ -21,15 +21,17 @@
     display: block;
 }
 
-/* Blazor enhanced-nav progress bar */
+/* Barra de progreso de navegación (Fix-Features A6): solo aparece si la navegación tarda > 150 ms (app.interactions.js),
+   2 px y color de marca atenuado para no producir un destello azul en navegaciones rápidas. */
 .blazor-loading-bar {
-    height: 3px;
-    background: #2155d9;
+    height: 2px;
+    background: rgba(86, 127, 255, 0.55);
     position: fixed;
     top: 0;
     left: 0;
     z-index: 9999;
     transition: width 0.2s ease;
+    pointer-events: none;
 }
 
 /* Shared SSR UI motion */
