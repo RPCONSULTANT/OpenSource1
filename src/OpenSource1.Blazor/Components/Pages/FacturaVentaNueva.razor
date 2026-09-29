@@ -33,22 +33,20 @@
             }
             <div class="min-w-60 flex-1">
                 <label class="mb-1 block text-xs font-semibold text-slate-500" for="socioQuery">Buscar cliente por nombre</label>
-                <input id="socioQuery" type="text" name="socioQuery" value="@SocioQuery" placeholder="ej. Comercial" class="@VentaCss.Filtro" />
+                <input id="socioQuery" type="text" name="socioQuery" value="@SocioQuery" placeholder="ej. Comercial" class="@VentasCss.Filtro" />
             </div>
             <button type="submit" class="btn-press rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Buscar</button>
             <p class="w-full text-xs text-slate-400">Se muestran los primeros @VentasOpciones.MaximoSocios clientes por nombre@(string.IsNullOrWhiteSpace(SocioQuery) ? "" : $" que contienen «{SocioQuery}»").</p>
         </form>
         <EditForm Model="AddInput" FormName="add-borrador" OnValidSubmit="CreateAsync" Enhance="true">
             <DataAnnotationsValidator />
-            @CamposBorrador(AddInput!)
+            <CabeceraFacturaFields Model="AddInput!" Prefix="AddInput" Socios="@socios.Items" Almacenes="@almacenes.Items" />
             <FormularioAcciones CancelarHref="@Volver" LimpiarHref="@Nav.Uri" TextoGuardar="Crear borrador" Deshabilitado="@OpcionesFallidas" />
         </EditForm>
     }
 </EntityFormPage>
 
 @code {
-    private const string InputCss = "block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20";
-
     [SupplyParameterFromQuery(Name = "returnUrl")] private string? ReturnUrl { get; set; }
     [SupplyParameterFromQuery(Name = "socioQuery")] private string? SocioQuery { get; set; }
     [SupplyParameterFromForm(FormName = "add-borrador")] private FacturasVentaBorradores.BorradorForm? AddInput { get; set; }
@@ -78,80 +76,6 @@
             almacenes = await VentasOpciones.AlmacenesAsync(AlmacenApiClient, Logger);
         }
     }
-
-    private RenderFragment CamposBorrador(FacturasVentaBorradores.BorradorForm model) => __builder =>
-    {
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-                <label class="block text-sm font-medium text-slate-700 mb-1" for="AddInput_SocioNegocioId">Vender a <span class="text-red-500">*</span></label>
-                <select id="AddInput_SocioNegocioId" name="AddInput.SocioNegocioId" class="@InputCss">
-                    <option value="" selected="@(model.SocioNegocioId is null)">— Seleccione —</option>
-                    @OpcionSocioVigente(model.SocioNegocioId)
-                    @foreach (var s in socios.Items)
-                    {
-                        <option value="@s.Id" selected="@(s.Id == model.SocioNegocioId)">@s.Codigo — @s.NombreComercial</option>
-                    }
-                </select>
-                <ValidationMessage For="() => model.SocioNegocioId" />
-            </div>
-            <div>
-                <label class="block text-sm font-medium text-slate-700 mb-1" for="AddInput_SocioNegocioFacturarAId">Facturar a</label>
-                <select id="AddInput_SocioNegocioFacturarAId" name="AddInput.SocioNegocioFacturarAId" class="@InputCss">
-                    <option value="" selected="@(model.SocioNegocioFacturarAId is null)">— Igual que vender a —</option>
-                    @OpcionSocioVigente(model.SocioNegocioFacturarAId)
-                    @foreach (var s in socios.Items)
-                    {
-                        <option value="@s.Id" selected="@(s.Id == model.SocioNegocioFacturarAId)">@s.Codigo — @s.NombreComercial</option>
-                    }
-                </select>
-            </div>
-            <div>
-                <label class="block text-sm font-medium text-slate-700 mb-1" for="AddInput_FechaRegistroTexto">Fecha de registro</label>
-                <input id="AddInput_FechaRegistroTexto" type="date" name="AddInput.FechaRegistroTexto" value="@model.FechaRegistroTexto" class="@InputCss" />
-                <ValidationMessage For="() => model.FechaRegistroTexto" />
-            </div>
-            <div>
-                <label class="block text-sm font-medium text-slate-700 mb-1" for="AddInput_FechaDocumentoTexto">Fecha de documento</label>
-                <input id="AddInput_FechaDocumentoTexto" type="date" name="AddInput.FechaDocumentoTexto" value="@model.FechaDocumentoTexto" class="@InputCss" />
-                <ValidationMessage For="() => model.FechaDocumentoTexto" />
-            </div>
-            <div>
-                <label class="block text-sm font-medium text-slate-700 mb-1" for="AddInput_FechaVencimientoTexto">Fecha de vencimiento</label>
-                <input id="AddInput_FechaVencimientoTexto" type="date" name="AddInput.FechaVencimientoTexto" value="@model.FechaVencimientoTexto" class="@InputCss" />
-                <ValidationMessage For="() => model.FechaVencimientoTexto" />
-            </div>
-            <div>
-                <label class="block text-sm font-medium text-slate-700 mb-1" for="AddInput_AlmacenId">Almacén</label>
-                <select id="AddInput_AlmacenId" name="AddInput.AlmacenId" class="@InputCss">
-                    <option value="" selected="@(model.AlmacenId is null)">— Predeterminado —</option>
-                    @if (model.AlmacenId is { } almacenId && almacenes.Items.All(a => a.Id != almacenId))
-                    {
-                        <option value="@almacenId" selected="selected">Almacén no disponible (@almacenId)</option>
-                    }
-                    @foreach (var a in almacenes.Items)
-                    {
-                        <option value="@a.Id" selected="@(a.Id == model.AlmacenId)">@a.Codigo — @a.Nombre</option>
-                    }
-                </select>
-            </div>
-            <div class="sm:col-span-2">
-                <label class="block text-sm font-medium text-slate-700 mb-1" for="AddInput_Descripcion">Descripción</label>
-                <input id="AddInput_Descripcion" type="text" name="AddInput.Descripcion" value="@model.Descripcion" maxlength="200" class="@InputCss" />
-                <ValidationMessage For="() => model.Descripcion" />
-            </div>
-        </div>
-        <p class="mt-2 text-xs text-slate-400">Fechas vacías: registro = hoy, documento = registro, vencimiento = documento + días del término de pago del cliente.</p>
-    };
-
-    // El socio seleccionado se ofrece SIEMPRE aunque no esté entre los resultados de la búsqueda: sin esto el <select> no
-    // reflejaría la elección tras un reenvío con errores y guardar la cambiaría en silencio.
-    private RenderFragment OpcionSocioVigente(Guid? seleccion) => __builder =>
-    {
-        if (seleccion is { } id && socios.Items.All(s => s.Id != id))
-        {
-            <option value="@id" selected="selected">Cliente seleccionado (@id)</option>
-        }
-    };
 
     private async Task CreateAsync()
     {
@@ -197,10 +121,5 @@
         messageType = type;
         message = text;
         errores = errors ?? [];
-    }
-
-    private static class VentaCss
-    {
-        public const string Filtro = "block w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-600/20";
     }
 }

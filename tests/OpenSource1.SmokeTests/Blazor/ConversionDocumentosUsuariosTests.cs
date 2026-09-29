@@ -296,6 +296,52 @@ public sealed class ConversionDocumentosUsuariosTests
         Assert.Contains("value=\"update-borrador-nota\"", html);
     }
 
+    [Fact]
+    public async Task CabeceraFactura_ComponenteCompartido_EnAltaYEdicion()
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+        var otroSocio = Guid.NewGuid();
+        var borradorOtro = Guid.NewGuid();
+        app.Simular<IFacturaVentaApiClient>()
+            .Setup(c => c.GetBorradorAsync(borradorOtro, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new FacturaVentaBorradorResponse
+            {
+                Id = borradorOtro, Numero = "B-9", Estado = EstadoFacturaBorrador.Abierta, SocioNegocioId = otroSocio,
+                SocioNegocioCodigo = "C-009", SocioNegocioNombre = "Otro Cliente", FechaRegistro = new DateOnly(2026, 9, 1),
+                FechaDocumento = new DateOnly(2026, 9, 1), Xmin = 3,
+            });
+
+        var alta = await HtmlSsr.HtmlAsync(app.Cliente(), "/facturas-venta/nueva");
+        var edicion = await HtmlSsr.HtmlAsync(app.Cliente(), $"/facturas-venta/borradores/{borradorOtro}/editar");
+
+        Assert.Contains("data-testid=\"cabecera-factura-fields\"", alta);
+        Assert.Contains("name=\"AddInput.SocioNegocioId\"", alta);
+        Assert.Contains("for=\"AddInput_FechaRegistroTexto\">Fecha de registro</label>", alta);
+        Assert.Contains("— Predeterminado —", alta);
+        Assert.Contains("registro = hoy", alta);
+
+        Assert.Contains("data-testid=\"cabecera-factura-fields\"", edicion);
+        Assert.Contains("name=\"UpdateInput.SocioNegocioId\"", edicion);
+        Assert.Contains("for=\"UpdateInput_FechaRegistroTexto\">Fecha de registro *</label>", edicion);
+        Assert.DoesNotContain("— Predeterminado —", edicion);
+        Assert.Contains($"<option value=\"{otroSocio}\" selected=\"selected\">C-009 — Otro Cliente</option>", edicion);
+        Assert.Contains("la API lo recalcula", edicion);
+    }
+
+    [Fact]
+    public async Task Usuarios_TarjetaEditar_EscapaElId()
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+        app.Simular<IUserAdminApiClient>()
+            .Setup(c => c.ListUsersAsync(It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<bool?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(([new UserSummaryResponse("u 1/x", "Ana Pérez", "ana@test.local", true, ["Administrador"])], null));
+
+        var html = await HtmlSsr.HtmlAsync(app.Cliente(), "/admin/users");
+
+        Assert.Contains("href=\"/admin/users/u%201%2Fx/editar\"", html);
+        Assert.DoesNotContain("href=\"/admin/users/u 1/x/editar\"", html);
+    }
+
     [Theory]
     [InlineData("/diarios-inventario", "save-lote-diario")]
     [InlineData("/facturas-venta/borradores", "add-borrador")]

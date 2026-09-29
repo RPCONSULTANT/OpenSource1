@@ -10,7 +10,7 @@
 
 <PageToolbar Titulo="Gestión de Usuarios" Subtitulo="Busque, filtre y administre roles y estado de los usuarios."
              Migas="@Migas" NuevoHref="/admin/users/nuevo" NuevoTexto="Nuevo usuario" NuevoPermiso="@null"
-             SeleccionId="@SeleccionValida" EditarUrl="@(id => $"/admin/users/{Uri.EscapeDataString(id)}/editar")" EditarPermiso="@null" />
+             SeleccionId="@SeleccionValida" EditarUrl="@EditarHref" EditarPermiso="@null" />
 
 <!-- ── Buscador y filtros ── -->
 <form method="get" action="/admin/users" data-enhance class="mb-6 rounded-2xl border border-slate-200 bg-white shadow-sm p-4 flex flex-wrap items-end gap-3 dark:border-slate-700 dark:bg-slate-800">
@@ -156,7 +156,7 @@ else
                         </svg>
                         Ver Perfil
                     </a>
-                    <a href="/admin/users/@user.Id/editar" class="btn-press mt-2 flex w-full items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">Editar</a>
+                    <a href="@EditarHref(user.Id)" class="btn-press mt-2 flex w-full items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">Editar</a>
                 </div>
             </div>
         }
@@ -195,6 +195,9 @@ else
 
     /// <summary>Selección (?sel=) solo si el usuario está en la lista cargada; si no, la barra la trata como vacía.</summary>
     private string? SeleccionValida => Sel is { } s && users is not null && users.Any(u => u.Id == s) ? s : null;
+
+    /// <summary>Edición (alias de la ficha) con el id escapado: la barra y la tarjeta usan la misma URL.</summary>
+    private static string EditarHref(string id) => $"/admin/users/{Uri.EscapeDataString(id)}/editar";
 
     protected override async Task OnInitializedAsync()
     {

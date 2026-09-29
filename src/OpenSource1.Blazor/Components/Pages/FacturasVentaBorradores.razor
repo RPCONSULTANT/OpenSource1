@@ -44,15 +44,15 @@
             <div class="grid flex-1 grid-cols-1 gap-3 sm:grid-cols-3 max-w-4xl">
                 <div>
                     <label class="block text-xs font-semibold text-slate-500 mb-1" for="filtroNumero">Número</label>
-                    <input id="filtroNumero" type="text" name="numero" value="@SearchNumero" placeholder="ej. 00000001" class="@FiltroCss" />
+                    <input id="filtroNumero" type="text" name="numero" value="@SearchNumero" placeholder="ej. 00000001" class="@VentasCss.Filtro" />
                 </div>
                 <div>
                     <label class="block text-xs font-semibold text-slate-500 mb-1" for="filtroNombre">Nombre de facturación</label>
-                    <input id="filtroNombre" type="text" name="nombre" value="@SearchNombre" placeholder="ej. Comercial" class="@FiltroCss" />
+                    <input id="filtroNombre" type="text" name="nombre" value="@SearchNombre" placeholder="ej. Comercial" class="@VentasCss.Filtro" />
                 </div>
                 <div>
                     <label class="block text-xs font-semibold text-slate-500 mb-1" for="filtroEstado">Estado</label>
-                    <select id="filtroEstado" name="estado" class="@FiltroCss">
+                    <select id="filtroEstado" name="estado" class="@VentasCss.Filtro">
                         <option value="" selected="@(SearchEstado is null)">Todos</option>
                         <option value="1" selected="@(SearchEstado == 1)">Abierta</option>
                         <option value="2" selected="@(SearchEstado == 2)">Liberada</option>
@@ -171,8 +171,6 @@
 }
 
 @code {
-    private const string FiltroCss = "block w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-600/20";
-
     [SupplyParameterFromForm(FormName = "delete-borrador")] private DeleteForm? DeleteInput { get; set; }
 
     [SupplyParameterFromQuery(Name = "numero")] private string? SearchNumero { get; set; }
