@@ -88,7 +88,7 @@ public sealed class DocumentoNotaBorradorTests
 
         var respuesta = await FormulariosSsr.EnviarAsync(app.Cliente(), $"{Url(IdAbierta)}?postear=true", "confirm-postear", new Dictionary<string, string>());
 
-        Assert.StartsWith("/notas-credito-venta/NC-000004?ok=posteada&aplicado=50.00&registro=00000007&aviso=", FormulariosSsr.Destino(respuesta));
+        Assert.StartsWith("/notas-credito-venta/NC-000004?ok=posteada&aplicado=50.00&aviso=", FormulariosSsr.Destino(respuesta));
     }
 
     [Fact]

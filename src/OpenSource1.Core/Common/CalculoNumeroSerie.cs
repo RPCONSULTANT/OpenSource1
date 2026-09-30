@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+
 namespace OpenSource1.Core.Common;
 
 /// <summary>
@@ -7,7 +9,7 @@ namespace OpenSource1.Core.Common;
 /// <see cref="Siguiente"/> rechaza (<c>numeracion.linea_invalida</c>) rangos invertidos, incrementos &lt; 1 y un último
 /// usado no vacío que no se interprete o no comparta el formato de la línea.
 /// </summary>
-public static class CalculoNumeroSerie
+public static partial class CalculoNumeroSerie
 {
     /// <summary>
     /// Falla cerrado: un último usado no vacío que no se interprete, con otro prefijo o más ancho que la línea cuenta como
@@ -73,11 +75,34 @@ public static class CalculoNumeroSerie
         if (FormatoNumeroSerie.TryParse(numeroAviso, out var avisoNumero) && siguiente >= avisoNumero.Valor)
         {
             var restantes = (final.Valor - siguiente) / incremento;
-            aviso = $"La serie {codigoSerie} alcanzó su número de aviso ({numeroAviso}): quedan {restantes} número(s) en la línea.";
+            aviso = TextoAviso(codigoSerie, numeroAviso!, restantes);
         }
 
         return Result<NumeroGenerado>.Exito(new NumeroGenerado((inicial with { Valor = siguiente }).Texto, aviso));
     }
+
+    /// <summary>Texto del aviso de numeración (número de aviso alcanzado); <see cref="EsTextoAviso"/> reconoce exactamente esta forma.</summary>
+    public static string TextoAviso(string codigoSerie, string numeroAviso, long restantes) =>
+        $"La serie {codigoSerie} alcanzó su número de aviso ({numeroAviso}): quedan {restantes} número(s) en la línea.";
+
+    /// <summary>
+    /// El posteo pasa el aviso a la página del documento por la query (<c>?aviso=</c>); esa página solo lo muestra si tiene la
+    /// forma exacta de <see cref="TextoAviso"/> (código de serie sin espacios, número de aviso válido, cantidad entera), para no
+    /// reflejar texto libre de un enlace manipulado.
+    /// </summary>
+    public static bool EsTextoAviso(string? texto)
+    {
+        if (string.IsNullOrEmpty(texto) || texto.Length > 200)
+        {
+            return false;
+        }
+
+        var coincidencia = AvisoRegex().Match(texto);
+        return coincidencia.Success && FormatoNumeroSerie.TryParse(coincidencia.Groups["aviso"].Value, out _);
+    }
+
+    [GeneratedRegex(@"^La serie [\p{L}\p{N}_-]{1,20} alcanzó su número de aviso \((?<aviso>[^\s\p{C}()]{1,20})\): quedan \d{1,19} número\(s\) en la línea\.$", RegexOptions.CultureInvariant)]
+    private static partial Regex AvisoRegex();
 
     private static Result<NumeroGenerado> LineaInvalida(string codigoSerie) => Result<NumeroGenerado>.Fallo(new Error(
         "numeracion.linea_invalida", $"La línea vigente de la serie '{codigoSerie}' no tiene un formato válido.", "SerieId"));

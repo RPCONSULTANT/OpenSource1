@@ -5,6 +5,26 @@ namespace OpenSource1.SmokeTests.Core.Common;
 
 public sealed class CalculoNumeroSerieTests
 {
+    /// <summary>Final review 4: la página posteada solo muestra un ?aviso= con la forma exacta que genera el posteo.</summary>
+    [Fact]
+    public void EsTextoAviso_ReconoceElAvisoGenerado_YRechazaTextoLibre()
+    {
+        var generado = Ok(CalculoNumeroSerie.Siguiente("FV", "FV-000001", "FV-000100", "FV-000090", 1, "FV-000091")).Aviso;
+        var soloDigitos = Ok(CalculoNumeroSerie.Siguiente("FV", "00000001", "00000100", "00000090", 1, "00000091")).Aviso;
+
+        Assert.True(CalculoNumeroSerie.EsTextoAviso(generado));
+        Assert.True(CalculoNumeroSerie.EsTextoAviso(soloDigitos));
+        Assert.False(CalculoNumeroSerie.EsTextoAviso(null));
+        Assert.False(CalculoNumeroSerie.EsTextoAviso(""));
+        Assert.False(CalculoNumeroSerie.EsTextoAviso("Quedan 3"));
+        Assert.False(CalculoNumeroSerie.EsTextoAviso("Su cuenta fue bloqueada: llame al 555-0100."));
+        Assert.False(CalculoNumeroSerie.EsTextoAviso(generado + " Llame al 555-0100."));
+        Assert.False(CalculoNumeroSerie.EsTextoAviso(
+            "La serie FV alcanzó su número de aviso (llame al 555 0100): quedan 3 número(s) en la línea."));
+        Assert.False(CalculoNumeroSerie.EsTextoAviso(
+            "La serie PAGUE EN EFECTIVO alcanzó su número de aviso (FV-000091): quedan 3 número(s) en la línea."));
+    }
+
     [Theory]
     [InlineData("00000001", "00000000", false)]
     [InlineData("00000001", "", false)]

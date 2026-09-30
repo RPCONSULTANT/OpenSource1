@@ -17,13 +17,16 @@ public sealed class DocumentosPosteadosTests
 {
     private static readonly Guid IdBorrador = Guid.Parse("7d0c9a51-0000-0000-0000-0000000007c1");
     private static readonly Guid IdNuevo = Guid.Parse("7d0c9a51-0000-0000-0000-0000000007c2");
+    // Avisos con la forma exacta que genera el posteo (CalculoNumeroSerie), ya codificados para la query.
+    private static readonly string AvisoFv = Uri.EscapeDataString("La serie FV alcanzó su número de aviso (FV-000091): quedan 3 número(s) en la línea.");
+    private static readonly string AvisoNc = Uri.EscapeDataString("La serie NC alcanzó su número de aviso (NC-000091): quedan 2 número(s) en la línea.");
 
     [Fact]
     public async Task Factura_DocumentoSoloLectura_EnlaceAlBorrador_YCrearCopiarABorrador()
     {
         using var app = Configurar(new BlazorSsrFactory());
 
-        var html = await HtmlSsr.HtmlAsync(app.Cliente(), "/facturas-venta/FV-000009?ok=posteada&aviso=Quedan%203");
+        var html = await HtmlSsr.HtmlAsync(app.Cliente(), $"/facturas-venta/FV-000009?ok=posteada&aviso={AvisoFv}");
 
         Assert.Contains("data-testid=\"cabecera-factura\"", html);
         Assert.Contains("data-testid=\"documento-cabecera\"", html);
@@ -35,7 +38,7 @@ public sealed class DocumentosPosteadosTests
         Assert.Contains($"href=\"/facturas-venta/borradores/{IdBorrador}\"", html);
         Assert.Contains("href=\"/facturas-venta/FV-000009?copiar=true", html);
         Assert.Contains("data-testid=\"aviso-numeracion\"", html);
-        Assert.Contains("Quedan 3", html);
+        Assert.Contains("quedan 3 número(s)", html);
         // El diálogo solo se abre con ?copiar=true; el formulario sigue en el árbol.
         Assert.DoesNotContain("Sí, copiar", html);
         Assert.Contains("value=\"copiar-borrador\"", html);
@@ -46,7 +49,7 @@ public sealed class DocumentosPosteadosTests
     {
         using var app = Configurar(new BlazorSsrFactory());
 
-        var html = await HtmlSsr.HtmlAsync(app.Cliente(), "/facturas-venta/FV-000009?aviso=Quedan%203");
+        var html = await HtmlSsr.HtmlAsync(app.Cliente(), $"/facturas-venta/FV-000009?aviso={AvisoFv}");
 
         Assert.DoesNotContain("data-testid=\"aviso-numeracion\"", html);
     }
@@ -177,7 +180,7 @@ public sealed class DocumentosPosteadosTests
     {
         using var app = Configurar(new BlazorSsrFactory());
 
-        var html = await HtmlSsr.HtmlAsync(app.Cliente(), "/notas-credito-venta/NC-000003?ok=posteada&aviso=Quedan%202");
+        var html = await HtmlSsr.HtmlAsync(app.Cliente(), $"/notas-credito-venta/NC-000003?ok=posteada&aviso={AvisoNc}");
 
         Assert.Contains("data-testid=\"cabecera-nota\"", html);
         Assert.Contains("data-testid=\"documento-cabecera\"", html);
@@ -187,7 +190,7 @@ public sealed class DocumentosPosteadosTests
         Assert.Contains("data-testid=\"totales\"", html);
         Assert.Contains($"href=\"/notas-credito-venta/borradores/{IdBorrador}\"", html);
         Assert.Contains("data-testid=\"aviso-numeracion\"", html);
-        Assert.Contains("Quedan 2", html);
+        Assert.Contains("quedan 2 número(s)", html);
     }
 
     [Fact]
@@ -300,13 +303,42 @@ public sealed class DocumentosPosteadosTests
         app.Simular<INotaCreditoVentaApiClient>()
             .Setup(c => c.GetNotaAsync("NC-000404", It.IsAny<CancellationToken>())).ReturnsAsync((NotaCreditoVentaDetalleResponse?)null);
 
-        var factura = await HtmlSsr.HtmlAsync(app.Cliente(), "/facturas-venta/FV-000404?ok=posteada&aviso=Quedan%203");
-        var nota = await HtmlSsr.HtmlAsync(app.Cliente(), "/notas-credito-venta/NC-000404?ok=posteada&aviso=Quedan%202");
+        var factura = await HtmlSsr.HtmlAsync(app.Cliente(), $"/facturas-venta/FV-000404?ok=posteada&aviso={AvisoFv}");
+        var nota = await HtmlSsr.HtmlAsync(app.Cliente(), $"/notas-credito-venta/NC-000404?ok=posteada&aviso={AvisoNc}");
 
         Assert.DoesNotContain("data-testid=\"aviso-numeracion\"", factura);
-        Assert.DoesNotContain("Quedan 3", factura);
+        Assert.DoesNotContain("quedan 3 número(s)", factura);
         Assert.DoesNotContain("data-testid=\"aviso-numeracion\"", nota);
-        Assert.DoesNotContain("Quedan 2", nota);
+        Assert.DoesNotContain("quedan 2 número(s)", nota);
+    }
+
+    /// <summary>
+    /// Final review 4: ?aviso= y ?registro= no reflejan texto libre. Un aviso que no tiene la forma exacta del que genera el posteo
+    /// no se muestra, y el registro contable del mensaje sale del documento, nunca de la query.
+    /// </summary>
+    [Fact]
+    public async Task AvisoYRegistro_TextoArbitrarioEnLaQuery_NoSeMuestra()
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+        var aviso = Uri.EscapeDataString("Su cuenta fue bloqueada: llame al 555-0100.");
+        var avisoConPlantilla = Uri.EscapeDataString("La serie FV alcanzó su número de aviso (llame al 555 0100): quedan 3 número(s) en la línea.");
+        var registro = Uri.EscapeDataString("LLAME-AL-5550100");
+
+        var factura = await HtmlSsr.HtmlAsync(app.Cliente(), $"/facturas-venta/FV-000009?ok=posteada&registro={registro}&aviso={aviso}");
+        var facturaPlantilla = await HtmlSsr.HtmlAsync(app.Cliente(), $"/facturas-venta/FV-000009?ok=posteada&aviso={avisoConPlantilla}");
+        var nota = await HtmlSsr.HtmlAsync(app.Cliente(), $"/notas-credito-venta/NC-000003?ok=posteada&registro={registro}&aviso={aviso}");
+
+        foreach (var html in new[] { factura, facturaPlantilla, nota })
+        {
+            Assert.DoesNotContain("data-testid=\"aviso-numeracion\"", html);
+            // La URL de la página (retorno, formularios) conserva la query codificada; lo que no debe aparecer es el texto mostrado.
+            Assert.DoesNotContain("Su cuenta fue bloqueada", html);
+            Assert.DoesNotContain("llame al 555", html);
+            Assert.DoesNotContain("Registro contable LLAME", html);
+        }
+
+        Assert.Contains("Factura FV-000009 posteada", factura);
+        Assert.Contains("Nota de crédito NC-000003 posteada", nota);
     }
 
     /// <summary>La fila (tr) de la tabla de líneas que contiene el texto.</summary>

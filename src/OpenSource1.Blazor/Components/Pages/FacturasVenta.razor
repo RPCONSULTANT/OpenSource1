@@ -62,7 +62,7 @@ else
     </div>
 }
 
-@if (detalle is not null && Ok == "posteada" && !string.IsNullOrWhiteSpace(AvisoNumeracion))
+@if (detalle is not null && Ok == "posteada" && CalculoNumeroSerie.EsTextoAviso(AvisoNumeracion))
 {
     <div class="mb-6" data-testid="aviso-numeracion"><MessageBox Type="warning" Message="@AvisoNumeracion" /></div>
 }
@@ -340,7 +340,6 @@ else
     [SupplyParameterFromQuery(Name = "hasta")] private string? SearchHasta { get; set; }
     [SupplyParameterFromQuery(Name = "pagina")] private int Pagina { get; set; } = 1;
     [SupplyParameterFromQuery(Name = "ok")] private string? Ok { get; set; }
-    [SupplyParameterFromQuery(Name = "registro")] private string? Registro { get; set; }
     [SupplyParameterFromQuery(Name = "crearNota")] private bool CrearNota { get; set; }
     [SupplyParameterFromQuery(Name = "copiar")] private bool CopiarConfirm { get; set; }
     // Aviso de numeración del posteo (NS4): lo añade el borrador al redirigir aquí tras postear.
@@ -522,7 +521,7 @@ else
 
         if (Ok == "posteada" && detalle is not null)
         {
-            var registro = Registro ?? detalle.Cabecera.NumeroRegistroContable;
+            var registro = detalle.Cabecera.NumeroRegistroContable;
             Show("success", $"Factura {detalle.Cabecera.Numero} posteada por {VentasOpciones.Importe(detalle.Cabecera.ImporteTotal)}. " +
                 (registro is null ? "Total 0 (100 % de descuento): sin movimiento de cliente ni registro contable." : $"Registro contable {registro}."));
         }

@@ -1007,10 +1007,10 @@ else
             if (result.Succeeded)
             {
                 var r = result.Valor!;
-                // Total 0 sin asiento: sin "registro". El aviso de numeración (número de aviso alcanzado) lo muestra la factura.
-                var registro = r.RegistroContable is { } numeroRegistro ? $"&registro={Uri.EscapeDataString(numeroRegistro)}" : string.Empty;
+                // El registro contable lo lee la factura del documento. El aviso de numeración (número de aviso alcanzado) lo muestra la
+                // factura solo si conserva la forma que genera el posteo (CalculoNumeroSerie.EsTextoAviso).
                 var aviso = r.AvisoNumeracion is { } textoAviso ? $"&aviso={Uri.EscapeDataString(textoAviso)}" : string.Empty;
-                destino = $"/facturas-venta/{Uri.EscapeDataString(r.Numero)}?ok=posteada{registro}{aviso}";
+                destino = $"/facturas-venta/{Uri.EscapeDataString(r.Numero)}?ok=posteada{aviso}";
             }
             else
             {

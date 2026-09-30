@@ -741,11 +741,10 @@ else if (EsPosteada && borrador.NotaCreditoVentaNumero is { } numeroNota)
             if (result.Succeeded)
             {
                 var r = result.Valor!;
-                // Una nota de total 0 (devolución de un obsequio) no lleva asiento: sin "registro". El aviso de numeración (número
-                // de aviso de la serie alcanzado, NS4) lo muestra la nota posteada.
-                var registro = r.RegistroContable is { } numeroRegistro ? $"&registro={Uri.EscapeDataString(numeroRegistro)}" : string.Empty;
+                // El registro contable lo lee la nota del documento. El aviso de numeración (número de aviso de la serie alcanzado,
+                // NS4) lo muestra la nota posteada solo si conserva la forma que genera el posteo (CalculoNumeroSerie.EsTextoAviso).
                 var aviso = r.AvisoNumeracion is { } textoAviso ? $"&aviso={Uri.EscapeDataString(textoAviso)}" : string.Empty;
-                destino = $"{NotaHref(r.Numero)}?ok=posteada&aplicado={r.ImporteAplicado.ToString("0.00", CultureInfo.InvariantCulture)}{registro}{aviso}";
+                destino = $"{NotaHref(r.Numero)}?ok=posteada&aplicado={r.ImporteAplicado.ToString("0.00", CultureInfo.InvariantCulture)}{aviso}";
             }
             else
             {

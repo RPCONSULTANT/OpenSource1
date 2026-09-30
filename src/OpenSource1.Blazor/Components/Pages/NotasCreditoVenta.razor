@@ -44,7 +44,7 @@
     </div>
 }
 
-@if (detalle is not null && Ok == "posteada" && !string.IsNullOrWhiteSpace(AvisoNumeracion))
+@if (detalle is not null && Ok == "posteada" && CalculoNumeroSerie.EsTextoAviso(AvisoNumeracion))
 {
     <div class="mb-6" data-testid="aviso-numeracion"><MessageBox Type="warning" Message="@AvisoNumeracion" /></div>
 }
@@ -179,7 +179,6 @@ else
     [SupplyParameterFromQuery(Name = "hasta")] private string? SearchHasta { get; set; }
     [SupplyParameterFromQuery(Name = "pagina")] private int Pagina { get; set; } = 1;
     [SupplyParameterFromQuery(Name = "ok")] private string? Ok { get; set; }
-    [SupplyParameterFromQuery(Name = "registro")] private string? Registro { get; set; }
     [SupplyParameterFromQuery(Name = "aplicado")] private string? Aplicado { get; set; }
     // Aviso de numeración del posteo (NS4): lo añade el borrador al redirigir aquí tras postear.
     [SupplyParameterFromQuery(Name = "aviso")] private string? AvisoNumeracion { get; set; }
@@ -216,7 +215,7 @@ else
         if (Ok == "posteada" && detalle is not null)
         {
             var c = detalle.Cabecera;
-            var registro = Registro ?? c.NumeroRegistroContable;
+            var registro = c.NumeroRegistroContable;
             var aplicado = decimal.TryParse(Aplicado, NumberStyles.Number, CultureInfo.InvariantCulture, out var a) ? a : (decimal?)null;
             Show("success", $"Nota de crédito {c.Numero} posteada por {VentasOpciones.Importe(c.ImporteTotal)} sobre la factura {c.FacturaVentaNumero}. " +
                 (registro is null

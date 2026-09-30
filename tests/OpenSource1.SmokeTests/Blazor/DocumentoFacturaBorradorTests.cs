@@ -206,7 +206,7 @@ public sealed class DocumentoFacturaBorradorTests
     }
 
     [Fact]
-    public async Task Postear_VaALaFactura_ConRegistroYAviso()
+    public async Task Postear_VaALaFactura_ConAviso()
     {
         using var app = Configurar(new BlazorSsrFactory());
         app.Simular<IFacturaVentaApiClient>()
@@ -216,7 +216,7 @@ public sealed class DocumentoFacturaBorradorTests
 
         var respuesta = await FormulariosSsr.EnviarAsync(app.Cliente(), $"{Url(IdAbierto)}?postear=true", "confirm-postear", new Dictionary<string, string>());
 
-        Assert.StartsWith("/facturas-venta/FV-000013?ok=posteada&registro=00000005&aviso=", FormulariosSsr.Destino(respuesta));
+        Assert.StartsWith("/facturas-venta/FV-000013?ok=posteada&aviso=", FormulariosSsr.Destino(respuesta));
     }
 
     [Fact]
