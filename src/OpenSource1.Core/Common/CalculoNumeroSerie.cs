@@ -9,10 +9,28 @@ namespace OpenSource1.Core.Common;
 /// </summary>
 public static class CalculoNumeroSerie
 {
-    public static bool EstaUsada(string numeroInicial, string? ultimoNumeroUsado) =>
-        FormatoNumeroSerie.TryParse(numeroInicial, out var inicial)
-        && FormatoNumeroSerie.TryParse(ultimoNumeroUsado, out var ultimo)
-        && ultimo.Valor >= inicial.Valor;
+    /// <summary>
+    /// Falla cerrado: un último usado no vacío que no se interprete, con otro prefijo o más ancho que la línea cuenta como
+    /// usado (la línea no se puede borrar ni cambiar como si estuviera libre). Solo null/"" o un valor menor que el inicial
+    /// (semilla "0…0") significan "sin usar".
+    /// </summary>
+    public static bool EstaUsada(string numeroInicial, string? ultimoNumeroUsado)
+    {
+        if (string.IsNullOrEmpty(ultimoNumeroUsado))
+        {
+            return false;
+        }
+
+        if (!FormatoNumeroSerie.TryParse(numeroInicial, out var inicial)
+            || !FormatoNumeroSerie.TryParse(ultimoNumeroUsado, out var ultimo)
+            || !string.Equals(ultimo.Prefijo, inicial.Prefijo, StringComparison.Ordinal)
+            || ultimo.Ancho > inicial.Ancho)
+        {
+            return true;
+        }
+
+        return ultimo.Valor >= inicial.Valor;
+    }
 
     public static Result<NumeroGenerado> Siguiente(
         string codigoSerie, string numeroInicial, string numeroFinal, string? ultimoNumeroUsado, int incremento, string? numeroAviso)

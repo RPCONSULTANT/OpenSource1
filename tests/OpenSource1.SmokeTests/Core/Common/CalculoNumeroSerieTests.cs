@@ -12,6 +12,12 @@ public sealed class CalculoNumeroSerieTests
     [InlineData("00000001", "00000001", true)]
     [InlineData("00000001", "7", true)]
     [InlineData("FV-000010", "FV-000009", false)]
+    [InlineData("FV-000010", "FV-7", false)]
+    [InlineData("00000001", "abc", true)]
+    [InlineData("00000001", " 7", true)]
+    [InlineData("FV-000010", "NC-000001", true)]
+    [InlineData("FV-000010", "FV-0000001", true)]
+    [InlineData("00000001", "1234567890123456789", true)]
     public void EstaUsada_SoloSiElUltimoNoEsMenorQueElInicial(string inicial, string? ultimo, bool usada)
     {
         Assert.Equal(usada, CalculoNumeroSerie.EstaUsada(inicial, ultimo));
