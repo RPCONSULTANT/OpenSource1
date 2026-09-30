@@ -30,9 +30,24 @@
     <label class="flex items-center gap-2 text-sm text-slate-700">
         <input type="checkbox" name="@($"{Prefix}.PermiteHuecos")" value="true" checked="@Model.PermiteHuecos" /> Permite huecos (documental)
     </label>
-    <label class="flex items-center gap-2 text-sm text-slate-700">
-        <input type="checkbox" name="@($"{Prefix}.Activa")" value="true" checked="@Model.Activa" /> Activa
-    </label>
+    <div>
+        <label class="flex items-center gap-2 text-sm text-slate-700">
+            @if (ActivaBloqueada)
+            {
+                @* NS5: la serie predeterminada de su tipo no se desactiva. Un checkbox deshabilitado no se envía: Activa viaja oculta. *@
+                <input type="checkbox" id="@($"{Prefix}_Activa")" checked disabled /> <span>Activa</span>
+            }
+            else
+            {
+                <input type="checkbox" id="@($"{Prefix}_Activa")" name="@($"{Prefix}.Activa")" value="true" checked="@Model.Activa" /> <span>Activa</span>
+            }
+        </label>
+        @if (ActivaBloqueada)
+        {
+            <input type="hidden" name="@($"{Prefix}.Activa")" value="true" />
+            <p class="mt-1 text-xs text-slate-400" data-testid="motivo-activa">@MotivoActivaBloqueada</p>
+        }
+    </div>
 </div>
 
 @code {
@@ -41,4 +56,9 @@
     [Parameter, EditorRequired] public string Prefix { get; set; } = default!;
     /// <summary>Serie usada o asignada (NS6): el tipo se muestra pero no se puede cambiar.</summary>
     [Parameter] public bool TipoBloqueado { get; set; }
+    /// <summary>Serie asignada en la configuración (NS5): "Activa" se muestra marcada y no se puede desmarcar.</summary>
+    [Parameter] public bool ActivaBloqueada { get; set; }
+
+    public const string MotivoActivaBloqueada =
+        "La serie es la predeterminada de su tipo: asigne otra en la configuración de numeración antes de desactivarla.";
 }

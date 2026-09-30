@@ -41,7 +41,8 @@ else if (detalle.Serie.Aviso is not null)
 @* Cabecera: editable con CanAdministrar; si no, la tarjeta de solo lectura (el EditForm vacío de update-serie lo pone el componente). *@
 <DocumentoCabeceraEditable Model="UpdateInput" FormName="update-serie" OnValidSubmit="UpdateAsync" Mostrar="@MuestraFormularios">
     <input type="hidden" name="UpdateInput.Xmin" value="@UpdateInput!.Xmin" />
-    <SerieCabeceraCampos Model="UpdateInput" Prefix="UpdateInput" TipoBloqueado="@(detalle?.Serie is { } bloqueo && (bloqueo.Usada || bloqueo.Asignada))" />
+    <SerieCabeceraCampos Model="UpdateInput" Prefix="UpdateInput" TipoBloqueado="@(detalle?.Serie is { } bloqueo && (bloqueo.Usada || bloqueo.Asignada))"
+                         ActivaBloqueada="@(detalle?.Serie.Asignada == true)" />
     <p class="mt-4 text-xs text-slate-500">
         <a href="@UrlBase" data-testid="limpiar" class="font-semibold text-slate-600 hover:underline">Limpiar campos</a>
         <span aria-hidden="true">·</span>
@@ -93,7 +94,7 @@ else if (detalle.Serie.Aviso is not null)
                                         Último usado: <span class="font-mono">@(string.IsNullOrEmpty(l.UltimoNumeroUsado) ? "—" : l.UltimoNumeroUsado)</span> (no se edita).
                                         @if (l.Usada)
                                         {
-                                            <span>Línea usada: el número inicial, el prefijo y el ancho no cambian; bloquéela para dejar de usarla.</span>
+                                            <span data-testid="pista-linea-usada">Línea usada: el número inicial, el prefijo y el ancho no cambian y el número final solo puede crecer; bloquéela para dejar de usarla.</span>
                                         }
                                     </p>
                                     <div class="mt-3 flex gap-2">
@@ -120,6 +121,11 @@ else if (detalle.Serie.Aviso is not null)
                                         @if (!l.Usada)
                                         {
                                             <a href="@($"{UrlBase}?deleteLineaId={l.Id}")" class="ml-2 font-semibold text-red-700 hover:underline">Eliminar</a>
+                                        }
+                                        else
+                                        {
+                                            <span aria-disabled="true" tabindex="0" title="@MotivoLineaUsada" data-testid="eliminar-linea-deshabilitado"
+                                                  class="ml-2 cursor-not-allowed font-semibold text-slate-400">Eliminar</span>
                                         }
                                     }
                                 </td>
@@ -174,6 +180,7 @@ else if (detalle.Serie.Aviso is not null)
 
 @code {
     private const int Columnas = 8;
+    public const string MotivoLineaUsada = "La línea ya emitió números: no se puede eliminar; bloquéela.";
 
     [Parameter] public Guid SerieId { get; set; }
     [SupplyParameterFromQuery(Name = "ok")] private string? Ok { get; set; }

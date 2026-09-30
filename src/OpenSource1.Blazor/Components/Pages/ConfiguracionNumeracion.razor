@@ -46,7 +46,7 @@
                                     <input type="hidden" name="@($"Input.Filas[{i}].Xmin")" value="@f.Xmin" />
                                     <SelectorSerie Id="@($"serie_{(short)f.TipoDocumento}")" Name="@($"Input.Filas[{i}].SerieId")"
                                                    Series="@opciones.Items" CargaFallida="@opciones.CargaFallida"
-                                                   Seleccion="@f.SerieId" VigenteId="@f.SerieId" VigenteCodigo="@f.SerieCodigo" />
+                                                   Seleccion="@(eleccionesFallidas.GetValueOrDefault(f.TipoDocumento) ?? f.SerieId)" VigenteId="@f.SerieId" VigenteCodigo="@f.SerieCodigo" />
                                 }
                                 else
                                 {
@@ -77,6 +77,8 @@
 
     private IReadOnlyList<ConfiguracionNumeracionResponse> filas = [];
     private readonly Dictionary<TipoDocumentoSerie, OpcionesCargadas<SerieResponse>> seriesPorTipo = [];
+    /// <summary>Serie elegida por el administrador en las filas cuyo guardado falló: se conserva al redibujar (con el xmin vigente).</summary>
+    private readonly Dictionary<TipoDocumentoSerie, Guid?> eleccionesFallidas = [];
     private bool puedeAdministrar;
     private bool cargaFallida;
     private string? message;
@@ -119,19 +121,25 @@
     {
         // R17: el destino se decide dentro del try y NavigateTo va fuera.
         string? destino = null;
+        var guardados = new List<string>();
         var fallos = new List<string>();
         try
         {
             // Solo las filas cuya serie cambió, con el xmin con el que se cargaron (un cambio concurrente da el 409 real).
-            foreach (var fila in Input!.Filas.Where(Cambio))
+            foreach (var fila in Input!.Filas.Where(Cambio).ToList())
             {
                 var tipo = (TipoDocumentoSerie)fila.Tipo;
                 var result = await ConfiguracionApiClient.UpdateAsync(tipo, fila.SerieId!.Value, fila.Xmin);
-                if (!result.Succeeded)
+                if (result.Succeeded)
+                {
+                    guardados.Add(TipoDocumentoSerieNombres.Nombre(tipo));
+                }
+                else
                 {
                     // M1: los mensajes tal cual, precedidos del tipo al que pertenecen.
                     var detalle = result.Errors is { Count: > 0 } lista ? string.Join(" ", lista) : result.Message;
                     fallos.Add($"{TipoDocumentoSerieNombres.Nombre(tipo)}: {detalle}");
+                    eleccionesFallidas[tipo] = fila.SerieId;
                 }
             }
 
@@ -141,20 +149,44 @@
             }
             else
             {
-                (messageType, message, errores) = ("warning", "Algunos cambios no se guardaron.", fallos);
+                (messageType, message, errores) = ("warning", Resumen(guardados, "Algunos cambios no se guardaron."), fallos);
             }
         }
         catch (Exception ex)
         {
             Logger.LogWarning(ex, "Could not save configuración de numeración.");
-            (messageType, message, errores) = ("danger", "No fue posible guardar la configuración.", fallos);
+            (messageType, message, errores) = ("danger", Resumen(guardados, "No fue posible guardar la configuración."), fallos);
         }
 
         if (destino is not null)
         {
             Nav.NavigateTo(destino);
+            return;
+        }
+
+        // Fallo parcial: las filas guardadas se redibujan con su serie y xmin nuevos (si no, un segundo envío las reenviaría con el
+        // xmin viejo); las fallidas conservan la elección del administrador (eleccionesFallidas) con el xmin vigente.
+        if (guardados.Count > 0)
+        {
+            await RecargarFilasAsync();
         }
     }
+
+    private async Task RecargarFilasAsync()
+    {
+        try
+        {
+            filas = await ConfiguracionApiClient.ListAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not reload configuración de numeración.");
+            errores = [.. errores, "No fue posible recargar la configuración: recargue la página antes de volver a guardar."];
+        }
+    }
+
+    private static string Resumen(IReadOnlyList<string> guardados, string texto) =>
+        guardados.Count == 0 ? texto : $"Guardados: {string.Join(", ", guardados)}. {texto}";
 
     /// <summary>Una fila cambia si trae serie y ésta difiere de la vigente de su tipo (un tipo desconocido también se envía: la API responde).</summary>
     private bool Cambio(FilaConfig fila) =>

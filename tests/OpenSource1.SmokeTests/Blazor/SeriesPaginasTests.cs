@@ -181,6 +181,8 @@ public sealed class SeriesPaginasTests
 
         Assert.Contains("data-testid=\"fila-edicion\"", html);
         Assert.Contains("value=\"FV-000014\"", html);
+        Assert.Matches("<input[^>]*name=\"UpdateLinea.NumeroInicial\"[^>]*readonly", html);
+        Assert.Contains("el número final solo puede crecer", HtmlSsr.Decodificar(html));
         Assert.Equal(HttpStatusCode.OK, respuesta.StatusCode);
         Assert.Contains("Revise los datos:", cuerpo);
         Assert.Contains("El número de aviso debe tener el mismo prefijo que la línea.", cuerpo);
@@ -219,6 +221,106 @@ public sealed class SeriesPaginasTests
 
         Assert.Equal(HttpStatusCode.OK, respuesta.StatusCode);
         Assert.Contains("no se puede eliminar", HtmlSsr.Decodificar(await respuesta.Content.ReadAsStringAsync()));
+    }
+
+    [Fact]
+    public async Task Lista_SerieAsignadaSeleccionada_EliminarDeshabilitadoConMotivo()
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+
+        var html = HtmlSsr.Decodificar(await HtmlSsr.HtmlAsync(app.Cliente(), $"/series?sel={IdSerie}"));
+
+        Assert.Matches("<span data-testid=\"accion-eliminar\" aria-disabled=\"true\" title=\"La serie es la predeterminada de su tipo", html);
+        Assert.DoesNotContain($"deleteId={IdSerie}", html);
+        Assert.DoesNotContain("data-testid=\"series-truncadas\"", html);
+    }
+
+    [Fact]
+    public async Task Lista_MasDeLasQueCaben_AvisaDeLaListaTruncada()
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+        app.Simular<ISerieApiClient>()
+            .Setup(c => c.ListAsync(It.IsAny<SerieFiltro?>(), It.IsAny<PageRequest?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PagedResult<SerieResponse>([new SerieResponse { Id = IdOtra, Codigo = "FV2", TipoDocumento = TipoDocumentoSerie.FacturaVenta }], 1, 200, 250));
+
+        var html = HtmlSsr.Decodificar(await HtmlSsr.HtmlAsync(app.Cliente(), "/series"));
+
+        Assert.Contains("data-testid=\"series-truncadas\"", html);
+        Assert.Contains("Se muestran las primeras 1 de 250 series", html);
+    }
+
+    [Fact]
+    public async Task Ficha_SerieAsignadaYUsada_TipoYActivaBloqueados_YViajanOcultos()
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+        var api = app.Simular<ISerieApiClient>();
+        api.Setup(c => c.UpdateAsync(IdSerie, It.Is<SerieInput>(i => i.TipoDocumento == TipoDocumentoSerie.FacturaVenta && i.Activa && i.Descripcion == "Facturas 2"), 3, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new VentaOperationResult<SerieResponse>(true, "ok", new SerieResponse { Id = IdSerie }));
+        var url = $"/series/{IdSerie}";
+
+        var html = HtmlSsr.Decodificar(await HtmlSsr.HtmlAsync(app.Cliente(), url));
+        var respuesta = await FormulariosSsr.EnviarAsync(app.Cliente(), url, "update-serie", new Dictionary<string, string>
+        {
+            ["UpdateInput.Codigo"] = "FV", ["UpdateInput.Descripcion"] = "Facturas 2", ["UpdateInput.TipoDocumento"] = "2",
+            ["UpdateInput.Activa"] = "true", ["UpdateInput.Xmin"] = "3",
+        });
+
+        Assert.Matches("<select[^>]*name=\"UpdateInput.TipoDocumento\"[^>]*disabled", html);
+        Assert.Contains("<input type=\"hidden\" name=\"UpdateInput.TipoDocumento\" value=\"2\"", html);
+        Assert.Matches("<input type=\"checkbox\" id=\"UpdateInput_Activa\" checked[^>]*disabled", html);
+        Assert.DoesNotMatch("<input type=\"checkbox\"[^>]*name=\"UpdateInput.Activa\"", html);
+        Assert.Contains("<input type=\"hidden\" name=\"UpdateInput.Activa\" value=\"true\"", html);
+        Assert.Contains("asigne otra en la configuración de numeración antes de desactivarla", html);
+        Assert.Contains("data-testid=\"eliminar-linea-deshabilitado\"", html);
+        Assert.Contains("title=\"La línea ya emitió números: no se puede eliminar; bloquéela.\"", html);
+        Assert.Equal($"/series/{IdSerie}?ok=modificada", FormulariosSsr.Destino(respuesta));
+    }
+
+    [Fact]
+    public async Task Configuracion_FalloParcial_RecargaLaGuardada_ConservaLaEleccionFallida_YNoLaReenvia()
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+        var guardada = false;
+        var api = app.Simular<IConfiguracionNumeracionApiClient>();
+        api.Setup(c => c.ListAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() =>
+            [
+                guardada
+                    ? new ConfiguracionNumeracionResponse { TipoDocumento = TipoDocumentoSerie.FacturaVenta, SerieId = IdOtra, SerieCodigo = "FV2", SerieActiva = true, Xmin = 9 }
+                    : new ConfiguracionNumeracionResponse { TipoDocumento = TipoDocumentoSerie.FacturaVenta, SerieId = IdSerie, SerieCodigo = "FV", SerieActiva = true, Xmin = 4 },
+                new ConfiguracionNumeracionResponse { TipoDocumento = TipoDocumentoSerie.Cobro, SerieId = IdSerie, SerieCodigo = "COBRO", SerieActiva = true, Xmin = 7 },
+            ]);
+        api.Setup(c => c.UpdateAsync(TipoDocumentoSerie.FacturaVenta, IdOtra, 4, It.IsAny<CancellationToken>()))
+            .Callback(() => guardada = true)
+            .ReturnsAsync(new VentaOperationResult<ConfiguracionNumeracionResponse>(true, "ok"));
+        api.Setup(c => c.UpdateAsync(TipoDocumentoSerie.Cobro, IdOtra, 7, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new VentaOperationResult<ConfiguracionNumeracionResponse>(false, "La serie 'FV2' no es del tipo Cobro de cliente."));
+        const string url = "/configuracion/numeracion";
+
+        var respuesta = await FormulariosSsr.EnviarAsync(app.Cliente(), url, "config-numeracion", new Dictionary<string, string>
+        {
+            ["Input.Filas[0].Tipo"] = "2", ["Input.Filas[0].SerieId"] = IdOtra.ToString(), ["Input.Filas[0].Xmin"] = "4",
+            ["Input.Filas[1].Tipo"] = "5", ["Input.Filas[1].SerieId"] = IdOtra.ToString(), ["Input.Filas[1].Xmin"] = "7",
+        });
+        var html = HtmlSsr.Decodificar(await respuesta.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, respuesta.StatusCode);
+        Assert.Contains("Guardados: Factura de venta. Algunos cambios no se guardaron.", html);
+        Assert.Contains("Cobro de cliente: La serie 'FV2' no es del tipo Cobro de cliente.", html);
+        Assert.Contains("name=\"Input.Filas[0].Xmin\" value=\"9\"", html);
+        Assert.Contains("name=\"Input.Filas[1].Xmin\" value=\"7\"", html);
+        Assert.Matches($"<select id=\"serie_2\"(?:(?!</select>).)*<option value=\"{IdOtra}\" selected", html);
+        Assert.Matches($"<select id=\"serie_5\"(?:(?!</select>).)*<option value=\"{IdOtra}\" selected", html);
+
+        // Segundo envío con lo redibujado: la fila guardada ya no cambia y no se reenvía; la fallida sí, con su xmin vigente.
+        await FormulariosSsr.EnviarAsync(app.Cliente(), url, "config-numeracion", new Dictionary<string, string>
+        {
+            ["Input.Filas[0].Tipo"] = "2", ["Input.Filas[0].SerieId"] = IdOtra.ToString(), ["Input.Filas[0].Xmin"] = "9",
+            ["Input.Filas[1].Tipo"] = "5", ["Input.Filas[1].SerieId"] = IdOtra.ToString(), ["Input.Filas[1].Xmin"] = "7",
+        });
+
+        api.Verify(c => c.UpdateAsync(TipoDocumentoSerie.FacturaVenta, It.IsAny<Guid>(), It.IsAny<long>(), It.IsAny<CancellationToken>()), Times.Once);
+        api.Verify(c => c.UpdateAsync(TipoDocumentoSerie.Cobro, IdOtra, 7, It.IsAny<CancellationToken>()), Times.Exactly(2));
     }
 
     private static BlazorSsrFactory Configurar(BlazorSsrFactory app)
