@@ -21,6 +21,10 @@ internal static class NotaCreditoVentaErrores
     public static Error Posteada(string campo = "Id") =>
         new("nota_credito_borrador.posteada.conflicto", "El borrador de nota de crédito ya se posteó: es de solo lectura (abra su nota).", campo);
 
+    /// <summary>Filtro <c>estado</c> del listado de borradores que no es Abierta (1) ni Posteada (3): 400.</summary>
+    public static Error EstadoInvalido() =>
+        new("nota_credito_borrador.estado_invalido", "El estado debe ser 1 (Abierta) o 3 (Posteada).", "Estado");
+
     public static Error LineaNoEncontrada() =>
         new("nota_credito_linea.no_encontrado", "No se encontró la línea de nota de crédito solicitada.", "Id");
 

@@ -4,7 +4,8 @@ namespace OpenSource1.Application.Features.NotasCreditoVenta.Borradores.Dtos;
 
 /// <summary>
 /// Línea de la factura de un borrador que se puede acreditar (Producto o CuentaContable), con lo facturado, lo ya acreditado por
-/// notas POSTEADAS, lo pendiente y, si el borrador ya la incluye, el Id y la cantidad de su línea de nota.
+/// notas POSTEADAS (sin la propia nota de un borrador Posteada), lo pendiente y, si el borrador ya la incluye, el Id y la cantidad de
+/// su línea de nota.
 /// </summary>
 public sealed class LineaFacturaAcreditableResponse
 {

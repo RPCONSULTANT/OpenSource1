@@ -2,8 +2,10 @@ using MediatR;
 using OpenSource1.Application.Features.FacturasVenta.Calculo;
 using OpenSource1.Application.Features.NotasCreditoVenta.Borradores.Dtos;
 using OpenSource1.Application.Features.NotasCreditoVenta.Borradores.Queries;
+using OpenSource1.Application.Features.NotasCreditoVenta.Posteadas;
 using OpenSource1.Application.Features.NotasCreditoVenta.Posteo;
 using OpenSource1.Core.Common;
+using OpenSource1.Core.Enums;
 
 namespace OpenSource1.Application.Features.NotasCreditoVenta.Borradores.Handlers;
 
@@ -24,9 +26,16 @@ public sealed class ListNotasCreditoVentaBorradorQueryHandler(INotaCreditoVentaB
     : IRequestHandler<ListNotasCreditoVentaBorradorQuery, Result<PagedResult<NotaCreditoVentaBorradorResponse>>>
 {
     public async Task<Result<PagedResult<NotaCreditoVentaBorradorResponse>>> Handle(
-        ListNotasCreditoVentaBorradorQuery request, CancellationToken cancellationToken) =>
-        Result<PagedResult<NotaCreditoVentaBorradorResponse>>.Exito(
+        ListNotasCreditoVentaBorradorQuery request, CancellationToken cancellationToken)
+    {
+        if (request.Search.Estado is { } estado && !Enum.IsDefined(estado))
+        {
+            return Result<PagedResult<NotaCreditoVentaBorradorResponse>>.Fallo(NotaCreditoVentaErrores.EstadoInvalido());
+        }
+
+        return Result<PagedResult<NotaCreditoVentaBorradorResponse>>.Exito(
             await readRepository.ListAsync(request.Search, request.Paginacion, cancellationToken));
+    }
 }
 
 public sealed class ListLineasNotaCreditoVentaBorradorQueryHandler(INotaCreditoVentaBorradorReadRepository readRepository)
@@ -79,9 +88,11 @@ public sealed class ListLineasAcreditablesNotaCreditoVentaQueryHandler(INotaCred
 /// <summary>
 /// Vista previa de totales con los MISMOS importes que tendría el documento posteado ahora (Ruling FI): recalculados desde la factura
 /// y topados por lo acreditado por notas posteadas (<see cref="TopesNotaCredito"/>), con el IVA agrupado y topado. Sin bloqueos: si
-/// otra nota se postea antes, el posteo recalcula con lo vigente.
+/// otra nota se postea antes, el posteo recalcula con lo vigente. Un borrador <see cref="EstadoNotaCreditoBorrador.Posteada"/> devuelve
+/// los totales REALES de su nota (cabecera y líneas de IVA): recalcularlo restaría lo que acreditó su propia nota.
 /// </summary>
-public sealed class GetTotalesNotaCreditoVentaBorradorQueryHandler(INotaCreditoVentaBorradorReadRepository readRepository, INotaCreditoVentaDatos datos)
+public sealed class GetTotalesNotaCreditoVentaBorradorQueryHandler(
+    INotaCreditoVentaBorradorReadRepository readRepository, INotaCreditoVentaDatos datos, INotaCreditoVentaReadRepository notas)
     : IRequestHandler<GetTotalesNotaCreditoVentaBorradorQuery, Result<TotalesFactura>>
 {
     public async Task<Result<TotalesFactura>> Handle(GetTotalesNotaCreditoVentaBorradorQuery request, CancellationToken cancellationToken)
@@ -90,6 +101,14 @@ public sealed class GetTotalesNotaCreditoVentaBorradorQueryHandler(INotaCreditoV
         if (borrador is null)
         {
             return Result<TotalesFactura>.Fallo(NotaCreditoVentaErrores.BorradorNoEncontrado("NotaCreditoVentaBorradorId"));
+        }
+
+        if (borrador is { Estado: EstadoNotaCreditoBorrador.Posteada, NotaCreditoVentaNumero: { } numeroNota }
+            && await notas.GetByNumeroAsync(numeroNota, cancellationToken) is { } nota)
+        {
+            return Result<TotalesFactura>.Exito(new TotalesFactura(
+                nota.LineasIva.Select(i => new GrupoIvaCalculado(i.IdentificadorIva, i.PorcentajeIva, i.BaseImponible, i.ImporteIva)).ToList(),
+                nota.Cabecera.ImporteSinIva, nota.Cabecera.ImporteIva, nota.Cabecera.ImporteTotal));
         }
 
         var lineas = await readRepository.ListLineasAsync(request.NotaCreditoVentaBorradorId, cancellationToken);

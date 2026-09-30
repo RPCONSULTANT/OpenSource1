@@ -4,7 +4,7 @@ namespace OpenSource1.Application.Features.NotasCreditoVenta.Borradores.Dtos;
 
 /// <summary>
 /// Línea de un borrador de nota de crédito con los valores copiados de la factura, los códigos resueltos por JOIN y, de la línea de
-/// la factura, lo facturado y lo ya acreditado por notas posteadas.
+/// la factura, lo facturado y lo ya acreditado por notas posteadas (sin la propia nota de un borrador Posteada).
 /// </summary>
 public sealed class LineaNotaCreditoVentaBorradorResponse
 {

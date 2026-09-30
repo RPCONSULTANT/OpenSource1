@@ -154,6 +154,16 @@ public sealed class NotasCreditoVentaApiTests(PostgresTestFixture fixture) : ICl
             (posteado.Estado, posteado.NotaCreditoVentaNumero, posteado.SerieRegistroCodigo, posteado.SerieBorradorCodigo));
         Assert.All(posteados.Items, b => Assert.Equal((EstadoNotaCreditoBorrador.Posteada, true), (b.Estado, b.NotaCreditoVentaNumero is not null)));
 
+        // Un estado que no es 1 ni 3: 400 con el campo Estado.
+        foreach (var invalido in new[] { 0, 2, 99, 65537 })
+        {
+            var respuesta = await _client.GetAsync($"/api/notas-credito-venta/borradores?facturaVentaNumero={factura}&estado={invalido}");
+            var cuerpo = await respuesta.Content.ReadAsStringAsync();
+            Assert.True(respuesta.StatusCode == HttpStatusCode.BadRequest, cuerpo);
+            using var problema = System.Text.Json.JsonDocument.Parse(cuerpo);
+            Assert.True(problema.RootElement.GetProperty("errors").TryGetProperty("Estado", out _), cuerpo);
+        }
+
         // La nota posteada enlaza a su borrador.
         var cabecera = Assert.Single((await GetAsync<PagedResult<NotaCreditoVentaResponse>>(
             $"/api/notas-credito-venta?facturaVentaNumero={factura}")).Items);

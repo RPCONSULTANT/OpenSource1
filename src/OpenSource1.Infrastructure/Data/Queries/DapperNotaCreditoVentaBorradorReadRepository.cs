@@ -41,13 +41,16 @@ public sealed class DapperNotaCreditoVentaBorradorReadRepository(IDbSession sess
         WHERE n."IsDeleted" = false
         """;
 
-    // Acreditado de la línea de factura por notas POSTEADAS.
+    // Acreditado de la línea de factura por notas POSTEADAS, sin la propia nota de un borrador Posteada (no se resta a sí mismo).
     private const string ColumnasLinea = """
         l."Id", l."NotaCreditoVentaBorradorId", l."LineaFacturaVentaId", l."NumeroLinea", l."Tipo",
         l."ProductoId", p."Codigo" AS "ProductoCodigo", l."CuentaContableId", c."Numero" AS "CuentaContableNumero",
         l."Descripcion", l."AlmacenId", a."Codigo" AS "AlmacenCodigo", l."UnidadMedidaId", u."Codigo" AS "UnidadMedidaCodigo",
         l."CantidadPorUnidadMedida", l."Cantidad", lf."Cantidad" AS "CantidadFacturada",
-        COALESCE((SELECT SUM(ln."Cantidad") FROM "LineasNotaCreditoVenta" ln WHERE ln."LineaFacturaVentaId" = l."LineaFacturaVentaId"), 0)
+        COALESCE((SELECT SUM(ln."Cantidad") FROM "LineasNotaCreditoVenta" ln
+                  WHERE ln."LineaFacturaVentaId" = l."LineaFacturaVentaId"
+                    AND ln."NotaCreditoVentaNumero" IS DISTINCT FROM (
+                        SELECT nb."NotaCreditoVentaNumero" FROM "NotasCreditoVentaBorrador" nb WHERE nb."Id" = l."NotaCreditoVentaBorradorId")), 0)
             AS "CantidadAcreditada",
         l."PrecioUnitario", l."PorcentajeDescuentoLinea", l."ImporteDescuentoLinea", l."ImporteLinea",
         l."GrupoProductoId", l."GrupoIvaProductoId", l."GrupoInventarioId", l."IdentificadorIva", l."PorcentajeIva",
@@ -150,7 +153,9 @@ public sealed class DapperNotaCreditoVentaBorradorReadRepository(IDbSession sess
                 SELECT lf."Id" AS "LineaFacturaVentaId", lf."NumeroLinea", lf."Tipo", lf."ProductoId", p."Codigo" AS "ProductoCodigo",
                        lf."CuentaContableId", c."Numero" AS "CuentaContableNumero", lf."Descripcion", u."Codigo" AS "UnidadMedidaCodigo",
                        lf."PrecioUnitario", lf."PorcentajeDescuentoLinea", lf."Cantidad" AS "CantidadFacturada",
-                       COALESCE((SELECT SUM(ln."Cantidad") FROM "LineasNotaCreditoVenta" ln WHERE ln."LineaFacturaVentaId" = lf."Id"), 0)
+                       COALESCE((SELECT SUM(ln."Cantidad") FROM "LineasNotaCreditoVenta" ln
+                                 WHERE ln."LineaFacturaVentaId" = lf."Id"
+                                   AND ln."NotaCreditoVentaNumero" IS DISTINCT FROM n."NotaCreditoVentaNumero"), 0)
                            AS "CantidadAcreditada",
                        lb."Id" AS "LineaNotaId", lb."Cantidad" AS "CantidadEnBorrador"
                 FROM "NotasCreditoVentaBorrador" n

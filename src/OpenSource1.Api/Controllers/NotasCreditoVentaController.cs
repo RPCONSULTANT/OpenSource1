@@ -69,7 +69,7 @@ public sealed class NotasCreditoVentaController(ISender sender) : ControllerBase
 
     // ----- Borradores (cabecera) -----
 
-    /// <summary>Borradores por estado: <c>estado</c> 1 = Abierta (por defecto), 3 = Posteada.</summary>
+    /// <summary>Borradores por estado: <c>estado</c> 1 = Abierta (por defecto), 3 = Posteada; cualquier otro valor, 400 en <c>Estado</c>.</summary>
     [HttpGet("borradores")]
     [Authorize(Policy = ApplicationPolicies.CanConsult)]
     [ProducesResponseType<PagedResult<NotaCreditoVentaBorradorResponse>>(StatusCodes.Status200OK)]
@@ -88,7 +88,9 @@ public sealed class NotasCreditoVentaController(ISender sender) : ControllerBase
         var result = await sender.Send(
             new ListNotasCreditoVentaBorradorQuery(
                 new NotaCreditoVentaBorradorSearchCriteria(
-                    numero, facturaVentaNumero, nombreFacturacion, socioId, (EstadoNotaCreditoBorrador?)estado),
+                    numero, facturaVentaNumero, nombreFacturacion, socioId,
+                    // Fuera del rango de short, un valor no definido (0) para que el handler lo rechace en vez de truncarlo.
+                    estado is { } e ? (EstadoNotaCreditoBorrador)(e is >= short.MinValue and <= short.MaxValue ? e : 0) : null),
                 new PageRequest(pagina, tamanoPagina, ordenarPor, descendente)),
             cancellationToken);
 

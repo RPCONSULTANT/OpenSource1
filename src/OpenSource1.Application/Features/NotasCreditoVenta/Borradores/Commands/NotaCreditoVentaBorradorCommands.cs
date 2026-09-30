@@ -31,7 +31,10 @@ public sealed record UpdateNotaCreditoVentaBorradorCommand(
     Guid Id, DateOnly? FechaRegistro, DateOnly? FechaDocumento, string? Descripcion, long Xmin, Guid? SerieRegistroId = null)
     : IRequest<Result<NotaCreditoVentaBorradorResponse>>;
 
-/// <summary>Borrado lógico del borrador y de todas sus líneas.</summary>
+/// <summary>
+/// Borrado lógico del borrador y de todas sus líneas. Solo un borrador Abierta: uno Posteada es de solo lectura (409
+/// <c>nota_credito_borrador.posteada.conflicto</c>).
+/// </summary>
 public sealed record DeleteNotaCreditoVentaBorradorCommand(Guid Id) : IRequest<Result>;
 
 /// <summary>
