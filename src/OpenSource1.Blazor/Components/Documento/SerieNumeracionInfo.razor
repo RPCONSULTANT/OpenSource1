@@ -1,6 +1,6 @@
 @* Serie de registro y próximo número (vista previa sin reserva, spec no-series). Error prevalece sobre ProximoNumero; el aviso se muestra siempre que haya. *@
 <p class="text-xs text-slate-500" data-testid="serie-registro">
-    Serie de registro: <strong>@Codigo</strong>
+    Serie de registro: @if (Codigo is null) { <span>—</span> } else { <strong>@Codigo</strong> }
     @if (Error is not null)
     {
         <span class="ml-1 text-red-600">· @Error</span>

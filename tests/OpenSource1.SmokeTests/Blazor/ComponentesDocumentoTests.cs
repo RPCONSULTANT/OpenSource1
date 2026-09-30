@@ -2,6 +2,7 @@ extern alias BlazorApp;
 using BlazorApp::OpenSource1.Blazor.Components;
 using BlazorApp::OpenSource1.Blazor.Components.Documento;
 using BlazorApp::OpenSource1.Blazor.Services;
+using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using OpenSource1.Application.Features.FacturasVenta.Calculo;
@@ -27,7 +28,8 @@ public sealed class ComponentesDocumentoTests
         var html = await Renderizar<DocumentoTotales>(new() { ["Totales"] = totales });
 
         Assert.Contains("data-testid=\"totales\"", html);
-        Assert.Contains("<dd class=\"font-semibold text-slate-800\" data-testid=\"total-subtotal\">100.00</dd>", html);
+        Assert.Contains("data-testid=\"total-subtotal\">100.00<", html);
+        Assert.Contains(">Grupo</th>", html);
         Assert.Contains("data-testid=\"total-descuentos\">5.00<", html);
         Assert.Contains("data-testid=\"total-sin-iva\">95.00<", html);
         Assert.Contains("data-testid=\"total-iva\">17.10<", html);
@@ -43,6 +45,15 @@ public sealed class ComponentesDocumentoTests
         Assert.Contains("Totales (vista previa)", html);
         Assert.Contains("No fue posible calcular los totales.", html);
         Assert.DoesNotContain("data-testid=\"total\"", html);
+    }
+
+    [Fact]
+    public async Task Totales_SinGrupos_FilaSinItbis()
+    {
+        var html = await Renderizar<DocumentoTotales>(new() { ["Totales"] = new TotalesDocumento(10m, 0m, 10m, 0m, 10m, []) });
+
+        Assert.Contains("Sin ITBIS.", html);
+        Assert.Contains("data-testid=\"total\">10.00<", html);
     }
 
     [Fact]
@@ -73,6 +84,121 @@ public sealed class ComponentesDocumentoTests
     }
 
     [Fact]
+    public async Task InfoDeSerie_SinCodigo_Guion_SinStrongVacio()
+    {
+        var html = await Renderizar<SerieNumeracionInfo>(new() { ["Codigo"] = null });
+
+        Assert.Contains("Serie de registro: <span>—</span>", html);
+        Assert.DoesNotContain("<strong></strong>", html);
+    }
+
+    [Fact]
+    public async Task Cabecera_CampoSeries_MuestraLaInfoDeSerieDentroDeLaCabecera()
+    {
+        var html = await Renderizar<DocumentoCabecera>(new()
+        {
+            ["Campos"] = new List<CampoDocumento>
+            {
+                new("Vender a", "C-001"), CamposDocumento.Series("FV", new ProximoVista("FV-000012", null, null)),
+            },
+        });
+        var posteada = await Renderizar<DocumentoCabecera>(new() { ["Campos"] = new List<CampoDocumento> { CamposDocumento.Series("NC") } });
+
+        Assert.Contains(">Series</p>", html);
+        Assert.Contains("data-testid=\"serie-registro\"", html);
+        Assert.Contains("Próximo número: <strong>FV-000012</strong>", html);
+        Assert.Contains("Serie de registro: <strong>NC</strong>", posteada);
+        Assert.DoesNotContain("Próximo número", posteada);
+    }
+
+    [Fact]
+    public async Task CabeceraEditable_TarjetaConCamposYGuardar_OSoloElFormularioVacio()
+    {
+        var modelo = new ModeloPrueba();
+        RenderFragment campos = b => b.AddMarkupContent(0, "<input name=\"UpdateInput.Xmin\" value=\"5\" />");
+
+        var visible = await Renderizar<DocumentoCabeceraEditable>(new() { ["Model"] = modelo, ["FormName"] = "guardar-cabecera", ["ChildContent"] = campos });
+        var fallida = await Renderizar<DocumentoCabeceraEditable>(new()
+        {
+            ["Model"] = modelo, ["FormName"] = "guardar-cabecera", ["ChildContent"] = campos, ["CargaFallida"] = true, ["MensajeCargaFallida"] = "No fue posible cargar los clientes.",
+        });
+        var oculta = await Renderizar<DocumentoCabeceraEditable>(new() { ["Model"] = modelo, ["FormName"] = "guardar-cabecera", ["Mostrar"] = false, ["ChildContent"] = campos });
+
+        Assert.Contains("data-testid=\"cabecera-editable\"", visible);
+        // method="post" y _handler solo los emite el host SSR; aquí se comprueba el <form>. El POST real a través de este componente
+        // se verificó con la página de cabecera de nota (NotaCabecera_CargaLoGuardado_YGuardaConXmin) al preparar el contrato.
+        Assert.Contains("<form data-enhance", visible);
+        Assert.Contains("name=\"UpdateInput.Xmin\"", visible);
+        Assert.Contains("data-testid=\"guardar-cabecera\"", visible);
+        Assert.Contains(">Guardar cabecera</button>", visible);
+        Assert.Contains("No fue posible cargar los clientes.", fallida);
+        Assert.DoesNotContain("data-testid=\"guardar-cabecera\"", fallida);
+        Assert.DoesNotContain("cabecera-editable", oculta);
+        Assert.DoesNotContain("UpdateInput.Xmin", oculta);
+        Assert.Contains("<form></form>", oculta);
+    }
+
+    [Fact]
+    public async Task AvisoPosteado_TextoFijoYEnlace()
+    {
+        var html = await Renderizar<DocumentoAvisoPosteado>(new() { ["Documento"] = "la factura", ["Numero"] = "00000012", ["Href"] = "/facturas-venta/00000012" });
+
+        Assert.Contains("data-testid=\"aviso-posteada\"", html);
+        Assert.Contains("Borrador posteado como la factura 00000012: es de solo lectura.", html);
+        Assert.Contains("href=\"/facturas-venta/00000012\" data-testid=\"ver-posteado\">Ver la factura 00000012</a>", html);
+    }
+
+    [Fact]
+    public async Task FilaFormulario_AltaYEdicion()
+    {
+        RenderFragment contenido = b => b.AddMarkupContent(0, "<form>x</form>");
+
+        var alta = await Renderizar<DocumentoFilaFormulario>(new() { ["Columnas"] = 11, ["ChildContent"] = contenido });
+        var edicion = await Renderizar<DocumentoFilaFormulario>(new() { ["Columnas"] = 13, ["Variante"] = VarianteFilaFormulario.Edicion, ["ChildContent"] = contenido });
+
+        Assert.Contains("<tr data-testid=\"fila-nueva\"><td colspan=\"11\" class=\"px-4 py-4 bg-green-50/40\">", alta.Replace("\n", "").Replace("    ", ""));
+        Assert.Contains("<form>x</form>", alta);
+        Assert.Contains("data-testid=\"fila-edicion\"", edicion);
+        Assert.Contains("colspan=\"13\"", edicion);
+        Assert.Contains("bg-amber-50/40", edicion);
+    }
+
+    [Fact]
+    public async Task LineasLectura_FacturaYNota_ColumnasFijas()
+    {
+        var producto = new LineaDocumento(10000, TipoLineaFactura.Producto, "P-001", "Tornillo", "ALM1", 2m, "UD", 50m, 5m, 95m, "ITBIS18", 18m);
+        var comentario = new LineaDocumento(20000, TipoLineaFactura.Comentario, null, "Entrega parcial", null, 0m, null, 0m, 0m, 0m, null, 0m);
+
+        var factura = await Renderizar<DocumentoLineasLectura<LineaDocumento>>(new()
+        {
+            ["Columnas"] = ColumnasDocumento.Factura, ["Lineas"] = new List<LineaDocumento> { producto, comentario },
+        });
+        var nota = await Renderizar<DocumentoLineasLectura<LineaDocumento>>(new()
+        {
+            ["Columnas"] = ColumnasDocumento.Nota, ["Lineas"] = new List<LineaDocumento> { producto with { Devolucion = true } },
+        });
+        var vacia = await Renderizar<DocumentoLineasLectura<LineaDocumento>>(new()
+        {
+            ["Columnas"] = ColumnasDocumento.Factura, ["Lineas"] = new List<LineaDocumento>(), ["TextoVacio"] = "La factura no tiene líneas.",
+        });
+
+        Assert.Equal(10, ColumnasDocumento.Factura.Count);
+        Assert.Equal(11, ColumnasDocumento.Nota.Count);
+        Assert.Contains("data-testid=\"lineas-documento\"", factura);
+        Assert.Contains(">Producto / Cuenta</th>", factura);
+        Assert.Contains(">95.00<", factura);
+        Assert.Contains("ITBIS18 18%", factura);
+        Assert.Contains("<span class=\"ml-1 text-xs text-slate-400\">UD</span>", factura);
+        Assert.Contains("Entrega parcial", factura);
+        Assert.Contains("2 línea(s).", factura);
+        Assert.DoesNotContain(">Devolución</th>", factura);
+        Assert.Contains(">Devolución</th>", nota);
+        Assert.Contains(">Sí<", nota);
+        Assert.Contains("colspan=\"10\"", vacia);
+        Assert.Contains("La factura no tiene líneas.", vacia);
+    }
+
+    [Fact]
     public async Task Selector_ConservaLaSerieVigenteAunqueNoEsteEntreLasActivas()
     {
         var vigente = Guid.NewGuid();
@@ -86,13 +212,28 @@ public sealed class ComponentesDocumentoTests
         var sinCarga = await Renderizar<SelectorSerie>(new()
         {
             ["Id"] = "serie-registro", ["Name"] = "Input.SerieRegistroId", ["Series"] = new List<SerieResponse>(),
-            ["Seleccion"] = vigente, ["VigenteId"] = vigente, ["VigenteCodigo"] = "FV",
+            ["Seleccion"] = vigente, ["VigenteId"] = vigente, ["VigenteCodigo"] = "FV", ["CargaFallida"] = true,
         });
 
         Assert.Contains("name=\"Input.SerieRegistroId\"", html);
         Assert.Contains($"<option value=\"{vigente}\" selected=\"selected\">FV (no disponible)</option>", html);
         Assert.Contains($"<option value=\"{otra.Id}\">FV2 — Facturas 2 (próximo FV2-0001)</option>", html);
-        Assert.Contains($"<option value=\"{vigente}\" selected=\"selected\">FV (no disponible)</option>", sinCarga);
+        Assert.Contains($"<option value=\"{vigente}\" selected=\"selected\">FV (actual)</option>", sinCarga);
+    }
+
+    [Fact]
+    public async Task Selector_SinSeleccion_ConservaLaVigente()
+    {
+        var vigente = Serie("FV", "Facturas", null);
+        var otra = Serie("FV2", "Facturas 2", null);
+
+        var html = await Renderizar<SelectorSerie>(new()
+        {
+            ["Id"] = "s", ["Name"] = "UpdateInput.SerieRegistroId", ["Series"] = new List<SerieResponse> { otra, vigente }, ["VigenteId"] = vigente.Id,
+        });
+
+        Assert.Matches($"<option value=\"{vigente.Id}\" selected[^>]*>FV — Facturas</option>", html);
+        Assert.Contains($"<option value=\"{otra.Id}\">FV2", html);
     }
 
     [Fact]
@@ -152,6 +293,11 @@ public sealed class ComponentesDocumentoTests
         Assert.Equal("Posteada", VentasOpciones.Estado(EstadoFacturaBorrador.Posteada));
         Assert.Equal("Abierta", VentasOpciones.EstadoNota(EstadoNotaCreditoBorrador.Abierta));
         Assert.Equal("Posteada", VentasOpciones.EstadoNota(EstadoNotaCreditoBorrador.Posteada));
+    }
+
+    private sealed class ModeloPrueba
+    {
+        public long Xmin { get; set; }
     }
 
     private static SerieResponse Serie(string codigo, string descripcion, string? proximo) => new()

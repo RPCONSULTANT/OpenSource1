@@ -10,8 +10,12 @@
     {
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 px-6 py-4">
             <table class="min-w-full text-sm">
-                <thead><tr class="text-xs uppercase text-slate-500"><th class="text-left py-1">ITBIS</th><th class="text-right py-1">%</th><th class="text-right py-1">Base</th><th class="text-right py-1">ITBIS</th></tr></thead>
+                <thead><tr class="text-xs uppercase text-slate-500"><th class="text-left py-1">Grupo</th><th class="text-right py-1">%</th><th class="text-right py-1">Base</th><th class="text-right py-1">ITBIS</th></tr></thead>
                 <tbody>
+                    @if (Totales.Grupos.Count == 0)
+                    {
+                        <tr><td colspan="4" class="py-1 text-slate-400">Sin ITBIS.</td></tr>
+                    }
                     @foreach (var g in Totales.Grupos)
                     {
                         <tr><td class="py-1 text-slate-700">@g.IdentificadorIva</td><td class="py-1 text-right text-slate-500">@g.PorcentajeIva.ToString("0.#####", CultureInfo.InvariantCulture)</td><td class="py-1 text-right">@VentasOpciones.Importe(g.BaseImponible)</td><td class="py-1 text-right">@VentasOpciones.Importe(g.ImporteIva)</td></tr>

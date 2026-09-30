@@ -1,0 +1,40 @@
+@* Cabecera editable de un documento (spec no-series, Parte 4; contrato S11 para S13/S14). Contrato "formularios siempre en el árbol":
+   con Mostrar=false (sin permiso, Posteada, sin borrador) se pinta el EditForm VACÍO con el mismo FormName, de modo que un POST
+   obsoleto o forzado llega al handler de la página y ésta muestra el mensaje real de la API (409/403), nunca el 400 de Blazor.
+   CargaFallida (socios/almacenes, NO series: F7) muestra el aviso y oculta "Guardar cabecera". *@
+@if (Mostrar)
+{
+    <div class="rounded-2xl border border-slate-200 bg-white shadow-sm mb-6 px-6 py-5" data-testid="cabecera-editable">
+        @if (CargaFallida)
+        {
+            <div class="mb-4"><MessageBox Type="danger" Message="@MensajeCargaFallida" /></div>
+        }
+        <EditForm Model="Model" FormName="@FormName" OnValidSubmit="OnValidSubmit" Enhance="true">
+            <DataAnnotationsValidator />
+            @ChildContent
+            @if (!CargaFallida)
+            {
+                <div class="mt-4"><button type="submit" data-testid="guardar-cabecera" class="btn-press rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">@TextoGuardar</button></div>
+            }
+        </EditForm>
+    </div>
+}
+else
+{
+    <EditForm Model="Model" FormName="@FormName" OnValidSubmit="OnValidSubmit"></EditForm>
+}
+
+@code {
+    /// <summary>Modelo del formulario (el de <c>[SupplyParameterFromForm(FormName = …)]</c> de la página, creado antes del primer await).</summary>
+    [Parameter, EditorRequired] public object Model { get; set; } = default!;
+    [Parameter, EditorRequired] public string FormName { get; set; } = string.Empty;
+    [Parameter] public EventCallback<EditContext> OnValidSubmit { get; set; }
+    /// <summary>true = tarjeta con los campos; false = solo el EditForm vacío (siempre en el árbol).</summary>
+    [Parameter] public bool Mostrar { get; set; } = true;
+    /// <summary>Fallo al cargar opciones imprescindibles (socios, almacenes). El fallo de series NO cuenta (F7).</summary>
+    [Parameter] public bool CargaFallida { get; set; }
+    [Parameter] public string MensajeCargaFallida { get; set; } = "No fue posible cargar las opciones de la cabecera; recargue la página para modificarla.";
+    [Parameter] public string TextoGuardar { get; set; } = "Guardar cabecera";
+    /// <summary>Campos (hidden de Xmin incluido), dentro del EditForm.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

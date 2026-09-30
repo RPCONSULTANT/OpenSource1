@@ -1,0 +1,16 @@
+@* Aviso de borrador Posteada (solo lectura) con enlace al documento posteado (spec no-series). *@
+<div class="mb-6" data-testid="aviso-posteada">
+    <MessageBox Type="info" Message="@($"Borrador posteado como {Documento} {Numero}: es de solo lectura.")" />
+    @if (Href is not null)
+    {
+        <p class="mt-2 px-1 text-sm"><a class="font-semibold text-brand-700 hover:underline" href="@Href" data-testid="ver-posteado">Ver @Documento @Numero</a></p>
+    }
+</div>
+
+@code {
+    /// <summary>"la factura" o "la nota de crédito".</summary>
+    [Parameter, EditorRequired] public string Documento { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public string Numero { get; set; } = string.Empty;
+    /// <summary>Ruta del documento posteado (<c>/facturas-venta/{numero}</c>, <c>/notas-credito-venta/{numero}</c>), ya escapada.</summary>
+    [Parameter] public string? Href { get; set; }
+}

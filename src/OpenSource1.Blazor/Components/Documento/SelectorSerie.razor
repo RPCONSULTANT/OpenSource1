@@ -1,19 +1,19 @@
 @using OpenSource1.Application.Features.Series.Dtos
 @* <select> de series activas de un tipo (spec no-series). La serie vigente (Seleccion) se ofrece SIEMPRE aunque ya no esté activa
-   o la carga de series haya fallado (F7): sin esto, guardar la cambiaría en silencio. OpcionConfigurada: primera opción vacía =
+   o la carga de series haya fallado (F7): sin esto, guardar la cambiaría en silencio. Valor efectivo = Seleccion ?? VigenteId. OpcionConfigurada: primera opción vacía =
    "la configurada" (alta; el campo llega vacío y la API usa la serie configurada del tipo). *@
 <select id="@Id" name="@Name" class="@VentasCss.Input">
     @if (OpcionConfigurada)
     {
-        <option value="" selected="@(Seleccion is null)">— La configurada —</option>
+        <option value="" selected="@(Efectiva is null)">— La configurada —</option>
     }
-    @if (Seleccion is { } id && Series.All(s => s.Id != id))
+    @if (Efectiva is { } id && Series.All(s => s.Id != id))
     {
-        <option value="@id" selected="selected">@(VigenteId == id && VigenteCodigo is not null ? $"{VigenteCodigo} (no disponible)" : $"Serie no disponible ({id})")</option>
+        <option value="@id" selected="selected">@EtiquetaFueraDeLista(id)</option>
     }
     @foreach (var s in Series)
     {
-        <option value="@s.Id" selected="@(s.Id == Seleccion)">@s.Codigo — @s.Descripcion@(s.ProximoNumero is null ? "" : $" (próximo {s.ProximoNumero})")</option>
+        <option value="@s.Id" selected="@(s.Id == Efectiva)">@s.Codigo — @s.Descripcion@(s.ProximoNumero is null ? "" : $" (próximo {s.ProximoNumero})")</option>
     }
 </select>
 
@@ -27,4 +27,21 @@
     [Parameter] public Guid? VigenteId { get; set; }
     [Parameter] public string? VigenteCodigo { get; set; }
     [Parameter] public bool OpcionConfigurada { get; set; }
+    /// <summary>La carga de series falló (F7): la serie actual se rotula "(actual)", no "(no disponible)".</summary>
+    [Parameter] public bool CargaFallida { get; set; }
+
+    // M3: si la página no rellena Seleccion en la edición, se conserva la vigente (nunca la primera de la lista en silencio).
+    private Guid? Efectiva => Seleccion ?? VigenteId;
+
+    private string EtiquetaFueraDeLista(Guid id)
+    {
+        var codigo = VigenteId == id ? VigenteCodigo : null;
+        return (codigo, CargaFallida) switch
+        {
+            (not null, true) => $"{codigo} (actual)",
+            (not null, false) => $"{codigo} (no disponible)",
+            (null, true) => "Serie actual",
+            _ => $"Serie no disponible ({id})",
+        };
+    }
 }

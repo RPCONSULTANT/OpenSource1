@@ -1,0 +1,45 @@
+@typeparam TLinea
+@* Tabla de líneas en solo lectura (NS20: el mismo diseño en borradores Posteada y documentos posteados). Columnas por parámetro;
+   los dos usos fijos están en ColumnasDocumento (Factura, Nota) sobre LineaDocumento. *@
+<div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden mb-6">
+    <div class="px-6 py-4 border-b border-slate-100">
+        <h2 class="text-sm font-semibold text-slate-700">@Titulo</h2>
+        <p class="mt-1 text-xs text-slate-500">@Lineas.Count línea(s).</p>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-slate-100 text-sm" data-testid="@TestId">
+            <thead class="bg-slate-50">
+                <tr>
+                    @foreach (var c in Columnas)
+                    {
+                        <th class="px-4 py-3 @(c.Derecha ? "text-right" : "text-left") text-xs font-semibold text-slate-500 uppercase">@c.Titulo</th>
+                    }
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-50 bg-white">
+                @if (Lineas.Count == 0)
+                {
+                    <tr><td colspan="@Columnas.Count" class="px-4 py-8 text-center text-slate-400 text-sm">@TextoVacio</td></tr>
+                }
+                @foreach (var l in Lineas)
+                {
+                    <tr class="hover:bg-slate-50">
+                        @foreach (var c in Columnas)
+                        {
+                            <td class="px-4 py-3 @(c.Derecha ? "text-right" : null) @(c.Clase ?? "text-slate-700")">@c.Valor(l)@if (c.Detalle?.Invoke(l) is { Length: > 0 } detalle)
+                            {<span class="ml-1 text-xs text-slate-400">@detalle</span>}</td>
+                        }
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<ColumnaDocumento<TLinea>> Columnas { get; set; } = [];
+    [Parameter, EditorRequired] public IReadOnlyList<TLinea> Lineas { get; set; } = [];
+    [Parameter] public string Titulo { get; set; } = "Líneas";
+    [Parameter] public string TextoVacio { get; set; } = "El documento no tiene líneas.";
+    [Parameter] public string TestId { get; set; } = "lineas-documento";
+}

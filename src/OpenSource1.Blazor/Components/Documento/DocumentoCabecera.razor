@@ -5,16 +5,23 @@
         {
             <div class="@(c.Ancho ? "sm:col-span-2 lg:col-span-4" : null)">
                 <p class="text-xs font-bold uppercase tracking-wide text-slate-400">@c.Etiqueta</p>
-                <p class="mt-1 text-slate-700">
-                    @if (c.Href is not null)
-                    {
-                        <a class="hover:underline" href="@c.Href">@c.Valor</a>
-                    }
-                    else
-                    {
-                        @c.Valor
-                    }
-                </p>
+                @if (c.Contenido is not null)
+                {
+                    <div class="mt-1">@c.Contenido</div>
+                }
+                else
+                {
+                    <p class="mt-1 text-slate-700">
+                        @if (c.Href is not null)
+                        {
+                            <a class="hover:underline" href="@c.Href">@c.Valor</a>
+                        }
+                        else
+                        {
+                            @c.Valor
+                        }
+                    </p>
+                }
                 @if (!string.IsNullOrWhiteSpace(c.Detalle))
                 {
                     <p class="text-xs text-slate-400">@c.Detalle</p>

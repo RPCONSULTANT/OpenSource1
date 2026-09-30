@@ -93,6 +93,62 @@ public sealed class SerieApiClientTests
     }
 
     [Fact]
+    public async Task Series_AltaModificacionBorradoYListadoPorCodigo()
+    {
+        var id = Guid.NewGuid();
+        var input = new SerieInput("FV2", "Facturas 2", TipoDocumentoSerie.FacturaVenta, false, true);
+        const string serieJson = """{"id":"00000000-0000-0000-0000-000000000005","codigo":"FV2","xmin":8}""";
+        var alta = new Grabador(HttpStatusCode.Created, serieJson);
+        var modificacion = new Grabador(HttpStatusCode.OK, serieJson);
+        var borrado = new Grabador(HttpStatusCode.NoContent, "");
+        var borradoLinea = new Grabador(HttpStatusCode.Conflict, """{"title":"La línea está usada."}""");
+        var listado = new Grabador(HttpStatusCode.OK, """{"items":[],"pagina":1,"tamanoPagina":50,"total":0}""");
+
+        var creada = await new SerieApiClient(Http(alta), NullLogger<SerieApiClient>.Instance).CreateAsync(input);
+        await new SerieApiClient(Http(modificacion), NullLogger<SerieApiClient>.Instance).UpdateAsync(id, input, xmin: 7);
+        var eliminada = await new SerieApiClient(Http(borrado), NullLogger<SerieApiClient>.Instance).DeleteAsync(id);
+        var lineaNo = await new SerieApiClient(Http(borradoLinea), NullLogger<SerieApiClient>.Instance).DeleteLineaAsync(id, Guid.Empty);
+        await new SerieApiClient(Http(listado), NullLogger<SerieApiClient>.Instance).ListAsync(new SerieFiltro(" fv ", null, null));
+
+        Assert.True(creada.Succeeded);
+        Assert.Equal("FV2", creada.Valor!.Codigo);
+        using (var cuerpo = JsonDocument.Parse(alta.Cuerpo!))
+        {
+            Assert.Equal(2, cuerpo.RootElement.GetProperty("tipoDocumento").GetInt32());
+            Assert.True(cuerpo.RootElement.GetProperty("activa").GetBoolean());
+        }
+
+        Assert.Equal(HttpMethod.Put, modificacion.Metodo);
+        Assert.Equal($"/api/series/{id}", modificacion.Uri!.AbsolutePath);
+        using (var cuerpo = JsonDocument.Parse(modificacion.Cuerpo!))
+        {
+            Assert.Equal(7, cuerpo.RootElement.GetProperty("xmin").GetInt64());
+            Assert.Equal("Facturas 2", cuerpo.RootElement.GetProperty("descripcion").GetString());
+        }
+
+        Assert.True(eliminada.Succeeded);
+        Assert.Equal(HttpMethod.Delete, borrado.Metodo);
+        Assert.Equal("La línea está usada.", lineaNo.Message);
+        Assert.Contains("codigo=fv", listado.Uri!.Query);
+        Assert.Contains("ordenarPor=Codigo", listado.Uri.Query);
+    }
+
+    [Fact]
+    public async Task Configuracion_ListaYPutConSerieId()
+    {
+        var serie = Guid.NewGuid();
+        var lista = new Grabador(HttpStatusCode.OK, $$"""[{"tipoDocumento":2,"serieId":"{{serie}}","serieCodigo":"FV","serieDescripcion":"Facturas","serieActiva":true,"xmin":3}]""");
+        var put = new Grabador(HttpStatusCode.OK, $$"""{"tipoDocumento":2,"serieId":"{{serie}}","xmin":4}""");
+
+        var filas = await new ConfiguracionNumeracionApiClient(Http(lista), NullLogger<ConfiguracionNumeracionApiClient>.Instance).ListAsync();
+        await new ConfiguracionNumeracionApiClient(Http(put), NullLogger<ConfiguracionNumeracionApiClient>.Instance).UpdateAsync(TipoDocumentoSerie.FacturaVenta, serie, 3);
+
+        Assert.Equal("/api/configuracion/numeracion", lista.Uri!.AbsolutePath);
+        Assert.Equal(TipoDocumentoSerie.FacturaVenta, Assert.Single(filas).TipoDocumento);
+        Assert.Equal(serie, JsonDocument.Parse(put.Cuerpo!).RootElement.GetProperty("serieId").GetGuid());
+    }
+
+    [Fact]
     public async Task CopiarABorrador_PostALaRutaDeLaFactura_Y403EsElMensajeReal()
     {
         var handler = new Grabador(HttpStatusCode.Forbidden, "");
