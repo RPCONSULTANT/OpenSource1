@@ -42,6 +42,17 @@ public sealed class BorradoresConSeriesYPosteadaMigrationTests(PostgresTestFixtu
                 """SELECT "IsDeleted" FROM "LineasFacturaVentaBorrador" WHERE "FacturaVentaBorradorId" = @Id""", new { Id = datos.Posteado }));
             Assert.False(await conexion.ExecuteScalarAsync<bool>(
                 """SELECT "IsDeleted" FROM "FacturasVentaBorrador" WHERE "Id" = @Id""", new { Id = datos.Abierto }));
+            // Rama de notas del Down: la nota Posteada se borra lógicamente con sus líneas; la abierta sigue viva.
+            Assert.True(await conexion.ExecuteScalarAsync<bool>(
+                """SELECT "IsDeleted" FROM "NotasCreditoVentaBorrador" WHERE "Id" = @Id""", new { Id = datos.NotaPosteada }));
+            Assert.True(await conexion.ExecuteScalarAsync<bool>(
+                """SELECT "IsDeleted" FROM "LineasNotaCreditoVentaBorrador" WHERE "NotaCreditoVentaBorradorId" = @Id""", new { Id = datos.NotaPosteada }));
+            Assert.False(await conexion.ExecuteScalarAsync<bool>(
+                """SELECT "IsDeleted" FROM "NotasCreditoVentaBorrador" WHERE "Id" = @Id""", new { Id = datos.Nota }));
+            // El Down restaura el CK anterior IN (1, 2): Estado 3 ya no cabe.
+            var estadoAnterior = await Assert.ThrowsAsync<PostgresException>(() => conexion.ExecuteAsync(
+                """UPDATE "FacturasVentaBorrador" SET "Estado" = 3 WHERE "Id" = @Id""", new { Id = datos.Abierto }));
+            Assert.Equal(("23514", "CK_FacturasVentaBorrador_Estado"), (estadoAnterior.SqlState, estadoAnterior.ConstraintName));
 
             await migrador.MigrateAsync();
 
@@ -51,13 +62,21 @@ public sealed class BorradoresConSeriesYPosteadaMigrationTests(PostgresTestFixtu
                 await conexion.QuerySingleAsync<(short, Guid, Guid)>(
                     """SELECT "Estado", "SerieBorradorId", "SerieRegistroId" FROM "NotasCreditoVentaBorrador" WHERE "Id" = @Id""", new { Id = datos.Nota }));
 
-            // Posteada exige el número del documento, y un número exige Posteada.
+            // Posteada exige el número del documento, y un número exige Posteada (las dos direcciones, en factura y en nota).
             var sinNumero = await Assert.ThrowsAsync<PostgresException>(() => conexion.ExecuteAsync(
                 """UPDATE "FacturasVentaBorrador" SET "Estado" = 3 WHERE "Id" = @Id""", new { Id = datos.Abierto }));
             Assert.Equal("23514", sinNumero.SqlState);
             var notaSinNumero = await Assert.ThrowsAsync<PostgresException>(() => conexion.ExecuteAsync(
                 """UPDATE "NotasCreditoVentaBorrador" SET "Estado" = 3 WHERE "Id" = @Id""", new { Id = datos.Nota }));
             Assert.Equal("23514", notaSinNumero.SqlState);
+            var numeroSinPosteada = await Assert.ThrowsAsync<PostgresException>(() => conexion.ExecuteAsync(
+                """UPDATE "FacturasVentaBorrador" SET "FacturaVentaNumero" = @Numero WHERE "Id" = @Id""",
+                new { Id = datos.Abierto, Numero = datos.NumeroFactura }));
+            Assert.Equal(("23514", "CK_FacturasVentaBorrador_Posteada"), (numeroSinPosteada.SqlState, numeroSinPosteada.ConstraintName));
+            var notaNumeroSinPosteada = await Assert.ThrowsAsync<PostgresException>(() => conexion.ExecuteAsync(
+                """UPDATE "NotasCreditoVentaBorrador" SET "NotaCreditoVentaNumero" = @Numero WHERE "Id" = @Id""",
+                new { Id = datos.Nota, Numero = datos.NumeroNota }));
+            Assert.Equal(("23514", "CK_NotasCreditoVentaBorrador_Posteada"), (notaNumeroSinPosteada.SqlState, notaNumeroSinPosteada.ConstraintName));
         }
         finally
         {
@@ -65,10 +84,13 @@ public sealed class BorradoresConSeriesYPosteadaMigrationTests(PostgresTestFixtu
         }
     }
 
-    private sealed record Datos(Guid Abierto, Guid Posteado, Guid Nota);
+    internal sealed record Datos(Guid Abierto, Guid Posteado, Guid Nota, Guid NotaPosteada, string NumeroFactura, string NumeroNota);
 
-    /// <summary>En HEAD: socio, una factura posteada (fila legal insertada a mano), un borrador abierto con una serie propia, uno Posteada con una línea de comentario y una nota abierta.</summary>
-    private static async Task<Datos> SembrarAsync(DbContextOptions<ApplicationDbContext> options, Guid seriePropia)
+    /// <summary>
+    /// En HEAD: socio, una factura posteada con una línea de cuenta y una nota posteada (filas legales insertadas a mano), un borrador
+    /// abierto con una serie propia, uno Posteada con una línea de comentario, una nota abierta y una nota Posteada con una línea.
+    /// </summary>
+    internal static async Task<Datos> SembrarAsync(DbContextOptions<ApplicationDbContext> options, Guid seriePropia)
     {
         await using var contexto = new ApplicationDbContext(options);
         var socio = new SocioNegocio
@@ -118,7 +140,39 @@ public sealed class BorradoresConSeriesYPosteadaMigrationTests(PostgresTestFixtu
             SerieBorradorId = SerieNotaCreditoVentaIds.SerieBorradorId, SerieRegistroId = SerieNotaCreditoVentaIds.SeriePosteadaId, CreatedBy = "test",
         };
         contexto.NotasCreditoVentaBorrador.Add(nota);
+        var lineaFactura = new LineaFacturaVenta
+        {
+            FacturaVentaNumero = numeroFactura, NumeroLinea = 10000, Tipo = TipoLineaFactura.CuentaContable, CuentaContableId = CuentaContableIds.Caja,
+            Descripcion = "Cuenta", CantidadPorUnidadMedida = 1, Cantidad = 1, PrecioUnitario = 100, ImporteLinea = 100,
+        };
+        contexto.LineasFacturaVenta.Add(lineaFactura);
+        var numeroNota = $"MNC{Guid.NewGuid():N}"[..20].ToUpperInvariant();
+        contexto.NotasCreditoVenta.Add(new NotaCreditoVenta
+        {
+            Numero = numeroNota, NumeroBorrador = numeroNota, FacturaVentaNumero = numeroFactura, SocioNegocioId = socio.Id,
+            SocioNegocioFacturarAId = socio.Id, NombreFacturacion = socio.NombreComercial, FechaRegistro = hoy, FechaDocumento = hoy,
+            GrupoNegocioId = socio.GrupoNegocioId!.Value, GrupoIvaNegocioId = socio.GrupoIvaNegocioId!.Value,
+            GrupoClienteContableId = socio.GrupoClienteContableId!.Value, Moneda = "DOP", CreatedAtUtc = DateTimeOffset.UtcNow, CreatedBy = "test",
+        });
         await contexto.SaveChangesAsync();
-        return new Datos(abierto.Id, posteado.Id, nota.Id);
+
+        var notaPosteada = new NotaCreditoVentaBorrador
+        {
+            Numero = $"MN{Guid.NewGuid():N}"[..20].ToUpperInvariant(), FacturaVentaNumero = numeroFactura, SocioNegocioId = socio.Id,
+            SocioNegocioFacturarAId = socio.Id, NombreFacturacion = socio.NombreComercial, FechaRegistro = hoy, FechaDocumento = hoy,
+            GrupoNegocioId = socio.GrupoNegocioId!.Value, GrupoIvaNegocioId = socio.GrupoIvaNegocioId!.Value,
+            GrupoClienteContableId = socio.GrupoClienteContableId!.Value,
+            SerieBorradorId = SerieNotaCreditoVentaIds.SerieBorradorId, SerieRegistroId = SerieNotaCreditoVentaIds.SeriePosteadaId,
+            Estado = EstadoNotaCreditoBorrador.Posteada, NotaCreditoVentaNumero = numeroNota, CreatedBy = "test",
+        };
+        contexto.NotasCreditoVentaBorrador.Add(notaPosteada);
+        contexto.LineasNotaCreditoVentaBorrador.Add(new LineaNotaCreditoVentaBorrador
+        {
+            NotaCreditoVentaBorradorId = notaPosteada.Id, LineaFacturaVentaId = lineaFactura.Id, NumeroLinea = 10000, Tipo = TipoLineaFactura.CuentaContable,
+            CuentaContableId = CuentaContableIds.Caja, Descripcion = "Cuenta", CantidadPorUnidadMedida = 1, Cantidad = 1, PrecioUnitario = 100,
+            ImporteLinea = 100, CreatedBy = "test",
+        });
+        await contexto.SaveChangesAsync();
+        return new Datos(abierto.Id, posteado.Id, nota.Id, notaPosteada.Id, numeroFactura, numeroNota);
     }
 }
