@@ -247,7 +247,9 @@ namespace OpenSource1.Infrastructure.Data.Migrations.Application
             //  - la tabla ConfiguracionesNumeracion entera (una reasignación de serie por tipo vuelve a la semilla).
             // Los contadores quedan como estén: los rellenos ("00000007") los sigue leyendo el código anterior, pero los números
             // con prefijo (p. ej. "FV00000007") que haya escrito el generador nuevo son ilegibles para su long.Parse, así que tras
-            // un Down esas series fallarían al numerar hasta volver a subir la migración.
+            // un Down esas series fallarían al numerar hasta volver a subir la migración. Lo mismo ocurre con las líneas creadas
+            // por la API de series nueva sin último número usado: guardan UltimoNumeroUsado = "" (línea sin usar), y el código
+            // anterior falla con long.Parse("") en cuanto intenta numerar con ellas.
             migrationBuilder.DropTable(
                 name: "ConfiguracionesNumeracion");
 
