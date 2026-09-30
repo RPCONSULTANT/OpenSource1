@@ -126,10 +126,6 @@ else if (EsPosteada && borrador.NotaCreditoVentaNumero is { } numeroNota)
     else
     {
         <!-- ── Líneas del borrador (alta y edición en la propia tabla, NS17) ── -->
-        @if (canModify && EditLineaId.HasValue && lineaAEditar is null)
-        {
-            <div class="mb-6"><MessageBox Type="warning" Message="No se encontró la línea seleccionada. Puede haber sido eliminada por otro usuario." /></div>
-        }
         <div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden mb-6">
             <div class="px-6 py-4 border-b border-slate-100">
                 <h2 class="text-sm font-semibold text-slate-700">Líneas de la nota</h2>
@@ -199,6 +195,14 @@ else if (EsPosteada && borrador.NotaCreditoVentaNumero is { } numeroNota)
                         {
                             @* La línea se cargó aparte (GetLineaAsync) y no está en la lista: su fila de edición va al final. *@
                             @FilaEdicion(lineaAEditar!)
+                        }
+                        @if (canModify && EditLineaId.HasValue && lineaAEditar is null)
+                        {
+                            @* La línea a modificar ya no existe (borrada por otro usuario): su fila de edición muestra el aviso (como en la factura). *@
+                            <DocumentoFilaFormulario Variante="VarianteFilaFormulario.Edicion" Columnas="ColumnasTabla">
+                                <p class="mb-3 text-sm font-bold text-amber-800">Modificar línea</p>
+                                <MessageBox Type="warning" Message="No se encontró la línea seleccionada. Puede haber sido eliminada por otro usuario." />
+                            </DocumentoFilaFormulario>
                         }
                         @if (canAdd && AddLineaId.HasValue)
                         {
@@ -646,6 +650,15 @@ else if (EsPosteada && borrador.NotaCreditoVentaNumero is { } numeroNota)
         }
 
         var f = AddInput!;
+        if (EsPosteada)
+        {
+            // POST obsoleto sobre un borrador ya posteado (Review Focus 5): va a la API, que responde con su conflicto real (409).
+            await EjecutarAsync(
+                () => NotaApiClient.CreateLineaAsync(BorradorId, f.LineaFacturaVentaId, f.Cantidad, f.DevolverInventario),
+                "linea_creada", "No fue posible agregar la línea.");
+            return;
+        }
+
         if (f.LineaFacturaVentaId == 0)
         {
             Show("warning", "Seleccione primero la línea de la factura a acreditar.");
@@ -665,13 +678,22 @@ else if (EsPosteada && borrador.NotaCreditoVentaNumero is { } numeroNota)
             return;
         }
 
+        var f = UpdateInputLinea!;
+        if (EsPosteada && EditLineaId is { } lineaObsoleta)
+        {
+            // POST obsoleto sobre un borrador ya posteado (Review Focus 5): va a la API, que responde con su conflicto real (409).
+            await EjecutarAsync(
+                () => NotaApiClient.UpdateLineaAsync(lineaObsoleta, f.Cantidad, f.DevolverInventario, f.Xmin),
+                "linea_modificada", "No fue posible modificar la línea.");
+            return;
+        }
+
         if (!EditLineaId.HasValue)
         {
             Show("warning", "Seleccione primero una línea a modificar.");
             return;
         }
 
-        var f = UpdateInputLinea!;
         await EjecutarAsync(
             () => NotaApiClient.UpdateLineaAsync(EditLineaId.Value, f.Cantidad, f.DevolverInventario, f.Xmin),
             "linea_modificada", "No fue posible modificar la línea.");

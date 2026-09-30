@@ -225,6 +225,66 @@ public sealed class DocumentoNotaBorradorTests
         Assert.Contains("name=\"UpdateInputLinea.Xmin\" value=\"3\"", tabla);
     }
 
+    [Theory]
+    [InlineData("7")]
+    [InlineData("0")]
+    public async Task BorradorPosteada_PostObsoletoDeAgregarLinea_VaALaApi_YMuestraSuConflicto(string lineaFactura)
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+        var api = app.Simular<INotaCreditoVentaApiClient>();
+        api.Setup(c => c.CreateLineaAsync(IdPosteada, It.IsAny<long>(), It.IsAny<decimal?>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new VentaOperationResult<LineaNotaCreditoVentaBorradorResponse>(false, "El borrador de nota de crédito ya se posteó: es de solo lectura (abra su nota)."));
+
+        var respuesta = await FormulariosSsr.EnviarAsync(app.Cliente(), $"{Url(IdPosteada)}?addLineaId={lineaFactura}", "add-linea", new Dictionary<string, string>
+        {
+            ["AddInput.LineaFacturaVentaId"] = lineaFactura, ["AddInput.CantidadTexto"] = "1",
+        });
+
+        var html = HtmlSsr.Decodificar(await respuesta.Content.ReadAsStringAsync());
+        Assert.Equal(HttpStatusCode.OK, respuesta.StatusCode);
+        Assert.Contains("ya se posteó: es de solo lectura (abra su nota).", html);
+        Assert.DoesNotContain("Seleccione primero", html);
+        api.Verify(c => c.CreateLineaAsync(IdPosteada, long.Parse(lineaFactura), 1m, false, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task BorradorPosteada_PostObsoletoDeModificarLinea_VaALaApi_YMuestraSuConflicto()
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+        var idLinea = Guid.NewGuid();
+        var api = app.Simular<INotaCreditoVentaApiClient>();
+        api.Setup(c => c.UpdateLineaAsync(idLinea, It.IsAny<decimal?>(), It.IsAny<bool>(), It.IsAny<long>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new VentaOperationResult<LineaNotaCreditoVentaBorradorResponse>(false, "El borrador de nota de crédito ya se posteó: es de solo lectura (abra su nota)."));
+
+        var respuesta = await FormulariosSsr.EnviarAsync(app.Cliente(), $"{Url(IdPosteada)}?editLineaId={idLinea}", "update-linea", new Dictionary<string, string>
+        {
+            ["UpdateInputLinea.CantidadTexto"] = "2", ["UpdateInputLinea.Xmin"] = "4",
+        });
+
+        var html = HtmlSsr.Decodificar(await respuesta.Content.ReadAsStringAsync());
+        Assert.Equal(HttpStatusCode.OK, respuesta.StatusCode);
+        Assert.Contains("ya se posteó: es de solo lectura (abra su nota).", html);
+        Assert.DoesNotContain("No se encontró la línea seleccionada", html);
+        api.Verify(c => c.UpdateLineaAsync(idLinea, 2m, false, 4, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task EditarLinea_QueYaNoExiste_AvisoDentroDeLaFilaDeEdicion()
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+        var idLinea = Guid.NewGuid();
+        app.Simular<INotaCreditoVentaApiClient>()
+            .Setup(c => c.GetLineaAsync(idLinea, It.IsAny<CancellationToken>())).ReturnsAsync((LineaNotaCreditoVentaBorradorResponse?)null);
+
+        var html = HtmlSsr.Decodificar(await HtmlSsr.HtmlAsync(app.Cliente(), $"{Url(IdAbierta)}?editLineaId={idLinea}"));
+
+        var inicioTabla = html.IndexOf("data-testid=\"tabla-lineas\"", StringComparison.Ordinal);
+        var aviso = html.IndexOf("No se encontró la línea seleccionada", StringComparison.Ordinal);
+        Assert.True(inicioTabla >= 0 && aviso > inicioTabla, "El aviso debe estar dentro de la tabla de líneas.");
+        var fila = html.LastIndexOf("data-testid=\"fila-edicion\"", aviso, StringComparison.Ordinal);
+        Assert.True(fila > inicioTabla, "El aviso debe estar en la fila de edición.");
+    }
+
     [Fact]
     public async Task Eliminar_ConConfirmacion_VuelveAlListado()
     {
