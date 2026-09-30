@@ -10,7 +10,7 @@ namespace OpenSource1.Core.Entities.Ventas;
 /// </summary>
 public sealed class FacturaVentaBorrador : BaseEntity
 {
-    /// <summary>Número de la serie con huecos <c>FV-BORR</c> (D9), inmutable.</summary>
+    /// <summary>Número de la serie de borradores (<see cref="SerieBorradorId"/>), inmutable.</summary>
     public required string Numero { get; set; }
 
     /// <summary>Socio vender-a: da <see cref="GrupoNegocioId"/> y <see cref="GrupoIvaNegocioId"/>.</summary>
@@ -45,6 +45,15 @@ public sealed class FacturaVentaBorrador : BaseEntity
     public Guid AlmacenId { get; set; }
 
     public EstadoFacturaBorrador Estado { get; set; } = EstadoFacturaBorrador.Abierta;
+
+    /// <summary>Serie que dio <see cref="Numero"/> (tipo BorradorFacturaVenta). Fija desde la creación.</summary>
+    public Guid SerieBorradorId { get; set; }
+
+    /// <summary>Serie con la que se numerará la factura al postear (tipo FacturaVenta). Editable mientras el borrador esté Abierta.</summary>
+    public Guid SerieRegistroId { get; set; }
+
+    /// <summary>Número de la factura posteada desde este borrador; solo con <see cref="EstadoFacturaBorrador.Posteada"/>.</summary>
+    public string? FacturaVentaNumero { get; set; }
 
     public string Moneda { get; set; } = SerieFacturaVentaIds.MonedaPorDefecto;
 

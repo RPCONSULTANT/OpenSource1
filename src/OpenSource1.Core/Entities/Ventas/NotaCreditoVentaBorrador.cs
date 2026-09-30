@@ -11,7 +11,7 @@ namespace OpenSource1.Core.Entities.Ventas;
 /// </summary>
 public sealed class NotaCreditoVentaBorrador : BaseEntity
 {
-    /// <summary>Número de la serie con huecos <c>NC-BORR</c>, inmutable.</summary>
+    /// <summary>Número de la serie de borradores (<see cref="SerieBorradorId"/>), inmutable.</summary>
     public required string Numero { get; set; }
 
     /// <summary>varchar(20), FK a <see cref="FacturaVenta.Numero"/>: la factura posteada que se acredita. Inmutable.</summary>
@@ -46,6 +46,17 @@ public sealed class NotaCreditoVentaBorrador : BaseEntity
     public string Moneda { get; set; } = SerieFacturaVentaIds.MonedaPorDefecto;
 
     public string? Descripcion { get; set; }
+
+    public EstadoNotaCreditoBorrador Estado { get; set; } = EstadoNotaCreditoBorrador.Abierta;
+
+    /// <summary>Serie que dio <see cref="Numero"/> (tipo BorradorNotaCreditoVenta). Fija desde la creación.</summary>
+    public Guid SerieBorradorId { get; set; }
+
+    /// <summary>Serie con la que se numerará la nota al postear (tipo NotaCreditoVenta). Editable mientras esté Abierta.</summary>
+    public Guid SerieRegistroId { get; set; }
+
+    /// <summary>Número de la nota posteada desde este borrador; solo con <see cref="EstadoNotaCreditoBorrador.Posteada"/>.</summary>
+    public string? NotaCreditoVentaNumero { get; set; }
 }
 
 /// <summary>

@@ -11,8 +11,8 @@ namespace OpenSource1.Application.Features.FacturasVenta.Borradores.Handlers;
 
 /// <summary>
 /// Alta de un borrador: snapshot del facturar-a y grupos congelados (<see cref="FacturaVentaBorradorReglas.TomarSnapshotAsync"/>),
-/// vencimiento por el término de pago, almacén predeterminado, moneda DOP y número de la serie configurada para el tipo <c>BorradorFacturaVenta</c> (dentro de la
-/// transacción, que <see cref="IGeneradorNumeroDocumento"/> exige). Los socios se bloquean <c>FOR SHARE</c> dentro de la transacción
+/// vencimiento por el término de pago, almacén predeterminado, moneda DOP y número de la serie configurada para el tipo <c>BorradorFacturaVenta</c>, con la serie de registro configurada para
+/// <c>FacturaVenta</c> (<see cref="NumeracionBorrador.NumerarBorradorAsync"/>, dentro de la transacción, que <see cref="IGeneradorNumeroDocumento"/> exige). Los socios se bloquean <c>FOR SHARE</c> dentro de la transacción
 /// ANTES de validarlos: un borrado concurrente del socio no puede dejar un borrador de un socio borrado.
 /// </summary>
 public sealed class CreateFacturaVentaBorradorCommandHandler(
@@ -59,17 +59,19 @@ public sealed class CreateFacturaVentaBorradorCommandHandler(
             return Result<FacturaVentaBorradorResponse>.Fallo(almacen);
         }
 
-        var numero = await generadorNumero.SiguientePorTipoAsync(TipoDocumentoSerie.BorradorFacturaVenta, hoy, cancellationToken);
-        if (!numero.TryObtenerValor(out var generado))
+        // Series del borrador (spec no-series): la de borradores da el número; la de registro numerará la factura al postear.
+        var series = await generadorNumero.NumerarBorradorAsync(
+            TipoDocumentoSerie.BorradorFacturaVenta, TipoDocumentoSerie.FacturaVenta, null, null, hoy, cancellationToken);
+        if (!series.TryObtenerValor(out var numeradas))
         {
-            return Result<FacturaVentaBorradorResponse>.Fallo(numero);
+            return Result<FacturaVentaBorradorResponse>.Fallo(series);
         }
-
-        var numeroBorrador = generado.Numero;
 
         var entity = new FacturaVentaBorrador
         {
-            Numero = numeroBorrador,
+            Numero = numeradas.Numero.Numero,
+            SerieBorradorId = numeradas.SerieBorradorId,
+            SerieRegistroId = numeradas.SerieRegistroId,
             NombreFacturacion = socios.NombreFacturacion,
             FechaRegistro = fechaRegistro,
             FechaDocumento = fechaDocumento,

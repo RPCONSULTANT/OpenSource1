@@ -916,6 +916,8 @@ public sealed class PostearNotaCreditoVentaTests(PostgresTestFixture fixture) : 
         var borrador = new NotaCreditoVentaBorrador
         {
             Numero = $"T{Guid.NewGuid():N}"[..20],
+            SerieBorradorId = SerieNotaCreditoVentaIds.SerieBorradorId,
+            SerieRegistroId = SerieNotaCreditoVentaIds.SeriePosteadaId,
             FacturaVentaNumero = factura,
             SocioNegocioId = fila!.SocioNegocioId,
             SocioNegocioFacturarAId = fila.SocioNegocioFacturarAId,

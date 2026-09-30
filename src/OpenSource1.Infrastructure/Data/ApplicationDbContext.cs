@@ -780,8 +780,12 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
         modelBuilder.Entity<FacturaVentaBorrador>(entity =>
         {
-            entity.ToTable("FacturasVentaBorrador", t => t.HasCheckConstraint(
-                "CK_FacturasVentaBorrador_Estado", "\"Estado\" IN (1, 2)"));
+            entity.ToTable("FacturasVentaBorrador", t =>
+            {
+                t.HasCheckConstraint("CK_FacturasVentaBorrador_Estado", "\"Estado\" IN (1, 2, 3)");
+                // Posteada <=> lleva el número de la factura (y nada más lo lleva).
+                t.HasCheckConstraint("CK_FacturasVentaBorrador_Posteada", "(\"Estado\" = 3) = (\"FacturaVentaNumero\" IS NOT NULL)");
+            });
             entity.HasKey(x => x.Id);
             entity.Property(x => x.Numero).HasMaxLength(20).IsRequired();
             entity.Property(x => x.NombreFacturacion).HasMaxLength(200).IsRequired();
@@ -808,6 +812,10 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.HasOne<GrupoIvaNegocio>().WithMany().HasForeignKey(x => x.GrupoIvaNegocioId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne<GrupoClienteContable>().WithMany().HasForeignKey(x => x.GrupoClienteContableId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne<Almacen>().WithMany().HasForeignKey(x => x.AlmacenId).OnDelete(DeleteBehavior.Restrict);
+            entity.Property(x => x.FacturaVentaNumero).HasMaxLength(20);
+            entity.HasOne<Serie>().WithMany().HasForeignKey(x => x.SerieBorradorId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<Serie>().WithMany().HasForeignKey(x => x.SerieRegistroId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<FacturaVenta>().WithMany().HasForeignKey(x => x.FacturaVentaNumero).OnDelete(DeleteBehavior.Restrict);
 
             entity.Property<uint>("xmin").HasColumnName("xmin").IsRowVersion();
             entity.Property(x => x.IsDeleted).HasDefaultValue(false);
@@ -1151,7 +1159,11 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     {
         modelBuilder.Entity<NotaCreditoVentaBorrador>(entity =>
         {
-            entity.ToTable("NotasCreditoVentaBorrador");
+            entity.ToTable("NotasCreditoVentaBorrador", t =>
+            {
+                t.HasCheckConstraint("CK_NotasCreditoVentaBorrador_Estado", "\"Estado\" IN (1, 3)");
+                t.HasCheckConstraint("CK_NotasCreditoVentaBorrador_Posteada", "(\"Estado\" = 3) = (\"NotaCreditoVentaNumero\" IS NOT NULL)");
+            });
             entity.HasKey(x => x.Id);
             entity.Property(x => x.Numero).HasMaxLength(20).IsRequired();
             entity.Property(x => x.FacturaVentaNumero).HasMaxLength(20).IsRequired();
@@ -1177,6 +1189,10 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.HasOne<GrupoIvaNegocio>().WithMany().HasForeignKey(x => x.GrupoIvaNegocioId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne<GrupoClienteContable>().WithMany().HasForeignKey(x => x.GrupoClienteContableId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne<CuentaContable>().WithMany().HasForeignKey(x => x.CuentaCxCId).OnDelete(DeleteBehavior.Restrict);
+            entity.Property(x => x.NotaCreditoVentaNumero).HasMaxLength(20);
+            entity.HasOne<Serie>().WithMany().HasForeignKey(x => x.SerieBorradorId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<Serie>().WithMany().HasForeignKey(x => x.SerieRegistroId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<NotaCreditoVenta>().WithMany().HasForeignKey(x => x.NotaCreditoVentaNumero).OnDelete(DeleteBehavior.Restrict);
 
             entity.Property<uint>("xmin").HasColumnName("xmin").IsRowVersion();
             entity.Property(x => x.IsDeleted).HasDefaultValue(false);
