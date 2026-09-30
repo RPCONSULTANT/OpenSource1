@@ -10,6 +10,9 @@ public sealed class FormatoNumeroSerieTests
     [InlineData("A1B-0099", "A1B-", 99L, 4)]
     [InlineData("NC 2026/0005", "NC 2026/", 5L, 4)]
     [InlineData("7", "", 7L, 1)]
+    [InlineData("FAC2026-0001", "FAC2026-", 1L, 4)]
+    [InlineData("123456789012345678", "", 123456789012345678L, 18)]
+    [InlineData("ABCDEFGHIJKL-0000001", "ABCDEFGHIJKL-", 1L, 7)]
     public void TryParse_SeparaPrefijoValorYAncho(string texto, string prefijo, long valor, int ancho)
     {
         Assert.True(FormatoNumeroSerie.TryParse(texto, out var numero));
@@ -25,6 +28,12 @@ public sealed class FormatoNumeroSerieTests
     [InlineData("FV-0001 ")]
     [InlineData("FV-0001234567890123456789")]
     [InlineData("1234567890123456789")]
+    [InlineData("ABCDEFGHIJKLM-0000001")]
+    [InlineData("FV\n0001")]
+    [InlineData("FV\r\n0001")]
+    [InlineData("FV\t0001")]
+    [InlineData("FV\u00000001")]
+    [InlineData("FV\u20280001")]
     public void TryParse_Rechaza_SinDigitosFinales_EspaciosExteriores_MasDe20CaracteresOMasDe18Digitos(string? texto)
     {
         Assert.False(FormatoNumeroSerie.TryParse(texto, out _));

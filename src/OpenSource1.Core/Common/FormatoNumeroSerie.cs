@@ -36,12 +36,26 @@ public static class FormatoNumeroSerie
         }
 
         var ancho = texto.Length - inicio;
-        if (ancho is 0 or > DigitosMaximos)
+        if (ancho is 0 or > DigitosMaximos || !PrefijoValido(texto.AsSpan(0, inicio)))
         {
             return false;
         }
 
         numero = new NumeroSerie(texto[..inicio], long.Parse(texto[inicio..], NumberStyles.None, CultureInfo.InvariantCulture), ancho);
+        return true;
+    }
+
+    /// <summary>El prefijo no admite caracteres de control (saltos de línea, tabuladores, NUL) ni separadores de línea/párrafo Unicode.</summary>
+    private static bool PrefijoValido(ReadOnlySpan<char> prefijo)
+    {
+        foreach (var c in prefijo)
+        {
+            if (char.IsControl(c) || c is '\u2028' or '\u2029')
+            {
+                return false;
+            }
+        }
+
         return true;
     }
 
