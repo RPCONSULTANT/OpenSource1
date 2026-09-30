@@ -155,7 +155,7 @@ public sealed class GeneradorNumeroDocumentoTests : IClassFixture<PostgresTestFi
         var fecha = new DateOnly(2026, 1, 1);
         var (serieId, lineaId) = await SembrarSerieAsync(fecha, numeroInicial: "00001", numeroFinal: "00001", ultimoNumeroUsado: "00001");
 
-        var resultado = await EnTransaccionAsync(g => g.SiguienteAsync(serieId, TipoDocumentoSerie.DiarioInventario, fecha), confirmar: true);
+        var resultado = await EnTransaccionConfirmadaAsync(g => g.SiguienteAsync(serieId, TipoDocumentoSerie.DiarioInventario, fecha));
 
         Assert.Equal("numeracion.serie_agotada", resultado.Errores[0].Codigo);
         Assert.Equal("00001", await UltimoAsync(lineaId));
@@ -204,7 +204,7 @@ public sealed class GeneradorNumeroDocumentoTests : IClassFixture<PostgresTestFi
         var fecha = new DateOnly(2026, 1, 1);
         var (serieId, lineaId) = await SembrarSerieAsync(fecha, activa: false);
 
-        var resultado = await EnTransaccionAsync(g => g.SiguienteAsync(serieId, TipoDocumentoSerie.DiarioInventario, fecha), confirmar: true);
+        var resultado = await EnTransaccionConfirmadaAsync(g => g.SiguienteAsync(serieId, TipoDocumentoSerie.DiarioInventario, fecha));
 
         Assert.Equal(("numeracion.serie_inactiva", "SerieId"), (resultado.Errores[0].Codigo, resultado.Errores[0].Campo));
         Assert.Equal("00000", await UltimoAsync(lineaId));
@@ -216,11 +216,45 @@ public sealed class GeneradorNumeroDocumentoTests : IClassFixture<PostgresTestFi
         var fecha = new DateOnly(2026, 1, 1);
         var (serieId, lineaId) = await SembrarSerieAsync(fecha, tipo: TipoDocumentoSerie.Cobro);
 
-        var resultado = await EnTransaccionAsync(g => g.SiguienteAsync(serieId, TipoDocumentoSerie.FacturaVenta, fecha), confirmar: true);
+        var resultado = await EnTransaccionConfirmadaAsync(g => g.SiguienteAsync(serieId, TipoDocumentoSerie.FacturaVenta, fecha));
 
         Assert.Equal("numeracion.tipo_incorrecto", resultado.Errores[0].Codigo);
         Assert.Contains("Cobro de cliente", resultado.Errores[0].Mensaje);
         Assert.Equal("00000", await UltimoAsync(lineaId));
+    }
+
+    [Fact]
+    public async Task SiguienteAsync_LasLineasMasRecientesBloqueadaYBorrada_UsaLaAnteriorVigente()
+    {
+        var (serieId, vigente) = await SembrarSerieAsync(new DateOnly(2026, 1, 1), ultimoNumeroUsado: "00010");
+        var bloqueada = await AnadirLineaAsync(serieId, new DateOnly(2026, 3, 1), "00050", bloqueada: true);
+        var borrada = await AnadirLineaAsync(serieId, new DateOnly(2026, 4, 1), "00070", borrada: true);
+
+        var resultado = await EnTransaccionAsync(
+            g => g.SiguienteAsync(serieId, TipoDocumentoSerie.DiarioInventario, new DateOnly(2026, 5, 1)), confirmar: true);
+
+        Assert.Equal("00011", resultado.Valor.Numero);
+        Assert.Equal(("00011", "00050", "00070"), (await UltimoAsync(vigente), await UltimoAsync(bloqueada), await UltimoAsync(borrada)));
+    }
+
+    [Theory]
+    [InlineData(2026, 2, 28, "00011")]
+    [InlineData(2026, 3, 1, "00051")]
+    [InlineData(2026, 5, 31, "00051")]
+    [InlineData(2026, 6, 1, "00091")]
+    [InlineData(2027, 1, 1, "00091")]
+    public async Task SiguienteAsync_VariasLineas_UsaLaUltimaConFechaInicialHastaLaFecha(int anio, int mes, int dia, string esperado)
+    {
+        var (serieId, primera) = await SembrarSerieAsync(new DateOnly(2026, 1, 1), ultimoNumeroUsado: "00010");
+        var segunda = await AnadirLineaAsync(serieId, new DateOnly(2026, 3, 1), "00050");
+        var tercera = await AnadirLineaAsync(serieId, new DateOnly(2026, 6, 1), "00090");
+
+        var resultado = await EnTransaccionAsync(
+            g => g.SiguienteAsync(serieId, TipoDocumentoSerie.DiarioInventario, new DateOnly(anio, mes, dia)), confirmar: true);
+
+        Assert.Equal(esperado, resultado.Valor.Numero);
+        var contadores = new[] { await UltimoAsync(primera), await UltimoAsync(segunda), await UltimoAsync(tercera) };
+        Assert.Single(contadores, esperado);
     }
 
     [Fact]
@@ -324,6 +358,37 @@ public sealed class GeneradorNumeroDocumentoTests : IClassFixture<PostgresTestFi
         }
 
         return resultado;
+    }
+
+    /// <summary>
+    /// Confirma SIEMPRE (también si el generador falla) y devuelve el control con la transacción ya cerrada: así un contador
+    /// leído después desde otra conexión (<see cref="UltimoAsync"/>) demuestra que el fallo no escribió nada; con rollback, una
+    /// escritura previa al fallo quedaría oculta y la aserción no podría fallar.
+    /// </summary>
+    private async Task<Result<T>> EnTransaccionConfirmadaAsync<T>(Func<IGeneradorNumeroDocumento, Task<Result<T>>> accion)
+    {
+        await using var scope = _provider.CreateAsyncScope();
+        var session = scope.ServiceProvider.GetRequiredService<IDbSession>();
+        await session.EnsureOpenAsync();
+        await using var tx = await session.BeginTransactionAsync();
+        var resultado = await accion(Generador(scope));
+        await session.CommitAsync();
+        return resultado;
+    }
+
+    private async Task<Guid> AnadirLineaAsync(
+        Guid serieId, DateOnly fechaInicial, string ultimoNumeroUsado, bool bloqueada = false, bool borrada = false)
+    {
+        var id = Guid.NewGuid();
+        await using var conexion = new NpgsqlConnection(_fixture.AppConnectionString);
+        await conexion.ExecuteAsync(
+            """
+            INSERT INTO "LineasSerie" ("Id", "SerieId", "NumeroInicial", "NumeroFinal", "UltimoNumeroUsado", "FechaInicial",
+                                       "Incremento", "Bloqueada", "CreatedAtUtc", "CreatedBy", "IsDeleted")
+            VALUES (@Id, @SerieId, '00001', '00100', @Ultimo, @Fecha, 1, @Bloqueada, now(), 'test', @Borrada)
+            """,
+            new { Id = id, SerieId = serieId, Ultimo = ultimoNumeroUsado, Fecha = fechaInicial.ToDateTime(TimeOnly.MinValue), Bloqueada = bloqueada, Borrada = borrada });
+        return id;
     }
 
     private async Task<string> UltimoAsync(Guid lineaId)
