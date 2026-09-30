@@ -291,6 +291,9 @@ public sealed class LibroInventarioAppendOnlyTests(PostgresTestFixture fixture) 
     public async Task ActualizarSinCambios_EnRegistrosContables_SigueLanzandoP0001()
     {
         await using var contexto = NuevoContextoPropio();
+        // Migra como sus hermanos (PrepararAsync/InsertarValorAsync): si esta prueba corre la primera en un contenedor nuevo,
+        // la tabla aún no existe (42P01) y el resultado dependería del orden.
+        await contexto.GetService<IMigrator>().MigrateAsync();
         var excepcion = await Assert.ThrowsAsync<PostgresException>(() => contexto.Database.ExecuteSqlRawAsync(
             "INSERT INTO \"RegistrosContables\" (\"NumeroRegistro\", \"DesdeMovimiento\", \"HastaMovimiento\", \"FechaCreacion\", \"CreadoPor\", \"TipoOrigen\", \"ClaveOrigen\") " +
             "VALUES ('T-UPD', 1, 1, now(), 'test', 4, 'X'); UPDATE \"RegistrosContables\" SET \"ClaveOrigen\" = \"ClaveOrigen\" WHERE \"NumeroRegistro\" = 'T-UPD'"));
