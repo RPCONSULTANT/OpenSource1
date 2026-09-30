@@ -2,12 +2,15 @@
 @attribute [Authorize(Policy = ApplicationPolicies.CanConsult)]
 @using Microsoft.AspNetCore.Authorization
 @using OpenSource1.Application.Features.Almacenes.Dtos
+@using OpenSource1.Application.Features.Series.Dtos
 @using OpenSource1.Application.Features.SociosNegocio.Dtos
 @using OpenSource1.Blazor.Services
+@using OpenSource1.Core.Enums
 @inject IFacturaVentaApiClient FacturaApiClient
 @inject ISocioNegocioApiClient SocioApiClient
 @inject IAlmacenApiClient AlmacenApiClient
 @inject ITerminoPagoApiClient TerminoPagoApiClient
+@inject ISerieApiClient SerieApiClient
 @inject IAuthorizationService AuthorizationService
 @inject ILogger<FacturaVentaNueva> Logger
 @inject NavigationManager Nav
@@ -55,7 +58,9 @@
                     <a href="@CambiarClienteHref" class="mt-1 inline-block text-xs font-semibold text-brand-600 hover:text-brand-700">Cambiar cliente</a>
                 </div>
             }
-            <CabeceraFacturaFields Model="AddInput!" Prefix="AddInput" Socios="@socios.Items" Almacenes="@almacenes.Items" SocioBloqueado="@(socioPrecargado is not null)" />
+            <CabeceraFacturaFields Model="AddInput!" Prefix="AddInput" Socios="@socios.Items" Almacenes="@almacenes.Items" SocioBloqueado="@(socioPrecargado is not null)"
+                                   SeriesBorrador="@seriesBorrador.Items" SeriesRegistro="@seriesRegistro.Items"
+                                   SeriesCargaFallida="@(seriesBorrador.CargaFallida || seriesRegistro.CargaFallida)" />
             <FormularioAcciones CancelarHref="@Volver" LimpiarHref="@Nav.Uri" TextoGuardar="Crear borrador" Deshabilitado="@OpcionesFallidas" />
         </EditForm>
     }
@@ -72,6 +77,9 @@
 
     private OpcionesCargadas<SocioNegocioResponse> socios = OpcionesCargadas<SocioNegocioResponse>.SinCargar;
     private OpcionesCargadas<AlmacenResponse> almacenes = OpcionesCargadas<AlmacenResponse>.SinCargar;
+    // Si las series no cargan, los selectores quedan en "— La configurada —" y el alta sigue funcionando (null = la configurada).
+    private OpcionesCargadas<SerieResponse> seriesBorrador = OpcionesCargadas<SerieResponse>.SinCargar;
+    private OpcionesCargadas<SerieResponse> seriesRegistro = OpcionesCargadas<SerieResponse>.SinCargar;
     private PermisosPagina? permisos;
     private SocioNegocioResponse? socioPrecargado;
     private string? terminoPrecargado;
@@ -98,6 +106,8 @@
         {
             socios = await VentasOpciones.SociosAsync(SocioApiClient, SocioQuery, Logger);
             almacenes = await VentasOpciones.AlmacenesAsync(AlmacenApiClient, Logger);
+            seriesBorrador = await SeriesOpciones.ActivasAsync(SerieApiClient, TipoDocumentoSerie.BorradorFacturaVenta, Logger);
+            seriesRegistro = await SeriesOpciones.ActivasAsync(SerieApiClient, TipoDocumentoSerie.FacturaVenta, Logger);
             await PrecargarSocioAsync();
         }
     }
@@ -145,7 +155,7 @@
         var f = AddInput!;
         var input = new BorradorCabeceraInput(
             f.SocioNegocioId ?? Guid.Empty, f.SocioNegocioFacturarAId, f.FechaRegistro, f.FechaDocumento, f.FechaVencimiento, f.AlmacenId,
-            string.IsNullOrWhiteSpace(f.Descripcion) ? null : f.Descripcion.Trim());
+            string.IsNullOrWhiteSpace(f.Descripcion) ? null : f.Descripcion.Trim(), f.SerieBorradorId, f.SerieRegistroId);
         // R17: la navegación va FUERA del try (NavigateTo puede lanzar NavigationException y el catch se la tragaría).
         string? destino = null;
         try
