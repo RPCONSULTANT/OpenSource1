@@ -49,6 +49,69 @@ public sealed class DocumentoFacturaBorradorTests
         Assert.Contains($"href=\"{Url(IdAbierto)}?postear=true\"", html);
         Assert.Contains($"href=\"{Url(IdAbierto)}?eliminar=true\"", html);
         Assert.DoesNotContain("/editar", html);
+
+        // Revisión S13 (Important 1): en modo edición la cabecera conserva término, moneda, datos fiscales y serie de borrador.
+        var editable = html[html.IndexOf("data-testid=\"cabecera-editable\"", StringComparison.Ordinal)..];
+        var fijos = editable[editable.IndexOf("data-testid=\"cabecera-datos-fijos\"", StringComparison.Ordinal)..editable.IndexOf("data-testid=\"cabecera-factura-fields\"", StringComparison.Ordinal)];
+        Assert.Contains("Término: <strong>30D</strong>", fijos);
+        Assert.Contains("Moneda: <strong>DOP</strong>", fijos);
+        Assert.Contains("Razón social / RNC: <strong>Comercial Uno SRL 101000001</strong>", fijos);
+        Assert.Contains("Serie de borrador: <strong>FV-BORR</strong>", fijos);
+
+        // Revisión S13 (Minor 1-2): ayuda del buscador de clientes, Limpiar campos y Cancelar en la tarjeta editable.
+        Assert.Contains("Se muestran los primeros 50 clientes por nombre", html);
+        Assert.Contains($"<a href=\"{Url(IdAbierto)}\" data-testid=\"limpiar-cabecera\"", editable);
+        Assert.Contains("<a href=\"/facturas-venta/borradores\" data-testid=\"cancelar-cabecera\"", editable);
+    }
+
+    [Theory]
+    [InlineData("https://evil.example/x")]
+    [InlineData("//evil.example/x")]
+    public async Task ReturnUrlExterno_CaeAlListado(string externo)
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+        var escapado = Uri.EscapeDataString(externo);
+
+        var html = await HtmlSsr.HtmlAsync(app.Cliente(), $"{Url(IdAbierto)}?returnUrl={escapado}");
+        var redireccion = await app.Cliente().GetAsync($"{Url(IdAbierto)}/editar?returnUrl={escapado}");
+
+        // Ningún enlace ni campo de vuelta lleva el destino externo (la acción de los formularios es la URL pedida, que no es un enlace).
+        Assert.DoesNotMatch("href=\"[^\"]*evil\\.example", html);
+        Assert.DoesNotMatch("name=\"returnUrl\" value=\"[^\"]*evil\\.example", html);
+        Assert.Contains("<a href=\"/facturas-venta/borradores\" data-testid=\"cancelar-cabecera\"", html);
+        Assert.Equal(HttpStatusCode.Redirect, redireccion.StatusCode);
+        Assert.Equal($"{Url(IdAbierto)}?returnUrl=%2Ffacturas-venta%2Fborradores", FormulariosSsr.Destino(redireccion));
+    }
+
+    [Fact]
+    public async Task BorradorPosteada_PostObsoletoDeLinea_MuestraElConflictoDeLaApi()
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+        app.Simular<IFacturaVentaApiClient>()
+            .Setup(c => c.CreateLineaAsync(IdPosteado, It.Is<LineaFacturaInput>(i => i.Tipo == TipoLineaFactura.Comentario && i.Descripcion == "Comentario"), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new VentaOperationResult<LineaFacturaVentaBorradorResponse>(false, "El borrador ya se posteó: es de solo lectura (abra su factura)."));
+
+        var respuesta = await FormulariosSsr.EnviarAsync(app.Cliente(), $"{Url(IdPosteado)}?tipo=3", "add-linea", new Dictionary<string, string>
+        {
+            ["AddInput.Tipo"] = "3", ["AddInput.Descripcion"] = "Comentario",
+        });
+
+        Assert.Equal(HttpStatusCode.OK, respuesta.StatusCode);
+        Assert.Contains("El borrador ya se posteó: es de solo lectura (abra su factura).", HtmlSsr.Decodificar(await respuesta.Content.ReadAsStringAsync()));
+    }
+
+    [Fact]
+    public async Task BorradorPosteada_PostObsoletoDePosteo_MuestraElConflictoDeLaApi()
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+        app.Simular<IFacturaVentaApiClient>()
+            .Setup(c => c.PostearAsync(IdPosteado, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new VentaOperationResult<ResultadoPosteoFactura>(false, "El borrador ya se posteó como la factura FV-000009."));
+
+        var respuesta = await FormulariosSsr.EnviarAsync(app.Cliente(), $"{Url(IdPosteado)}?postear=true", "confirm-postear", new Dictionary<string, string>());
+
+        Assert.Equal(HttpStatusCode.OK, respuesta.StatusCode);
+        Assert.Contains("El borrador ya se posteó como la factura FV-000009.", HtmlSsr.Decodificar(await respuesta.Content.ReadAsStringAsync()));
     }
 
     [Fact]
@@ -285,6 +348,7 @@ public sealed class DocumentoFacturaBorradorTests
         AlmacenCodigo = "PRINC", FechaRegistro = new DateOnly(2026, 9, 1), FechaDocumento = new DateOnly(2026, 9, 1),
         FechaVencimiento = new DateOnly(2026, 9, 30), Descripcion = "Vieja", Moneda = "DOP", SerieRegistroId = IdSerieFv,
         SerieRegistroCodigo = "FV", SerieBorradorCodigo = "FV-BORR", NumeroLineas = 1, Xmin = 11,
+        TerminoPagoCodigo = "30D", RazonSocialFacturacion = "Comercial Uno SRL", NumeroDocumentoFiscal = "101000001",
     };
 
     private static BlazorSsrFactory Configurar(BlazorSsrFactory app)

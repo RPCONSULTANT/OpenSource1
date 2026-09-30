@@ -109,14 +109,27 @@ else
                 <input id="socioQuery" type="text" name="socioQuery" value="@SocioQuery" placeholder="ej. Comercial" class="@VentasCss.Filtro" />
             </div>
             <button type="submit" class="btn-press rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Buscar</button>
+            <p class="w-full text-xs text-slate-400">Se muestran los primeros @VentasOpciones.MaximoSocios clientes por nombre@(string.IsNullOrWhiteSpace(SocioQuery) ? "" : $" que contienen «{SocioQuery}»").</p>
         </form>
     }
     <DocumentoCabeceraEditable Model="UpdateInput" FormName="guardar-cabecera" OnValidSubmit="GuardarCabeceraAsync"
                                Mostrar="MuestraFormCabecera" CargaFallida="OpcionesCabeceraFallidas"
                                MensajeCargaFallida="No fue posible cargar los clientes o los almacenes; recargue la página para modificar la cabecera.">
         <input type="hidden" name="UpdateInput.Xmin" value="@UpdateInput!.Xmin" />
+        @* Datos que la cabecera editable no permite cambiar pero que el documento sigue mostrando (término, moneda, datos fiscales
+           del cliente de facturación y serie de borrador). *@
+        <p class="mb-4 flex flex-wrap gap-x-4 gap-y-1 rounded-xl border border-slate-100 bg-slate-50 px-4 py-2 text-xs text-slate-600" data-testid="cabecera-datos-fijos">
+            <span>Término: <strong>@(borrador.TerminoPagoCodigo ?? "Sin término")</strong></span>
+            <span>Moneda: <strong>@borrador.Moneda</strong></span>
+            <span>Razón social / RNC: <strong>@(string.IsNullOrWhiteSpace($"{borrador.RazonSocialFacturacion} {borrador.NumeroDocumentoFiscal}") ? "—" : $"{borrador.RazonSocialFacturacion} {borrador.NumeroDocumentoFiscal}".Trim())</strong></span>
+            <span>Serie de borrador: <strong>@(borrador.SerieBorradorCodigo ?? "—")</strong></span>
+        </p>
         <CabeceraFacturaFields Model="UpdateInput" Prefix="UpdateInput" Socios="@socios.Items" Almacenes="@almacenes.Items" Vigente="@borrador"
                                SeriesRegistro="@seriesRegistro.Items" SeriesCargaFallida="@seriesRegistro.CargaFallida" Proximo="@proximo" />
+        <div class="mt-4 flex flex-wrap items-center gap-3" data-testid="cabecera-acciones">
+            <a href="@UrlPropia" data-testid="limpiar-cabecera" class="btn-press rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Limpiar campos</a>
+            <a href="@Volver" data-testid="cancelar-cabecera" class="btn-press rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Cancelar</a>
+        </div>
     </DocumentoCabeceraEditable>
     @if (!MuestraFormCabecera)
     {
@@ -842,9 +855,17 @@ else
             return;
         }
 
+        if (EsPosteada)
+        {
+            // POST obsoleto sobre un borrador ya posteado (Review Focus 5): va a la API, que responde con su conflicto real (409).
+            var obsoleto = AddInput!.ToInput((TipoLineaFactura)AddInput.Tipo, AddProductoId, null);
+            await EjecutarAsync(() => FacturaApiClient.CreateLineaAsync(BorradorId, obsoleto), "linea_creada", "No fue posible agregar la línea.");
+            return;
+        }
+
         if (!Abierta)
         {
-            Show("warning", EsPosteada ? "El borrador ya se posteó: es de solo lectura." : "El borrador está liberado: reábralo para agregar líneas.");
+            Show("warning", "El borrador está liberado: reábralo para agregar líneas.");
             return;
         }
 
@@ -869,6 +890,14 @@ else
         if (borrador is null)
         {
             Show("warning", BorradorNoDisponible);
+            return;
+        }
+
+        if (EsPosteada && EditLineaId is { } lineaObsoleta)
+        {
+            // POST obsoleto sobre un borrador ya posteado (Review Focus 5): va a la API, que responde con su conflicto real (409).
+            var obsoleto = UpdateInputLinea!.ToInput((TipoLineaFactura)UpdateInputLinea.Tipo, lineaAEditar?.ProductoId, lineaAEditar?.UnidadMedidaId);
+            await EjecutarAsync(() => FacturaApiClient.UpdateLineaAsync(lineaObsoleta, obsoleto, UpdateInputLinea.Xmin), "linea_modificada", "No fue posible modificar la línea.");
             return;
         }
 
