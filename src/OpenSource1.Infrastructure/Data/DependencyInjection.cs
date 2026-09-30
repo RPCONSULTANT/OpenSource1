@@ -11,6 +11,7 @@ using OpenSource1.Application.Features.Busqueda;
 using OpenSource1.Application.Features.Almacenes;
 using OpenSource1.Application.Features.Cobros;
 using OpenSource1.Application.Features.CategoriasProducto;
+using OpenSource1.Application.Features.ConfiguracionNumeracion;
 using OpenSource1.Application.Features.Contabilidad;
 using OpenSource1.Application.Features.FacturasVenta.Posteadas;
 using OpenSource1.Application.Features.Inventario.Consultas;
@@ -126,6 +127,7 @@ public static class DependencyInjection
         services.AddScoped<IConversionUnidadMedidaService, ConversionUnidadMedidaService>();
         services.AddScoped<IGeneradorNumeroDocumento, GeneradorNumeroDocumento>();
         services.AddScoped<ISerieReadRepository, DapperSerieReadRepository>();
+        services.AddScoped<IConfiguracionNumeracionReadRepository, DapperConfiguracionNumeracionReadRepository>();
         services.AddScoped<IConsultaInventario, ConsultaInventario>();
         services.AddScoped<IRegistroMovimientosInventario, RegistroMovimientosInventario>();
         services.AddScoped<IAjusteCostoInventario, AjusteCostoInventario>();
