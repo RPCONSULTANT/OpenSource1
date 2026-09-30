@@ -99,6 +99,25 @@ public class UpdateLoteDiarioCommandHandlerTests
         lotes.Mock.Verify(r => r.EstablecerVersionOriginal(entity, 42), Times.Once);
     }
 
+    [Fact]
+    public async Task Handle_SerieDeDiarioSinPrefijoDiario_SeAcepta_YLaInactivaNo()
+    {
+        var unitOfWork = ArmarUnitOfWork(out var lotes, out var series, out _);
+        var entity = lotes.Agregar(new LoteDiario { PlantillaDiarioId = Guid.NewGuid(), Codigo = "OLD", Nombre = "Viejo" });
+        var propia = series.Agregar(new Serie { Codigo = "AJUSTES", Descripcion = "Ajustes", TipoDocumento = TipoDocumentoSerie.DiarioInventario });
+        var inactiva = series.Agregar(new Serie
+        {
+            Codigo = "DIARIO-VIEJA", Descripcion = "Vieja", TipoDocumento = TipoDocumentoSerie.DiarioInventario, Activa = false,
+        });
+        var handler = new UpdateLoteDiarioCommandHandler(unitOfWork.Object);
+
+        var aceptada = await handler.Handle(new UpdateLoteDiarioCommand(entity.Id, "OLD", "Viejo", propia.Id, null, 1), default);
+        var rechazada = await handler.Handle(new UpdateLoteDiarioCommand(entity.Id, "OLD", "Viejo", inactiva.Id, null, 1), default);
+
+        Assert.True(aceptada.EsExito, aceptada.EsFallo ? aceptada.Errores[0].Codigo : string.Empty);
+        Assert.Equal(("diario.serie_invalida", "SerieId"), (rechazada.Errores[0].Codigo, rechazada.Errores[0].Campo));
+    }
+
     private static Mock<IUnitOfWork> ArmarUnitOfWork(
         out RepositorioEnMemoria<LoteDiario> lotes,
         out RepositorioEnMemoria<Serie> series,

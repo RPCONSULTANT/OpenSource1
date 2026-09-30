@@ -25,8 +25,8 @@ public sealed class SocioNegocioGruposContablesTests
             UnitOfWork.Setup(u => u.Repository<GrupoClienteContable>()).Returns(ClienteContable.Repo);
             UnitOfWork.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
             UnitOfWork.Setup(u => u.BeginTransactionAsync(It.IsAny<CancellationToken>())).ReturnsAsync(new Mock<IAsyncDisposable>().Object);
-            Generador.Setup(g => g.SiguienteAsync("SOCIOS", It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()))
-                .ReturnsAsync(Result<string>.Exito("000001"));
+            Generador.Setup(g => g.SiguientePorTipoAsync(TipoDocumentoSerie.Cliente, It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(Result<NumeroGenerado>.Exito(new NumeroGenerado("000001", null)));
 
             Nacional = Negocio.Agregar(new GrupoNegocio { Codigo = "NACIONAL", Descripcion = "Nacional" });
             Itbis = IvaNegocio.Agregar(new GrupoIvaNegocio { Codigo = "ITBIS18", Descripcion = "ITBIS" });

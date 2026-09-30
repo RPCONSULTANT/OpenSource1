@@ -52,7 +52,8 @@ public sealed class FacturasVentaPosteoApiTests : IClassFixture<PostgresTestFixt
         var cuerpo = await respuesta.Content.ReadAsStringAsync();
         Assert.True(respuesta.StatusCode == HttpStatusCode.OK, cuerpo);
         var json = JsonDocument.Parse(cuerpo).RootElement;
-        Assert.Equal(["numero", "importeTotal", "registroContable"], json.EnumerateObject().Select(p => p.Name));
+        Assert.Equal(["numero", "importeTotal", "registroContable", "avisoNumeracion"], json.EnumerateObject().Select(p => p.Name));
+        Assert.Equal(JsonValueKind.Null, json.GetProperty("avisoNumeracion").ValueKind);
         var numero = json.GetProperty("numero").GetString()!;
         Assert.Equal(118m, json.GetProperty("importeTotal").GetDecimal());
         var registro = json.GetProperty("registroContable").GetString()!;

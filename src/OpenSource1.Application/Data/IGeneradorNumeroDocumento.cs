@@ -26,7 +26,4 @@ public interface IGeneradorNumeroDocumento
     Task<Result<Guid>> SerieConfiguradaAsync(TipoDocumentoSerie tipo, CancellationToken cancellationToken = default);
 
     Task<Result> ValidarSerieAsync(Guid serieId, TipoDocumentoSerie tipoEsperado, CancellationToken cancellationToken = default);
-
-    /// <summary>TRANSITORIO (lo retira S4): numeración por código fijo mientras se migran los consumidores.</summary>
-    Task<Result<string>> SiguienteAsync(string codigoSerie, DateOnly fecha, CancellationToken cancellationToken = default);
 }

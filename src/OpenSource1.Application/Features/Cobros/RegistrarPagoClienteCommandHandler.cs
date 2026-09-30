@@ -13,19 +13,19 @@ namespace OpenSource1.Application.Features.Cobros;
 
 /// <summary>
 /// Registro de un pago de cliente (Task 6.5). Todo en UNA transacción de <see cref="IUnitOfWork"/>: un <c>Result</c> fallido o una
-/// excepción deshacen todo, incluido el número de la serie <c>COBRO</c>, que así no deja huecos.
+/// excepción deshacen todo, incluido el número de la serie configurada para el tipo <c>Cobro</c>, que así no deja huecos.
 /// <list type="number">
 /// <item>Validación de la entrada (importe, fecha, descripción) sin transacción.</item>
 /// <item>Socio (<c>FOR SHARE</c>): existe y no está bloqueado <c>Todo</c>; fecha de registro permitida (Task 8.5); cuenta de caja/banco válida; CxC derivada del grupo de
 /// cliente contable VIGENTE del socio (<see cref="IDerivadorCuentas.CuentaCxCAsync"/>, D4). Todos los errores juntos y ANTES de
 /// escribir: un fallo no intenta un solo INSERT.</item>
-/// <item>Número <c>COBRO</c>, movimiento Pago (<c>ImporteOriginal = −importe</c>, CxC y grupo congelados) con su detalle Pago y
+/// <item>Número de la serie configurada para <c>Cobro</c>, movimiento Pago (<c>ImporteOriginal = −importe</c>, CxC y grupo congelados) con su detalle Pago y
 /// asiento débito caja / crédito CxC (<see cref="TipoDocumentoContable.Cobro"/>, origen <see cref="TipoOrigenMovimiento.Cobro"/>,
-/// clave = número COBRO, ambas patas con el socio del pago).</item>
+/// clave = número del cobro, ambas patas con el socio del pago).</item>
 /// </list>
 /// <para>
-/// Orden de locks (subconjunto del global): socio (<c>FOR SHARE</c>) → línea de serie <c>COBRO</c> → cuentas (<c>FOR SHARE</c>,
-/// orden de Id, dentro de <see cref="IRegistroContable"/>) → línea de serie <c>CONTAB</c>. No bloquea movimientos de cliente
+/// Orden de locks (subconjunto del global): socio (<c>FOR SHARE</c>) → serie de <c>Cobro</c> (<c>FOR SHARE</c>) y su línea → cuentas (<c>FOR SHARE</c>,
+/// orden de Id, dentro de <see cref="IRegistroContable"/>) → serie de <c>AsientoContable</c> y su línea. No bloquea movimientos de cliente
 /// existentes (solo inserta uno nuevo).
 /// </para>
 /// </summary>
@@ -120,13 +120,15 @@ public sealed class RegistrarPagoClienteCommandHandler(
             return Fallo([.. errores]);
         }
 
-        // Número COBRO (FOR UPDATE de la línea de la serie, sin huecos: se deshace con todo lo demás).
-        var numeroResultado = await generadorNumero.SiguienteAsync(
-            SerieCobroIds.Codigo, DateOnly.FromDateTime(DateTime.UtcNow), cancellationToken);
-        if (!numeroResultado.TryObtenerValor(out var numero))
+        // Número del cobro con la serie configurada para Cobro (FOR UPDATE de su línea; se deshace con todo lo demás).
+        var numeroResultado = await generadorNumero.SiguientePorTipoAsync(
+            TipoDocumentoSerie.Cobro, DateOnly.FromDateTime(DateTime.UtcNow), cancellationToken);
+        if (!numeroResultado.TryObtenerValor(out var generado))
         {
             return Result<ResultadoPagoCliente>.Fallo(numeroResultado);
         }
+
+        var numero = generado.Numero;
 
         if (numero.Length > LongitudNumero)
         {

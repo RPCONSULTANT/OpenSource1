@@ -98,10 +98,10 @@ public sealed class DiariosInventarioApiTests : IClassFixture<PostgresTestFixtur
         var generador = scope.ServiceProvider.GetRequiredService<IGeneradorNumeroDocumento>();
 
         await using var tx = await session.BeginTransactionAsync();
-        var siguiente = await generador.SiguienteAsync("DIARIO-INV", Hoy);
+        var siguiente = await generador.SiguienteAsync(SerieDiarioInventarioIds.SerieId, TipoDocumentoSerie.DiarioInventario, Hoy);
 
         Assert.True(siguiente.EsExito, siguiente.EsFallo ? siguiente.Errores[0].Codigo : "");
-        Assert.Equal("000001", siguiente.Valor);
+        Assert.Equal("000001", siguiente.Valor.Numero);
 
         await session.RollbackAsync();
     }

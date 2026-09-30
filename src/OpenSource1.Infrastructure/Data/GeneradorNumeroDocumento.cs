@@ -107,21 +107,6 @@ public sealed class GeneradorNumeroDocumento(IDbSession session) : IGeneradorNum
         return Validar(serie, tipoEsperado) is { } error ? Result.Fallo(error) : Result.Exito();
     }
 
-    public async Task<Result<string>> SiguienteAsync(string codigoSerie, DateOnly fecha, CancellationToken cancellationToken = default)
-    {
-        await session.EnsureOpenAsync(cancellationToken);
-        var serie = await session.Connection.QuerySingleOrDefaultAsync<(Guid Id, short Tipo)?>(new CommandDefinition(
-            """SELECT "Id", "TipoDocumento" FROM "Series" WHERE "Codigo" = @Codigo AND "IsDeleted" = false""",
-            new { Codigo = codigoSerie }, session.CurrentTransaction, cancellationToken: cancellationToken));
-        if (serie is null)
-        {
-            return Result<string>.Fallo(SerieInexistente());
-        }
-
-        var numero = await SiguienteAsync(serie.Value.Id, (TipoDocumentoSerie)serie.Value.Tipo, fecha, cancellationToken);
-        return numero.TryObtenerValor(out var generado) ? Result<string>.Exito(generado.Numero) : Result<string>.Fallo(numero);
-    }
-
     private Task<SerieFila?> LeerSerieAsync(Guid serieId, string bloqueo, CancellationToken cancellationToken) =>
         session.Connection.QuerySingleOrDefaultAsync<SerieFila?>(new CommandDefinition(
             $"""SELECT "Id", "Codigo", "TipoDocumento", "Activa" FROM "Series" WHERE "Id" = @Id AND "IsDeleted" = false {bloqueo}""",

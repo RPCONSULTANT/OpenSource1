@@ -18,7 +18,7 @@ namespace OpenSource1.Application.Features.FacturasVenta.Posteo;
 /// <summary>
 /// Motor de posteo de facturas de venta (spec 6.5 con las desviaciones de la Fase 6). Todo ocurre en UNA transacción de
 /// <see cref="IUnitOfWork"/> (EF y Dapper comparten la conexión): un <c>Result</c> fallido o una excepción deshacen TODO, incluido
-/// el número de la serie <c>FV</c>, que así nunca deja huecos.
+/// el número de la serie configurada para el tipo <c>FacturaVenta</c>, que así nunca deja huecos.
 /// <list type="number">
 /// <item>Bloqueo del borrador (<c>FOR UPDATE</c>) y de sus líneas: dos posteos del mismo borrador se serializan y el segundo lo
 /// ve ya borrado (404). Un borrador Abierta o Liberada se puede postear: liberar es una revisión opcional, no un requisito.</item>
@@ -28,16 +28,17 @@ namespace OpenSource1.Application.Features.FacturasVenta.Posteo;
 /// líneas CuentaContable, IVA coherente, fecha de registro permitida — Task 8.5) y <b>derivación de TODAS las cuentas</b> (CxC, Ventas, IVA, inventario) antes de
 /// escribir nada: cualquier fallo devuelve todos los errores (con el número de línea) sin haber intentado un solo INSERT.</item>
 /// <item>IVA agrupado (<see cref="CalculadoraIvaFactura"/>).</item>
-/// <item>Número de la serie <c>FV</c>, salidas de inventario (Venta), movimiento de cliente (facturar-a), asiento contable y, al
+/// <item>Número de la serie de facturas (tipo <c>FacturaVenta</c>; si la línea alcanza su número de aviso, el resultado trae la
+/// advertencia), salidas de inventario (Venta), movimiento de cliente (facturar-a), asiento contable y, al
 /// final, el documento posteado con su <c>RegistroContableId</c> (sin UPDATE de la factura). Borrado lógico del borrador.</item>
 /// <item>Total 0 (Task 8.4: todas las líneas al 100 % de descuento, un regalo): se postea el documento (líneas y líneas de IVA de
 /// base 0) y sale el inventario, pero NO hay movimiento de cliente ni asiento (<c>RegistroContableId</c> null, número
-/// <c>CONTAB</c> sin consumir). Las demás validaciones y derivaciones (CxC, Ventas, IVA, inventario) se exigen igual.</item>
+/// de asiento sin consumir). Las demás validaciones y derivaciones (CxC, Ventas, IVA, inventario) se exigen igual.</item>
 /// </list>
 /// <para>
-/// Orden GLOBAL de locks: borrador → líneas → socios (compartido) → productos (ordenados) → línea de serie <c>FV</c> →
+/// Orden GLOBAL de locks: borrador → líneas → socios (compartido) → productos (ordenados) → serie de facturas (<c>FOR SHARE</c>) y su línea →
 /// almacenes (compartidos, dentro de <see cref="IRegistroMovimientosInventario.RegistrarAsync"/>) → cuentas (<c>FOR SHARE</c>,
-/// orden de Id, dentro de <see cref="IRegistroContable"/>) → línea de serie <c>CONTAB</c>.
+/// orden de Id, dentro de <see cref="IRegistroContable"/>) → serie de asientos y su línea.
 /// </para>
 /// </summary>
 public sealed class PostearFacturaVentaCommandHandler(
@@ -133,13 +134,15 @@ public sealed class PostearFacturaVentaCommandHandler(
         // Total 0 (regalo): sin movimiento de cliente ni asiento. Las líneas ya se revalidaron (precio > 0, importe 0 solo al 100 %).
         var conImporte = totales.ImporteTotal != 0m;
 
-        // 5. Número de la factura (FOR UPDATE de la línea de la serie FV, sin huecos: se deshace con todo lo demás).
-        var numeroResultado = await generadorNumero.SiguienteAsync(
-            SerieFacturaVentaIds.CodigoPosteada, DateOnly.FromDateTime(DateTime.UtcNow), cancellationToken);
-        if (!numeroResultado.TryObtenerValor(out var numero))
+        // 5. Número de la factura (FOR UPDATE de la línea de la serie de facturas, sin huecos: se deshace con todo lo demás).
+        var numeroResultado = await generadorNumero.SiguientePorTipoAsync(
+            TipoDocumentoSerie.FacturaVenta, DateOnly.FromDateTime(DateTime.UtcNow), cancellationToken);
+        if (!numeroResultado.TryObtenerValor(out var generado))
         {
             return Result<ResultadoPosteoFactura>.Fallo(numeroResultado);
         }
+
+        var numero = generado.Numero;
 
         if (numero.Length > LongitudNumero)
         {
@@ -221,7 +224,7 @@ public sealed class PostearFacturaVentaCommandHandler(
         await unitOfWork.CommitAsync(cancellationToken);
 
         return Result<ResultadoPosteoFactura>.Exito(
-            new ResultadoPosteoFactura(numero, totales.ImporteTotal, asientoRegistrado?.NumeroRegistro));
+            new ResultadoPosteoFactura(numero, totales.ImporteTotal, asientoRegistrado?.NumeroRegistro, generado.Aviso));
     }
 
     /// <summary>Movimiento de cliente del facturar-a (con la CxC congelada) y asiento de la factura (pasos 7 y 8).</summary>

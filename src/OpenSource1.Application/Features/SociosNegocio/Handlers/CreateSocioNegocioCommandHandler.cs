@@ -7,13 +7,14 @@ using OpenSource1.Application.Features.SociosNegocio.Dtos;
 using OpenSource1.Core.Common;
 using OpenSource1.Core.Entities;
 using OpenSource1.Core.Entities.Contabilidad;
+using OpenSource1.Core.Enums;
 using OpenSource1.Core.ValueObjects;
 
 namespace OpenSource1.Application.Features.SociosNegocio.Handlers;
 
 /// <summary>
 /// Alta de socio de negocio y primer consumidor real de <see cref="IGeneradorNumeroDocumento"/>:
-/// el <c>Codigo</c> se toma de la serie <see cref="SerieCodigos"/> (sin huecos) dentro de la misma
+/// el <c>Codigo</c> se toma de la serie configurada para el tipo <c>Cliente</c> (sin huecos) dentro de la misma
 /// transacción que inserta la fila.
 /// </summary>
 /// <remarks>
@@ -28,8 +29,6 @@ namespace OpenSource1.Application.Features.SociosNegocio.Handlers;
 public sealed class CreateSocioNegocioCommandHandler(IUnitOfWork unitOfWork, IGeneradorNumeroDocumento generadorNumero)
     : IRequestHandler<CreateSocioNegocioCommand, Result<SocioNegocioResponse>>
 {
-    public const string SerieCodigos = "SOCIOS";
-
     public async Task<Result<SocioNegocioResponse>> Handle(CreateSocioNegocioCommand request, CancellationToken cancellationToken)
     {
         var errores = SocioNegocioValidator.Validar(request);
@@ -40,12 +39,14 @@ public sealed class CreateSocioNegocioCommandHandler(IUnitOfWork unitOfWork, IGe
 
         await using var transaccion = await unitOfWork.BeginTransactionAsync(cancellationToken);
 
-        var numero = await generadorNumero.SiguienteAsync(
-            SerieCodigos, DateOnly.FromDateTime(DateTime.UtcNow), cancellationToken);
-        if (!numero.TryObtenerValor(out var codigo))
+        var numero = await generadorNumero.SiguientePorTipoAsync(
+            TipoDocumentoSerie.Cliente, DateOnly.FromDateTime(DateTime.UtcNow), cancellationToken);
+        if (!numero.TryObtenerValor(out var generado))
         {
             return Result<SocioNegocioResponse>.Fallo(numero);
         }
+
+        var codigo = generado.Numero;
 
         var verificacion = await SocioNegocioReglas.VerificarReferenciasAsync(unitOfWork, request, idActual: null, validarTermino: true, cancellationToken);
         if (verificacion is not null)

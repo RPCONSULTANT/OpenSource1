@@ -17,13 +17,13 @@ namespace OpenSource1.Application.Features.NotasCreditoVenta.Posteo;
 
 /// <summary>
 /// Motor de posteo de notas de crédito de venta (Task 8.6), mismo patrón que <c>PostearFacturaVentaCommandHandler</c>: UNA
-/// transacción de <see cref="IUnitOfWork"/> (un fallo o una excepción deshacen todo, incluido el número de la serie <c>NC</c>).
+/// transacción de <see cref="IUnitOfWork"/> (un fallo o una excepción deshacen todo, incluido el número de la serie configurada para el tipo <c>NotaCreditoVenta</c>).
 /// <list type="number">
 /// <item>Bloqueos, en el orden global: borrador y sus líneas (<c>FOR UPDATE</c>) → FACTURA (<c>FOR UPDATE</c> de su fila, el
 /// punto de serialización de todas sus notas, también si es de total 0 y no tiene movimiento de cliente) → movimiento de cliente de
 /// la factura (<c>FOR UPDATE</c>, con su restante leído después del bloqueo) → socios (<c>FOR SHARE</c>) → productos con devolución
-/// (ordenados) → serie <c>NC</c> → almacenes (dentro de <see cref="IRegistroMovimientosInventario"/>) → cuentas y serie
-/// <c>CONTAB</c> (dentro de <see cref="IRegistroContable"/>).</item>
+/// (ordenados) → serie de notas (<c>FOR SHARE</c>) y su línea → almacenes (dentro de <see cref="IRegistroMovimientosInventario"/>) → cuentas y serie
+/// de asientos (dentro de <see cref="IRegistroContable"/>).</item>
 /// <item>Revalidación contra el estado actual y BAJO EL BLOQUEO de la factura (Review Focus 1): fecha de registro permitida
 /// (Task 8.5) y no anterior a la factura; socios; por línea, cantidad ≤ facturada − acreditada por notas POSTEADAS (dos notas
 /// concurrentes sobre la misma línea se serializan en la factura y la segunda ve lo que acreditó la primera), exactitud de la
@@ -32,7 +32,7 @@ namespace OpenSource1.Application.Features.NotasCreditoVenta.Posteo;
 /// <item>Importes RECALCULADOS desde la línea de la factura (no los guardados en el borrador) y TOPADOS por lo que queda por
 /// acreditar bajo el bloqueo (Ruling FI, <see cref="TopesNotaCredito"/>): importe y descuento por línea, IVA por grupo y costo de
 /// la devolución; la nota que agota toma los remanentes exactos. IVA agrupado de la nota (<see cref="CalculadoraIvaFactura"/>) sobre
-/// los importes topados, número <c>NC</c>, asiento en memoria con los importes topados.</item>
+/// los importes topados, número de la serie de notas, asiento en memoria con los importes topados.</item>
 /// <item>Devolución (Review Focus 2): por línea con <c>DevolverInventario</c>, entrada <c>Venta</c> con cantidad POSITIVA en el
 /// almacén de la línea original, en unidad base (convertida con el factor congelado de la factura), al costo unitario EXACTO de la
 /// salida original: <c>−ImporteCosto / CantidadBase</c> de su movimiento de producto, con <c>ImporteCosto</c> = Σ de sus movimientos
@@ -199,13 +199,15 @@ public sealed class PostearNotaCreditoVentaCommandHandler(
             cuentasAsiento = cuentas with { CuentaCxCId = movimientoFactura.CuentaCxCId };
         }
 
-        // 6. Número de la nota (FOR UPDATE de la línea de la serie NC, sin huecos: se deshace con todo lo demás).
-        var numeroResultado = await generadorNumero.SiguienteAsync(
-            SerieNotaCreditoVentaIds.CodigoPosteada, DateOnly.FromDateTime(DateTime.UtcNow), cancellationToken);
-        if (!numeroResultado.TryObtenerValor(out var numero))
+        // 6. Número de la nota (FOR UPDATE de la línea de la serie de notas, sin huecos: se deshace con todo lo demás).
+        var numeroResultado = await generadorNumero.SiguientePorTipoAsync(
+            TipoDocumentoSerie.NotaCreditoVenta, DateOnly.FromDateTime(DateTime.UtcNow), cancellationToken);
+        if (!numeroResultado.TryObtenerValor(out var generado))
         {
             return Result<ResultadoPosteoNotaCredito>.Fallo(numeroResultado);
         }
+
+        var numero = generado.Numero;
 
         if (numero.Length > LongitudNumero)
         {
@@ -334,7 +336,8 @@ public sealed class PostearNotaCreditoVentaCommandHandler(
         await unitOfWork.CommitAsync(cancellationToken);
 
         return Result<ResultadoPosteoNotaCredito>.Exito(
-            new ResultadoPosteoNotaCredito(numero, totales.ImporteTotal, aplicado, asientoRegistrado?.NumeroRegistro));
+            new ResultadoPosteoNotaCredito(
+                numero, totales.ImporteTotal, aplicado, asientoRegistrado?.NumeroRegistro, AvisoNumeracion: generado.Aviso));
     }
 
     /// <summary>Fecha permitida y no anterior a la factura; socios existentes y no bloqueados (mismo criterio que la factura).</summary>

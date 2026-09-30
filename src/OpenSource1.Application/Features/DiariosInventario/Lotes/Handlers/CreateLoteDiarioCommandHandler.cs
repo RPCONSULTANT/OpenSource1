@@ -33,10 +33,10 @@ public sealed class CreateLoteDiarioCommandHandler(IUnitOfWork unitOfWork)
         {
             var serie = await unitOfWork.Repository<Serie>().FirstOrDefaultAsync(
                 x => x.Id == serieId, cancellationToken: cancellationToken);
-            if (serie is null || !LoteDiarioValidator.EsSerieDeDiarioValida(serie.Codigo))
+            if (serie is null || !LoteDiarioValidator.EsSerieDeDiarioValida(serie))
             {
                 return Result<LoteDiarioResponse>.Fallo(new Error(
-                    "diario.serie_invalida", "La serie indicada no existe o no es una serie de diarios de inventario.", "SerieId"));
+                    "diario.serie_invalida", "La serie indicada no existe, no es de diarios de inventario o está inactiva.", "SerieId"));
             }
         }
 

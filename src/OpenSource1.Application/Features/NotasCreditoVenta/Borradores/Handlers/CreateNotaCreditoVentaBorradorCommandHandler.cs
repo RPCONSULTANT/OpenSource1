@@ -16,7 +16,7 @@ namespace OpenSource1.Application.Features.NotasCreditoVenta.Borradores.Handlers
 /// (<c>nota_credito.factura_invalida</c>, 400: es una referencia del cuerpo), le queda algo por acreditar
 /// (<c>nota_credito.factura_sin_pendiente</c>), sus socios siguen vivos (<c>FOR SHARE</c> antes de comprobarlo, contra su borrado
 /// concurrente) y la fecha de registro no es anterior a la suya. Copia de la factura la cabecera y de su movimiento de cliente la
-/// CxC congelada; con <c>CopiarLineas</c>, una línea por todo lo pendiente de cada línea acreditable. Número de <c>NC-BORR</c>.
+/// CxC congelada; con <c>CopiarLineas</c>, una línea por todo lo pendiente de cada línea acreditable. Número de la serie configurada para el tipo <c>BorradorNotaCreditoVenta</c>.
 /// </summary>
 public sealed class CreateNotaCreditoVentaBorradorCommandHandler(
     IUnitOfWork unitOfWork,
@@ -40,7 +40,7 @@ public sealed class CreateNotaCreditoVentaBorradorCommandHandler(
             return Fallo(NotaCreditoVentaErrores.FacturaInvalida());
         }
 
-        // Sin CommitAsync, salir del "await using" deshace la transacción (el número de NC-BORR no se consume).
+        // Sin CommitAsync, salir del "await using" deshace la transacción (el número del borrador no se consume).
         await using var transaccion = await unitOfWork.BeginTransactionAsync(cancellationToken);
 
         var factura = await datos.ObtenerFacturaAsync(request.FacturaVentaNumero.Trim(), bloquear: false, cancellationToken);
@@ -86,12 +86,14 @@ public sealed class CreateNotaCreditoVentaBorradorCommandHandler(
 
         var movimiento = await datos.MovimientoClienteFacturaAsync(factura.Numero, cancellationToken);
 
-        var numero = await generadorNumero.SiguienteAsync(
-            SerieNotaCreditoVentaIds.CodigoBorrador, DateOnly.FromDateTime(DateTime.UtcNow), cancellationToken);
-        if (!numero.TryObtenerValor(out var numeroBorrador))
+        var numero = await generadorNumero.SiguientePorTipoAsync(
+            TipoDocumentoSerie.BorradorNotaCreditoVenta, DateOnly.FromDateTime(DateTime.UtcNow), cancellationToken);
+        if (!numero.TryObtenerValor(out var generado))
         {
             return Result<NotaCreditoVentaBorradorResponse>.Fallo(numero);
         }
+
+        var numeroBorrador = generado.Numero;
 
         var entity = new NotaCreditoVentaBorrador
         {

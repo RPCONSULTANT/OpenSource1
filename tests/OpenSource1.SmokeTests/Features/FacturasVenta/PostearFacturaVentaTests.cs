@@ -1277,6 +1277,33 @@ public sealed class PostearFacturaVentaTests(PostgresTestFixture fixture) : ICla
         return [.. resultados];
     }
 
+    [Fact]
+    public async Task NumeroDeAviso_AlcanzadoEnLaSerieFv_ElResultadoTraeLaAdvertencia()
+    {
+        var almacen = await _prueba.SembrarAlmacenAsync();
+        var producto = await ProductoAsync();
+        await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Entrada(producto, almacen, 5m, 1m, D1));
+        var borrador = await BorradorAsync(await SocioAsync(), almacen: almacen);
+        await LineaProductoAsync(borrador.Id, producto, 1m, 10m);
+        try
+        {
+            // El aviso en el número que se va a emitir: siguiente = último + 1.
+            var siguiente = Siguiente(await UltimoNumeroFvAsync());
+            await EjecutarSqlAsync("""UPDATE "LineasSerie" SET "NumeroAviso" = @A WHERE "Id" = @Id""",
+                new { A = siguiente, Id = SerieFacturaVentaIds.LineaSeriePosteadaId });
+
+            var resultado = await PostearOkAsync(borrador.Id);
+
+            Assert.Equal(siguiente, resultado.Numero);
+            Assert.Contains("número de aviso", resultado.AvisoNumeracion);
+        }
+        finally
+        {
+            await EjecutarSqlAsync("""UPDATE "LineasSerie" SET "NumeroAviso" = NULL WHERE "Id" = @Id""",
+                new { Id = SerieFacturaVentaIds.LineaSeriePosteadaId });
+        }
+    }
+
     // ----- Helpers: lectura -----
 
     private static string Siguiente(string ultimo) => (long.Parse(ultimo) + 1).ToString().PadLeft(8, '0');

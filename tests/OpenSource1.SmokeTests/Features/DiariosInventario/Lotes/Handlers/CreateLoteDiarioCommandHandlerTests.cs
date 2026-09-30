@@ -90,6 +90,25 @@ public class CreateLoteDiarioCommandHandlerTests
         lotes.Mock.Verify(r => r.AddAsync(It.IsAny<LoteDiario>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
+    [Fact]
+    public async Task Handle_SerieDeDiarioSinPrefijoDiario_SeAcepta_YLaInactivaNo()
+    {
+        var unitOfWork = ArmarUnitOfWork(out var lotes, out var plantillas, out var series);
+        var plantilla = plantillas.Agregar(new PlantillaDiario { Codigo = "ARTICULO", Nombre = "Artículo", Tipo = TipoPlantillaDiario.Articulo });
+        var propia = series.Agregar(new Serie { Codigo = "AJUSTES", Descripcion = "Ajustes", TipoDocumento = TipoDocumentoSerie.DiarioInventario });
+        var inactiva = series.Agregar(new Serie
+        {
+            Codigo = "DIARIO-VIEJA", Descripcion = "Vieja", TipoDocumento = TipoDocumentoSerie.DiarioInventario, Activa = false,
+        });
+        var handler = new CreateLoteDiarioCommandHandler(unitOfWork.Object);
+
+        var aceptada = await handler.Handle(new CreateLoteDiarioCommand(plantilla.Id, "LOTE1", "Lote", propia.Id, false), default);
+        var rechazada = await handler.Handle(new CreateLoteDiarioCommand(plantilla.Id, "LOTE2", "Lote", inactiva.Id, false), default);
+
+        Assert.True(aceptada.EsExito, aceptada.EsFallo ? aceptada.Errores[0].Codigo : string.Empty);
+        Assert.Equal(("diario.serie_invalida", "SerieId"), (rechazada.Errores[0].Codigo, rechazada.Errores[0].Campo));
+    }
+
     private static Mock<IUnitOfWork> ArmarUnitOfWork(
         out RepositorioEnMemoria<LoteDiario> lotes, out RepositorioEnMemoria<PlantillaDiario> plantillas, out RepositorioEnMemoria<Serie> series)
     {

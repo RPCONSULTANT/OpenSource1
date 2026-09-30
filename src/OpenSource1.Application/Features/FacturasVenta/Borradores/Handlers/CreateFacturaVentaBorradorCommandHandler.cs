@@ -11,7 +11,7 @@ namespace OpenSource1.Application.Features.FacturasVenta.Borradores.Handlers;
 
 /// <summary>
 /// Alta de un borrador: snapshot del facturar-a y grupos congelados (<see cref="FacturaVentaBorradorReglas.TomarSnapshotAsync"/>),
-/// vencimiento por el término de pago, almacén predeterminado, moneda DOP y número de la serie <c>FV-BORR</c> (dentro de la
+/// vencimiento por el término de pago, almacén predeterminado, moneda DOP y número de la serie configurada para el tipo <c>BorradorFacturaVenta</c> (dentro de la
 /// transacción, que <see cref="IGeneradorNumeroDocumento"/> exige). Los socios se bloquean <c>FOR SHARE</c> dentro de la transacción
 /// ANTES de validarlos: un borrado concurrente del socio no puede dejar un borrador de un socio borrado.
 /// </summary>
@@ -30,7 +30,7 @@ public sealed class CreateFacturaVentaBorradorCommandHandler(
             return Result<FacturaVentaBorradorResponse>.Fallo(errorDescripcion);
         }
 
-        // Sin CommitAsync, salir del "await using" deshace la transacción (el número de FV-BORR no se consume).
+        // Sin CommitAsync, salir del "await using" deshace la transacción (el número del borrador no se consume).
         await using var transaccion = await unitOfWork.BeginTransactionAsync(cancellationToken);
 
         // Socios (FOR SHARE) antes de validarlos: el borrado del socio espera a este commit o este alta ve el socio borrado.
@@ -59,11 +59,13 @@ public sealed class CreateFacturaVentaBorradorCommandHandler(
             return Result<FacturaVentaBorradorResponse>.Fallo(almacen);
         }
 
-        var numero = await generadorNumero.SiguienteAsync(SerieFacturaVentaIds.CodigoBorrador, hoy, cancellationToken);
-        if (!numero.TryObtenerValor(out var numeroBorrador))
+        var numero = await generadorNumero.SiguientePorTipoAsync(TipoDocumentoSerie.BorradorFacturaVenta, hoy, cancellationToken);
+        if (!numero.TryObtenerValor(out var generado))
         {
             return Result<FacturaVentaBorradorResponse>.Fallo(numero);
         }
+
+        var numeroBorrador = generado.Numero;
 
         var entity = new FacturaVentaBorrador
         {

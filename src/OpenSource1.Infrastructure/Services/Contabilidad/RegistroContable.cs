@@ -22,11 +22,11 @@ namespace OpenSource1.Infrastructure.Services.Contabilidad;
 /// y después evalúan el uso: o esperan a este commit (y ven sus movimientos → 409), o este registro espera a su commit y ve la
 /// cuenta ya borrada / fuera de Posteo (y la rechaza). Un simple <c>UPDATE</c> que solo la bloquee (sin pasar por la guarda) sí
 /// esperaría igual, por el conflicto FOR SHARE/UPDATE.</item>
-/// <item>Número de la serie <c>CONTAB</c> (<c>FOR UPDATE</c> de la línea de serie: serializa a TODOS los escritores del libro
+/// <item>Número de la serie configurada para el tipo <c>AsientoContable</c> (<c>FOR UPDATE</c> de la línea de serie: serializa a TODOS los escritores del libro
 /// contable hasta el commit/rollback). Un fallo anterior no lo consume; uno posterior lo deshace la transacción.</item>
 /// <item>Ids de los movimientos reservados de su secuencia de identidad, registro con su rango y movimientos con esos ids
 /// (<c>OVERRIDING SYSTEM VALUE</c>). Son contiguos DENTRO del registro porque todos los escritores bloquean la misma línea de
-/// la serie <c>CONTAB</c>; se comprueba y, si no, excepción. Entre registros puede haber huecos inocuos (un rollback tras
+/// la serie de asientos; se comprueba y, si no, excepción. Entre registros puede haber huecos inocuos (un rollback tras
 /// <c>nextval</c> no devuelve los ids a la secuencia).</item>
 /// <item>Red final: <c>SELECT COUNT/SUM</c> del registro recién escrito; si no cuadra, excepción (nunca un <c>Result</c>):
 /// el llamador no llega a confirmar y su transacción se deshace entera.</item>
@@ -101,14 +101,16 @@ public sealed class RegistroContable(
             return Fallo([.. errores]);
         }
 
-        // 3. Número de registro (serie CONTAB). La fecha elige la línea de serie vigente: la de creación del registro, como
+        // 3. Número de registro (serie configurada para AsientoContable). La fecha elige la línea de serie vigente: la de creación del registro, como
         //    en el registro de diarios de inventario (la fecha contable del asiento puede ser anterior a la primera línea).
-        var numero = await generadorNumero.SiguienteAsync(
-            SerieContabilidadIds.Codigo, DateOnly.FromDateTime(DateTime.UtcNow), ct);
-        if (!numero.TryObtenerValor(out var numeroRegistro))
+        var numero = await generadorNumero.SiguientePorTipoAsync(
+            TipoDocumentoSerie.AsientoContable, DateOnly.FromDateTime(DateTime.UtcNow), ct);
+        if (!numero.TryObtenerValor(out var generado))
         {
             return Result<AsientoRegistrado>.Fallo(numero);
         }
+
+        var numeroRegistro = generado.Numero;
 
         if (numeroRegistro.Length > LongitudNumeroRegistro)
         {
@@ -126,7 +128,7 @@ public sealed class RegistroContable(
             new { Cantidad = asiento.Lineas.Count }, tx, cancellationToken: ct))).Order().ToArray();
         if (movimientoIds.Length != asiento.Lineas.Count || movimientoIds[^1] - movimientoIds[0] + 1 != asiento.Lineas.Count)
         {
-            // Solo posible si alguien consume la secuencia sin bloquear la línea de la serie CONTAB (otro escritor del libro).
+            // Solo posible si alguien consume la secuencia sin bloquear la línea de la serie de asientos (otro escritor del libro).
             throw new InvalidOperationException(
                 $"Los ids reservados para el registro contable {numeroRegistro} no son contiguos " +
                 $"({movimientoIds[0]}..{movimientoIds[^1]} para {asiento.Lineas.Count} líneas).");
