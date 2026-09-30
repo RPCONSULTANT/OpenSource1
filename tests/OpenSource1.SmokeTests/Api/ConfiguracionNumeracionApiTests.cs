@@ -76,6 +76,50 @@ public sealed class ConfiguracionNumeracionApiTests(PostgresTestFixture fixture)
         await AssertCampoAsync(await admin.PutAsJsonAsync($"{Ruta}/99", new { serieId = SerieClienteIds.SerieId, xmin = fila.Xmin }), HttpStatusCode.BadRequest, "TipoDocumento");
     }
 
+    /// <summary>
+    /// NS5 entre los dos módulos: una serie inactiva no se asigna (400 SerieId) y, una vez asignada, no se desactiva (409). El PUT de
+    /// la configuración bloquea la fila de la serie FOR UPDATE antes de comprobar Activa, igual que la desactivación antes de mirar
+    /// si está asignada: en cualquier orden, nunca queda asignada una serie inactiva.
+    /// </summary>
+    [Fact]
+    public async Task SerieInactiva_NoSeAsigna_YLaAsignada_NoSeDesactiva()
+    {
+        var admin = Rol("Administrador");
+        var original = Fila(await ListarAsync(admin), TipoDocumentoSerie.Cobro);
+        var serieId = await CrearSerieConLineaAsync(TipoDocumentoSerie.Cobro, $"CA{Guid.NewGuid():N}"[..6].ToUpperInvariant() + "-", activa: false);
+        try
+        {
+            await AssertCampoAsync(await admin.PutAsJsonAsync($"{Ruta}/5", new { serieId, xmin = original.Xmin }), HttpStatusCode.BadRequest, "SerieId");
+            Assert.Equal(original.SerieId, Fila(await ListarAsync(admin), TipoDocumentoSerie.Cobro).SerieId);
+
+            await using (var conexion = new NpgsqlConnection(fixture.AppConnectionString))
+            {
+                await conexion.ExecuteAsync("""UPDATE "Series" SET "Activa" = true WHERE "Id" = @Id""", new { Id = serieId });
+            }
+
+            var cambio = await admin.PutAsJsonAsync($"{Ruta}/5", new { serieId, xmin = original.Xmin });
+            Assert.True(cambio.StatusCode == HttpStatusCode.OK, await cambio.Content.ReadAsStringAsync());
+
+            var serie = (await admin.GetFromJsonAsync<JsonElement>($"/api/series/{serieId}")).GetProperty("serie");
+            Assert.True(serie.GetProperty("asignada").GetBoolean());
+            var desactivar = await admin.PutAsJsonAsync($"/api/series/{serieId}", new
+            {
+                codigo = serie.GetProperty("codigo").GetString(),
+                descripcion = serie.GetProperty("descripcion").GetString(),
+                tipoDocumento = (int)TipoDocumentoSerie.Cobro,
+                permiteHuecos = false,
+                activa = false,
+                xmin = serie.GetProperty("xmin").GetInt64(),
+            });
+            await AssertCampoAsync(desactivar, HttpStatusCode.Conflict, "Activa");
+        }
+        finally
+        {
+            await using var conexion = new NpgsqlConnection(fixture.AppConnectionString);
+            await conexion.ExecuteAsync("""UPDATE "ConfiguracionesNumeracion" SET "SerieId" = @S WHERE "TipoDocumento" = 5""", new { S = original.SerieId });
+        }
+    }
+
     private async Task<Guid> CrearSerieConLineaAsync(TipoDocumentoSerie tipo, string prefijo, bool activa)
     {
         var id = Guid.NewGuid();
