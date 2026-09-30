@@ -44,7 +44,7 @@
     </div>
 }
 
-@if (Numero is not null && Ok == "posteada" && !string.IsNullOrWhiteSpace(AvisoNumeracion))
+@if (detalle is not null && Ok == "posteada" && !string.IsNullOrWhiteSpace(AvisoNumeracion))
 {
     <div class="mb-6" data-testid="aviso-numeracion"><MessageBox Type="warning" Message="@AvisoNumeracion" /></div>
 }
@@ -153,7 +153,6 @@ else if (detalle is null)
 else
 {
     var c = detalle.Cabecera;
-    var descuentos = detalle.Lineas.Sum(l => l.ImporteDescuentoLinea);
     @* NS20: el mismo diseño de documento en solo lectura que la factura posteada. *@
     <div data-testid="cabecera-nota">
         <DocumentoCabecera Campos="@CamposNota(c)" />
@@ -163,7 +162,7 @@ else
                             Lineas="@detalle.Lineas.OrderBy(l => l.NumeroLinea).Select(LineaDocumento.Desde).ToList()"
                             TextoVacio="La nota de crédito no tiene líneas." />
 
-    <DocumentoTotales Totales="@(new TotalesDocumento(c.ImporteSinIva + descuentos, descuentos, c.ImporteSinIva, c.ImporteIva, c.ImporteTotal, [.. detalle.LineasIva.Select(g => new GrupoIvaCalculado(g.IdentificadorIva, g.PorcentajeIva, g.BaseImponible, g.ImporteIva))]))"
+    <DocumentoTotales Totales="@TotalesDocumento.Desde(detalle)"
                       Titulo="Totales de la nota" />
     <p class="-mt-3 mb-8 text-xs"><a class="text-brand-700 underline" href="@($"/ventas/movimientos-cliente?socioId={c.SocioNegocioFacturarAId}")">Movimientos del cliente</a></p>
 }

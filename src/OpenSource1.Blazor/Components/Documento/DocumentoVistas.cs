@@ -46,6 +46,20 @@ public sealed record TotalesDocumento(
 {
     public static TotalesDocumento Desde(TotalesFactura totales, decimal descuentos) =>
         new(totales.ImporteSinIva + descuentos, descuentos, totales.ImporteSinIva, totales.ImporteIva, totales.ImporteTotal, totales.Grupos);
+
+    /// <summary>Totales de una factura posteada: importes de la cabecera, grupos de IVA guardados y descuentos de sus líneas.</summary>
+    public static TotalesDocumento Desde(FacturaVentaDetalleResponse d) => Posteado(
+        d.Cabecera.ImporteSinIva, d.Cabecera.ImporteIva, d.Cabecera.ImporteTotal, d.Lineas.Sum(l => l.ImporteDescuentoLinea),
+        d.LineasIva.Select(g => new GrupoIvaCalculado(g.IdentificadorIva, g.PorcentajeIva, g.BaseImponible, g.ImporteIva)));
+
+    /// <summary>Totales de una nota de crédito posteada (misma aritmética que la factura).</summary>
+    public static TotalesDocumento Desde(NotaCreditoVentaDetalleResponse d) => Posteado(
+        d.Cabecera.ImporteSinIva, d.Cabecera.ImporteIva, d.Cabecera.ImporteTotal, d.Lineas.Sum(l => l.ImporteDescuentoLinea),
+        d.LineasIva.Select(g => new GrupoIvaCalculado(g.IdentificadorIva, g.PorcentajeIva, g.BaseImponible, g.ImporteIva)));
+
+    /// <summary>El subtotal es el importe sin ITBIS más los descuentos de línea (los importes guardados ya los descuentan).</summary>
+    private static TotalesDocumento Posteado(decimal importeSinIva, decimal importeIva, decimal importeTotal, decimal descuentos, IEnumerable<GrupoIvaCalculado> grupos) =>
+        new(importeSinIva + descuentos, descuentos, importeSinIva, importeIva, importeTotal, [.. grupos]);
 }
 
 /// <summary>Variante de <see cref="DocumentoFilaFormulario"/>: <c>Alta</c> = <c>fila-nueva</c> (verde), <c>Edicion</c> = <c>fila-edicion</c> (ámbar).</summary>

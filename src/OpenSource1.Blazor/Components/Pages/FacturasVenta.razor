@@ -62,7 +62,7 @@ else
     </div>
 }
 
-@if (Numero is not null && Ok == "posteada" && !string.IsNullOrWhiteSpace(AvisoNumeracion))
+@if (detalle is not null && Ok == "posteada" && !string.IsNullOrWhiteSpace(AvisoNumeracion))
 {
     <div class="mb-6" data-testid="aviso-numeracion"><MessageBox Type="warning" Message="@AvisoNumeracion" /></div>
 }
@@ -197,7 +197,7 @@ else
     <DocumentoLineasLectura TLinea="LineaFacturaVentaResponse" Columnas="ColumnasFactura" Lineas="@detalle.Lineas.OrderBy(l => l.NumeroLinea).ToList()"
                             TextoVacio="La factura no tiene líneas." />
 
-    <DocumentoTotales Totales="@TotalesFactura(detalle)" />
+    <DocumentoTotales Totales="@TotalesDocumento.Desde(detalle)" />
     <p class="-mt-3 mb-8 text-xs"><a class="text-brand-700 underline" href="@($"/cobros?socioId={c.SocioNegocioFacturarAId}")">Movimientos y cobros del cliente</a></p>
 
     <!-- ── Notas de crédito de la factura ── -->
@@ -407,7 +407,7 @@ else
     [
         new("Vender a", $"{c.SocioNegocioCodigo} — {c.SocioNegocioNombre}", $"/clientes/{c.SocioNegocioId}"),
         new("Facturar a", $"{c.SocioNegocioFacturarACodigo} — {c.NombreFacturacion}", $"/clientes/{c.SocioNegocioFacturarAId}",
-            $"{c.RazonSocialFacturacion} {c.NumeroDocumentoFiscal}".Trim()),
+            DetalleFacturarA(c)),
         new("Fechas", $"Reg. {EntradaFecha.Formatear(c.FechaRegistro)} · Doc. {EntradaFecha.Formatear(c.FechaDocumento)}", null,
             $"Vence {EntradaFecha.Formatear(c.FechaVencimiento)}{(c.TerminoPagoCodigo is null ? "" : $" ({c.TerminoPagoCodigo})")}"),
         new("Almacén / Moneda", $"{c.AlmacenCodigo} · {c.Moneda}", null,
@@ -415,6 +415,15 @@ else
         new("Borrador de origen", c.NumeroBorrador, c.FacturaVentaBorradorId is { } b ? $"/facturas-venta/borradores/{b}" : null),
         new("Descripción", string.IsNullOrWhiteSpace(c.Descripcion) ? "—" : c.Descripcion, Ancho: true),
     ];
+
+    /// <summary>Razón social y RNC de facturación y, debajo en la misma línea, la dirección (línea 1, ciudad y país) guardada en la factura.</summary>
+    private static string DetalleFacturarA(FacturaVentaResponse c)
+    {
+        var fiscal = $"{c.RazonSocialFacturacion} {c.NumeroDocumentoFiscal}".Trim();
+        var direccion = string.Join(", ", new[] { c.DireccionFacturacionLinea1, c.CiudadFacturacion, c.PaisCodigoFacturacion }
+            .Where(p => !string.IsNullOrWhiteSpace(p)).Select(p => p!.Trim()));
+        return string.Join(" · ", new[] { fiscal, direccion }.Where(p => p.Length > 0));
+    }
 
     /// <summary>
     /// Columnas fijas de la factura (<see cref="ColumnasDocumento.Factura"/>) más lo acreditado por notas posteadas en cada línea
@@ -436,14 +445,6 @@ else
         : Acreditado(lineaId) is { Cantidad: > 0 } a
             ? $"{a.Cantidad.ToString("0.######", CultureInfo.InvariantCulture)} · {VentasOpciones.Importe(a.Importe)}"
             : "—";
-
-    private static TotalesDocumento TotalesFactura(FacturaVentaDetalleResponse d)
-    {
-        var descuentos = d.Lineas.Sum(l => l.ImporteDescuentoLinea);
-        var c = d.Cabecera;
-        return new TotalesDocumento(c.ImporteSinIva + descuentos, descuentos, c.ImporteSinIva, c.ImporteIva, c.ImporteTotal,
-            [.. d.LineasIva.Select(g => new GrupoIvaCalculado(g.IdentificadorIva, g.PorcentajeIva, g.BaseImponible, g.ImporteIva))]);
-    }
 
     private string UrlFactura => $"/facturas-venta/{Uri.EscapeDataString(Numero ?? string.Empty)}";
 
