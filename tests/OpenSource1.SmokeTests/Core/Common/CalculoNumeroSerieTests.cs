@@ -1,0 +1,86 @@
+using OpenSource1.Core.Common;
+using OpenSource1.Core.Enums;
+
+namespace OpenSource1.SmokeTests.Core.Common;
+
+public sealed class CalculoNumeroSerieTests
+{
+    [Theory]
+    [InlineData("00000001", "00000000", false)]
+    [InlineData("00000001", "", false)]
+    [InlineData("00000001", null, false)]
+    [InlineData("00000001", "00000001", true)]
+    [InlineData("00000001", "7", true)]
+    [InlineData("FV-000010", "FV-000009", false)]
+    public void EstaUsada_SoloSiElUltimoNoEsMenorQueElInicial(string inicial, string? ultimo, bool usada)
+    {
+        Assert.Equal(usada, CalculoNumeroSerie.EstaUsada(inicial, ultimo));
+    }
+
+    [Fact]
+    public void SoloDigitos_ComportamientoIdenticoAlAnterior()
+    {
+        Assert.Equal("00000001", Ok(CalculoNumeroSerie.Siguiente("FV", "00000001", "99999999", "00000000", 1, null)).Numero);
+        Assert.Equal("00000042", Ok(CalculoNumeroSerie.Siguiente("FV", "00000001", "99999999", "00000041", 1, null)).Numero);
+        // Contador heredado sin relleno (Review Focus 4).
+        Assert.Equal("00000008", Ok(CalculoNumeroSerie.Siguiente("FV", "00000001", "99999999", "7", 1, null)).Numero);
+    }
+
+    [Fact]
+    public void ConPrefijo_IncrementaLaParteNumericaYConservaPrefijoYAncho()
+    {
+        Assert.Equal("FV-000010", Ok(CalculoNumeroSerie.Siguiente("FV", "FV-000001", "FV-999999", "FV-000009", 1, null)).Numero);
+    }
+
+    [Fact]
+    public void LineaNoUsada_EmpiezaEnElNumeroInicial_AunqueElIncrementoSeaMayorQueUno()
+    {
+        Assert.Equal("A-0005", Ok(CalculoNumeroSerie.Siguiente("A", "A-0005", "A-9999", "", 5, null)).Numero);
+        Assert.Equal("A-0010", Ok(CalculoNumeroSerie.Siguiente("A", "A-0005", "A-9999", "A-0005", 5, null)).Numero);
+    }
+
+    [Fact]
+    public void Agotada_CuandoElSiguienteSuperaElFinal()
+    {
+        var resultado = CalculoNumeroSerie.Siguiente("X", "00001", "00001", "00001", 1, null);
+
+        Assert.Equal(("numeracion.serie_agotada", "SerieId"), (resultado.Errores[0].Codigo, resultado.Errores[0].Campo));
+    }
+
+    [Theory]
+    [InlineData("FV-000001", "NC-999999")]
+    [InlineData("FV-000001", "FV-9999999")]
+    [InlineData("sin-digitos", "FV-999999")]
+    public void LineaConFormatoInvalido_Falla(string inicial, string final)
+    {
+        var resultado = CalculoNumeroSerie.Siguiente("X", inicial, final, "", 1, null);
+
+        Assert.Equal("numeracion.linea_invalida", resultado.Errores[0].Codigo);
+    }
+
+    [Fact]
+    public void NumeroDeAviso_AvisaAlAlcanzarlo_YNoAntes()
+    {
+        var antes = Ok(CalculoNumeroSerie.Siguiente("FV", "FV-000001", "FV-000100", "FV-000089", 1, "FV-000091"));
+        var justo = Ok(CalculoNumeroSerie.Siguiente("FV", "FV-000001", "FV-000100", "FV-000090", 1, "FV-000091"));
+
+        Assert.Null(antes.Aviso);
+        Assert.NotNull(justo.Aviso);
+        Assert.Contains("FV-000091", justo.Aviso);
+        Assert.Contains("9 número(s)", justo.Aviso);
+    }
+
+    [Fact]
+    public void Nombres_CubrenLosOchoTipos()
+    {
+        Assert.Equal(8, TipoDocumentoSerieNombres.Todos.Count);
+        Assert.All(TipoDocumentoSerieNombres.Todos, t => Assert.NotEqual(t.ToString(), TipoDocumentoSerieNombres.Nombre(t)));
+        Assert.False(TipoDocumentoSerieNombres.EsValido((TipoDocumentoSerie)0));
+    }
+
+    private static NumeroGenerado Ok(Result<NumeroGenerado> resultado)
+    {
+        Assert.True(resultado.EsExito, resultado.EsFallo ? resultado.Errores[0].Mensaje : string.Empty);
+        return resultado.Valor;
+    }
+}
