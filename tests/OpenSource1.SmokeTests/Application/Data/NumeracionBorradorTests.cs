@@ -77,4 +77,33 @@ public class NumeracionBorradorTests
         Assert.Equal(("numeracion.tipo_incorrecto", "SerieBorradorId"), (borradorInvalido.Errores[0].Codigo, borradorInvalido.Errores[0].Campo));
         Assert.Equal(("numeracion.sin_configuracion", "TipoDocumento"), (sinConfiguracion.Errores[0].Codigo, sinConfiguracion.Errores[0].Campo));
     }
+
+    [Fact]
+    public async Task SinConfiguracionDelTipoDeBorrador_TalCual_YNoValidaNiNumera()
+    {
+        var motor = new Mock<IGeneradorNumeroDocumento>(MockBehavior.Strict);
+        motor.Setup(m => m.SerieConfiguradaAsync(TipoDocumentoSerie.BorradorNotaCreditoVenta, default))
+            .ReturnsAsync(Result<Guid>.Fallo(new Error("numeracion.sin_configuracion", "Sin serie.", "TipoDocumento")));
+
+        var resultado = await motor.Object.NumerarBorradorAsync(
+            TipoDocumentoSerie.BorradorNotaCreditoVenta, TipoDocumentoSerie.NotaCreditoVenta, null, Registro, Hoy);
+
+        Assert.Equal(("numeracion.sin_configuracion", "TipoDocumento"), (Assert.Single(resultado.Errores).Codigo, resultado.Errores[0].Campo));
+        motor.Verify(m => m.ValidarSerieAsync(It.IsAny<Guid>(), It.IsAny<TipoDocumentoSerie>(), It.IsAny<CancellationToken>()), Times.Never);
+        motor.Verify(m => m.SiguienteAsync(It.IsAny<Guid>(), It.IsAny<TipoDocumentoSerie>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ErrorSinCampo_SinTransaccion_PasaTalCual()
+    {
+        var motor = new Mock<IGeneradorNumeroDocumento>(MockBehavior.Strict);
+        motor.Setup(m => m.ValidarSerieAsync(Registro, TipoDocumentoSerie.FacturaVenta, default)).ReturnsAsync(Result.Exito());
+        motor.Setup(m => m.SiguienteAsync(Borrador, TipoDocumentoSerie.BorradorFacturaVenta, Hoy, default))
+            .ReturnsAsync(Result<NumeroGenerado>.Fallo(new Error("numeracion.sin_transaccion", "Sin transacción.")));
+
+        var resultado = await motor.Object.NumerarBorradorAsync(
+            TipoDocumentoSerie.BorradorFacturaVenta, TipoDocumentoSerie.FacturaVenta, Borrador, Registro, Hoy);
+
+        Assert.Equal(new Error("numeracion.sin_transaccion", "Sin transacción."), Assert.Single(resultado.Errores));
+    }
 }
