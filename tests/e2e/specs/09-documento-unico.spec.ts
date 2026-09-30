@@ -7,11 +7,12 @@ import { iniciarSesion, unico, usuarios } from './ayuda';
 test('borrador de factura en una sola página: cabecera, líneas, totales y barra', async ({ page }) => {
   await iniciarSesion(page, usuarios.admin);
 
-  const codigo = unico('E2E').slice(0, 14);
+  const codigo = unico('E2E');
   const nombreCliente = `E2E Cliente ${codigo}`;
   let clienteCreado = false;
   let productoCreado = false;
   let borradorUrl = '';
+  let fallo: unknown;
   try {
     // Datos propios: la base de desarrollo puede no tener clientes ni productos activos.
     await page.goto('/clientes/nuevo');
@@ -82,28 +83,55 @@ test('borrador de factura en una sola página: cabecera, líneas, totales y barr
     await page.goto(`${borradorUrl}/editar`);
     await expect(page).toHaveURL(new RegExp(`${borradorUrl}$`));
     await expect(page.getByTestId('cabecera-editable')).toBeVisible();
+  } catch (error) {
+    fallo = error;
+    throw error;
   } finally {
-    // Limpieza en orden inverso (el borrador antes que el cliente y el producto que referencia).
+    // Limpieza en orden inverso (el borrador antes que el cliente y el producto que referencia). Cada borrado se intenta aunque
+    // falle el anterior; si la prueba ya falló, los fallos de limpieza se informan sin tapar el error original.
+    const errores: string[] = [];
+    const intentar = async (nombre: string, borrar: () => Promise<void>): Promise<void> => {
+      try {
+        await borrar();
+      } catch (error) {
+        errores.push(`${nombre}: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    };
     if (borradorUrl) {
-      await page.goto(`${borradorUrl}?eliminar=true`);
-      await page.getByRole('button', { name: 'Sí, eliminar' }).click();
-      await expect(page).toHaveURL(/ok=eliminado/);
+      await intentar('borrador', async () => {
+        await page.goto(`${borradorUrl}?eliminar=true`);
+        await page.getByRole('button', { name: 'Sí, eliminar' }).click();
+        await expect(page).toHaveURL(/ok=eliminado/);
+      });
     }
     if (productoCreado) {
-      await page.goto(`/productos?view=list&filters=codigo&codigo=${codigo}`);
-      await page.getByTestId('seleccionar-fila').first().click();
-      await expect(page).toHaveURL(/sel=/);
-      await page.getByTestId('accion-eliminar').click();
-      await page.getByRole('button', { name: 'Sí, eliminar' }).click();
-      await expect(page).toHaveURL(/ok=deleted/);
+      await intentar('producto', async () => {
+        await page.goto(`/productos?view=list&filters=codigo&codigo=${encodeURIComponent(codigo)}`);
+        await expect(page.getByTestId('seleccionar-fila')).toHaveCount(1);
+        await page.getByTestId('seleccionar-fila').click();
+        await expect(page).toHaveURL(/sel=/);
+        await page.getByTestId('accion-eliminar').click();
+        await page.getByRole('button', { name: 'Sí, eliminar' }).click();
+        await expect(page).toHaveURL(/ok=deleted/);
+      });
     }
     if (clienteCreado) {
-      await page.goto(`/clientes?view=list&nombre=${encodeURIComponent(nombreCliente)}`);
-      await page.getByTestId('seleccionar-fila').first().click();
-      await expect(page).toHaveURL(/sel=/);
-      await page.getByTestId('accion-eliminar').click();
-      await page.getByRole('button', { name: 'Sí, eliminar' }).click();
-      await expect(page).toHaveURL(/ok=deleted/);
+      await intentar('cliente', async () => {
+        await page.goto(`/clientes?view=list&nombre=${encodeURIComponent(nombreCliente)}`);
+        await expect(page.getByTestId('seleccionar-fila')).toHaveCount(1);
+        await page.getByTestId('seleccionar-fila').click();
+        await expect(page).toHaveURL(/sel=/);
+        await page.getByTestId('accion-eliminar').click();
+        await page.getByRole('button', { name: 'Sí, eliminar' }).click();
+        await expect(page).toHaveURL(/ok=deleted/);
+      });
+    }
+    if (errores.length > 0) {
+      const mensaje = `Limpieza E2E incompleta (datos con prefijo ${codigo}): ${errores.join(' | ')}`;
+      if (fallo === undefined) {
+        throw new Error(mensaje);
+      }
+      console.warn(mensaje);
     }
   }
 });
