@@ -19,6 +19,9 @@ public sealed class CreateSerieCommandHandler(IUnitOfWork unitOfWork, ISerieRead
             return Result<SerieResponse>.Fallo([.. errores]);
         }
 
+        // Dos altas concurrentes con el mismo código se serializan aquí: la segunda ve la primera y responde el 409 propio.
+        await using var transaccion = await unitOfWork.BeginTransactionAsync(cancellationToken);
+        await lectura.BloquearCodigoAsync(codigo, cancellationToken);
         var repositorio = unitOfWork.Repository<Serie>();
         if (await repositorio.FirstOrDefaultAsync(x => x.Codigo == codigo, cancellationToken: cancellationToken) is not null)
         {
@@ -34,7 +37,7 @@ public sealed class CreateSerieCommandHandler(IUnitOfWork unitOfWork, ISerieRead
             Activa = request.Activa,
         };
         await repositorio.AddAsync(entity, cancellationToken);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        await unitOfWork.CommitAsync(cancellationToken);
 
         return Result<SerieResponse>.Exito((await lectura.GetByIdAsync(entity.Id, Hoy(), cancellationToken))!.Serie);
     }
@@ -71,6 +74,7 @@ public sealed class UpdateSerieCommandHandler(IUnitOfWork unitOfWork, ISerieRead
 
         var repositorio = unitOfWork.Repository<Serie>();
         var entity = (await repositorio.FirstOrDefaultAsync(x => x.Id == request.Id, asTracking: true, cancellationToken: cancellationToken))!;
+        await lectura.BloquearCodigoAsync(codigo, cancellationToken);
         if (await repositorio.FirstOrDefaultAsync(x => x.Codigo == codigo && x.Id != request.Id, cancellationToken: cancellationToken) is not null)
         {
             return Result<SerieResponse>.Fallo(CreateSerieCommandHandler.CodigoDuplicado(codigo));
@@ -152,11 +156,11 @@ public sealed class DeleteSerieCommandHandler(IUnitOfWork unitOfWork, ISerieRead
 
         var repositorio = unitOfWork.Repository<Serie>();
         var entity = (await repositorio.FirstOrDefaultAsync(x => x.Id == request.Id, asTracking: true, cancellationToken: cancellationToken))!;
+        // Una sola consulta con seguimiento; el UnitOfWork convierte cada Remove en borrado lógico.
         var lineas = unitOfWork.Repository<LineaSerie>();
-        foreach (var linea in await lineas.ListAsync(x => x.SerieId == request.Id, cancellationToken))
+        foreach (var linea in await lineas.ListRastreadasAsync(x => x.SerieId == request.Id, cancellationToken))
         {
-            var rastreada = await lineas.FirstOrDefaultAsync(x => x.Id == linea.Id, asTracking: true, cancellationToken: cancellationToken);
-            lineas.Remove(rastreada!);
+            lineas.Remove(linea);
         }
 
         repositorio.Remove(entity);

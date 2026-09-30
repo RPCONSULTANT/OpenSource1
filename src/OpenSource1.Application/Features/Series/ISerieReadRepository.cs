@@ -33,4 +33,11 @@ public interface ISerieReadRepository
     /// de un mismo tipo de documento: dos administradores no pueden crear a la vez rangos solapados en series distintas.
     /// </summary>
     Task BloquearTipoAsync(TipoDocumentoSerie tipo, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Serializa (bloqueo consultivo de transacción) las altas y cambios de código con el mismo código normalizado: el segundo ve la
+    /// serie confirmada por el primero y responde <c>serie.codigo_duplicado.conflicto</c> en vez de chocar con el índice único.
+    /// Orden global: fila de la serie, código, tipo.
+    /// </summary>
+    Task BloquearCodigoAsync(string codigo, CancellationToken cancellationToken = default);
 }

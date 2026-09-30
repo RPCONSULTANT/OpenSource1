@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Npgsql;
 using OpenSource1.Application.Features.Series.Dtos;
 using OpenSource1.Core.Common;
+using OpenSource1.Core.Entities.Inventario;
 using OpenSource1.Core.Entities.Ventas;
 using OpenSource1.Core.Enums;
 using OpenSource1.SmokeTests.TestInfrastructure;
@@ -35,10 +36,13 @@ public sealed class SeriesApiTests(PostgresTestFixture fixture) : IClassFixture<
         Assert.Equal(HttpStatusCode.OK, (await client.GetAsync($"{Ruta}?tipo=2")).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await client.GetAsync($"{Ruta}/{id}")).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await client.GetAsync($"{Ruta}/{id}/proximo")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync($"{Ruta}/{id}/lineas")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsJsonAsync(Ruta, new { codigo = "X", descripcion = "X", tipoDocumento = 8 })).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await client.PutAsJsonAsync($"{Ruta}/{id}", new { codigo = "FV", descripcion = "X", tipoDocumento = 2, activa = true, xmin = 1 })).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await client.DeleteAsync($"{Ruta}/{id}")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsJsonAsync($"{Ruta}/{id}/lineas", new { numeroInicial = "1", numeroFinal = "9", fechaInicial = Desde })).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.PutAsJsonAsync($"{Ruta}/{id}/lineas/{SerieFacturaVentaIds.LineaSeriePosteadaId}",
+            new { numeroInicial = "00000001", numeroFinal = "99999999", fechaInicial = Desde, xmin = 1 })).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await client.DeleteAsync($"{Ruta}/{id}/lineas/{SerieFacturaVentaIds.LineaSeriePosteadaId}")).StatusCode);
     }
 
@@ -207,11 +211,144 @@ public sealed class SeriesApiTests(PostgresTestFixture fixture) : IClassFixture<
             await AssertErrorAsync(await admin.PutAsJsonAsync($"{Ruta}/{serie.Id}",
                 new { codigo = serie.Codigo, descripcion = "X", tipoDocumento = 5, permiteHuecos = false, activa = false, xmin = serie.Xmin }),
                 HttpStatusCode.Conflict, "Activa");
+            await AssertErrorAsync(await admin.PutAsJsonAsync($"{Ruta}/{serie.Id}",
+                new { codigo = serie.Codigo, descripcion = "X", tipoDocumento = 8, permiteHuecos = false, activa = true, xmin = serie.Xmin }),
+                HttpStatusCode.Conflict, "TipoDocumento");
             Assert.True((await admin.GetFromJsonAsync<SerieDetalleResponse>($"{Ruta}/{serie.Id}"))!.Serie.Asignada);
         }
         finally
         {
             await conexion.ExecuteAsync("""UPDATE "ConfiguracionesNumeracion" SET "SerieId" = @S WHERE "TipoDocumento" = 5""", new { S = original });
+        }
+    }
+
+    [Theory]
+    [InlineData("ABC")]
+    [InlineData("7")]
+    [InlineData("{p}00001")]
+    public async Task ContadorIncoherenteOHeredado_CuentaComoUsado_EnTodasLasProtecciones(string contador)
+    {
+        // "Usada" tiene una sola definición (CalculoNumeroSerie.EstaUsada, falla cerrado): un contador que no se interpreta, con otro
+        // prefijo o más ancho que la línea protege la serie igual que la línea (antes el SQL solo comparaba los dígitos finales).
+        var admin = Rol("Administrador");
+        var p = Prefijo();
+        var serie = await CrearSerieAsync(admin, TipoDocumentoSerie.DiarioInventario);
+        var linea = await CrearLineaAsync(admin, serie.Id, new { numeroInicial = $"{p}0010", numeroFinal = $"{p}0100", fechaInicial = Desde });
+        await using (var conexion = new NpgsqlConnection(fixture.AppConnectionString))
+        {
+            await conexion.ExecuteAsync("""UPDATE "LineasSerie" SET "UltimoNumeroUsado" = @C WHERE "Id" = @Id""",
+                new { C = contador.Replace("{p}", p, StringComparison.Ordinal), linea.Id });
+        }
+
+        var detalle = (await admin.GetFromJsonAsync<SerieDetalleResponse>($"{Ruta}/{serie.Id}"))!;
+        Assert.Equal((true, true), (detalle.Serie.Usada, Assert.Single(detalle.Lineas).Usada));
+        var fila = Assert.Single((await admin.GetFromJsonAsync<PagedResult<SerieResponse>>($"{Ruta}?tipo=8&codigo={serie.Codigo}"))!.Items);
+        Assert.True(fila.Usada);
+
+        await AssertErrorAsync(await admin.DeleteAsync($"{Ruta}/{serie.Id}"), HttpStatusCode.Conflict, "Id");
+        await AssertErrorAsync(await admin.PutAsJsonAsync($"{Ruta}/{serie.Id}",
+            new { codigo = serie.Codigo, descripcion = "X", tipoDocumento = 5, permiteHuecos = false, activa = true, xmin = serie.Xmin }),
+            HttpStatusCode.Conflict, "TipoDocumento");
+        await AssertErrorAsync(await admin.DeleteAsync($"{Ruta}/{serie.Id}/lineas/{linea.Id}"), HttpStatusCode.Conflict, "Id");
+    }
+
+    [Fact]
+    public async Task SerieUsadaPorPlantillaDeDiario_NoSeEliminaNiCambiaDeTipo_409()
+    {
+        var admin = Rol("Administrador");
+        var serie = await CrearSerieAsync(admin, TipoDocumentoSerie.DiarioInventario);
+        await using var conexion = new NpgsqlConnection(fixture.AppConnectionString);
+        var original = await conexion.ExecuteScalarAsync<Guid>("""SELECT "SerieId" FROM "PlantillasDiario" WHERE "Id" = @Id""", new { Id = PlantillaDiarioIds.Articulo });
+        try
+        {
+            await conexion.ExecuteAsync("""UPDATE "PlantillasDiario" SET "SerieId" = @S WHERE "Id" = @Id""", new { S = serie.Id, Id = PlantillaDiarioIds.Articulo });
+
+            var borrar = await AssertErrorAsync(await admin.DeleteAsync($"{Ruta}/{serie.Id}"), HttpStatusCode.Conflict, "Id");
+            Assert.Contains("plantillas o lotes", borrar.RootElement.GetRawText());
+            await AssertErrorAsync(await admin.PutAsJsonAsync($"{Ruta}/{serie.Id}",
+                new { codigo = serie.Codigo, descripcion = "X", tipoDocumento = 7, permiteHuecos = false, activa = true, xmin = serie.Xmin }),
+                HttpStatusCode.Conflict, "TipoDocumento");
+        }
+        finally
+        {
+            await conexion.ExecuteAsync("""UPDATE "PlantillasDiario" SET "SerieId" = @S WHERE "Id" = @Id""", new { S = original, Id = PlantillaDiarioIds.Articulo });
+        }
+    }
+
+    [Fact]
+    public async Task Cabecera_ConXminObsoleto_409()
+    {
+        var admin = Rol("Administrador");
+        var serie = await CrearSerieAsync(admin, TipoDocumentoSerie.DiarioInventario);
+        var cuerpo = new { codigo = serie.Codigo, descripcion = "Primera", tipoDocumento = 8, permiteHuecos = false, activa = true, xmin = serie.Xmin };
+
+        Assert.Equal(HttpStatusCode.OK, (await admin.PutAsJsonAsync($"{Ruta}/{serie.Id}", cuerpo)).StatusCode);
+        var obsoleta = await admin.PutAsJsonAsync($"{Ruta}/{serie.Id}", cuerpo with { descripcion = "Segunda" });
+
+        Assert.Equal(HttpStatusCode.Conflict, obsoleta.StatusCode);
+        Assert.Equal("Primera", (await admin.GetFromJsonAsync<SerieDetalleResponse>($"{Ruta}/{serie.Id}"))!.Serie.Descripcion);
+    }
+
+    [Fact]
+    public async Task LineasBorradas_NoCuentanParaSolapamientoNiFecha()
+    {
+        var admin = Rol("Administrador");
+        var p = Prefijo();
+        var a = await CrearSerieAsync(admin, TipoDocumentoSerie.DiarioInventario);
+        var b = await CrearSerieAsync(admin, TipoDocumentoSerie.DiarioInventario);
+        var rango = new { numeroInicial = $"{p}0001", numeroFinal = $"{p}0100", fechaInicial = Desde };
+
+        var borrada = await CrearLineaAsync(admin, a.Id, rango);
+        Assert.Equal(HttpStatusCode.NoContent, (await admin.DeleteAsync($"{Ruta}/{a.Id}/lineas/{borrada.Id}")).StatusCode);
+
+        // Mismo rango en otra serie del tipo y misma fecha en la serie A: la línea borrada ya no cuenta.
+        await CrearLineaAsync(admin, b.Id, rango);
+        await CrearLineaAsync(admin, a.Id, new { numeroInicial = $"{p}0200", numeroFinal = $"{p}0300", fechaInicial = Desde });
+
+        // Al borrar la serie B se borran sus líneas: el rango vuelve a quedar libre.
+        var borrarB = await admin.DeleteAsync($"{Ruta}/{b.Id}");
+        Assert.True(borrarB.StatusCode == HttpStatusCode.NoContent, await borrarB.Content.ReadAsStringAsync());
+        await CrearLineaAsync(admin, a.Id, rango with { fechaInicial = Desde.AddYears(1) });
+    }
+
+    [Fact]
+    public async Task LineaDeOtraSerie_404_YNoSeToca()
+    {
+        var admin = Rol("Administrador");
+        var p = Prefijo();
+        var a = await CrearSerieAsync(admin, TipoDocumentoSerie.DiarioInventario);
+        var b = await CrearSerieAsync(admin, TipoDocumentoSerie.DiarioInventario);
+        var lineaB = await CrearLineaAsync(admin, b.Id, new { numeroInicial = $"{p}0001", numeroFinal = $"{p}0100", fechaInicial = Desde });
+
+        Assert.Equal(HttpStatusCode.NotFound, (await admin.PutAsJsonAsync($"{Ruta}/{a.Id}/lineas/{lineaB.Id}",
+            new { numeroInicial = $"{p}0001", numeroFinal = $"{p}0200", fechaInicial = Desde, xmin = lineaB.Xmin })).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await admin.DeleteAsync($"{Ruta}/{a.Id}/lineas/{lineaB.Id}")).StatusCode);
+
+        var intacta = Assert.Single((await admin.GetFromJsonAsync<SerieDetalleResponse>($"{Ruta}/{b.Id}"))!.Lineas);
+        Assert.Equal(($"{p}0100", lineaB.Xmin), (intacta.NumeroFinal, intacta.Xmin));
+    }
+
+    [Fact]
+    public async Task AltasConcurrentesConElMismoCodigo_UnaGana_ElResto409ConCodigo()
+    {
+        await using var factory = fixture.CreateFactory();
+        var codigo = $"C{Guid.NewGuid():N}"[..12].ToUpperInvariant();
+        var clientes = Enumerable.Range(0, 6).Select(_ =>
+        {
+            var c = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+            c.DefaultRequestHeaders.Add("X-Test-User", "administrador");
+            c.DefaultRequestHeaders.Add("X-Test-Roles", "Administrador");
+            return c;
+        }).ToList();
+
+        var respuestas = await Task.WhenAll(clientes.Select(c =>
+            c.PostAsJsonAsync(Ruta, new { codigo, descripcion = "Concurrente", tipoDocumento = (short)TipoDocumentoSerie.DiarioInventario })));
+
+        Assert.Single(respuestas, r => r.StatusCode == HttpStatusCode.Created);
+        foreach (var perdedora in respuestas.Where(r => r.StatusCode != HttpStatusCode.Created))
+        {
+            var cuerpo = await AssertErrorAsync(perdedora, HttpStatusCode.Conflict, "Codigo");
+            Assert.Contains($"Ya existe una serie con el código {codigo}", cuerpo.RootElement.GetRawText());
         }
     }
 

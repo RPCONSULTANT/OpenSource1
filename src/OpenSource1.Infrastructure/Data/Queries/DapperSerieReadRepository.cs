@@ -11,18 +11,12 @@ public sealed class DapperSerieReadRepository(IDbSession session) : ISerieReadRe
 {
     private static readonly ColumnasPermitidas ColumnasPermitidas = new("Codigo", "Descripcion", "TipoDocumento", "CreatedAtUtc");
 
-    // "Usada" en SQL: dígitos finales del último usado >= dígitos finales del inicial (mismo criterio que CalculoNumeroSerie.EstaUsada).
-    private const string LineaUsadaSql = """
-        (u."UltimoNumeroUsado" ~ '[0-9]+$'
-         AND substring(u."UltimoNumeroUsado" from '([0-9]+)$')::numeric >= substring(u."NumeroInicial" from '([0-9]+)$')::numeric)
-        """;
-
-    private const string Base = $"""
+    // "Usada" NO se calcula en SQL: lo decide CalculoNumeroSerie.EstaUsada en C# (ver SeriesUsadasAsync).
+    private const string Base = """
         SELECT s."Id", s."Codigo", s."Descripcion", s."TipoDocumento", s."PermiteHuecos", s."Activa", s."CreatedAtUtc",
                s.xmin::text::bigint AS "Xmin",
                v."NumeroInicial" AS "VigenteInicial", v."NumeroFinal" AS "VigenteFinal", v."UltimoNumeroUsado" AS "VigenteUltimo",
                v."Incremento" AS "VigenteIncremento", v."NumeroAviso" AS "VigenteAviso",
-               EXISTS (SELECT 1 FROM "LineasSerie" u WHERE u."SerieId" = s."Id" AND u."IsDeleted" = false AND {LineaUsadaSql}) AS "Usada",
                EXISTS (SELECT 1 FROM "ConfiguracionesNumeracion" c WHERE c."SerieId" = s."Id" AND c."IsDeleted" = false) AS "Asignada"
         FROM "Series" s
         LEFT JOIN LATERAL (
@@ -51,7 +45,8 @@ public sealed class DapperSerieReadRepository(IDbSession session) : ISerieReadRe
             """,
             new { Id = id }, session.CurrentTransaction, cancellationToken: cancellationToken));
 
-        return new SerieDetalleResponse(Mapear(fila), [.. lineas.Select(l => new LineaSerieResponse
+        var usada = lineas.Any(l => CalculoNumeroSerie.EstaUsada(l.NumeroInicial, l.UltimoNumeroUsado));
+        return new SerieDetalleResponse(Mapear(fila, usada), [.. lineas.Select(l => new LineaSerieResponse
         {
             Id = l.Id,
             SerieId = l.SerieId,
@@ -103,21 +98,45 @@ public sealed class DapperSerieReadRepository(IDbSession session) : ISerieReadRe
             """,
             parameters, session.CurrentTransaction, cancellationToken: cancellationToken));
 
+        var lista = filas.AsList();
+        var usadas = await SeriesUsadasAsync([.. lista.Select(f => f.Id)], cancellationToken);
         return Result<PagedResult<SerieResponse>>.Exito(
-            new PagedResult<SerieResponse>([.. filas.Select(Mapear)], pagina.Pagina, pagina.TamanoPagina, total));
+            new PagedResult<SerieResponse>([.. lista.Select(f => Mapear(f, usadas.Contains(f.Id)))], pagina.Pagina, pagina.TamanoPagina, total));
     }
 
     public async Task<UsoSerie> UsoAsync(Guid serieId, CancellationToken cancellationToken = default)
     {
-        await session.EnsureOpenAsync(cancellationToken);
-        return await session.Connection.QuerySingleAsync<UsoSerie>(new CommandDefinition(
-            $"""
-            SELECT EXISTS (SELECT 1 FROM "LineasSerie" u WHERE u."SerieId" = @Id AND u."IsDeleted" = false AND {LineaUsadaSql}) AS "Usada",
-                   EXISTS (SELECT 1 FROM "ConfiguracionesNumeracion" c WHERE c."SerieId" = @Id AND c."IsDeleted" = false) AS "Asignada",
+        var usada = (await SeriesUsadasAsync([serieId], cancellationToken)).Count > 0;
+        var protecciones = await session.Connection.QuerySingleAsync<(bool Asignada, bool Referenciada)>(new CommandDefinition(
+            """
+            SELECT EXISTS (SELECT 1 FROM "ConfiguracionesNumeracion" c WHERE c."SerieId" = @Id AND c."IsDeleted" = false) AS "Asignada",
                    (EXISTS (SELECT 1 FROM "PlantillasDiario" p WHERE p."SerieId" = @Id AND p."IsDeleted" = false)
                     OR EXISTS (SELECT 1 FROM "LotesDiario" l WHERE l."SerieId" = @Id AND l."IsDeleted" = false)) AS "Referenciada"
             """,
             new { Id = serieId }, session.CurrentTransaction, cancellationToken: cancellationToken));
+        return new UsoSerie(usada, protecciones.Asignada, protecciones.Referenciada);
+    }
+
+    /// <summary>
+    /// Series (de <paramref name="serieIds"/>) con alguna línea viva USADA. "Usada" se decide SOLO en C# con
+    /// <see cref="CalculoNumeroSerie.EstaUsada"/> (falla cerrado: un contador que no se interpreta, con otro prefijo o más ancho que
+    /// la línea cuenta como usado), la misma definición que el flag de cada línea y que el borrado de una línea.
+    /// </summary>
+    private async Task<HashSet<Guid>> SeriesUsadasAsync(Guid[] serieIds, CancellationToken cancellationToken)
+    {
+        if (serieIds.Length == 0)
+        {
+            return [];
+        }
+
+        await session.EnsureOpenAsync(cancellationToken);
+        var contadores = await session.Connection.QueryAsync<(Guid SerieId, string NumeroInicial, string UltimoNumeroUsado)>(new CommandDefinition(
+            """
+            SELECT "SerieId", "NumeroInicial", "UltimoNumeroUsado"
+            FROM "LineasSerie" WHERE "SerieId" = ANY(@Ids) AND "IsDeleted" = false AND "UltimoNumeroUsado" <> ''
+            """,
+            new { Ids = serieIds }, session.CurrentTransaction, cancellationToken: cancellationToken));
+        return [.. contadores.Where(c => CalculoNumeroSerie.EstaUsada(c.NumeroInicial, c.UltimoNumeroUsado)).Select(c => c.SerieId)];
     }
 
     public async Task<IReadOnlyList<LineaDeTipo>> LineasDelTipoAsync(TipoDocumentoSerie tipo, CancellationToken cancellationToken = default)
@@ -159,7 +178,20 @@ public sealed class DapperSerieReadRepository(IDbSession session) : ISerieReadRe
             new { Tipo = (int)tipo }, session.CurrentTransaction, cancellationToken: cancellationToken));
     }
 
-    private static SerieResponse Mapear(SerieFila f)
+    public async Task BloquearCodigoAsync(string codigo, CancellationToken cancellationToken = default)
+    {
+        await session.EnsureOpenAsync(cancellationToken);
+        if (session.CurrentTransaction is null)
+        {
+            throw new InvalidOperationException("Bloquear un código de serie requiere una transacción activa.");
+        }
+
+        await session.Connection.ExecuteAsync(new CommandDefinition(
+            "SELECT pg_advisory_xact_lock(hashtextextended('series-codigo:' || @Codigo, 0))",
+            new { Codigo = codigo }, session.CurrentTransaction, cancellationToken: cancellationToken));
+    }
+
+    private static SerieResponse Mapear(SerieFila f, bool usada)
     {
         string? proximo = null;
         string? aviso = null;
@@ -192,7 +224,7 @@ public sealed class DapperSerieReadRepository(IDbSession session) : ISerieReadRe
             ProximoNumero = proximo,
             Aviso = aviso,
             EnAviso = aviso is not null && proximo is not null,
-            Usada = f.Usada,
+            Usada = usada,
             Asignada = f.Asignada,
             Xmin = f.Xmin,
         };
@@ -213,7 +245,6 @@ public sealed class DapperSerieReadRepository(IDbSession session) : ISerieReadRe
         public string? VigenteUltimo { get; init; }
         public int? VigenteIncremento { get; init; }
         public string? VigenteAviso { get; init; }
-        public bool Usada { get; init; }
         public bool Asignada { get; init; }
     }
 

@@ -41,6 +41,14 @@ public sealed class GenericRepository<TEntity>(ApplicationDbContext dbContext) :
         return await query.ToListAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<TEntity>> ListRastreadasAsync(
+        Expression<Func<TEntity, bool>> predicate,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(predicate);
+        return await Query(asTracking: true).Where(predicate).ToListAsync(cancellationToken);
+    }
+
     public async Task<PagedResult<TEntity>> ListPagedAsync(
         Expression<Func<TEntity, bool>>? predicate,
         PageRequest paginacion,
