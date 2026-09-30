@@ -548,6 +548,40 @@ public sealed class PostearNotaCreditoVentaTests(PostgresTestFixture fixture) : 
         Assert.Equal((0m, 0m), Resumen(Ok(await PostearAsync(borrador.Id))));
     }
 
+    // ----- Aviso de numeración (spec no-series, NS4) -----
+
+    [Fact]
+    public async Task NumeroDeAviso_AlcanzadoEnLaSerieNc_ElResultadoTraeLaAdvertencia_YSinAvisoEsNull()
+    {
+        var socio = await SocioAsync();
+        var almacen = await _prueba.SembrarAlmacenAsync();
+        var producto = await ProductoAsync();
+        await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Entrada(producto, almacen, 10m, 4m, D1));
+        var factura = await FacturaAsync(socio, almacen, P(producto, 2m, 50m));
+        var sinAviso = Ok(await PostearAsync(Ok(await CrearBorradorAsync(factura, copiar: true)).Id));
+        Assert.Null(sinAviso.AvisoNumeracion);
+
+        var otra = await FacturaAsync(socio, almacen, P(producto, 2m, 50m));
+        var borrador = Ok(await CrearBorradorAsync(otra, copiar: true));
+        try
+        {
+            // El aviso en el número que se va a emitir: siguiente = último + 1.
+            var siguiente = Siguiente(await UltimoNumeroAsync(SerieNotaCreditoVentaIds.LineaSeriePosteadaId));
+            await EjecutarSqlAsync("""UPDATE "LineasSerie" SET "NumeroAviso" = @A WHERE "Id" = @Id""",
+                new { A = siguiente, Id = SerieNotaCreditoVentaIds.LineaSeriePosteadaId });
+
+            var resultado = Ok(await PostearAsync(borrador.Id));
+
+            Assert.Equal(siguiente, resultado.Numero);
+            Assert.Contains("número de aviso", resultado.AvisoNumeracion);
+        }
+        finally
+        {
+            await EjecutarSqlAsync("""UPDATE "LineasSerie" SET "NumeroAviso" = NULL WHERE "Id" = @Id""",
+                new { Id = SerieNotaCreditoVentaIds.LineaSeriePosteadaId });
+        }
+    }
+
     // ----- Nada escrito -----
 
     [Fact]

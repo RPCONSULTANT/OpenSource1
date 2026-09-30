@@ -136,6 +136,7 @@ public class CreateSocioNegocioCommandHandlerTests
         Assert.Contains(result.Errores, e => e.Campo == campo);
         ctx.UnitOfWork.Verify(u => u.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
         ctx.Generador.Verify(g => g.SiguientePorTipoAsync(TipoDocumentoSerie.Cliente, It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()), Times.Never);
+        ctx.Generador.VerifyNoOtherCalls(); // ninguna otra numeración (otro tipo, por serie, vista previa)
         ctx.UnitOfWork.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 

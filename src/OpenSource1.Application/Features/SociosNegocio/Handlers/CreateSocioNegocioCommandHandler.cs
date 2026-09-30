@@ -19,10 +19,12 @@ namespace OpenSource1.Application.Features.SociosNegocio.Handlers;
 /// </summary>
 /// <remarks>
 /// Orden deliberado: validación pura (sin BD) -> transacción -> número -> comprobaciones con BD ->
-/// insert -> commit. El número se reserva ANTES de las comprobaciones con BD a propósito: el
-/// <c>SELECT ... FOR UPDATE</c> de la línea de serie serializa todas las altas, así que la
-/// comprobación de documento fiscal duplicado que sigue es libre de carreras entre altas
-/// concurrentes (el índice único parcial sigue siendo la red de seguridad final). Cualquier
+/// insert -> commit. El número se reserva ANTES de las comprobaciones con BD: el
+/// <c>SELECT ... FOR UPDATE</c> de la línea de serie serializa las altas que numeran con la misma
+/// línea, lo que evita en la práctica las carreras de la comprobación de documento fiscal duplicado.
+/// No es una garantía (si la serie del tipo <c>Cliente</c> se reasigna o cambia la línea vigente
+/// con altas en vuelo, dos altas pueden bloquear líneas distintas): el respaldo es el índice único
+/// parcial del documento fiscal (23505 -> 409). Cualquier
 /// fallo posterior (Result fallido o excepción) sale del <c>await using</c> sin commit, lo que hace
 /// rollback de la transacción y deja el contador de la serie SIN consumir: no hay huecos.
 /// </remarks>
