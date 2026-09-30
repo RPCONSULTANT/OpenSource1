@@ -240,6 +240,14 @@ namespace OpenSource1.Infrastructure.Data.Migrations.Application
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            // Down pierde, sin forma de recuperarlo en un Up posterior (que vuelve a inferir todo por el código de la serie):
+            //  - TipoDocumento y Activa de cada serie: una serie creada o retipada por la API de series vuelve como diario de
+            //    inventario (8) y, si su código no es uno de los fijos ni DIARIO-* ni la usa una plantilla/lote, INACTIVA;
+            //  - NumeroAviso de cada línea;
+            //  - la tabla ConfiguracionesNumeracion entera (una reasignación de serie por tipo vuelve a la semilla).
+            // Los contadores quedan como estén: los rellenos ("00000007") los sigue leyendo el código anterior, pero los números
+            // con prefijo (p. ej. "FV00000007") que haya escrito el generador nuevo son ilegibles para su long.Parse, así que tras
+            // un Down esas series fallarían al numerar hasta volver a subir la migración.
             migrationBuilder.DropTable(
                 name: "ConfiguracionesNumeracion");
 
