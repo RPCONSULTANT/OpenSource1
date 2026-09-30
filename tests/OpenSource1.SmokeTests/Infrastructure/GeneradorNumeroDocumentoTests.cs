@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using OpenSource1.Application.Data;
 using OpenSource1.Core.Common;
 using OpenSource1.Core.Entities;
+using OpenSource1.Core.Enums;
 using OpenSource1.Infrastructure.Data;
 using OpenSource1.SmokeTests.TestInfrastructure;
 
@@ -240,8 +241,8 @@ public sealed class GeneradorNumeroDocumentoTests : IClassFixture<PostgresTestFi
         {
             Codigo = codigo,
             Descripcion = "Serie de prueba de numeración",
+            TipoDocumento = TipoDocumentoSerie.DiarioInventario,
             PermiteHuecos = false,
-            PorDefecto = false,
         };
         context.Series.Add(serie);
         await context.SaveChangesAsync();
