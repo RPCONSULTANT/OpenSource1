@@ -21,7 +21,7 @@
 <PageToolbar Titulo="@(borrador is null ? "Borrador de nota de crédito" : $"Borrador de nota {borrador.Numero}")"
              Subtitulo="@(borrador is null ? null : $"Factura {borrador.FacturaVentaNumero} · {VentasOpciones.EstadoNota(borrador.Estado)}")"
              Migas="@Migas" Permisos="@permisos" NuevoHref="@null" SeleccionId="@borrador?.Id.ToString()"
-             Ver="@VerDocumento" EliminarUrl="@(PuedeEliminar ? _ => $"{UrlBase}?eliminar=true" : null)">
+             Ver="@VerDocumento" EliminarUrl="@(PuedeEliminar ? _ => BuildUrl(eliminar: true) : null)">
     @if (borrador is not null && canModify && !EsPosteada)
     {
         <a href="@BuildUrl(postear: true)" class="btn-press rounded-lg bg-brand-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700">Postear</a>
@@ -104,6 +104,11 @@ else if (EsPosteada && borrador.NotaCreditoVentaNumero is { } numeroNota)
         </div>
     </div>
     <p class="mt-2 text-xs text-slate-400">La fecha de registro no puede ser anterior a la de la factura y debe estar dentro de las fechas permitidas del usuario.</p>
+    @* Limpiar campos = recargar la página sin lo tecleado (conserva la vuelta); Cancelar = volver al origen. *@
+    <div class="mt-4 flex flex-wrap items-center gap-3">
+        <a href="@UrlPropia" data-testid="limpiar-cabecera" class="btn-press rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Limpiar campos</a>
+        <a href="@Volver" data-testid="cancelar-cabecera" class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">Cancelar</a>
+    </div>
 </DocumentoCabeceraEditable>
 
 @if (borrador is not null && loadError is null)
@@ -116,7 +121,7 @@ else if (EsPosteada && borrador.NotaCreditoVentaNumero is { } numeroNota)
     @if (EsPosteada)
     {
         <DocumentoLineasLectura TLinea="LineaDocumento" Columnas="ColumnasDocumento.Nota" Lineas="@lineas.OrderBy(l => l.NumeroLinea).Select(LineaDocumento.Desde).ToList()"
-                                Titulo="Líneas de la nota" TextoVacio="El borrador no tiene líneas." />
+                                TextoVacio="El borrador no tiene líneas." />
     }
     else
     {
@@ -212,7 +217,7 @@ else if (EsPosteada && borrador.NotaCreditoVentaNumero is { } numeroNota)
                                         <div class="mt-5 flex items-center gap-3">
                                             <button type="submit" class="btn-press rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 shadow-sm">Agregar línea</button>
                                             <a href="@BuildUrl(addLineaId: AddLineaId)" class="btn-press rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Limpiar campos</a>
-                                            <a href="@UrlBase" class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">Cancelar</a>
+                                            <a href="@UrlPropia" class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">Cancelar</a>
                                         </div>
                                     </EditForm>
                                 }
@@ -283,7 +288,7 @@ else if (EsPosteada && borrador.NotaCreditoVentaNumero is { } numeroNota)
 
     @if (MuestraDialogoPosteo)
     {
-        <ConfirmDialog Title="Confirmar posteo de la nota de crédito" Message="Se generará la nota de crédito legal con su número, la devolución de inventario de las líneas marcadas, el movimiento del cliente (aplicado a la factura) y el asiento inverso. Esta acción no se puede deshacer." Variant="success" CancelHref="@UrlBase">
+        <ConfirmDialog Title="Confirmar posteo de la nota de crédito" Message="Se generará la nota de crédito legal con su número, la devolución de inventario de las líneas marcadas, el movimiento del cliente (aplicado a la factura) y el asiento inverso. Esta acción no se puede deshacer." Variant="success" CancelHref="@UrlPropia">
             @if (posteoError is not null)
             {
                 <div class="mb-4" data-testid="errores-posteo"><MessageBox Type="warning" Message="@posteoError" Errors="@posteoErrores" /></div>
@@ -291,29 +296,29 @@ else if (EsPosteada && borrador.NotaCreditoVentaNumero is { } numeroNota)
             <p class="rounded-xl border border-brand-100 bg-brand-50 px-4 py-3 text-sm text-brand-900">@borrador.Numero — factura @borrador.FacturaVentaNumero — @borrador.NombreFacturacion (@lineas.Count línea(s))@(totales is null ? "" : $" · Total {VentasOpciones.Importe(totales.ImporteTotal)}")</p>
             <EditForm Model="PostearInput" FormName="confirm-postear" OnValidSubmit="PostearAsync" class="mt-4">
                 <button type="submit" class="btn-press rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700">Sí, postear</button>
-                <a href="@UrlBase" class="btn-press ml-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Cancelar</a>
+                <a href="@UrlPropia" class="btn-press ml-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Cancelar</a>
             </EditForm>
         </ConfirmDialog>
     }
 
     @if (MuestraDialogoBorrarLinea)
     {
-        <ConfirmDialog Title="Confirmar eliminación" Message="Esta acción eliminará la línea seleccionada del borrador de nota de crédito." Variant="danger" CancelHref="@UrlBase">
+        <ConfirmDialog Title="Confirmar eliminación" Message="Esta acción eliminará la línea seleccionada del borrador de nota de crédito." Variant="danger" CancelHref="@UrlPropia">
             <p class="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-900">@(lineaAEliminar is null ? DeleteLineaId?.ToString() : $"Línea {lineaAEliminar.NumeroLinea} — {VentasOpciones.TipoLinea(lineaAEliminar.Tipo)}: {lineaAEliminar.Descripcion}")</p>
             <EditForm Model="DeleteInputLinea" FormName="delete-linea" OnValidSubmit="DeleteLineaAsync" class="mt-4">
                 <input type="hidden" name="DeleteInputLinea.Id" value="@DeleteLineaId" />
                 <button type="submit" class="btn-press rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-700">Sí, eliminar</button>
-                <a href="@UrlBase" class="btn-press ml-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Cancelar</a>
+                <a href="@UrlPropia" class="btn-press ml-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Cancelar</a>
             </EditForm>
         </ConfirmDialog>
     }
 
     @if (MuestraDialogoEliminar)
     {
-        <ConfirmDialog Title="Eliminar borrador" Message="@($"Se eliminará el borrador {borrador.Numero} con todas sus líneas.")" Variant="danger" CancelHref="@UrlBase">
+        <ConfirmDialog Title="Eliminar borrador" Message="@($"Se eliminará el borrador {borrador.Numero} con todas sus líneas.")" Variant="danger" CancelHref="@UrlPropia">
             <EditForm Model="DeleteInput" FormName="delete-borrador-nota" OnValidSubmit="EliminarBorradorAsync" class="mt-4">
                 <button type="submit" class="btn-press rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-700">Sí, eliminar</button>
-                <a href="@UrlBase" class="btn-press ml-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Cancelar</a>
+                <a href="@UrlPropia" class="btn-press ml-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Cancelar</a>
             </EditForm>
         </ConfirmDialog>
     }
@@ -369,6 +374,9 @@ else if (EsPosteada && borrador.NotaCreditoVentaNumero is { } numeroNota)
     [SupplyParameterFromForm(FormName = "delete-borrador-nota")] private AccionForm? DeleteInput { get; set; }
 
     private string UrlBase => $"/notas-credito-venta/borradores/{BorradorId}";
+
+    /// <summary>Esta página sin acciones transitorias, conservando el returnUrl (Cancelar de los diálogos y destinos ?ok=).</summary>
+    private string UrlPropia => BuildUrl();
     private string Volver => RetornoLocal.Volver(ReturnUrl, "/notas-credito-venta/borradores");
     private string? FacturaHref => borrador is null ? null : $"/facturas-venta/{Uri.EscapeDataString(borrador.FacturaVentaNumero)}";
     private static string NotaHref(string numero) => $"/notas-credito-venta/{Uri.EscapeDataString(numero)}";
@@ -583,7 +591,7 @@ else if (EsPosteada && borrador.NotaCreditoVentaNumero is { } numeroNota)
                 <div class="mt-5 flex items-center gap-3">
                     <button type="submit" class="btn-press rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-600 shadow-sm">Guardar cambios</button>
                     <a href="@BuildUrl(editLineaId: EditLineaId)" class="btn-press rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Limpiar campos</a>
-                    <a href="@UrlBase" class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">Cancelar</a>
+                    <a href="@UrlPropia" class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">Cancelar</a>
                 </div>
             </EditForm>
         </DocumentoFilaFormulario>
@@ -744,7 +752,7 @@ else if (EsPosteada && borrador.NotaCreditoVentaNumero is { } numeroNota)
             var result = await operacion();
             if (result.Succeeded)
             {
-                destino = $"{UrlBase}?ok={ok}";
+                destino = RetornoLocal.ConParametro(UrlPropia, "ok", ok);
             }
             else
             {
@@ -764,13 +772,16 @@ else if (EsPosteada && borrador.NotaCreditoVentaNumero is { } numeroNota)
         }
     }
 
-    private string BuildUrl(long? addLineaId = null, Guid? editLineaId = null, Guid? deleteLineaId = null, bool? postear = null)
+    private string BuildUrl(long? addLineaId = null, Guid? editLineaId = null, Guid? deleteLineaId = null, bool? postear = null, bool? eliminar = null)
     {
         var parameters = new List<string>();
         if (addLineaId.HasValue) parameters.Add($"addLineaId={addLineaId.Value}");
         if (editLineaId.HasValue) parameters.Add($"editLineaId={editLineaId.Value}");
         if (deleteLineaId.HasValue) parameters.Add($"deleteLineaId={deleteLineaId.Value}");
         if (postear == true) parameters.Add("postear=true");
+        if (eliminar == true) parameters.Add("eliminar=true");
+        // La vuelta (returnUrl, validada: solo rutas locales) acompaña a todas las URL de la página (como en el borrador de factura).
+        if (!string.IsNullOrWhiteSpace(ReturnUrl)) parameters.Add($"returnUrl={Uri.EscapeDataString(Volver)}");
         return parameters.Count == 0 ? UrlBase : $"{UrlBase}?{string.Join("&", parameters)}";
     }
 

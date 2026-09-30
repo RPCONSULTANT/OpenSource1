@@ -19,9 +19,8 @@
              NuevoHref="@RetornoLocal.ConRetorno("/notas-credito-venta/nueva", UrlActual)" NuevoTexto="Nueva nota de crédito"
              SeleccionId="@SeleccionValida?.ToString()"
              Ver="@VerNota"
-             EditarUrl="@(id => RetornoLocal.ConRetorno($"/notas-credito-venta/borradores/{id}", UrlActual))"
-             EliminarUrl="@(id => BuildListUrl(deleteId: Guid.Parse(id)))"
-             EliminarDeshabilitadoMotivo="@(NotaSeleccionada?.Estado == EstadoNotaCreditoBorrador.Posteada ? "Un borrador posteado es de solo lectura: no se elimina." : null)">
+             EditarUrl="@(SeleccionNoEditable ? null : id => RetornoLocal.ConRetorno($"/notas-credito-venta/borradores/{id}", UrlActual))"
+             EliminarUrl="@(SeleccionNoEditable ? null : id => BuildListUrl(deleteId: Guid.Parse(id)))">
     <a href="/notas-credito-venta" class="btn-press rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">Notas posteadas</a>
     <a href="/facturas-venta" class="btn-press rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">Facturas posteadas</a>
 </PageToolbar>
@@ -210,6 +209,9 @@
     private Guid? SeleccionValida => NotaSeleccionada?.Id;
 
     private NotaCreditoVentaBorradorResponse? NotaSeleccionada => Sel is { } s ? borradores.FirstOrDefault(b => b.Id == s) : null;
+
+    /// <summary>El borrador seleccionado no está Abierta (Posteada = solo lectura): sin Editar ni Eliminar en la barra (como en facturas).</summary>
+    private bool SeleccionNoEditable => NotaSeleccionada is { } n && n.Estado != EstadoNotaCreditoBorrador.Abierta;
 
     private IReadOnlyList<AccionPagina> VerNota =>
     [
