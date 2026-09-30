@@ -1,0 +1,358 @@
+@page "/series/{SerieId:guid}"
+@attribute [Authorize(Policy = ApplicationPolicies.CanConsult)]
+@using Microsoft.AspNetCore.Authorization
+@using OpenSource1.Application.Features.Series.Dtos
+@using OpenSource1.Application.Security
+@using OpenSource1.Blazor.Services
+@inject ISerieApiClient SerieApiClient
+@inject IAuthorizationService AuthorizationService
+@inject ILogger<SerieFicha> Logger
+@inject NavigationManager Nav
+
+<PageTitle>@Titulo – AxionERP</PageTitle>
+
+<PageToolbar Titulo="@Titulo" Subtitulo="@detalle?.Serie.TipoNombre" Migas="@Migas" Permisos="@permisos">
+    <a href="/series" class="btn-press rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Volver a series</a>
+</PageToolbar>
+
+@if (!string.IsNullOrWhiteSpace(message) || errores.Count > 0)
+{
+    <div class="mb-6">
+        @if (messageType == "success")
+        {
+            <ActionFeedback Type="success" Message="@message" />
+        }
+        else
+        {
+            <MessageBox Type="@messageType" Message="@message" Errors="@errores" />
+        }
+    </div>
+}
+
+@if (detalle is null)
+{
+    <MessageBox Type="warning" Message="@(cargaFallida ? "No fue posible cargar la serie." : "No se encontró la serie solicitada.")" />
+}
+else if (detalle.Serie.Aviso is not null)
+{
+    <div class="mb-6" data-testid="aviso-serie"><MessageBox Type="warning" Message="@detalle.Serie.Aviso" /></div>
+}
+
+@* Cabecera: editable con CanAdministrar; si no, la tarjeta de solo lectura (el EditForm vacío de update-serie lo pone el componente). *@
+<DocumentoCabeceraEditable Model="UpdateInput" FormName="update-serie" OnValidSubmit="UpdateAsync" Mostrar="@MuestraFormularios">
+    <input type="hidden" name="UpdateInput.Xmin" value="@UpdateInput!.Xmin" />
+    <SerieCabeceraCampos Model="UpdateInput" Prefix="UpdateInput" TipoBloqueado="@(detalle?.Serie is { } bloqueo && (bloqueo.Usada || bloqueo.Asignada))" />
+    <p class="mt-4 text-xs text-slate-500">
+        <a href="@UrlBase" data-testid="limpiar" class="font-semibold text-slate-600 hover:underline">Limpiar campos</a>
+        <span aria-hidden="true">·</span>
+        <a href="/series" data-testid="cancelar" class="font-semibold text-slate-600 hover:underline">Cancelar</a>
+    </p>
+</DocumentoCabeceraEditable>
+@if (!MuestraFormularios && detalle is not null)
+{
+    <DocumentoCabecera Campos="@CamposCabecera" />
+}
+
+@if (detalle is not null)
+{
+    <div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden mb-6">
+        <div class="px-6 py-4 border-b border-slate-100">
+            <h2 class="text-sm font-semibold text-slate-700">Líneas</h2>
+            <p class="mt-1 text-xs text-slate-500">@detalle.Lineas.Count línea(s). Cada línea es un rango con prefijo vigente desde su fecha inicial.</p>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-slate-100 text-sm" data-testid="tabla-lineas-serie">
+                <thead class="bg-slate-50">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">Desde</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">Inicial</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">Final</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">Aviso</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">Último usado</th>
+                        <th class="px-4 py-3 text-right text-xs font-semibold uppercase text-slate-500">Incr.</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">Estado</th>
+                        <th class="px-4 py-3"><span class="sr-only">Acciones</span></th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-50 bg-white">
+                    @if (detalle.Lineas.Count == 0)
+                    {
+                        <tr><td colspan="@Columnas" class="px-4 py-8 text-center text-sm text-slate-400">La serie no tiene líneas: sin una línea vigente no puede numerar.</td></tr>
+                    }
+                    @foreach (var l in detalle.Lineas)
+                    {
+                        @if (MuestraEdicionLinea && l.Id == EditLineaId)
+                        {
+                            <DocumentoFilaFormulario Variante="VarianteFilaFormulario.Edicion" Columnas="@Columnas">
+                                <EditForm Model="UpdateLinea" FormName="update-linea-serie" OnValidSubmit="UpdateLineaAsync" Enhance="true">
+                                    <DataAnnotationsValidator />
+                                    <input type="hidden" name="UpdateLinea.Id" value="@l.Id" />
+                                    <input type="hidden" name="UpdateLinea.Xmin" value="@UpdateLinea!.Xmin" />
+                                    @CamposLinea(UpdateLinea!, "UpdateLinea", l.Usada, esAlta: false)
+                                    <p class="mt-2 text-xs text-slate-500">
+                                        Último usado: <span class="font-mono">@(string.IsNullOrEmpty(l.UltimoNumeroUsado) ? "—" : l.UltimoNumeroUsado)</span> (no se edita).
+                                        @if (l.Usada)
+                                        {
+                                            <span>Línea usada: el número inicial, el prefijo y el ancho no cambian; bloquéela para dejar de usarla.</span>
+                                        }
+                                    </p>
+                                    <div class="mt-3 flex gap-2">
+                                        <button type="submit" class="btn-press rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-600">Guardar línea</button>
+                                        <a href="@UrlBase" class="btn-press rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">Cancelar</a>
+                                    </div>
+                                </EditForm>
+                            </DocumentoFilaFormulario>
+                        }
+                        else
+                        {
+                            <tr @key="l.Id" class="hover:bg-slate-50">
+                                <td class="px-4 py-3 text-xs">@EntradaFecha.Formatear(l.FechaInicial)</td>
+                                <td class="px-4 py-3 font-mono text-xs">@l.NumeroInicial</td>
+                                <td class="px-4 py-3 font-mono text-xs">@l.NumeroFinal</td>
+                                <td class="px-4 py-3 font-mono text-xs">@(l.NumeroAviso ?? "—")</td>
+                                <td class="px-4 py-3 font-mono text-xs">@(string.IsNullOrEmpty(l.UltimoNumeroUsado) ? "—" : l.UltimoNumeroUsado)</td>
+                                <td class="px-4 py-3 text-right text-xs">@l.Incremento</td>
+                                <td class="px-4 py-3 text-xs">@(l.Usada ? "Usada" : "Sin usar")@(l.Bloqueada ? " · Bloqueada" : "")</td>
+                                <td class="px-4 py-3 text-right text-xs whitespace-nowrap">
+                                    @if (MuestraFormularios)
+                                    {
+                                        <a href="@($"{UrlBase}?editLineaId={l.Id}")" class="font-semibold text-amber-700 hover:underline">Modificar</a>
+                                        @if (!l.Usada)
+                                        {
+                                            <a href="@($"{UrlBase}?deleteLineaId={l.Id}")" class="ml-2 font-semibold text-red-700 hover:underline">Eliminar</a>
+                                        }
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    }
+                    @if (MuestraFormularios)
+                    {
+                        <DocumentoFilaFormulario Columnas="@Columnas">
+                            <EditForm Model="AddLinea" FormName="add-linea-serie" OnValidSubmit="CreateLineaAsync" Enhance="true">
+                                <DataAnnotationsValidator />
+                                @CamposLinea(AddLinea!, "AddLinea", usada: false, esAlta: true)
+                                <div class="mt-3 flex gap-2">
+                                    <button type="submit" class="btn-press rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-700">Agregar línea</button>
+                                    <a href="@UrlBase" class="btn-press rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">Limpiar campos</a>
+                                </div>
+                            </EditForm>
+                        </DocumentoFilaFormulario>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@if (MuestraDialogoBorrarLinea)
+{
+    <ConfirmDialog Title="Eliminar línea" Variant="danger" CancelHref="@UrlBase"
+                   Message="@($"Se eliminará la línea sin usar {lineaAEliminar!.NumeroInicial} – {lineaAEliminar.NumeroFinal}.")">
+        <EditForm Model="DeleteLinea" FormName="delete-linea-serie" OnValidSubmit="DeleteLineaAsync" class="mt-4">
+            <input type="hidden" name="DeleteLinea.Id" value="@lineaAEliminar.Id" />
+            <button type="submit" class="btn-press rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700">Sí, eliminar</button>
+        </EditForm>
+    </ConfirmDialog>
+}
+
+@* Formularios que el permiso o el estado no dejan mostrar: vacíos con el mismo FormName para que un POST forzado u obsoleto llegue al
+   handler y la página muestre el mensaje real de la API (Fix-Features, formularios siempre en el árbol). update-serie lo pone
+   DocumentoCabeceraEditable. *@
+@if (!MuestraFormularios)
+{
+    <EditForm Model="AddLinea" FormName="add-linea-serie" OnValidSubmit="CreateLineaAsync"></EditForm>
+}
+@if (!(MuestraEdicionLinea && detalle!.Lineas.Any(l => l.Id == EditLineaId)))
+{
+    <EditForm Model="UpdateLinea" FormName="update-linea-serie" OnValidSubmit="UpdateLineaAsync"></EditForm>
+}
+@if (!MuestraDialogoBorrarLinea)
+{
+    <EditForm Model="DeleteLinea" FormName="delete-linea-serie" OnValidSubmit="DeleteLineaAsync"></EditForm>
+}
+
+@code {
+    private const int Columnas = 8;
+
+    [Parameter] public Guid SerieId { get; set; }
+    [SupplyParameterFromQuery(Name = "ok")] private string? Ok { get; set; }
+    [SupplyParameterFromQuery(Name = "editLineaId")] private string? EditLineaTexto { get; set; }
+    [SupplyParameterFromQuery(Name = "deleteLineaId")] private string? DeleteLineaTexto { get; set; }
+    [SupplyParameterFromForm(FormName = "update-serie")] private SerieForm? UpdateInput { get; set; }
+    [SupplyParameterFromForm(FormName = "add-linea-serie")] private LineaSerieForm? AddLinea { get; set; }
+    [SupplyParameterFromForm(FormName = "update-linea-serie")] private LineaSerieForm? UpdateLinea { get; set; }
+    [SupplyParameterFromForm(FormName = "delete-linea-serie")] private IdForm? DeleteLinea { get; set; }
+    [CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+    private SerieDetalleResponse? detalle;
+    private LineaSerieResponse? lineaAEliminar;
+    private PermisosPagina? permisos;
+    private bool puedeAdministrar;
+    private bool cargaFallida;
+    private string? message;
+    private string messageType = "success";
+    private IReadOnlyList<string> errores = [];
+
+    private Guid? EditLineaId => InventarioVistasOpciones.ParseGuid(EditLineaTexto);
+    private Guid? DeleteLineaId => InventarioVistasOpciones.ParseGuid(DeleteLineaTexto);
+    private string UrlBase => $"/series/{SerieId}";
+    private string Titulo => detalle is null ? "Serie" : $"Serie {detalle.Serie.Codigo}";
+    private bool MuestraFormularios => puedeAdministrar && detalle is not null;
+    private bool MuestraEdicionLinea => MuestraFormularios && EditLineaId.HasValue;
+    private bool MuestraDialogoBorrarLinea => MuestraFormularios && lineaAEliminar is not null;
+    private IReadOnlyList<Miga> Migas => [new("Configuración", "/modulos/configuracion"), new("Series de numeración", "/series"), new(detalle?.Serie.Codigo ?? "Serie")];
+
+    private IReadOnlyList<CampoDocumento> CamposCabecera =>
+    [
+        new("Código", detalle!.Serie.Codigo),
+        new("Tipo de documento", detalle.Serie.TipoNombre),
+        new("Activa", (detalle.Serie.Activa ? "Sí" : "No") + (detalle.Serie.Asignada ? " · predeterminada" : "")),
+        new("Permite huecos", detalle.Serie.PermiteHuecos ? "Sí" : "No"),
+        new("Último usado", detalle.Serie.UltimoNumeroUsado ?? "—"),
+        new("Próximo número", detalle.Serie.ProximoNumero ?? "—"),
+        new("Descripción", detalle.Serie.Descripcion, Ancho: true),
+    ];
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Modelos antes del primer await.
+        UpdateInput ??= new();
+        AddLinea ??= new();
+        UpdateLinea ??= new();
+        DeleteLinea ??= new();
+        permisos = await PermisosPagina.CargarAsync(AuthorizationService, AuthenticationStateTask);
+        puedeAdministrar = await permisos.PuedeAsync(ApplicationPolicies.CanAdministrar);
+        try
+        {
+            detalle = await SerieApiClient.GetAsync(SerieId);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not load serie {Id}.", SerieId);
+            cargaFallida = true;
+        }
+
+        // Solo se rellena con lo guardado cuando NO llegó el formulario (xmin / Id ocultos vacíos).
+        if (detalle is { Serie: var s } && UpdateInput.Xmin == 0)
+        {
+            (UpdateInput.Codigo, UpdateInput.Descripcion, UpdateInput.TipoDocumento, UpdateInput.PermiteHuecos, UpdateInput.Activa, UpdateInput.Xmin) =
+                (s.Codigo, s.Descripcion, (short)s.TipoDocumento, s.PermiteHuecos, s.Activa, s.Xmin);
+        }
+
+        var lineaEditada = EditLineaId is { } editId ? detalle?.Lineas.FirstOrDefault(l => l.Id == editId) : null;
+        if (lineaEditada is not null && UpdateLinea.Id == Guid.Empty)
+        {
+            (UpdateLinea.Id, UpdateLinea.NumeroInicial, UpdateLinea.NumeroFinal, UpdateLinea.NumeroAviso, UpdateLinea.FechaInicialTexto,
+                UpdateLinea.Incremento, UpdateLinea.Bloqueada, UpdateLinea.Xmin) =
+                (lineaEditada.Id, lineaEditada.NumeroInicial, lineaEditada.NumeroFinal, lineaEditada.NumeroAviso, EntradaFecha.Formatear(lineaEditada.FechaInicial),
+                    lineaEditada.Incremento, lineaEditada.Bloqueada, lineaEditada.Xmin);
+        }
+
+        lineaAEliminar = DeleteLineaId is { } deleteId ? detalle?.Lineas.FirstOrDefault(l => l.Id == deleteId && !l.Usada) : null;
+
+        message = Ok switch
+        {
+            "creada" => "Serie creada. Agregue sus líneas.",
+            "modificada" => "Cabecera guardada.",
+            "linea_creada" => "Línea agregada.",
+            "linea_modificada" => "Línea modificada.",
+            "linea_eliminada" => "Línea eliminada.",
+            _ => null,
+        };
+
+        if (message is null && MuestraEdicionLinea && lineaEditada is null)
+        {
+            (messageType, message) = ("warning", "No se encontró la línea seleccionada. Puede haber sido eliminada por otro usuario.");
+        }
+    }
+
+    private Task UpdateAsync() => EjecutarAsync(() => SerieApiClient.UpdateAsync(SerieId, UpdateInput!.ToInput(), UpdateInput!.Xmin), "modificada");
+
+    private Task CreateLineaAsync() => EjecutarAsync(() => SerieApiClient.CreateLineaAsync(SerieId, AddLinea!.ToInput()), "linea_creada");
+
+    private Task UpdateLineaAsync()
+    {
+        // El Id viaja oculto en la fila de edición; un POST sin él (forzado) usa el de la URL y, si falta, la API responde su 404.
+        var lineaId = UpdateLinea!.Id != Guid.Empty ? UpdateLinea.Id : EditLineaId ?? Guid.Empty;
+        return EjecutarAsync(() => SerieApiClient.UpdateLineaAsync(SerieId, lineaId, UpdateLinea.ToInput(), UpdateLinea.Xmin), "linea_modificada");
+    }
+
+    private Task DeleteLineaAsync() => EjecutarAsync(() => SerieApiClient.DeleteLineaAsync(SerieId, DeleteLinea!.Id), "linea_eliminada");
+
+    private async Task EjecutarAsync<T>(Func<Task<VentaOperationResult<T>>> operacion, string ok)
+    {
+        // R17: el destino se decide dentro del try y NavigateTo va fuera (en los tests lanza NavigationException).
+        string? destino = null;
+        try
+        {
+            var result = await operacion();
+            if (result.Succeeded)
+            {
+                destino = $"{UrlBase}?ok={ok}";
+            }
+            else
+            {
+                // M1: solo mensajes; la página no los asocia a campos (NS-S1: la API explica prefijo, ancho, aviso y rangos).
+                (messageType, message, errores) = ("warning", result.Message, result.Errors ?? []);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Serie {Id}: operación {Ok} fallida.", SerieId, ok);
+            (messageType, message, errores) = ("danger", "No fue posible completar la operación.", []);
+        }
+
+        if (destino is not null)
+        {
+            Nav.NavigateTo(destino);
+            return;
+        }
+
+        // El diálogo de borrado se cierra para que el mensaje quede a la vista.
+        lineaAEliminar = null;
+    }
+
+    private RenderFragment CamposLinea(LineaSerieForm model, string prefix, bool usada, bool esAlta) => __builder =>
+    {
+        <div class="grid grid-cols-2 gap-2 text-xs lg:grid-cols-4">
+            <div>
+                <label class="mb-1 block font-semibold text-slate-500" for="@($"{prefix}_NumeroInicial")">Número inicial *</label>
+                <input id="@($"{prefix}_NumeroInicial")" name="@($"{prefix}.NumeroInicial")" value="@model.NumeroInicial" placeholder="FV-000001" maxlength="50"
+                       class="@VentasCss.Input" readonly="@usada" />
+            </div>
+            <div>
+                <label class="mb-1 block font-semibold text-slate-500" for="@($"{prefix}_NumeroFinal")">Número final *</label>
+                <input id="@($"{prefix}_NumeroFinal")" name="@($"{prefix}.NumeroFinal")" value="@model.NumeroFinal" placeholder="FV-999999" maxlength="50" class="@VentasCss.Input" />
+            </div>
+            <div>
+                <label class="mb-1 block font-semibold text-slate-500" for="@($"{prefix}_NumeroAviso")">Número de aviso</label>
+                <input id="@($"{prefix}_NumeroAviso")" name="@($"{prefix}.NumeroAviso")" value="@model.NumeroAviso" placeholder="Opcional" maxlength="50" class="@VentasCss.Input" />
+            </div>
+            @if (esAlta)
+            {
+                <div>
+                    <label class="mb-1 block font-semibold text-slate-500" for="@($"{prefix}_UltimoNumeroUsado")">Último usado</label>
+                    <input id="@($"{prefix}_UltimoNumeroUsado")" name="@($"{prefix}.UltimoNumeroUsado")" value="@model.UltimoNumeroUsado" placeholder="Vacío = sin usar" maxlength="50" class="@VentasCss.Input" />
+                </div>
+            }
+            <div>
+                <label class="mb-1 block font-semibold text-slate-500" for="@($"{prefix}_FechaInicialTexto")">Fecha inicial *</label>
+                <input type="date" id="@($"{prefix}_FechaInicialTexto")" name="@($"{prefix}.FechaInicialTexto")" value="@model.FechaInicialTexto" class="@VentasCss.Input" />
+            </div>
+            <div>
+                <label class="mb-1 block font-semibold text-slate-500" for="@($"{prefix}_Incremento")">Incremento *</label>
+                <input type="number" min="1" id="@($"{prefix}_Incremento")" name="@($"{prefix}.Incremento")" value="@model.Incremento" class="@VentasCss.Input" />
+            </div>
+            <label class="flex items-center gap-2 self-end pb-2 text-slate-700">
+                <input type="checkbox" name="@($"{prefix}.Bloqueada")" value="true" checked="@model.Bloqueada" /> Bloqueada
+            </label>
+        </div>
+        <ValidationSummary class="mt-2 text-xs text-red-600" />
+    };
+
+    public sealed class IdForm
+    {
+        public Guid Id { get; set; }
+    }
+}

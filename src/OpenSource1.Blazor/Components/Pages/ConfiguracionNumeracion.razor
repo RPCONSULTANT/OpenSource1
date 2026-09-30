@@ -1,0 +1,174 @@
+@page "/configuracion/numeracion"
+@attribute [Authorize(Policy = ApplicationPolicies.CanConsult)]
+@using Microsoft.AspNetCore.Authorization
+@using OpenSource1.Application.Features.ConfiguracionNumeracion.Dtos
+@using OpenSource1.Application.Features.Series.Dtos
+@using OpenSource1.Application.Security
+@using OpenSource1.Blazor.Services
+@using OpenSource1.Core.Enums
+@inject IConfiguracionNumeracionApiClient ConfiguracionApiClient
+@inject ISerieApiClient SerieApiClient
+@inject IAuthorizationService AuthorizationService
+@inject ILogger<ConfiguracionNumeracion> Logger
+@inject NavigationManager Nav
+
+<EntityFormPage Titulo="Configuración de numeración" Subtitulo="Serie predeterminada de cada tipo de documento. No cambia documentos ya creados."
+                Migas="@Migas" Mensaje="@message" TipoMensaje="@messageType" Errores="@errores">
+    @if (!puedeAdministrar)
+    {
+        <p class="mb-4 text-sm text-slate-500">Solo un administrador puede cambiar la serie predeterminada de un tipo.</p>
+    }
+    @* Siempre en el árbol (también sin CanAdministrar, sin selectores ni botón): un POST forzado llega a GuardarAsync y muestra el 403 real. *@
+    <EditForm Model="Input" FormName="config-numeracion" OnValidSubmit="GuardarAsync" Enhance="true">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-slate-100 text-sm" data-testid="tabla-configuracion">
+                <thead>
+                    <tr>
+                        <th class="py-2 pr-4 text-left text-xs font-semibold uppercase text-slate-500">Tipo de documento</th>
+                        <th class="py-2 text-left text-xs font-semibold uppercase text-slate-500">Serie</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-50">
+                    @if (filas.Count == 0 && !cargaFallida)
+                    {
+                        <tr><td colspan="2" class="py-6 text-center text-sm text-slate-400">No hay tipos de documento configurados.</td></tr>
+                    }
+                    @for (var i = 0; i < filas.Count; i++)
+                    {
+                        var f = filas[i];
+                        var opciones = seriesPorTipo.GetValueOrDefault(f.TipoDocumento) ?? OpcionesCargadas<SerieResponse>.SinCargar;
+                        <tr>
+                            <td class="py-2 pr-4 text-slate-700"><label for="@($"serie_{(short)f.TipoDocumento}")">@f.TipoNombre</label></td>
+                            <td class="py-2">
+                                @if (puedeAdministrar)
+                                {
+                                    <input type="hidden" name="@($"Input.Filas[{i}].Tipo")" value="@((short)f.TipoDocumento)" />
+                                    <input type="hidden" name="@($"Input.Filas[{i}].Xmin")" value="@f.Xmin" />
+                                    <SelectorSerie Id="@($"serie_{(short)f.TipoDocumento}")" Name="@($"Input.Filas[{i}].SerieId")"
+                                                   Series="@opciones.Items" CargaFallida="@opciones.CargaFallida"
+                                                   Seleccion="@f.SerieId" VigenteId="@f.SerieId" VigenteCodigo="@f.SerieCodigo" />
+                                }
+                                else
+                                {
+                                    <span class="font-mono text-xs font-semibold text-slate-700">@f.SerieCodigo</span>
+                                    <span class="text-xs text-slate-500">@f.SerieDescripcion@(f.SerieActiva ? "" : " (inactiva)")</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        @if (puedeAdministrar && filas.Count > 0)
+        {
+            <FormularioAcciones CancelarHref="/series" LimpiarHref="/configuracion/numeracion" TextoGuardar="Guardar configuración" />
+        }
+        else
+        {
+            <div class="mt-6"><a href="/series" class="text-sm font-semibold text-brand-700 hover:underline">Ver series de numeración</a></div>
+        }
+    </EditForm>
+</EntityFormPage>
+
+@code {
+    [SupplyParameterFromQuery(Name = "ok")] private string? Ok { get; set; }
+    [SupplyParameterFromForm(FormName = "config-numeracion")] private ConfigForm? Input { get; set; }
+    [CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+    private IReadOnlyList<ConfiguracionNumeracionResponse> filas = [];
+    private readonly Dictionary<TipoDocumentoSerie, OpcionesCargadas<SerieResponse>> seriesPorTipo = [];
+    private bool puedeAdministrar;
+    private bool cargaFallida;
+    private string? message;
+    private string messageType = "success";
+    private IReadOnlyList<string> errores = [];
+    private IReadOnlyList<Miga> Migas => [new("Configuración", "/modulos/configuracion"), new("Series de numeración", "/series"), new("Configuración de numeración")];
+
+    protected override async Task OnInitializedAsync()
+    {
+        Input ??= new();
+        var permisos = await PermisosPagina.CargarAsync(AuthorizationService, AuthenticationStateTask);
+        puedeAdministrar = await permisos.PuedeAsync(ApplicationPolicies.CanAdministrar);
+        try
+        {
+            filas = await ConfiguracionApiClient.ListAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not load configuración de numeración.");
+            cargaFallida = true;
+            (messageType, message) = ("danger", "No fue posible cargar la configuración de numeración.");
+        }
+
+        if (puedeAdministrar)
+        {
+            foreach (var tipo in filas.Select(f => f.TipoDocumento).Distinct())
+            {
+                // Nunca lanza: si falla, el selector conserva la serie vigente rotulada "(actual)" (F7).
+                seriesPorTipo[tipo] = await SeriesOpciones.ActivasAsync(SerieApiClient, tipo, Logger);
+            }
+        }
+
+        if (Ok == "guardada" && message is null)
+        {
+            message = "Configuración guardada.";
+        }
+    }
+
+    private async Task GuardarAsync()
+    {
+        // R17: el destino se decide dentro del try y NavigateTo va fuera.
+        string? destino = null;
+        var fallos = new List<string>();
+        try
+        {
+            // Solo las filas cuya serie cambió, con el xmin con el que se cargaron (un cambio concurrente da el 409 real).
+            foreach (var fila in Input!.Filas.Where(Cambio))
+            {
+                var tipo = (TipoDocumentoSerie)fila.Tipo;
+                var result = await ConfiguracionApiClient.UpdateAsync(tipo, fila.SerieId!.Value, fila.Xmin);
+                if (!result.Succeeded)
+                {
+                    // M1: los mensajes tal cual, precedidos del tipo al que pertenecen.
+                    var detalle = result.Errors is { Count: > 0 } lista ? string.Join(" ", lista) : result.Message;
+                    fallos.Add($"{TipoDocumentoSerieNombres.Nombre(tipo)}: {detalle}");
+                }
+            }
+
+            if (fallos.Count == 0)
+            {
+                destino = "/configuracion/numeracion?ok=guardada";
+            }
+            else
+            {
+                (messageType, message, errores) = ("warning", "Algunos cambios no se guardaron.", fallos);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not save configuración de numeración.");
+            (messageType, message, errores) = ("danger", "No fue posible guardar la configuración.", fallos);
+        }
+
+        if (destino is not null)
+        {
+            Nav.NavigateTo(destino);
+        }
+    }
+
+    /// <summary>Una fila cambia si trae serie y ésta difiere de la vigente de su tipo (un tipo desconocido también se envía: la API responde).</summary>
+    private bool Cambio(FilaConfig fila) =>
+        fila.SerieId is not null && filas.FirstOrDefault(x => (short)x.TipoDocumento == fila.Tipo)?.SerieId != fila.SerieId;
+
+    public sealed class ConfigForm
+    {
+        public List<FilaConfig> Filas { get; set; } = [];
+    }
+
+    public sealed class FilaConfig
+    {
+        public short Tipo { get; set; }
+        public Guid? SerieId { get; set; }
+        public long Xmin { get; set; }
+    }
+}

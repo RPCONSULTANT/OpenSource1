@@ -1,0 +1,44 @@
+@using OpenSource1.Core.Enums
+@* Campos de la cabecera de una serie de numeración, compartidos por el alta (/series/nueva) y la ficha (/series/{id}).
+   Van DENTRO del EditForm de la página; los nombres llevan el prefijo del modelo (Input / UpdateInput). *@
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-4" data-testid="serie-cabecera">
+    <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{Prefix}_Codigo")">Código <span class="text-red-500">*</span></label>
+        <input id="@($"{Prefix}_Codigo")" name="@($"{Prefix}.Codigo")" value="@Model.Codigo" maxlength="20" class="@VentasCss.Input" />
+        <ValidationMessage For="() => Model.Codigo" />
+    </div>
+    <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{Prefix}_TipoDocumento")">Tipo de documento <span class="text-red-500">*</span></label>
+        <select id="@($"{Prefix}_TipoDocumento")" name="@($"{Prefix}.TipoDocumento")" class="@VentasCss.Input" disabled="@TipoBloqueado">
+            @foreach (var t in TipoDocumentoSerieNombres.Todos)
+            {
+                <option value="@((short)t)" selected="@(Model.TipoDocumento == (short)t)">@TipoDocumentoSerieNombres.Nombre(t)</option>
+            }
+        </select>
+        @if (TipoBloqueado)
+        {
+            @* Un <select disabled> no se envía: el tipo vigente viaja oculto. *@
+            <input type="hidden" name="@($"{Prefix}.TipoDocumento")" value="@Model.TipoDocumento" />
+            <p class="mt-1 text-xs text-slate-400">La serie ya emitió números o está asignada: su tipo no cambia.</p>
+        }
+    </div>
+    <div class="sm:col-span-2">
+        <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{Prefix}_Descripcion")">Descripción <span class="text-red-500">*</span></label>
+        <input id="@($"{Prefix}_Descripcion")" name="@($"{Prefix}.Descripcion")" value="@Model.Descripcion" maxlength="200" class="@VentasCss.Input" />
+        <ValidationMessage For="() => Model.Descripcion" />
+    </div>
+    <label class="flex items-center gap-2 text-sm text-slate-700">
+        <input type="checkbox" name="@($"{Prefix}.PermiteHuecos")" value="true" checked="@Model.PermiteHuecos" /> Permite huecos (documental)
+    </label>
+    <label class="flex items-center gap-2 text-sm text-slate-700">
+        <input type="checkbox" name="@($"{Prefix}.Activa")" value="true" checked="@Model.Activa" /> Activa
+    </label>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public SerieForm Model { get; set; } = default!;
+    /// <summary>Prefijo de los nombres del formulario (<c>Input</c> en el alta, <c>UpdateInput</c> en la ficha).</summary>
+    [Parameter, EditorRequired] public string Prefix { get; set; } = default!;
+    /// <summary>Serie usada o asignada (NS6): el tipo se muestra pero no se puede cambiar.</summary>
+    [Parameter] public bool TipoBloqueado { get; set; }
+}

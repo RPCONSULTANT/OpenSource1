@@ -63,6 +63,8 @@ public static class CatalogoModulos
         new("grupos-cliente-contable", "configuracion", "Grupos de cliente contable", "Cuenta de CxC por grupo de cliente.", "/grupos-cliente-contable", IconosModulo.Ajustes, Consultar, null, ["cxc", "grupo cliente"]),
         new("setups-contables", "configuracion", "Setups contables", "Cuentas por combinación de grupos.", "/setups-contables", IconosModulo.Ajustes, Consultar, null, ["setup", "configuracion contable"]),
         new("fechas-registro", "configuracion", "Fechas de registro", "Rango de fechas de registro permitidas.", "/admin/fechas-registro", IconosModulo.Calendario, ApplicationPolicies.CanAdministrar, null, ["periodo", "cierre", "fechas"]),
+        new("series-numeracion", "configuracion", "Series de numeración", "Series, líneas, último usado y próximo número.", "/series", IconosModulo.Lista, ApplicationPolicies.CanAdministrar, null, ["numeracion", "serie", "prefijo", "correlativo"]),
+        new("configuracion-numeracion", "configuracion", "Configuración de numeración", "Serie predeterminada de cada tipo de documento.", "/configuracion/numeracion", IconosModulo.Ajustes, ApplicationPolicies.CanAdministrar, null, ["numeracion", "series por defecto"]),
 
         new("usuarios", "administracion", "Usuarios", "Cuentas, roles y estado de los usuarios.", "/admin/users", IconosModulo.Personas, null, Admin, ["roles", "cuentas"]),
     ];

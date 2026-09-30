@@ -1,0 +1,74 @@
+@page "/series/nueva"
+@attribute [Authorize(Policy = ApplicationPolicies.CanConsult)]
+@using Microsoft.AspNetCore.Authorization
+@using OpenSource1.Application.Security
+@using OpenSource1.Blazor.Services
+@using OpenSource1.Core.Enums
+@inject ISerieApiClient SerieApiClient
+@inject IAuthorizationService AuthorizationService
+@inject ILogger<SerieNueva> Logger
+@inject NavigationManager Nav
+
+<EntityFormPage Titulo="Nueva serie" Subtitulo="Crea la serie; después se agregan sus líneas (rangos con prefijo) en su ficha."
+                Migas="@Migas" Mensaje="@message" TipoMensaje="@messageType" Errores="@errores">
+    @if (!puedeAdministrar)
+    {
+        <MessageBox Type="warning" Message="No tiene permiso para realizar esta acción." />
+        @* Siempre en el árbol: el POST forzado llega al handler y muestra el 403 real de la API. *@
+        <EditForm Model="Input" FormName="add-serie" OnValidSubmit="CreateAsync"></EditForm>
+    }
+    else
+    {
+        <EditForm Model="Input" FormName="add-serie" OnValidSubmit="CreateAsync" Enhance="true">
+            <DataAnnotationsValidator />
+            <SerieCabeceraCampos Model="Input!" Prefix="Input" />
+            <FormularioAcciones CancelarHref="/series" LimpiarHref="/series/nueva" TextoGuardar="Crear serie" />
+        </EditForm>
+    }
+</EntityFormPage>
+
+@code {
+    [SupplyParameterFromForm(FormName = "add-serie")] private SerieForm? Input { get; set; }
+    [CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+    private bool puedeAdministrar;
+    private string? message;
+    private string messageType = "warning";
+    private IReadOnlyList<string> errores = [];
+    private IReadOnlyList<Miga> Migas => [new("Configuración", "/modulos/configuracion"), new("Series de numeración", "/series"), new("Nueva serie")];
+
+    protected override async Task OnInitializedAsync()
+    {
+        Input ??= new() { Activa = true, TipoDocumento = (short)TipoDocumentoSerie.FacturaVenta };
+        var permisos = await PermisosPagina.CargarAsync(AuthorizationService, AuthenticationStateTask);
+        puedeAdministrar = await permisos.PuedeAsync(ApplicationPolicies.CanAdministrar);
+    }
+
+    private async Task CreateAsync()
+    {
+        // R17: el destino se decide dentro del try y NavigateTo va fuera.
+        string? destino = null;
+        try
+        {
+            var result = await SerieApiClient.CreateAsync(Input!.ToInput());
+            if (result is { Succeeded: true, Valor: { } serie })
+            {
+                destino = $"/series/{serie.Id}?ok=creada";
+            }
+            else
+            {
+                (messageType, message, errores) = ("warning", result.Message, result.Errors ?? []);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not create serie.");
+            (messageType, message, errores) = ("danger", "No fue posible crear la serie.", []);
+        }
+
+        if (destino is not null)
+        {
+            Nav.NavigateTo(destino);
+        }
+    }
+}
