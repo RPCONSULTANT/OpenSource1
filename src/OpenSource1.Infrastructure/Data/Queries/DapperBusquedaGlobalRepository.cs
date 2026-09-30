@@ -8,7 +8,8 @@ namespace OpenSource1.Infrastructure.Data.Queries;
 /// <summary>
 /// Búsqueda global (Fix-Features A3). Un SELECT por tipo con <c>LIMIT @Limite</c>; el término se escapa con
 /// <see cref="FilterExpressionBuilder.EscaparMetacaracteresLike"/> y se envuelve en <c>%…%</c> (sin sintaxis de comodines del
-/// usuario: todo es literal). Socios, productos y borradores excluyen el borrado lógico; los documentos posteados no lo tienen.
+/// usuario: todo es literal). Socios, productos y borradores excluyen el borrado lógico; los documentos posteados no lo tienen. Los
+/// borradores <c>Posteada</c> (3) de factura y de nota tampoco salen (spec no-series, ruling F14): se encuentran por su documento.
 /// </summary>
 public sealed class DapperBusquedaGlobalRepository(IDbSession session) : IBusquedaGlobalRepository
 {
@@ -44,7 +45,7 @@ public sealed class DapperBusquedaGlobalRepository(IDbSession session) : IBusque
     private const string SqlBorradoresFactura = """
         SELECT b."Id"::text AS "Id", b."Numero" AS "Titulo", b."NombreFacturacion" AS "Subtitulo"
         FROM "FacturasVentaBorrador" b
-        WHERE b."IsDeleted" = false
+        WHERE b."IsDeleted" = false AND b."Estado" <> 3
           AND (b."Numero" ILIKE @Patron ESCAPE '\' OR b."NombreFacturacion" ILIKE @Patron ESCAPE '\')
         ORDER BY b."CreatedAtUtc" DESC, b."Id"
         LIMIT @Limite
@@ -63,7 +64,7 @@ public sealed class DapperBusquedaGlobalRepository(IDbSession session) : IBusque
         SELECT n."Id"::text AS "Id", n."Numero" AS "Titulo",
                concat_ws(' · ', n."NombreFacturacion", 'Factura ' || n."FacturaVentaNumero") AS "Subtitulo"
         FROM "NotasCreditoVentaBorrador" n
-        WHERE n."IsDeleted" = false AND n."Numero" ILIKE @Patron ESCAPE '\'
+        WHERE n."IsDeleted" = false AND n."Estado" <> 3 AND n."Numero" ILIKE @Patron ESCAPE '\'
         ORDER BY n."CreatedAtUtc" DESC, n."Id"
         LIMIT @Limite
         """;

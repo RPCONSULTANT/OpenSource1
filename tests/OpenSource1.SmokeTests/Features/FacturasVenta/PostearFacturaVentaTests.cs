@@ -7,6 +7,7 @@ using OpenSource1.Application.Features.FacturasVenta.Borradores;
 using OpenSource1.Application.Features.FacturasVenta.Borradores.Commands;
 using OpenSource1.Application.Features.FacturasVenta.Borradores.Dtos;
 using OpenSource1.Application.Features.FacturasVenta.Borradores.Handlers;
+using OpenSource1.Application.Features.FacturasVenta.Copia;
 using OpenSource1.Application.Features.FacturasVenta.Posteo;
 using OpenSource1.Application.Features.SociosNegocio.Commands;
 using OpenSource1.Application.Features.SociosNegocio.Handlers;
@@ -1145,6 +1146,190 @@ public sealed class PostearFacturaVentaTests(PostgresTestFixture fixture) : ICla
         var fila = Assert.Single(soloPosteadas.Items);
         Assert.Equal((posteado.Id, EstadoFacturaBorrador.Posteada), (fila.Id, fila.Estado));
         Assert.NotNull(fila.FacturaVentaNumero);
+    }
+
+    // ----- Copiar a borrador (spec no-series, Parte 2) -----
+
+    [Fact]
+    public async Task Copia_CabeceraConDatosActualesDelCliente_LineasYSeriesConfiguradas()
+    {
+        var terminoOriginal = await TerminoAsync();
+        var socio = await SocioAsync(termino: terminoOriginal);
+        var almacen = await _prueba.SembrarAlmacenAsync();
+        var producto = await ProductoAsync();
+        await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Entrada(producto, almacen, 10m, 1m, D1));
+        var borrador = await BorradorAsync(socio, almacen: almacen);
+        await LineaProductoAsync(borrador.Id, producto, 2m, 10m, descuento: 5m);
+        await ComentarioAsync(borrador.Id, "Entregar por la mañana");
+        var factura = await PostearOkAsync(borrador.Id);
+        // Después de facturar, el cliente cambia de nombre y de término de pago (30 días).
+        var terminoNuevo = await TerminoAsync();
+        await EjecutarSqlAsync("""UPDATE "SociosNegocio" SET "NombreComercial" = 'Renombrado', "TerminoPagoId" = @T WHERE "Id" = @Id""",
+            new { T = terminoNuevo, Id = socio });
+        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+
+        var copia = Ok(await CopiarAsync(factura.Numero));
+
+        Assert.Empty(copia.Avisos);
+        var nuevo = Ok(await ObtenerBorradorAsync(copia.BorradorId));
+        Assert.Equal(copia.Numero, nuevo.Numero);
+        Assert.Equal(("Renombrado", terminoNuevo, EstadoFacturaBorrador.Abierta), (nuevo.NombreFacturacion, nuevo.TerminoPagoId, nuevo.Estado));
+        Assert.Equal((hoy, hoy, hoy.AddDays(30), almacen), (nuevo.FechaRegistro, nuevo.FechaDocumento, nuevo.FechaVencimiento, nuevo.AlmacenId));
+        Assert.Equal((SerieFacturaVentaIds.SerieBorradorId, SerieFacturaVentaIds.SeriePosteadaId), (nuevo.SerieBorradorId, nuevo.SerieRegistroId));
+        Assert.NotEqual(borrador.Numero, nuevo.Numero);
+        var lineas = await LineasBorradorAsync(copia.BorradorId);
+        Assert.Equal([TipoLineaFactura.Producto, TipoLineaFactura.Comentario], lineas.Select(l => l.Tipo));
+        Assert.Equal((producto, 2m, 10m, 5m), (lineas[0].ProductoId!.Value, lineas[0].Cantidad, lineas[0].PrecioUnitario, lineas[0].PorcentajeDescuentoLinea));
+        Assert.Equal("Entregar por la mañana", lineas[1].Descripcion);
+    }
+
+    [Fact]
+    public async Task Copia_LineaDeCuentaContable_SeCopiaConSuGrupoDeIva()
+    {
+        var socio = await SocioAsync();
+        var almacen = await _prueba.SembrarAlmacenAsync();
+        var cuenta = await CuentaAsync(posteoDirecto: true);
+        var borrador = await BorradorAsync(socio, almacen: almacen);
+        await LineaCuentaAsync(borrador.Id, cuenta, GrupoContableIds.IvaProductoItbis18, 3m, 20m, descuento: 10m);
+        var factura = await PostearOkAsync(borrador.Id);
+
+        var copia = Ok(await CopiarAsync(factura.Numero));
+
+        Assert.Empty(copia.Avisos);
+        var linea = Assert.Single(await LineasBorradorAsync(copia.BorradorId));
+        Assert.Equal((TipoLineaFactura.CuentaContable, cuenta, GrupoContableIds.IvaProductoItbis18, 3m, 20m, 10m),
+            (linea.Tipo, linea.CuentaContableId!.Value, linea.GrupoIvaProductoId!.Value, linea.Cantidad, linea.PrecioUnitario, linea.PorcentajeDescuentoLinea));
+    }
+
+    [Fact]
+    public async Task Copia_ProductoBloqueadoOBorrado_SeOmiteConAviso()
+    {
+        var socio = await SocioAsync();
+        var almacen = await _prueba.SembrarAlmacenAsync();
+        var bueno = await ProductoAsync();
+        var bloqueado = await ProductoAsync();
+        await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Entrada(bueno, almacen, 10m, 1m, D1));
+        await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Entrada(bloqueado, almacen, 10m, 1m, D1));
+        var borrador = await BorradorAsync(socio, almacen: almacen);
+        await LineaProductoAsync(borrador.Id, bueno, 1m, 10m);
+        await LineaProductoAsync(borrador.Id, bloqueado, 1m, 10m);
+        var factura = await PostearOkAsync(borrador.Id);
+        await EjecutarSqlAsync("""UPDATE "Productos" SET "Bloqueado" = @B WHERE "Id" = @Id""", new { B = (short)BloqueoProducto.Todo, Id = bloqueado });
+
+        var copia = Ok(await CopiarAsync(factura.Numero));
+
+        var aviso = Assert.Single(copia.Avisos);
+        Assert.Contains("Línea 20000", aviso);
+        Assert.Equal([bueno], (await LineasBorradorAsync(copia.BorradorId)).Select(l => l.ProductoId!.Value));
+    }
+
+    [Fact]
+    public async Task Copia_AlmacenDeLaFacturaBloqueado_UsaElPredeterminadoConAviso()
+    {
+        var socio = await SocioAsync();
+        var almacen = await _prueba.SembrarAlmacenAsync();
+        var producto = await ProductoAsync();
+        await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Entrada(producto, almacen, 10m, 1m, D1));
+        var borrador = await BorradorAsync(socio, almacen: almacen);
+        await LineaProductoAsync(borrador.Id, producto, 1m, 10m);
+        var factura = await PostearOkAsync(borrador.Id);
+        await EjecutarSqlAsync("""UPDATE "Almacenes" SET "Bloqueado" = true WHERE "Id" = @Id""", new { Id = almacen });
+        try
+        {
+            var copia = Ok(await CopiarAsync(factura.Numero));
+
+            var aviso = Assert.Single(copia.Avisos);
+            Assert.Contains("almacén predeterminado", aviso);
+            var predeterminado = await EscalarAsync<Guid>("""SELECT "Id" FROM "Almacenes" WHERE "EsPredeterminado" AND NOT "IsDeleted" """);
+            Assert.Equal(predeterminado, Ok(await ObtenerBorradorAsync(copia.BorradorId)).AlmacenId);
+            var linea = Assert.Single(await LineasBorradorAsync(copia.BorradorId));
+            Assert.Equal((producto, predeterminado), (linea.ProductoId!.Value, linea.AlmacenId!.Value));
+        }
+        finally
+        {
+            await EjecutarSqlAsync("""UPDATE "Almacenes" SET "Bloqueado" = false WHERE "Id" = @Id""", new { Id = almacen });
+        }
+    }
+
+    [Fact]
+    public async Task Copia_ClienteBloqueado_400_SinCrearNadaNiConsumirNumero()
+    {
+        var socio = await SocioAsync();
+        var almacen = await _prueba.SembrarAlmacenAsync();
+        var producto = await ProductoAsync();
+        await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Entrada(producto, almacen, 10m, 1m, D1));
+        var borrador = await BorradorAsync(socio, almacen: almacen);
+        await LineaProductoAsync(borrador.Id, producto, 1m, 10m);
+        var factura = await PostearOkAsync(borrador.Id);
+        await EjecutarSqlAsync("""UPDATE "SociosNegocio" SET "Bloqueado" = @B WHERE "Id" = @Id""", new { B = (short)BloqueoSocioNegocio.Facturacion, Id = socio });
+        var antes = await FotoCopiaAsync();
+
+        var resultado = await CopiarAsync(factura.Numero);
+
+        Assert.Equal(("factura.copia_cliente_invalido", "SocioNegocioId"), Unico(resultado));
+        Assert.Equal(antes, await FotoCopiaAsync());
+    }
+
+    [Fact]
+    public async Task Copia_SerieDeBorradoresConfiguradaInactiva_400_SinCrearNada()
+    {
+        var socio = await SocioAsync();
+        var almacen = await _prueba.SembrarAlmacenAsync();
+        var producto = await ProductoAsync();
+        await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Entrada(producto, almacen, 10m, 1m, D1));
+        var borrador = await BorradorAsync(socio, almacen: almacen);
+        await LineaProductoAsync(borrador.Id, producto, 1m, 10m);
+        var factura = await PostearOkAsync(borrador.Id);
+        var (inactiva, lineaInactiva, _) = await SeriesPrueba.CrearAsync(fixture.AppConnectionString, TipoDocumentoSerie.BorradorFacturaVenta, activa: false);
+        try
+        {
+            await EjecutarSqlAsync("""UPDATE "ConfiguracionesNumeracion" SET "SerieId" = @S WHERE "TipoDocumento" = 1""", new { S = inactiva });
+            var antes = await FotoCopiaAsync();
+
+            var resultado = await CopiarAsync(factura.Numero);
+
+            Assert.Equal("numeracion.serie_inactiva", Unico(resultado).Codigo);
+            Assert.Equal(antes, await FotoCopiaAsync());
+            Assert.Equal("", await SeriesPrueba.UltimoAsync(fixture.AppConnectionString, lineaInactiva));
+        }
+        finally
+        {
+            await EjecutarSqlAsync("""UPDATE "ConfiguracionesNumeracion" SET "SerieId" = @S WHERE "TipoDocumento" = 1""",
+                new { S = SerieFacturaVentaIds.SerieBorradorId });
+        }
+    }
+
+    [Fact]
+    public async Task Copia_FacturaInexistente_NoEncontrada()
+    {
+        Assert.Equal(("factura.no_encontrado", "Numero"), Unico(await CopiarAsync("NO-EXISTE")));
+    }
+
+    private async Task<Result<CopiaFacturaResponse>> CopiarAsync(string numero)
+    {
+        await using var scope = _prueba.Provider.CreateAsyncScope();
+        var handler = ActivatorUtilities.CreateInstance<CopiarFacturaABorradorCommandHandler>(scope.ServiceProvider);
+        return await handler.Handle(new CopiarFacturaABorradorCommand(numero), default);
+    }
+
+    private async Task<IReadOnlyList<LineaFacturaVentaBorradorResponse>> LineasBorradorAsync(Guid borradorId)
+    {
+        await using var scope = _prueba.Provider.CreateAsyncScope();
+        var lectura = scope.ServiceProvider.GetRequiredService<ILineaFacturaVentaBorradorReadRepository>();
+        return (await lectura.ListByBorradorAsync(borradorId, default)).OrderBy(l => l.NumeroLinea).ToList();
+    }
+
+    /// <summary>Borradores y líneas (vivos y totales) y el contador de la serie de borradores configurada.</summary>
+    private async Task<Dictionary<string, string?>> FotoCopiaAsync()
+    {
+        await using var conexion = _prueba.NuevaConexion();
+        return new Dictionary<string, string?>
+        {
+            ["borradores"] = (await conexion.ExecuteScalarAsync<long>("""SELECT COUNT(*) FROM "FacturasVentaBorrador" """)).ToString(),
+            ["lineas"] = (await conexion.ExecuteScalarAsync<long>("""SELECT COUNT(*) FROM "LineasFacturaVentaBorrador" """)).ToString(),
+            ["serie FV-BORR"] = await conexion.ExecuteScalarAsync<string>(
+                """SELECT "UltimoNumeroUsado" FROM "LineasSerie" WHERE "Id" = @Id""", new { Id = SerieFacturaVentaIds.LineaSerieBorradorId }),
+        };
     }
 
     // ----- Helpers: siembra -----
