@@ -66,18 +66,32 @@ public sealed class NotaCreditoVentaApiClientTests
     }
 
     [Fact]
-    public async Task UpdateBorrador_EnviaFechasDescripcionYXmin()
+    public async Task UpdateBorrador_EnviaFechasDescripcionSerieDeRegistroYXmin()
     {
         var handler = new Grabador(HttpStatusCode.OK, BorradorJson);
         var id = Guid.NewGuid();
+        var serieRegistro = Guid.NewGuid();
 
-        await Cliente(handler).UpdateBorradorAsync(id, new DateOnly(2026, 9, 26), new DateOnly(2026, 9, 26), "", xmin: 12);
+        await Cliente(handler).UpdateBorradorAsync(
+            id, new NotaCreditoCabeceraInput(new DateOnly(2026, 9, 26), new DateOnly(2026, 9, 26), "", serieRegistro), xmin: 12);
 
         Assert.EndsWith($"api/notas-credito-venta/borradores/{id}", handler.Uri!.AbsolutePath);
         using var cuerpo = JsonDocument.Parse(handler.Cuerpo!);
         Assert.Equal(12, cuerpo.RootElement.GetProperty("xmin").GetInt64());
         Assert.Equal("2026-09-26", cuerpo.RootElement.GetProperty("fechaDocumento").GetString());
         Assert.Equal("", cuerpo.RootElement.GetProperty("descripcion").GetString());
+        Assert.Equal(serieRegistro, cuerpo.RootElement.GetProperty("serieRegistroId").GetGuid());
+    }
+
+    [Fact]
+    public async Task UpdateBorrador_SinSerieDeRegistro_EnviaNull_QueLaApiConserva()
+    {
+        var handler = new Grabador(HttpStatusCode.OK, BorradorJson);
+
+        await Cliente(handler).UpdateBorradorAsync(Guid.NewGuid(), new NotaCreditoCabeceraInput(null, null, "x"), xmin: 1);
+
+        using var cuerpo = JsonDocument.Parse(handler.Cuerpo!);
+        Assert.Equal(JsonValueKind.Null, cuerpo.RootElement.GetProperty("serieRegistroId").ValueKind);
     }
 
     [Fact]

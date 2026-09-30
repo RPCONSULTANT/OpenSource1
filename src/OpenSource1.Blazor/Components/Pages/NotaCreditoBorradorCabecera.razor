@@ -118,7 +118,7 @@
         try
         {
             var result = await NotaApiClient.UpdateBorradorAsync(
-                BorradorId, f.FechaRegistro, f.FechaDocumento, f.Descripcion?.Trim() ?? string.Empty, f.Xmin);
+                BorradorId, new NotaCreditoCabeceraInput(f.FechaRegistro, f.FechaDocumento, f.Descripcion?.Trim() ?? string.Empty), f.Xmin);
             if (result.Succeeded)
             {
                 // Como antes de la conversión: tras modificar la cabecera se vuelve al editor del borrador.

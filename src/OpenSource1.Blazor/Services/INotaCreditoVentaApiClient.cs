@@ -24,9 +24,9 @@ public interface INotaCreditoVentaApiClient
     Task<VentaOperationResult<NotaCreditoVentaBorradorResponse>> CreateBorradorAsync(
         NotaCreditoBorradorInput input, CancellationToken cancellationToken = default);
 
-    /// <summary>Fechas y descripción ("null = conservar"; descripción "" = limpiar). CanModify.</summary>
+    /// <summary>Fechas, descripción y serie de registro ("null = conservar"; descripción "" = limpiar). CanModify; solo Abierta (Posteada = 409).</summary>
     Task<VentaOperationResult<NotaCreditoVentaBorradorResponse>> UpdateBorradorAsync(
-        Guid id, DateOnly? fechaRegistro, DateOnly? fechaDocumento, string? descripcion, long xmin, CancellationToken cancellationToken = default);
+        Guid id, NotaCreditoCabeceraInput input, long xmin, CancellationToken cancellationToken = default);
 
     Task<VentaOperationResult<bool>> DeleteBorradorAsync(Guid id, CancellationToken cancellationToken = default);
 
@@ -59,14 +59,23 @@ public interface INotaCreditoVentaApiClient
     Task<NotaCreditoVentaDetalleResponse?> GetNotaAsync(string numero, CancellationToken cancellationToken = default);
 }
 
-/// <summary>Filtros del listado de borradores de nota de crédito.</summary>
-public sealed record NotaCreditoVentaBorradorFiltro(string? Numero, string? FacturaVentaNumero, string? NombreFacturacion, Guid? SocioNegocioId);
+/// <summary>Filtros del listado de borradores de nota de crédito (<c>Estado</c> como entero: 1 = Abierta, 3 = Posteada; null = Abierta).</summary>
+public sealed record NotaCreditoVentaBorradorFiltro(
+    string? Numero, string? FacturaVentaNumero, string? NombreFacturacion, Guid? SocioNegocioId, int? Estado = null);
 
-/// <summary>Alta de un borrador de nota: la factura posteada es obligatoria; fechas null = valores por defecto de la API.</summary>
+/// <summary>
+/// Alta de un borrador de nota: la factura posteada es obligatoria; fechas null = valores por defecto de la API; series null = las
+/// configuradas (<c>SerieBorradorId</c> numera el borrador, <c>SerieRegistroId</c> numerará la nota al postear).
+/// </summary>
 public sealed record NotaCreditoBorradorInput(
     string FacturaVentaNumero,
     DateOnly? FechaRegistro,
     DateOnly? FechaDocumento,
     string? Descripcion,
     bool CopiarLineas,
-    bool DevolverInventario);
+    bool DevolverInventario,
+    Guid? SerieBorradorId = null,
+    Guid? SerieRegistroId = null);
+
+/// <summary>Modificación de la cabecera de un borrador de nota: todo "null = conservar" (<c>Descripcion</c> "" = limpiar).</summary>
+public sealed record NotaCreditoCabeceraInput(DateOnly? FechaRegistro, DateOnly? FechaDocumento, string? Descripcion, Guid? SerieRegistroId = null);

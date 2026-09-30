@@ -1,5 +1,6 @@
 using OpenSource1.Application.Features.FacturasVenta.Borradores.Dtos;
 using OpenSource1.Application.Features.FacturasVenta.Calculo;
+using OpenSource1.Application.Features.FacturasVenta.Copia;
 using OpenSource1.Application.Features.FacturasVenta.Posteadas;
 using OpenSource1.Application.Features.FacturasVenta.Posteadas.Dtos;
 using OpenSource1.Application.Features.FacturasVenta.Posteo;
@@ -59,14 +60,22 @@ public interface IFacturaVentaApiClient
 
     /// <summary><see langword="null"/> = no existe una factura posteada con ese número (404).</summary>
     Task<FacturaVentaDetalleResponse?> GetFacturaAsync(string numero, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Copia una factura posteada a un borrador nuevo (CanAdd). Éxito: id y número del borrador y avisos (líneas omitidas o
+    /// almacén sustituido). 404 = la factura no existe; 400 = cliente bloqueado/borrado o numeración.
+    /// </summary>
+    Task<VentaOperationResult<CopiaFacturaResponse>> CopiarABorradorAsync(string numero, CancellationToken cancellationToken = default);
 }
 
-/// <summary>Filtros del listado de borradores (<c>Estado</c> como entero: 1 = Abierta, 2 = Liberada).</summary>
+/// <summary>Filtros del listado de borradores (<c>Estado</c> como entero: 1 = Abierta, 2 = Liberada, 3 = Posteada; null = Abierta y Liberada).</summary>
 public sealed record FacturaVentaBorradorFiltro(string? Numero, string? NombreFacturacion, Guid? SocioNegocioId, int? Estado);
 
 /// <summary>
 /// Cabecera de un borrador. En el alta, <c>SocioNegocioFacturarAId</c> null = el mismo que el vender-a y las fechas/almacén null =
 /// valores por defecto de la API. En la modificación la página envía siempre ambos socios.
+/// Series (spec no-series): en el alta, null = la serie configurada del tipo (<c>SerieBorradorId</c> numera el borrador,
+/// <c>SerieRegistroId</c> numerará la factura al postear); en la modificación solo viaja <c>SerieRegistroId</c> (null = conservar).
 /// </summary>
 public sealed record BorradorCabeceraInput(
     Guid SocioNegocioId,
@@ -75,7 +84,9 @@ public sealed record BorradorCabeceraInput(
     DateOnly? FechaDocumento,
     DateOnly? FechaVencimiento,
     Guid? AlmacenId,
-    string? Descripcion);
+    string? Descripcion,
+    Guid? SerieBorradorId = null,
+    Guid? SerieRegistroId = null);
 
 /// <summary>
 /// Cuerpo de alta/modificación de una línea (reemplazo completo). Los campos que no aplican al <see cref="Tipo"/> deben ir nulos:

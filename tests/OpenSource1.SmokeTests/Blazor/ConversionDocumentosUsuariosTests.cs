@@ -268,7 +268,7 @@ public sealed class ConversionDocumentosUsuariosTests
     {
         using var app = Configurar(new BlazorSsrFactory());
         var api = app.Simular<INotaCreditoVentaApiClient>();
-        api.Setup(c => c.UpdateBorradorAsync(IdNota, new DateOnly(2026, 9, 2), new DateOnly(2026, 9, 3), "Devolución", 5, It.IsAny<CancellationToken>()))
+        api.Setup(c => c.UpdateBorradorAsync(IdNota, It.Is<NotaCreditoCabeceraInput>(i => i.FechaRegistro == new DateOnly(2026, 9, 2) && i.FechaDocumento == new DateOnly(2026, 9, 3) && i.Descripcion == "Devolución"), 5, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new VentaOperationResult<NotaCreditoVentaBorradorResponse>(true, "ok"));
         var url = $"/notas-credito-venta/borradores/{IdNota}/editar";
 
@@ -284,7 +284,7 @@ public sealed class ConversionDocumentosUsuariosTests
         Assert.Contains("FAC-0001", html);
         Assert.Contains("name=\"UpdateInput.Xmin\" value=\"5\"", html);
         Assert.Equal($"/notas-credito-venta/borradores/{IdNota}?ok=modificado", FormulariosSsr.Destino(respuesta));
-        api.Verify(c => c.UpdateBorradorAsync(IdNota, It.IsAny<DateOnly?>(), It.IsAny<DateOnly?>(), It.IsAny<string>(), 5, It.IsAny<CancellationToken>()), Times.Once);
+        api.Verify(c => c.UpdateBorradorAsync(IdNota, It.IsAny<NotaCreditoCabeceraInput>(), 5, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
