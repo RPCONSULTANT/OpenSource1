@@ -29,6 +29,7 @@ using OpenSource1.Application.Features.NotasCreditoVenta.Posteadas;
 using OpenSource1.Application.Features.GruposClienteContable;
 using OpenSource1.Application.Features.GruposContables;
 using OpenSource1.Application.Features.Productos;
+using OpenSource1.Application.Features.Series;
 using OpenSource1.Application.Features.SetupsContables;
 using OpenSource1.Application.Features.TerminosPago;
 using OpenSource1.Application.Features.UnidadesMedida;
@@ -124,6 +125,7 @@ public static class DependencyInjection
         services.AddScoped<IInventarioConsultasReadRepository, DapperInventarioConsultasRepository>();
         services.AddScoped<IConversionUnidadMedidaService, ConversionUnidadMedidaService>();
         services.AddScoped<IGeneradorNumeroDocumento, GeneradorNumeroDocumento>();
+        services.AddScoped<ISerieReadRepository, DapperSerieReadRepository>();
         services.AddScoped<IConsultaInventario, ConsultaInventario>();
         services.AddScoped<IRegistroMovimientosInventario, RegistroMovimientosInventario>();
         services.AddScoped<IAjusteCostoInventario, AjusteCostoInventario>();
