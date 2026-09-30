@@ -22,8 +22,8 @@ namespace OpenSource1.Application.Features.NotasCreditoVenta.Posteo;
 /// <item>Bloqueos, en el orden global: borrador y sus líneas (<c>FOR UPDATE</c>) → FACTURA (<c>FOR UPDATE</c> de su fila, el
 /// punto de serialización de todas sus notas, también si es de total 0 y no tiene movimiento de cliente) → movimiento de cliente de
 /// la factura (<c>FOR UPDATE</c>, con su restante leído después del bloqueo) → socios (<c>FOR SHARE</c>) → productos con devolución
-/// (ordenados) → serie de registro del borrador (<c>FOR SHARE</c>) y su línea → almacenes (dentro de <see cref="IRegistroMovimientosInventario"/>) → cuentas y serie
-/// de asientos (dentro de <see cref="IRegistroContable"/>).</item>
+/// (ordenados) → serie de registro del borrador (<c>FOR SHARE</c>) y su línea → almacenes (dentro de <see cref="IRegistroMovimientosInventario"/>) → cuentas,
+/// libro contable (advisory lock <c>libro-contable</c>) y serie de asientos (dentro de <see cref="IRegistroContable"/>).</item>
 /// <item>Revalidación contra el estado actual y BAJO EL BLOQUEO de la factura (Review Focus 1): fecha de registro permitida
 /// (Task 8.5) y no anterior a la factura; socios; por línea, cantidad ≤ facturada − acreditada por notas POSTEADAS (dos notas
 /// concurrentes sobre la misma línea se serializan en la factura y la segunda ve lo que acreditó la primera), exactitud de la

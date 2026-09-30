@@ -25,8 +25,8 @@ namespace OpenSource1.Application.Features.Cobros;
 /// </list>
 /// <para>
 /// Orden de locks (subconjunto del global): socio (<c>FOR SHARE</c>) → serie de <c>Cobro</c> (<c>FOR SHARE</c>) y su línea → cuentas (<c>FOR SHARE</c>,
-/// orden de Id, dentro de <see cref="IRegistroContable"/>) → serie de <c>AsientoContable</c> y su línea. No bloquea movimientos de cliente
-/// existentes (solo inserta uno nuevo).
+/// orden de Id, dentro de <see cref="IRegistroContable"/>) → libro contable (advisory lock <c>libro-contable</c>) → serie de
+/// <c>AsientoContable</c> y su línea. No bloquea movimientos de cliente existentes (solo inserta uno nuevo).
 /// </para>
 /// </summary>
 public sealed class RegistrarPagoClienteCommandHandler(

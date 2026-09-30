@@ -42,7 +42,8 @@ namespace OpenSource1.Application.Features.FacturasVenta.Posteo;
 /// Orden GLOBAL de locks: borrador → líneas → socios (compartido) → productos (ordenados) → serie de registro (<c>FOR SHARE</c>) y su
 /// línea (<c>FOR UPDATE</c>) →
 /// almacenes (compartidos, dentro de <see cref="IRegistroMovimientosInventario.RegistrarAsync"/>) → cuentas (<c>FOR SHARE</c>,
-/// orden de Id, dentro de <see cref="IRegistroContable"/>) → serie de asientos y su línea.
+/// orden de Id, dentro de <see cref="IRegistroContable"/>) → libro contable (advisory lock <c>libro-contable</c>) → serie de
+/// asientos y su línea.
 /// </para>
 /// </summary>
 public sealed class PostearFacturaVentaCommandHandler(
