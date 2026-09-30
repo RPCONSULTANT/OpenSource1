@@ -293,6 +293,76 @@ public sealed class GeneradorNumeroDocumentoTests : IClassFixture<PostgresTestFi
         Assert.Equal(("numeracion.sin_configuracion", "TipoDocumento"), (resultado.Errores[0].Codigo, resultado.Errores[0].Campo));
     }
 
+    /// <summary>
+    /// Final review 1: otra transacción reasigna la configuración del tipo a una serie nueva y desactiva la anterior mientras el
+    /// posteo ya leyó la configuración (serie anterior) y espera en su <c>FOR SHARE</c>. Tras el commit ajeno, el generador vuelve a
+    /// leer la configuración una vez y numera con la serie nueva en vez de fallar con <c>numeracion.serie_inactiva</c>.
+    /// </summary>
+    [Fact]
+    public async Task SiguientePorTipoAsync_ConfiguracionReasignadaYSerieAnteriorDesactivadaEnVuelo_NumeraConLaNueva()
+    {
+        var fecha = new DateOnly(2026, 1, 1);
+        var (anteriorId, anteriorLinea) = await SembrarSerieAsync(fecha, numeroInicial: "ANT-001", numeroFinal: "ANT-999", ultimoNumeroUsado: "");
+        var (nuevaId, nuevaLinea) = await SembrarSerieAsync(fecha, numeroInicial: "NUE-001", numeroFinal: "NUE-999", ultimoNumeroUsado: "");
+        await using var admin = new NpgsqlConnection(_fixture.AppConnectionString);
+        await admin.OpenAsync();
+        var original = await admin.ExecuteScalarAsync<Guid>(
+            """SELECT "SerieId" FROM "ConfiguracionesNumeracion" WHERE "TipoDocumento" = 8 AND "IsDeleted" = false""");
+        await admin.ExecuteAsync("""UPDATE "ConfiguracionesNumeracion" SET "SerieId" = @S WHERE "TipoDocumento" = 8""", new { S = anteriorId });
+        try
+        {
+            // Transacción ajena sin confirmar: reasigna la configuración y desactiva la serie anterior (retiene sus filas).
+            await using var ajena = new NpgsqlConnection(_fixture.AppConnectionString);
+            await ajena.OpenAsync();
+            await using var txAjena = await ajena.BeginTransactionAsync();
+            await ajena.ExecuteAsync(
+                """UPDATE "ConfiguracionesNumeracion" SET "SerieId" = @S WHERE "TipoDocumento" = 8""", new { S = nuevaId }, txAjena);
+            await ajena.ExecuteAsync("""UPDATE "Series" SET "Activa" = false WHERE "Id" = @Id""", new { Id = anteriorId }, txAjena);
+
+            await using var scope = _provider.CreateAsyncScope();
+            var session = scope.ServiceProvider.GetRequiredService<IDbSession>();
+            await session.EnsureOpenAsync();
+            await using var tx = await session.BeginTransactionAsync();
+            // Lee la configuración confirmada (serie anterior) y queda esperando en el FOR SHARE de la serie anterior.
+            var numerando = Generador(scope).SiguientePorTipoAsync(TipoDocumentoSerie.DiarioInventario, fecha);
+            await Task.Delay(500);
+            Assert.False(numerando.IsCompleted, "El generador debía esperar al bloqueo de la serie anterior.");
+
+            await txAjena.CommitAsync();
+            var resultado = await numerando.WaitAsync(TimeSpan.FromSeconds(10));
+            await session.CommitAsync();
+
+            Assert.True(resultado.EsExito, resultado.EsFallo ? resultado.Errores[0].Codigo : string.Empty);
+            Assert.Equal("NUE-001", resultado.Valor.Numero);
+            Assert.Equal("NUE-001", await UltimoAsync(nuevaLinea));
+            Assert.Equal(string.Empty, await UltimoAsync(anteriorLinea));
+        }
+        finally
+        {
+            await admin.ExecuteAsync("""UPDATE "ConfiguracionesNumeracion" SET "SerieId" = @S WHERE "TipoDocumento" = 8""", new { S = original });
+        }
+    }
+
+    [Fact]
+    public async Task SiguientePorTipoAsync_SerieConfiguradaInactivaSinReasignar_SigueFallando()
+    {
+        var fecha = new DateOnly(2026, 1, 1);
+        var (serieId, lineaId) = await SembrarSerieAsync(fecha, activa: false, ultimoNumeroUsado: "00003");
+
+        await using var scope = _provider.CreateAsyncScope();
+        var session = scope.ServiceProvider.GetRequiredService<IDbSession>();
+        await session.EnsureOpenAsync();
+        await using var tx = await session.BeginTransactionAsync();
+        await session.Connection.ExecuteAsync(
+            """UPDATE "ConfiguracionesNumeracion" SET "SerieId" = @S WHERE "TipoDocumento" = 8""", new { S = serieId }, session.CurrentTransaction);
+
+        var resultado = await Generador(scope).SiguientePorTipoAsync(TipoDocumentoSerie.DiarioInventario, fecha);
+        await session.RollbackAsync();
+
+        Assert.Equal(("numeracion.serie_inactiva", "SerieId"), (resultado.Errores[0].Codigo, resultado.Errores[0].Campo));
+        Assert.Equal("00003", await UltimoAsync(lineaId));
+    }
+
     [Fact]
     public async Task SiguienteAsync_AlAlcanzarElNumeroDeAviso_DevuelveLaAdvertencia()
     {
@@ -324,6 +394,23 @@ public sealed class GeneradorNumeroDocumentoTests : IClassFixture<PostgresTestFi
         await sesionBloqueo.RollbackAsync();
         Assert.Equal("00010", proximo.Valor.Numero);
         Assert.Equal("00009", await UltimoAsync(lineaId));
+    }
+
+    [Fact]
+    public async Task ProximoNumeroAsync_ConTipoEsperado_ValidaElTipo_SinTipoNoLoValida()
+    {
+        var fecha = new DateOnly(2026, 1, 1);
+        var (serieId, _) = await SembrarSerieAsync(fecha, tipo: TipoDocumentoSerie.Cobro, ultimoNumeroUsado: "00004");
+        await using var scope = _provider.CreateAsyncScope();
+        var generador = Generador(scope);
+
+        var incorrecto = await generador.ProximoNumeroAsync(serieId, fecha, TipoDocumentoSerie.FacturaVenta);
+        var correcto = await generador.ProximoNumeroAsync(serieId, fecha, TipoDocumentoSerie.Cobro);
+        var sinTipo = await generador.ProximoNumeroAsync(serieId, fecha);
+
+        Assert.Equal(("numeracion.tipo_incorrecto", "SerieId"), (incorrecto.Errores[0].Codigo, incorrecto.Errores[0].Campo));
+        Assert.Equal("00005", correcto.Valor.Numero);
+        Assert.Equal("00005", sinTipo.Valor.Numero);
     }
 
     [Fact]

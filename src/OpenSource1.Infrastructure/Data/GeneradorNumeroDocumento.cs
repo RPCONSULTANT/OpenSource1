@@ -62,30 +62,46 @@ public sealed class GeneradorNumeroDocumento(IDbSession session) : IGeneradorNum
         }
 
         var configurada = await SerieConfiguradaAsync(tipo, cancellationToken);
-        return configurada.TryObtenerValor(out var serieId)
-            ? await SiguienteAsync(serieId, tipo, fecha, cancellationToken)
-            : Result<NumeroGenerado>.Fallo(configurada);
+        if (!configurada.TryObtenerValor(out var serieId))
+        {
+            return Result<NumeroGenerado>.Fallo(configurada);
+        }
+
+        var resultado = await SiguienteAsync(serieId, tipo, fecha, cancellationToken);
+        if (resultado.EsExito || !SerieDejoDeValer(resultado.Errores[0].Codigo))
+        {
+            return resultado;
+        }
+
+        // La configuración se leyó antes de esperar al FOR SHARE: una reasignación confirmada junto con la desactivación (o el cambio
+        // de tipo o el borrado) de la serie anterior deja aquí la serie vieja. Se relee la configuración UNA vez y, si apunta a otra
+        // serie, se numera con ella (mismo orden de bloqueos: serie FOR SHARE y luego su línea FOR UPDATE; nada se escribió aún).
+        var releida = await SerieConfiguradaAsync(tipo, cancellationToken);
+        return releida.TryObtenerValor(out var nuevaId) && nuevaId != serieId
+            ? await SiguienteAsync(nuevaId, tipo, fecha, cancellationToken)
+            : resultado;
     }
 
-    public async Task<Result<NumeroGenerado>> ProximoNumeroAsync(Guid serieId, DateOnly fecha, CancellationToken cancellationToken = default)
+    public async Task<Result<NumeroGenerado>> ProximoNumeroAsync(
+        Guid serieId, DateOnly fecha, TipoDocumentoSerie? tipoEsperado = null, CancellationToken cancellationToken = default)
     {
         await session.EnsureOpenAsync(cancellationToken);
         var serie = await LeerSerieAsync(serieId, string.Empty, cancellationToken);
-        if (serie is null)
+        // Con tipo esperado se valida también el tipo (mismos errores que el posteo); sin él (vista previa de la API de series, que
+        // ya fija la serie por la ruta) solo existencia y actividad.
+        var invalida = tipoEsperado is { } tipo
+            ? Validar(serie, tipo)
+            : serie is null ? SerieInexistente() : serie.Activa ? null : Inactiva(serie.Codigo);
+        if (invalida is { } error)
         {
-            return Result<NumeroGenerado>.Fallo(SerieInexistente());
-        }
-
-        if (!serie.Activa)
-        {
-            return Result<NumeroGenerado>.Fallo(Inactiva(serie.Codigo));
+            return Result<NumeroGenerado>.Fallo(error);
         }
 
         var linea = await session.Connection.QuerySingleOrDefaultAsync<LineaFila?>(new CommandDefinition(
             LineaVigenteSql, new { SerieId = serieId, Fecha = fecha }, session.CurrentTransaction, cancellationToken: cancellationToken));
         return linea is null
-            ? Result<NumeroGenerado>.Fallo(SinLineaVigente(serie.Codigo, fecha))
-            : CalculoNumeroSerie.Siguiente(serie.Codigo, linea.NumeroInicial, linea.NumeroFinal, linea.UltimoNumeroUsado, linea.Incremento, linea.NumeroAviso);
+            ? Result<NumeroGenerado>.Fallo(SinLineaVigente(serie!.Codigo, fecha))
+            : CalculoNumeroSerie.Siguiente(serie!.Codigo, linea.NumeroInicial, linea.NumeroFinal, linea.UltimoNumeroUsado, linea.Incremento, linea.NumeroAviso);
     }
 
     public async Task<Result<Guid>> SerieConfiguradaAsync(TipoDocumentoSerie tipo, CancellationToken cancellationToken = default)
@@ -130,6 +146,9 @@ public sealed class GeneradorNumeroDocumento(IDbSession session) : IGeneradorNum
 
         return serie.Activa ? null : Inactiva(serie.Codigo);
     }
+
+    private static bool SerieDejoDeValer(string codigo) =>
+        codigo is "numeracion.serie_inactiva" or "numeracion.tipo_incorrecto" or "numeracion.serie_inexistente";
 
     private static Error SinTransaccion() => new(
         "numeracion.sin_transaccion", "La generación de números de documento requiere una transacción activa.");

@@ -11,6 +11,8 @@ namespace OpenSource1.Application.Data;
 /// falla, el rollback devuelve el número. Exige transacción activa (<c>numeracion.sin_transaccion</c>).
 /// <para>
 /// <see cref="ProximoNumeroAsync"/> es solo una vista previa orientativa: no bloquea, no exige transacción y no reserva el número.
+/// Con <c>tipoEsperado</c> valida además el tipo de la serie (<c>numeracion.tipo_incorrecto</c>); sin él solo existencia y actividad.
+/// <see cref="SiguientePorTipoAsync"/> relee la configuración una vez si la serie configurada dejó de valer mientras esperaba su bloqueo.
 /// <see cref="SerieConfiguradaAsync"/> lee la serie predeterminada de un tipo (<c>ConfiguracionesNumeracion</c>).
 /// </para>
 /// </summary>
@@ -21,7 +23,8 @@ public interface IGeneradorNumeroDocumento
 
     Task<Result<NumeroGenerado>> SiguientePorTipoAsync(TipoDocumentoSerie tipo, DateOnly fecha, CancellationToken cancellationToken = default);
 
-    Task<Result<NumeroGenerado>> ProximoNumeroAsync(Guid serieId, DateOnly fecha, CancellationToken cancellationToken = default);
+    Task<Result<NumeroGenerado>> ProximoNumeroAsync(
+        Guid serieId, DateOnly fecha, TipoDocumentoSerie? tipoEsperado = null, CancellationToken cancellationToken = default);
 
     Task<Result<Guid>> SerieConfiguradaAsync(TipoDocumentoSerie tipo, CancellationToken cancellationToken = default);
 

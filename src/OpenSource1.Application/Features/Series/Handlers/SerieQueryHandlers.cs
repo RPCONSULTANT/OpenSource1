@@ -27,7 +27,7 @@ public sealed class GetProximoNumeroQueryHandler(IGeneradorNumeroDocumento gener
     public async Task<Result<ProximoNumeroResponse>> Handle(GetProximoNumeroQuery request, CancellationToken cancellationToken)
     {
         var proximo = await generador.ProximoNumeroAsync(
-            request.SerieId, request.Fecha ?? DateOnly.FromDateTime(DateTime.UtcNow), cancellationToken);
+            request.SerieId, request.Fecha ?? DateOnly.FromDateTime(DateTime.UtcNow), cancellationToken: cancellationToken);
         if (proximo.TryObtenerValor(out var numero))
         {
             return Result<ProximoNumeroResponse>.Exito(new ProximoNumeroResponse(numero.Numero, numero.Aviso));
