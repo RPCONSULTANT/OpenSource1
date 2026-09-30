@@ -111,7 +111,7 @@ public sealed class PostearFacturaVentaTests(PostgresTestFixture fixture) : ICla
         Assert.False(await CostoAjustadoAsync(producto));
 
         // El borrador se conserva Posteada, enlazado a la factura, con sus líneas vivas (spec no-series).
-        Assert.Equal((false, 3L, 0L), await EstadoBorradorAsync(borrador.Id));
+        Assert.Equal((EstadoFacturaBorrador.Posteada, false, 3L, 0L), await EstadoBorradorAsync(borrador.Id));
         Assert.Equal((EstadoFacturaBorrador.Posteada, resultado.Numero), await EstadoYFacturaAsync(borrador.Id));
     }
 
@@ -183,7 +183,7 @@ public sealed class PostearFacturaVentaTests(PostgresTestFixture fixture) : ICla
 
         var salida = Assert.Single(await SalidasAsync(resultado.Numero));
         Assert.Equal((-2m, 90m, -6m), (salida.Cantidad, salida.ImporteVenta, salida.ImporteCosto));
-        Assert.Equal((false, 3L, 0L), await EstadoBorradorAsync(borrador.Id));
+        Assert.Equal((EstadoFacturaBorrador.Posteada, false, 3L, 0L), await EstadoBorradorAsync(borrador.Id));
     }
 
     [Fact]
@@ -290,7 +290,7 @@ public sealed class PostearFacturaVentaTests(PostgresTestFixture fixture) : ICla
         }
 
         Assert.Equal(antes, await FotoAsync());
-        Assert.Equal((false, 2L - (malo is null ? 1 : 0), 0L), await EstadoBorradorAsync(borrador.Id));
+        Assert.Equal((EstadoFacturaBorrador.Abierta, false, 2L - (malo is null ? 1 : 0), 0L), await EstadoBorradorAsync(borrador.Id));
     }
 
     [Fact]
@@ -337,7 +337,7 @@ public sealed class PostearFacturaVentaTests(PostgresTestFixture fixture) : ICla
             resultado.Errores.Select(e => (e.Codigo, e.Campo)));
         Assert.Contains("Línea 20000", resultado.Errores[3].Mensaje);
         Assert.Equal(antes, await FotoAsync());
-        Assert.Equal((false, 5L, 0L), await EstadoBorradorAsync(borrador.Id));
+        Assert.Equal((EstadoFacturaBorrador.Abierta, false, 5L, 0L), await EstadoBorradorAsync(borrador.Id));
     }
 
     [Fact]
@@ -401,7 +401,7 @@ public sealed class PostearFacturaVentaTests(PostgresTestFixture fixture) : ICla
             }
 
             Assert.Equal(antes, await FotoAsync());
-            Assert.Equal((false, 1L, 0L), await EstadoBorradorAsync(fuera));
+            Assert.Equal((EstadoFacturaBorrador.Abierta, false, 1L, 0L), await EstadoBorradorAsync(fuera));
 
             // Excepción de usuario MÁS AMPLIA que la general: ese usuario sí postea el mismo borrador.
             await fechas.UsuarioAsync(amplio, new DateOnly(2026, 9, 1), new DateOnly(2026, 9, 10));
@@ -455,7 +455,7 @@ public sealed class PostearFacturaVentaTests(PostgresTestFixture fixture) : ICla
             }
 
             Assert.Equal(antes, await FotoAsync());
-            Assert.Equal((false, 1L, 0L), await EstadoBorradorAsync(borrador.Id));
+            Assert.Equal((EstadoFacturaBorrador.Abierta, false, 1L, 0L), await EstadoBorradorAsync(borrador.Id));
         }
         finally
         {
@@ -480,7 +480,7 @@ public sealed class PostearFacturaVentaTests(PostgresTestFixture fixture) : ICla
         Assert.Equal(("factura.sin_lineas", "Id"), Unico(await PostearAsync(soloComentario.Id)));
 
         Assert.Equal(antes, await FotoAsync());
-        Assert.Equal((false, 1L, 0L), await EstadoBorradorAsync(soloComentario.Id));
+        Assert.Equal((EstadoFacturaBorrador.Abierta, false, 1L, 0L), await EstadoBorradorAsync(soloComentario.Id));
     }
 
     // ----- Regla de importes (Task 8.4): total 0 solo con 100 % de descuento -----
@@ -531,7 +531,7 @@ public sealed class PostearFacturaVentaTests(PostgresTestFixture fixture) : ICla
         var salida = Assert.Single(await SalidasAsync(resultado.Numero));
         Assert.Equal((-2m, 0m, -8m, socio), (salida.Cantidad, salida.ImporteVenta, salida.ImporteCosto, salida.SocioNegocioId!.Value));
         Assert.Equal(8m, await _prueba.ConsultarAsync(c => c.ExistenciaAsync(producto, almacen, null)));
-        Assert.Equal((false, 3L, 0L), await EstadoBorradorAsync(borrador.Id));
+        Assert.Equal((EstadoFacturaBorrador.Posteada, false, 3L, 0L), await EstadoBorradorAsync(borrador.Id));
 
         // Otra factura de total 0: el índice único sobre RegistroContableId admite varios NULL.
         var otro = await BorradorAsync(socio, almacen: almacen);
@@ -621,7 +621,7 @@ public sealed class PostearFacturaVentaTests(PostgresTestFixture fixture) : ICla
         Assert.All(resultado.Errores, e => Assert.StartsWith("Línea ", e.Mensaje));
         Assert.Contains("100 %", resultado.Errores[0].Mensaje);
         Assert.Equal(antes, await FotoAsync());
-        Assert.Equal((false, 5L, 0L), await EstadoBorradorAsync(borrador.Id));
+        Assert.Equal((EstadoFacturaBorrador.Abierta, false, 5L, 0L), await EstadoBorradorAsync(borrador.Id));
     }
 
     [Fact]
@@ -647,7 +647,7 @@ public sealed class PostearFacturaVentaTests(PostgresTestFixture fixture) : ICla
         Assert.Equal(antes, await FotoFilasAsync());
         Assert.Equal(ultimo, await UltimoNumeroFvAsync());
         Assert.Equal((1L, 1L, 0L), await _prueba.ContarFilasAsync(p1));
-        Assert.Equal((false, 2L, 0L), await EstadoBorradorAsync(borrador.Id));
+        Assert.Equal((EstadoFacturaBorrador.Abierta, false, 2L, 0L), await EstadoBorradorAsync(borrador.Id));
     }
 
     [Fact]
@@ -681,7 +681,7 @@ public sealed class PostearFacturaVentaTests(PostgresTestFixture fixture) : ICla
         Assert.Contains("no admite decimales", resultado.Errores[0].Mensaje);
         Assert.Contains("como máximo 2 decimales", resultado.Errores[1].Mensaje);
         Assert.Equal(antes, await FotoAsync());
-        Assert.Equal((false, 4L, 0L), await EstadoBorradorAsync(borrador.Id));
+        Assert.Equal((EstadoFacturaBorrador.Abierta, false, 4L, 0L), await EstadoBorradorAsync(borrador.Id));
 
         // Corregidas, la caja de 3 con 0.5 sale 1.5 MT exactos del inventario (entrada 4 CJA = 12 MT; salen 1.5 + 3 MT).
         await EjecutarSqlAsync("""UPDATE "LineasFacturaVentaBorrador" SET "Cantidad" = 2 WHERE "Id" = @Id""", new { dosYMedio.Id });
@@ -733,7 +733,7 @@ public sealed class PostearFacturaVentaTests(PostgresTestFixture fixture) : ICla
         Assert.Contains("cuentas de IVA distintas", error.Mensaje);
         Assert.Contains("10000, 20000", error.Mensaje);
         Assert.Equal(antes, await FotoAsync());
-        Assert.Equal((false, 2L, 0L), await EstadoBorradorAsync(borrador.Id));
+        Assert.Equal((EstadoFacturaBorrador.Abierta, false, 2L, 0L), await EstadoBorradorAsync(borrador.Id));
     }
 
     [Fact]
@@ -753,7 +753,7 @@ public sealed class PostearFacturaVentaTests(PostgresTestFixture fixture) : ICla
 
         Assert.Equal(("factura.socio_invalido", "SocioNegocioFacturarAId"), Unico(resultado));
         Assert.Equal(antes, await FotoAsync());
-        Assert.Equal((false, 1L, 0L), await EstadoBorradorAsync(borrador.Id));
+        Assert.Equal((EstadoFacturaBorrador.Abierta, false, 1L, 0L), await EstadoBorradorAsync(borrador.Id));
     }
 
     [Fact]
@@ -774,7 +774,7 @@ public sealed class PostearFacturaVentaTests(PostgresTestFixture fixture) : ICla
 
         Assert.Equal(("factura.unidad_invalida", "Lineas[20000].UnidadMedidaId"), Unico(resultado));
         Assert.Equal(antes, await FotoAsync());
-        Assert.Equal((false, 2L, 0L), await EstadoBorradorAsync(borrador.Id));
+        Assert.Equal((EstadoFacturaBorrador.Abierta, false, 2L, 0L), await EstadoBorradorAsync(borrador.Id));
     }
 
     // ----- Concurrencia -----
@@ -1048,7 +1048,7 @@ public sealed class PostearFacturaVentaTests(PostgresTestFixture fixture) : ICla
         Assert.Equal(ultimoFv, await UltimoNumeroFvAsync());
         Assert.Equal(borrador.Numero, (await FacturaAsync(resultado.Numero)).NumeroBorrador);
         Assert.Equal((EstadoFacturaBorrador.Posteada, resultado.Numero), await EstadoYFacturaAsync(borrador.Id));
-        Assert.Equal((false, 1L, 0L), await EstadoBorradorAsync(borrador.Id));
+        Assert.Equal((EstadoFacturaBorrador.Posteada, false, 1L, 0L), await EstadoBorradorAsync(borrador.Id));
     }
 
     [Theory]
@@ -1074,7 +1074,7 @@ public sealed class PostearFacturaVentaTests(PostgresTestFixture fixture) : ICla
         Assert.Equal(antes, await FotoAsync());
         Assert.Equal("", await SeriesPrueba.UltimoAsync(fixture.AppConnectionString, lineaRegistro));
         Assert.Equal(estadoAntes, await EstadoYFacturaAsync(borrador.Id));
-        Assert.Equal((false, 1L, 0L), await EstadoBorradorAsync(borrador.Id));
+        Assert.Equal((EstadoFacturaBorrador.Abierta, false, 1L, 0L), await EstadoBorradorAsync(borrador.Id));
     }
 
     [Fact]
@@ -1124,7 +1124,7 @@ public sealed class PostearFacturaVentaTests(PostgresTestFixture fixture) : ICla
         Assert.Equal(antes, await FotoAsync());
         Assert.Equal(estadoAntes, await EstadoYFacturaAsync(borrador.Id));
         Assert.Equal(posteado.Xmin, Ok(await ObtenerBorradorAsync(borrador.Id)).Xmin);
-        Assert.Equal((false, 1L, 0L), await EstadoBorradorAsync(borrador.Id));
+        Assert.Equal((EstadoFacturaBorrador.Posteada, false, 1L, 0L), await EstadoBorradorAsync(borrador.Id));
     }
 
     [Fact]
@@ -1781,17 +1781,19 @@ public sealed class PostearFacturaVentaTests(PostgresTestFixture fixture) : ICla
         return foto;
     }
 
-    private async Task<(bool Borrado, long LineasVivas, long LineasBorradas)> EstadoBorradorAsync(Guid borradorId)
+    /// <summary>Estado, borrado lógico y líneas vivas/borradas del borrador: cubre en un solo punto que ningún fallo lo marque Posteada.</summary>
+    private async Task<(EstadoFacturaBorrador Estado, bool Borrado, long LineasVivas, long LineasBorradas)> EstadoBorradorAsync(Guid borradorId)
     {
         await using var conexion = _prueba.NuevaConexion();
-        return await conexion.QuerySingleAsync<(bool, long, long)>(
+        var (estado, borrado, vivas, borradas) = await conexion.QuerySingleAsync<(short, bool, long, long)>(
             """
-            SELECT b."IsDeleted",
+            SELECT b."Estado", b."IsDeleted",
                    (SELECT COUNT(*) FROM "LineasFacturaVentaBorrador" l WHERE l."FacturaVentaBorradorId" = b."Id" AND NOT l."IsDeleted"),
                    (SELECT COUNT(*) FROM "LineasFacturaVentaBorrador" l WHERE l."FacturaVentaBorradorId" = b."Id" AND l."IsDeleted")
             FROM "FacturasVentaBorrador" b WHERE b."Id" = @Id
             """,
             new { Id = borradorId });
+        return ((EstadoFacturaBorrador)estado, borrado, vivas, borradas);
     }
 
     private async Task<FacturaVenta> FacturaAsync(string numero)

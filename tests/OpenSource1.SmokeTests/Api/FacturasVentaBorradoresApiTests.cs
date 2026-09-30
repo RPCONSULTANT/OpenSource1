@@ -696,8 +696,6 @@ public sealed class FacturasVentaBorradoresApiTests : IClassFixture<PostgresTest
         Assert.Equal(Enumerable.Range(1, 8).Select(i => i * 10000), lineas!.Select(l => l.NumeroLinea));
     }
 
-    // ----- Helpers -----
-
     [Fact]
     public async Task Listado_SinEstadoIncluyeLosEnCurso_YEstado3SoloLosPosteados_AlPostearPasaDeUnoAOtro()
     {
@@ -752,6 +750,8 @@ public sealed class FacturasVentaBorradoresApiTests : IClassFixture<PostgresTest
         var leido = await GetBorradorAsync(client, borrador.Id);
         Assert.Equal(("FV", SerieFacturaVentaIds.SeriePosteadaId), (leido.SerieRegistroCodigo, leido.SerieRegistroId));
     }
+
+    // ----- Helpers -----
 
     private static object LineaProducto(Guid productoId, decimal cantidad) =>
         new { tipo = TipoLineaFactura.Producto, productoId, cantidad };

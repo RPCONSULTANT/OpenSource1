@@ -118,8 +118,7 @@ public sealed class UpdateFacturaVentaBorradorCommandHandler(
             var valida = await generadorNumero.ValidarSerieAsync(serieRegistroId, TipoDocumentoSerie.FacturaVenta, cancellationToken);
             if (valida.EsFallo)
             {
-                return Result<FacturaVentaBorradorResponse>.Fallo(
-                    [.. valida.Errores.Select(e => e.Campo == "SerieId" ? e with { Campo = "SerieRegistroId" } : e)]);
+                return Result<FacturaVentaBorradorResponse>.Fallo(valida.Errores[0] with { Campo = "SerieRegistroId" });
             }
 
             entity.SerieRegistroId = serieRegistroId;
