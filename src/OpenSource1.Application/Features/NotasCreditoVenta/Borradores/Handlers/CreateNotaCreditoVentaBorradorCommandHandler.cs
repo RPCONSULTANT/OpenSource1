@@ -16,8 +16,10 @@ namespace OpenSource1.Application.Features.NotasCreditoVenta.Borradores.Handlers
 /// (<c>nota_credito.factura_invalida</c>, 400: es una referencia del cuerpo), le queda algo por acreditar
 /// (<c>nota_credito.factura_sin_pendiente</c>), sus socios siguen vivos (<c>FOR SHARE</c> antes de comprobarlo, contra su borrado
 /// concurrente) y la fecha de registro no es anterior a la suya. Copia de la factura la cabecera y de su movimiento de cliente la
-/// CxC congelada; con <c>CopiarLineas</c>, una línea por todo lo pendiente de cada línea acreditable. Número de la serie configurada para el tipo <c>BorradorNotaCreditoVenta</c> y serie de registro la configurada
-/// para <c>NotaCreditoVenta</c> (<see cref="NumeracionBorrador.NumerarBorradorAsync"/>).
+/// CxC congelada; con <c>CopiarLineas</c>, una línea por todo lo pendiente de cada línea acreditable. Número de la serie elegida
+/// (<c>SerieBorradorId</c>) o de la configurada para <c>BorradorNotaCreditoVenta</c>; serie de registro la elegida
+/// (<c>SerieRegistroId</c>) o la configurada para <c>NotaCreditoVenta</c> (<see cref="NumeracionBorrador.NumerarBorradorAsync"/>:
+/// una serie inexistente, de otro tipo o inactiva -&gt; 400 en su campo).
 /// </summary>
 public sealed class CreateNotaCreditoVentaBorradorCommandHandler(
     IUnitOfWork unitOfWork,
@@ -89,7 +91,7 @@ public sealed class CreateNotaCreditoVentaBorradorCommandHandler(
 
         // Series del borrador (spec no-series): la de borradores da el número; la de registro numerará la nota al postear.
         var series = await generadorNumero.NumerarBorradorAsync(
-            TipoDocumentoSerie.BorradorNotaCreditoVenta, TipoDocumentoSerie.NotaCreditoVenta, null, null,
+            TipoDocumentoSerie.BorradorNotaCreditoVenta, TipoDocumentoSerie.NotaCreditoVenta, request.SerieBorradorId, request.SerieRegistroId,
             DateOnly.FromDateTime(DateTime.UtcNow), cancellationToken);
         if (!series.TryObtenerValor(out var numeradas))
         {

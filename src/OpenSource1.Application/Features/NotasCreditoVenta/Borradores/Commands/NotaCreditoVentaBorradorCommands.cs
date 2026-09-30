@@ -9,7 +9,9 @@ namespace OpenSource1.Application.Features.NotasCreditoVenta.Borradores.Commands
 /// factura los socios, el snapshot de facturación, los grupos y la CxC congelada. <c>FechaRegistro</c> <see langword="null"/> = hoy
 /// (UTC), nunca anterior a la de la factura; <c>FechaDocumento</c> <see langword="null"/> = <c>FechaRegistro</c>. Con
 /// <c>CopiarLineas</c>, crea una línea por cada línea de la factura con cantidad pendiente de acreditar, por todo lo pendiente
-/// (nota total), con <c>DevolverInventario</c> en las de Producto. El número sale de la serie <c>NC-BORR</c>.
+/// (nota total), con <c>DevolverInventario</c> en las de Producto. El número sale de <c>SerieBorradorId</c> (o de la serie configurada
+/// para <c>BorradorNotaCreditoVenta</c>); <c>SerieRegistroId</c> (o la configurada para <c>NotaCreditoVenta</c>) numerará la nota al
+/// postear.
 /// </summary>
 public sealed record CreateNotaCreditoVentaBorradorCommand(
     string FacturaVentaNumero,
@@ -17,14 +19,16 @@ public sealed record CreateNotaCreditoVentaBorradorCommand(
     DateOnly? FechaDocumento,
     string? Descripcion,
     bool CopiarLineas = false,
-    bool DevolverInventario = false) : IRequest<Result<NotaCreditoVentaBorradorResponse>>;
+    bool DevolverInventario = false,
+    Guid? SerieBorradorId = null,
+    Guid? SerieRegistroId = null) : IRequest<Result<NotaCreditoVentaBorradorResponse>>;
 
 /// <summary>
-/// Modificación de la cabecera: solo fechas y descripción ("null = conservar"; <c>Descripcion</c> "" = limpiar). La factura, los
-/// socios y los grupos no cambian. <c>Xmin</c> obligatorio (409 si no coincide).
+/// Modificación de la cabecera: fechas, descripción y serie de registro ("null = conservar"; <c>Descripcion</c> "" = limpiar). La
+/// factura, los socios y los grupos no cambian. <c>Xmin</c> obligatorio (409 si no coincide). Solo mientras esté Abierta.
 /// </summary>
 public sealed record UpdateNotaCreditoVentaBorradorCommand(
-    Guid Id, DateOnly? FechaRegistro, DateOnly? FechaDocumento, string? Descripcion, long Xmin)
+    Guid Id, DateOnly? FechaRegistro, DateOnly? FechaDocumento, string? Descripcion, long Xmin, Guid? SerieRegistroId = null)
     : IRequest<Result<NotaCreditoVentaBorradorResponse>>;
 
 /// <summary>Borrado lógico del borrador y de todas sus líneas.</summary>

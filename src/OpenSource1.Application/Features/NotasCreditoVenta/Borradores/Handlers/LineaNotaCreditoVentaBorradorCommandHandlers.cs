@@ -5,6 +5,7 @@ using OpenSource1.Application.Features.NotasCreditoVenta.Borradores.Dtos;
 using OpenSource1.Application.Services.Inventario;
 using OpenSource1.Core.Common;
 using OpenSource1.Core.Entities.Ventas;
+using OpenSource1.Core.Enums;
 
 namespace OpenSource1.Application.Features.NotasCreditoVenta.Borradores.Handlers;
 
@@ -25,9 +26,15 @@ public sealed class CreateLineaNotaCreditoVentaBorradorCommandHandler(
     {
         await using var transaccion = await unitOfWork.BeginTransactionAsync(cancellationToken);
 
-        if (!await datos.BloquearBorradorAsync(request.NotaCreditoVentaBorradorId, cancellationToken))
+        var estado = await datos.BloquearBorradorAsync(request.NotaCreditoVentaBorradorId, cancellationToken);
+        if (estado is null)
         {
             return Fallo(NotaCreditoVentaErrores.BorradorNoEncontrado("NotaCreditoVentaBorradorId"));
+        }
+
+        if (estado == EstadoNotaCreditoBorrador.Posteada)
+        {
+            return Fallo(NotaCreditoVentaErrores.Posteada("NotaCreditoVentaBorradorId"));
         }
 
         var borrador = (await unitOfWork.Repository<NotaCreditoVentaBorrador>().FirstOrDefaultAsync(
@@ -98,9 +105,15 @@ public sealed class UpdateLineaNotaCreditoVentaBorradorCommandHandler(
 
         await using var transaccion = await unitOfWork.BeginTransactionAsync(cancellationToken);
 
-        if (!await datos.BloquearBorradorAsync(entity.NotaCreditoVentaBorradorId, cancellationToken))
+        var estado = await datos.BloquearBorradorAsync(entity.NotaCreditoVentaBorradorId, cancellationToken);
+        if (estado is null)
         {
             return Result<LineaNotaCreditoVentaBorradorResponse>.Fallo(NotaCreditoVentaErrores.LineaNoEncontrada());
+        }
+
+        if (estado == EstadoNotaCreditoBorrador.Posteada)
+        {
+            return Result<LineaNotaCreditoVentaBorradorResponse>.Fallo(NotaCreditoVentaErrores.Posteada());
         }
 
         var borrador = (await unitOfWork.Repository<NotaCreditoVentaBorrador>().FirstOrDefaultAsync(
@@ -139,9 +152,15 @@ public sealed class DeleteLineaNotaCreditoVentaBorradorCommandHandler(IUnitOfWor
 
         await using var transaccion = await unitOfWork.BeginTransactionAsync(cancellationToken);
 
-        if (!await datos.BloquearBorradorAsync(entity.NotaCreditoVentaBorradorId, cancellationToken))
+        var estado = await datos.BloquearBorradorAsync(entity.NotaCreditoVentaBorradorId, cancellationToken);
+        if (estado is null)
         {
             return Result.Fallo(NotaCreditoVentaErrores.LineaNoEncontrada());
+        }
+
+        if (estado == EstadoNotaCreditoBorrador.Posteada)
+        {
+            return Result.Fallo(NotaCreditoVentaErrores.Posteada());
         }
 
         repository.Remove(entity);

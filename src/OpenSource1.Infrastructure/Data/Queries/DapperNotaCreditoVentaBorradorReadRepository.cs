@@ -3,6 +3,7 @@ using OpenSource1.Application.Data;
 using OpenSource1.Application.Features.NotasCreditoVenta.Borradores;
 using OpenSource1.Application.Features.NotasCreditoVenta.Borradores.Dtos;
 using OpenSource1.Core.Common;
+using OpenSource1.Core.Enums;
 
 namespace OpenSource1.Infrastructure.Data.Queries;
 
@@ -27,12 +28,16 @@ public sealed class DapperNotaCreditoVentaBorradorReadRepository(IDbSession sess
                n."CuentaCxCId", c."Numero" AS "CuentaCxCNumero", n."Moneda", n."Descripcion",
                (SELECT COUNT(*) FROM "LineasNotaCreditoVentaBorrador" l
                 WHERE l."NotaCreditoVentaBorradorId" = n."Id" AND l."IsDeleted" = false)::int AS "NumeroLineas",
+               n."Estado", n."SerieBorradorId", sb."Codigo" AS "SerieBorradorCodigo",
+               n."SerieRegistroId", sr."Codigo" AS "SerieRegistroCodigo", n."NotaCreditoVentaNumero",
                n.xmin::text::bigint AS "Xmin", n."CreatedAtUtc", n."UpdatedAtUtc", n."CreatedBy", n."UpdatedBy"
         FROM "NotasCreditoVentaBorrador" n
         JOIN "FacturasVenta" f ON f."Numero" = n."FacturaVentaNumero"
         LEFT JOIN "SociosNegocio" sv ON sv."Id" = n."SocioNegocioId"
         LEFT JOIN "SociosNegocio" sf ON sf."Id" = n."SocioNegocioFacturarAId"
         LEFT JOIN "CuentasContables" c ON c."Id" = n."CuentaCxCId"
+        LEFT JOIN "Series" sb ON sb."Id" = n."SerieBorradorId"
+        LEFT JOIN "Series" sr ON sr."Id" = n."SerieRegistroId"
         WHERE n."IsDeleted" = false
         """;
 
@@ -81,6 +86,10 @@ public sealed class DapperNotaCreditoVentaBorradorReadRepository(IDbSession sess
             filters.Add("(\"SocioNegocioId\" = @SocioNegocioId OR \"SocioNegocioFacturarAId\" = @SocioNegocioId)");
             parameters.Add("SocioNegocioId", socioId);
         }
+
+        // Sin estado, solo los Abierta (los Posteada se consultan con estado=3).
+        filters.Add("\"Estado\" = @Estado");
+        parameters.Add("Estado", (short)(search.Estado ?? EstadoNotaCreditoBorrador.Abierta));
 
         var whereSql = filters.Count == 0 ? string.Empty : Environment.NewLine + "WHERE " + string.Join(" AND ", filters);
         var ordenColumna = ColumnasPermitidas.EsValida(pagina.OrdenarPor) ? pagina.OrdenarPor! : "CreatedAtUtc";

@@ -6,7 +6,7 @@ namespace OpenSource1.Application.Features.NotasCreditoVenta.Posteo;
 /// <summary>
 /// Posteo de un borrador de nota de crédito de venta (Task 8.6). <see cref="IRequest{TResponse}"/> y no <c>ICommand</c> (mismo
 /// criterio que <c>PostearFacturaVentaCommand</c>): el handler abre y confirma él mismo UNA transacción que engloba el documento
-/// legal, la devolución de inventario, el libro de clientes (con la aplicación a la factura), el asiento y el borrado del borrador,
+/// legal, la devolución de inventario, el libro de clientes (con la aplicación a la factura), el asiento y el paso del borrador a Posteada,
 /// y lanza <see cref="InvalidOperationException"/> si ya hay una transacción activa.
 /// </summary>
 public sealed record PostearNotaCreditoVentaCommand(Guid NotaCreditoVentaBorradorId) : IRequest<Result<ResultadoPosteoNotaCredito>>;

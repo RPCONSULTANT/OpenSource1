@@ -12,13 +12,13 @@ namespace OpenSource1.Infrastructure.Data.Queries;
 /// </summary>
 public sealed class NotaCreditoVentaDatos(IDbSession session) : INotaCreditoVentaDatos
 {
-    public async Task<bool> BloquearBorradorAsync(Guid notaCreditoVentaBorradorId, CancellationToken cancellationToken = default)
+    public async Task<EstadoNotaCreditoBorrador?> BloquearBorradorAsync(Guid notaCreditoVentaBorradorId, CancellationToken cancellationToken = default)
     {
         await AsegurarTransaccionAsync(cancellationToken);
-        var id = await session.Connection.QuerySingleOrDefaultAsync<Guid?>(new CommandDefinition(
-            """SELECT "Id" FROM "NotasCreditoVentaBorrador" WHERE "Id" = @Id AND "IsDeleted" = false FOR UPDATE""",
+        var estado = await session.Connection.QuerySingleOrDefaultAsync<short?>(new CommandDefinition(
+            """SELECT "Estado" FROM "NotasCreditoVentaBorrador" WHERE "Id" = @Id AND "IsDeleted" = false FOR UPDATE""",
             new { Id = notaCreditoVentaBorradorId }, session.CurrentTransaction, cancellationToken: cancellationToken));
-        return id is not null;
+        return estado is { } valor ? (EstadoNotaCreditoBorrador)valor : null;
     }
 
     public async Task<IReadOnlyList<LineaNotaAPostear>> BloquearLineasAsync(Guid notaCreditoVentaBorradorId, CancellationToken cancellationToken = default)

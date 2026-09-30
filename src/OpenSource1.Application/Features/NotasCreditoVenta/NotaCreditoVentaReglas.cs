@@ -17,6 +17,10 @@ internal static class NotaCreditoVentaErrores
     public static Error BorradorNoEncontrado(string campo = "Id") =>
         new("nota_credito_borrador.no_encontrado", "No se encontró el borrador de nota de crédito solicitado.", campo);
 
+    /// <summary>El borrador está <see cref="EstadoNotaCreditoBorrador.Posteada"/>: de solo lectura (409).</summary>
+    public static Error Posteada(string campo = "Id") =>
+        new("nota_credito_borrador.posteada.conflicto", "El borrador de nota de crédito ya se posteó: es de solo lectura (abra su nota).", campo);
+
     public static Error LineaNoEncontrada() =>
         new("nota_credito_linea.no_encontrado", "No se encontró la línea de nota de crédito solicitada.", "Id");
 

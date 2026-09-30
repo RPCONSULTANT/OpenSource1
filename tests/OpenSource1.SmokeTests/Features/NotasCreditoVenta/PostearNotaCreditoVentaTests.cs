@@ -5,6 +5,7 @@ using OpenSource1.Application.Features.Cobros;
 using OpenSource1.Application.Features.FacturasVenta.Borradores.Commands;
 using OpenSource1.Application.Features.FacturasVenta.Borradores.Handlers;
 using OpenSource1.Application.Features.FacturasVenta.Posteo;
+using OpenSource1.Application.Features.NotasCreditoVenta.Borradores;
 using OpenSource1.Application.Features.NotasCreditoVenta.Borradores.Commands;
 using OpenSource1.Application.Features.NotasCreditoVenta.Borradores.Dtos;
 using OpenSource1.Application.Features.NotasCreditoVenta.Borradores.Handlers;
@@ -96,7 +97,8 @@ public sealed class PostearNotaCreditoVentaTests(PostgresTestFixture fixture) : 
         Assert.All(asiento, m => Assert.Equal((TipoDocumentoContable.NotaCreditoVenta, resultado.Numero, D12, TipoOrigenMovimiento.NotaCreditoVenta),
             (m.TipoDocumento, m.NumeroDocumento, m.FechaRegistro, m.TipoOrigen)));
 
-        Assert.Equal((true, 0L, 2L), await EstadoBorradorAsync(borrador.Id));
+        Assert.Equal((false, 2L, 0L), await EstadoBorradorAsync(borrador.Id));
+        Assert.Equal((EstadoNotaCreditoBorrador.Posteada, resultado.Numero), await EstadoYNotaAsync(borrador.Id));
 
         // Todo acreditado: no admite otra nota.
         Assert.Equal(("nota_credito.factura_sin_pendiente", "FacturaVentaNumero"), Unico(await CrearBorradorAsync(factura)));
@@ -752,6 +754,111 @@ public sealed class PostearNotaCreditoVentaTests(PostgresTestFixture fixture) : 
         Assert.Equal("P0001", ex.SqlState);
     }
 
+    // ----- Series y borrador conservado (spec no-series) -----
+
+    [Fact]
+    public async Task Postear_ConSeriesElegidas_NumeraConLaDeRegistro_YElBorradorQuedaPosteada()
+    {
+        var socio = await SocioAsync();
+        var almacen = await _prueba.SembrarAlmacenAsync();
+        var producto = await ProductoAsync();
+        await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Entrada(producto, almacen, 10m, 4m, D1));
+        var factura = await FacturaAsync(socio, almacen, P(producto, 2m, 50m));
+        var (serieBorrador, _, prefijoBorrador) = await SeriesPrueba.CrearAsync(fixture.AppConnectionString, TipoDocumentoSerie.BorradorNotaCreditoVenta);
+        var (serieRegistro, lineaRegistro, prefijoRegistro) = await SeriesPrueba.CrearAsync(fixture.AppConnectionString, TipoDocumentoSerie.NotaCreditoVenta);
+        var ultimoNc = await UltimoNumeroAsync(SerieNotaCreditoVentaIds.LineaSeriePosteadaId);
+
+        var borrador = Ok(await CrearBorradorConSeriesAsync(factura, serieBorrador, serieRegistro));
+        var resultado = Ok(await PostearAsync(borrador.Id));
+
+        Assert.Equal(($"{prefijoBorrador}000001", EstadoNotaCreditoBorrador.Abierta), (borrador.Numero, borrador.Estado));
+        Assert.Equal($"{prefijoRegistro}000001", resultado.Numero);
+        Assert.Equal($"{prefijoRegistro}000001", await SeriesPrueba.UltimoAsync(fixture.AppConnectionString, lineaRegistro));
+        Assert.Equal(ultimoNc, await UltimoNumeroAsync(SerieNotaCreditoVentaIds.LineaSeriePosteadaId));
+        Assert.Equal((EstadoNotaCreditoBorrador.Posteada, resultado.Numero), await EstadoYNotaAsync(borrador.Id));
+        Assert.Equal(borrador.Numero, (await NotaAsync(resultado.Numero)).NumeroBorrador);
+    }
+
+    [Fact]
+    public async Task Alta_SinSeries_UsaLasConfiguradas_YSerieDeOtroTipo_400()
+    {
+        var socio = await SocioAsync();
+        var almacen = await _prueba.SembrarAlmacenAsync();
+        var producto = await ProductoAsync();
+        await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Entrada(producto, almacen, 10m, 4m, D1));
+        var factura = await FacturaAsync(socio, almacen, P(producto, 2m, 50m));
+        var (deFactura, _, _) = await SeriesPrueba.CrearAsync(fixture.AppConnectionString, TipoDocumentoSerie.FacturaVenta);
+
+        var porDefecto = Ok(await CrearBorradorConSeriesAsync(factura, null, null));
+        var otroTipo = await CrearBorradorConSeriesAsync(factura, null, deFactura);
+
+        Assert.Equal(("NC-BORR", "NC"), (porDefecto.SerieBorradorCodigo, porDefecto.SerieRegistroCodigo));
+        Assert.Equal(("numeracion.tipo_incorrecto", "SerieRegistroId"), Unico(otroTipo));
+    }
+
+    [Fact]
+    public async Task ReviewFocus2_SerieRegistroDesactivadaAntesDePostear_400_SinEscribirNada()
+    {
+        var socio = await SocioAsync();
+        var almacen = await _prueba.SembrarAlmacenAsync();
+        var producto = await ProductoAsync();
+        await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Entrada(producto, almacen, 10m, 4m, D1));
+        var factura = await FacturaAsync(socio, almacen, P(producto, 2m, 50m));
+        var (serieRegistro, lineaRegistro, _) = await SeriesPrueba.CrearAsync(fixture.AppConnectionString, TipoDocumentoSerie.NotaCreditoVenta);
+        var borrador = Ok(await CrearBorradorConSeriesAsync(factura, null, serieRegistro));
+        await SeriesPrueba.EjecutarAsync(fixture.AppConnectionString, """UPDATE "Series" SET "Activa" = false WHERE "Id" = @Id""", new { Id = serieRegistro });
+        var antes = await FotoAsync();
+
+        var resultado = await PostearAsync(borrador.Id);
+
+        Assert.Equal(("numeracion.serie_inactiva", "SerieRegistroId"), Unico(resultado));
+        Assert.Equal(antes, await FotoAsync());
+        Assert.Equal("", await SeriesPrueba.UltimoAsync(fixture.AppConnectionString, lineaRegistro));
+        Assert.Equal((EstadoNotaCreditoBorrador.Abierta, (string?)null), await EstadoYNotaAsync(borrador.Id));
+    }
+
+    [Fact]
+    public async Task ReviewFocus3_ElMismoBorradorDosVecesEnParalelo_UnoGanaYElOtro409()
+    {
+        var socio = await SocioAsync();
+        var almacen = await _prueba.SembrarAlmacenAsync();
+        var producto = await ProductoAsync();
+        await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Entrada(producto, almacen, 10m, 4m, D1));
+        var factura = await FacturaAsync(socio, almacen, P(producto, 2m, 50m));
+        var borrador = Ok(await CrearBorradorConSeriesAsync(factura, null, null));
+
+        var resultados = await EnParaleloAsync(() => PostearAsync(borrador.Id), () => PostearAsync(borrador.Id));
+
+        Assert.All(resultados, r => Assert.Null(r.Excepcion));
+        Assert.Single(resultados, r => r.Resultado!.EsExito);
+        Assert.Equal(("nota_credito_borrador.posteada.conflicto", "Id"), Unico(Assert.Single(resultados, r => r.Resultado!.EsFallo).Resultado!));
+        Assert.Equal(1, await EscalarAsync<int>("""SELECT COUNT(*)::int FROM "NotasCreditoVenta" WHERE "NumeroBorrador" = @N""", new { N = borrador.Numero }));
+    }
+
+    [Fact]
+    public async Task BorradorPosteada_EsDeSoloLectura_YElListadoPorDefectoNoLoMuestra()
+    {
+        var socio = await SocioAsync();
+        var almacen = await _prueba.SembrarAlmacenAsync();
+        var producto = await ProductoAsync();
+        await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Entrada(producto, almacen, 10m, 4m, D1));
+        var factura = await FacturaAsync(socio, almacen, P(producto, 3m, 50m));
+        var borrador = Ok(await CrearBorradorConSeriesAsync(factura, null, null));
+        var linea = (await LineasBorradorAsync(borrador.Id))[0];
+        Ok(await PostearAsync(borrador.Id));
+        var antes = await FotoAsync();
+
+        Assert.Equal(("nota_credito_borrador.posteada.conflicto", "Id"), Unico(await ModificarCabeceraAsync(borrador.Id, borrador.Xmin)));
+        Assert.Equal("nota_credito_borrador.posteada.conflicto", Unico(await ModificarLineaAsync(linea.Id, 1m, false, linea.Xmin)).Codigo);
+        Assert.Equal("nota_credito_borrador.posteada.conflicto", Unico(await LineaAsync(borrador.Id, linea.LineaFacturaVentaId, 1m)).Codigo);
+        Assert.Equal(("nota_credito_borrador.posteada.conflicto", "Id"), Unico(await BorrarBorradorAsync(borrador.Id)));
+        Assert.Equal(("nota_credito_borrador.posteada.conflicto", "Id"), Unico(await PostearAsync(borrador.Id)));
+        Assert.Equal(antes, await FotoAsync());
+
+        Assert.DoesNotContain((await ListarBorradoresAsync(factura, null)).Items, b => b.Id == borrador.Id);
+        Assert.Contains((await ListarBorradoresAsync(factura, EstadoNotaCreditoBorrador.Posteada)).Items, b => b.Id == borrador.Id);
+    }
+
     // ----- Helpers: siembra -----
 
     private async Task<Guid> SocioAsync(Guid? grupoCliente = null)
@@ -1120,6 +1227,37 @@ public sealed class PostearNotaCreditoVentaTests(PostgresTestFixture fixture) : 
         }
 
         return foto;
+    }
+
+    private async Task<(EstadoNotaCreditoBorrador Estado, string? Nota)> EstadoYNotaAsync(Guid borradorId)
+    {
+        await using var conexion = _prueba.NuevaConexion();
+        var fila = await conexion.QuerySingleAsync<(short Estado, string? Nota)>(
+            """SELECT "Estado", "NotaCreditoVentaNumero" FROM "NotasCreditoVentaBorrador" WHERE "Id" = @Id""", new { Id = borradorId });
+        return ((EstadoNotaCreditoBorrador)fila.Estado, fila.Nota);
+    }
+
+    private async Task<Result<NotaCreditoVentaBorradorResponse>> CrearBorradorConSeriesAsync(string factura, Guid? serieBorrador, Guid? serieRegistro)
+    {
+        await using var scope = _prueba.Provider.CreateAsyncScope();
+        var handler = ActivatorUtilities.CreateInstance<CreateNotaCreditoVentaBorradorCommandHandler>(scope.ServiceProvider);
+        return await handler.Handle(
+            new CreateNotaCreditoVentaBorradorCommand(factura, D12, null, null, true, false, serieBorrador, serieRegistro), default);
+    }
+
+    private async Task<Result<NotaCreditoVentaBorradorResponse>> ModificarCabeceraAsync(Guid borradorId, long xmin, Guid? serieRegistro = null)
+    {
+        await using var scope = _prueba.Provider.CreateAsyncScope();
+        var handler = ActivatorUtilities.CreateInstance<UpdateNotaCreditoVentaBorradorCommandHandler>(scope.ServiceProvider);
+        return await handler.Handle(new UpdateNotaCreditoVentaBorradorCommand(borradorId, null, null, "x", xmin, serieRegistro), default);
+    }
+
+    private async Task<PagedResult<NotaCreditoVentaBorradorResponse>> ListarBorradoresAsync(string factura, EstadoNotaCreditoBorrador? estado)
+    {
+        await using var scope = _prueba.Provider.CreateAsyncScope();
+        var lectura = scope.ServiceProvider.GetRequiredService<INotaCreditoVentaBorradorReadRepository>();
+        return await lectura.ListAsync(new NotaCreditoVentaBorradorSearchCriteria(FacturaVentaNumero: factura, Estado: estado),
+            new PageRequest(1, 50, "Numero", Descendente: false), default);
     }
 
     private async Task<(bool Borrado, long LineasVivas, long LineasBorradas)> EstadoBorradorAsync(Guid borradorId)

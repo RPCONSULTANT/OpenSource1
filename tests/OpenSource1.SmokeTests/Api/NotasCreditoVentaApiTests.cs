@@ -119,7 +119,45 @@ public sealed class NotasCreditoVentaApiTests(PostgresTestFixture fixture) : ICl
         Assert.NotNull(lineaNota.MovimientoProductoId);
         Assert.Equal(("ITBIS18", 50m, 9m), (detalle.LineasIva.Single().IdentificadorIva, detalle.LineasIva.Single().BaseImponible, detalle.LineasIva.Single().ImporteIva));
         Assert.Equal(HttpStatusCode.NotFound, (await _client.GetAsync("/api/notas-credito-venta/NOEXISTE")).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await _client.PostAsync($"/api/notas-credito-venta/borradores/{borrador.Id}/postear", null)).StatusCode);
+        // Re-postear el borrador (ahora Posteada, de solo lectura): 409 nota_credito_borrador.posteada.conflicto.
+        var reposteo = await _client.PostAsync($"/api/notas-credito-venta/borradores/{borrador.Id}/postear", null);
+        Assert.Equal(HttpStatusCode.Conflict, reposteo.StatusCode);
+        Assert.Contains("ya se posteó", await reposteo.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task ListadoDeBorradores_Estado3_SoloPosteados_YColumnasDeSerie()
+    {
+        var ingresos = await CrearCuentaAsync("4193");
+        var socio = await CrearSocioAsync("Cliente listado de borradores");
+        var (factura, _) = await PostearFacturaAsync(socio, new DateOnly(2023, 6, 10), (ingresos, 100m), null);
+        var creado = await _client.PostAsJsonAsync("/api/notas-credito-venta/borradores", new
+        {
+            facturaVentaNumero = factura, fechaRegistro = "2023-06-12", copiarLineas = true,
+        });
+        Assert.True(creado.StatusCode == HttpStatusCode.Created, await creado.Content.ReadAsStringAsync());
+        var borrador = (await creado.Content.ReadFromJsonAsync<NotaCreditoVentaBorradorResponse>())!;
+        Assert.Equal((EstadoNotaCreditoBorrador.Abierta, "NC"), (borrador.Estado, borrador.SerieRegistroCodigo));
+        var posteo = await _client.PostAsync($"/api/notas-credito-venta/borradores/{borrador.Id}/postear", null);
+        Assert.True(posteo.StatusCode == HttpStatusCode.OK, await posteo.Content.ReadAsStringAsync());
+        var nota = (await posteo.Content.ReadFromJsonAsync<ResultadoPosteoNotaCredito>())!;
+
+        var abiertos = await GetAsync<PagedResult<NotaCreditoVentaBorradorResponse>>(
+            $"/api/notas-credito-venta/borradores?facturaVentaNumero={factura}");
+        var posteados = await GetAsync<PagedResult<NotaCreditoVentaBorradorResponse>>(
+            $"/api/notas-credito-venta/borradores?facturaVentaNumero={factura}&estado=3");
+
+        Assert.DoesNotContain(abiertos.Items, b => b.Id == borrador.Id);
+        Assert.All(abiertos.Items, b => Assert.Equal(EstadoNotaCreditoBorrador.Abierta, b.Estado));
+        var posteado = Assert.Single(posteados.Items, b => b.Id == borrador.Id);
+        Assert.Equal((EstadoNotaCreditoBorrador.Posteada, nota.Numero, "NC", "NC-BORR"),
+            (posteado.Estado, posteado.NotaCreditoVentaNumero, posteado.SerieRegistroCodigo, posteado.SerieBorradorCodigo));
+        Assert.All(posteados.Items, b => Assert.Equal((EstadoNotaCreditoBorrador.Posteada, true), (b.Estado, b.NotaCreditoVentaNumero is not null)));
+
+        // La nota posteada enlaza a su borrador.
+        var cabecera = Assert.Single((await GetAsync<PagedResult<NotaCreditoVentaResponse>>(
+            $"/api/notas-credito-venta?facturaVentaNumero={factura}")).Items);
+        Assert.Equal(borrador.Id, cabecera.NotaCreditoVentaBorradorId);
     }
 
     [Fact]

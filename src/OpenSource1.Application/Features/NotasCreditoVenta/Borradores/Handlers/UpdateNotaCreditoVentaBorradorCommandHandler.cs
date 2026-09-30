@@ -1,18 +1,25 @@
 using MediatR;
+using OpenSource1.Application.Data;
 using OpenSource1.Application.Data.UnitOfWork;
 using OpenSource1.Application.Features.NotasCreditoVenta.Borradores.Commands;
 using OpenSource1.Application.Features.NotasCreditoVenta.Borradores.Dtos;
 using OpenSource1.Core.Common;
 using OpenSource1.Core.Entities.Ventas;
+using OpenSource1.Core.Enums;
 
 namespace OpenSource1.Application.Features.NotasCreditoVenta.Borradores.Handlers;
 
 /// <summary>
-/// Modificación de las fechas y la descripción bajo el <c>FOR UPDATE</c> del borrador. Inexistente -&gt; 404; <c>Xmin</c>
-/// desactualizado -&gt; 409; fecha de registro anterior a la de la factura -&gt; 400.
+/// Modificación de las fechas, la descripción y la serie de registro bajo el <c>FOR UPDATE</c> del borrador. Inexistente -&gt; 404;
+/// Posteada -&gt; 409 (<c>nota_credito_borrador.posteada.conflicto</c>); <c>Xmin</c> desactualizado -&gt; 409; fecha de registro
+/// anterior a la de la factura -&gt; 400; serie de registro nueva inexistente, de otro tipo o inactiva -&gt; 400 en
+/// <c>SerieRegistroId</c>.
 /// </summary>
 public sealed class UpdateNotaCreditoVentaBorradorCommandHandler(
-    IUnitOfWork unitOfWork, INotaCreditoVentaDatos datos, INotaCreditoVentaBorradorReadRepository readRepository)
+    IUnitOfWork unitOfWork,
+    INotaCreditoVentaDatos datos,
+    IGeneradorNumeroDocumento generadorNumero,
+    INotaCreditoVentaBorradorReadRepository readRepository)
     : IRequestHandler<UpdateNotaCreditoVentaBorradorCommand, Result<NotaCreditoVentaBorradorResponse>>
 {
     public async Task<Result<NotaCreditoVentaBorradorResponse>> Handle(
@@ -30,9 +37,15 @@ public sealed class UpdateNotaCreditoVentaBorradorCommandHandler(
 
         await using var transaccion = await unitOfWork.BeginTransactionAsync(cancellationToken);
 
-        if (!await datos.BloquearBorradorAsync(request.Id, cancellationToken))
+        var estado = await datos.BloquearBorradorAsync(request.Id, cancellationToken);
+        if (estado is null)
         {
             return Result<NotaCreditoVentaBorradorResponse>.Fallo(NotaCreditoVentaErrores.BorradorNoEncontrado());
+        }
+
+        if (estado == EstadoNotaCreditoBorrador.Posteada)
+        {
+            return Result<NotaCreditoVentaBorradorResponse>.Fallo(NotaCreditoVentaErrores.Posteada());
         }
 
         var repository = unitOfWork.Repository<NotaCreditoVentaBorrador>();
@@ -50,6 +63,17 @@ public sealed class UpdateNotaCreditoVentaBorradorCommandHandler(
         {
             return Result<NotaCreditoVentaBorradorResponse>.Fallo(
                 new Error("nota_credito.fecha_invalida", "La fecha de documento no es válida.", "FechaDocumento"));
+        }
+
+        if (request.SerieRegistroId is { } serieRegistroId && serieRegistroId != entity.SerieRegistroId)
+        {
+            var valida = await generadorNumero.ValidarSerieAsync(serieRegistroId, TipoDocumentoSerie.NotaCreditoVenta, cancellationToken);
+            if (valida.EsFallo)
+            {
+                return Result<NotaCreditoVentaBorradorResponse>.Fallo(valida.Errores[0] with { Campo = "SerieRegistroId" });
+            }
+
+            entity.SerieRegistroId = serieRegistroId;
         }
 
         repository.EstablecerVersionOriginal(entity, request.Xmin);
