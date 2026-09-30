@@ -18,9 +18,7 @@ public sealed class DapperFacturaVentaReadRepository(IDbSession session) : IFact
         new("Numero", "NombreFacturacion", "FechaRegistro", "FechaDocumento", "ImporteTotal", "CreatedAtUtc");
 
     private const string Base = """
-        SELECT f."Numero", f."NumeroBorrador",
-               (SELECT fb."Id" FROM "FacturasVentaBorrador" fb
-                WHERE fb."FacturaVentaNumero" = f."Numero" AND fb."IsDeleted" = false LIMIT 1) AS "FacturaVentaBorradorId",
+        SELECT f."Numero", f."NumeroBorrador", fb."Id" AS "FacturaVentaBorradorId",
                f."SocioNegocioId", sv."Codigo" AS "SocioNegocioCodigo",
                sv."NombreComercial" AS "SocioNegocioNombre", f."SocioNegocioFacturarAId", sf."Codigo" AS "SocioNegocioFacturarACodigo",
                f."NombreFacturacion", f."RazonSocialFacturacion", f."TipoDocumentoFiscal", f."NumeroDocumentoFiscal",
@@ -32,6 +30,8 @@ public sealed class DapperFacturaVentaReadRepository(IDbSession session) : IFact
                (SELECT COUNT(*) FROM "LineasFacturaVenta" l WHERE l."FacturaVentaNumero" = f."Numero")::int AS "NumeroLineas",
                f."CreatedAtUtc", f."CreatedBy"
         FROM "FacturasVenta" f
+        -- A lo sumo un borrador vivo enlaza cada factura (índice único parcial): el JOIN no duplica filas.
+        LEFT JOIN "FacturasVentaBorrador" fb ON fb."FacturaVentaNumero" = f."Numero" AND fb."IsDeleted" = false
         LEFT JOIN "SociosNegocio" sv ON sv."Id" = f."SocioNegocioId"
         LEFT JOIN "SociosNegocio" sf ON sf."Id" = f."SocioNegocioFacturarAId"
         LEFT JOIN "TerminosPago" t ON t."Id" = f."TerminoPagoId"

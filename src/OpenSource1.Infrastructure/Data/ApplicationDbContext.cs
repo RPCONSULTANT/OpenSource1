@@ -816,6 +816,10 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.HasOne<Serie>().WithMany().HasForeignKey(x => x.SerieBorradorId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne<Serie>().WithMany().HasForeignKey(x => x.SerieRegistroId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne<FacturaVenta>().WithMany().HasForeignKey(x => x.FacturaVentaNumero).OnDelete(DeleteBehavior.Restrict);
+            // Una factura la enlaza a lo sumo un borrador vivo: respaldo en BD del doble posteo (el FOR UPDATE del borrador es la
+            // defensa principal); también hace segura la lectura del enlace factura -> borrador.
+            entity.HasIndex(x => x.FacturaVentaNumero).IsUnique()
+                .HasFilter("\"FacturaVentaNumero\" IS NOT NULL AND \"IsDeleted\" = false");
 
             entity.Property<uint>("xmin").HasColumnName("xmin").IsRowVersion();
             entity.Property(x => x.IsDeleted).HasDefaultValue(false);
@@ -1193,6 +1197,9 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.HasOne<Serie>().WithMany().HasForeignKey(x => x.SerieBorradorId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne<Serie>().WithMany().HasForeignKey(x => x.SerieRegistroId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne<NotaCreditoVenta>().WithMany().HasForeignKey(x => x.NotaCreditoVentaNumero).OnDelete(DeleteBehavior.Restrict);
+            // Una nota la enlaza a lo sumo un borrador vivo (mismo respaldo del doble posteo que en facturas).
+            entity.HasIndex(x => x.NotaCreditoVentaNumero).IsUnique()
+                .HasFilter("\"NotaCreditoVentaNumero\" IS NOT NULL AND \"IsDeleted\" = false");
 
             entity.Property<uint>("xmin").HasColumnName("xmin").IsRowVersion();
             entity.Property(x => x.IsDeleted).HasDefaultValue(false);

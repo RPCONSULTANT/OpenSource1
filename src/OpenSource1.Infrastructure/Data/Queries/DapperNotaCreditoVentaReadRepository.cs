@@ -28,6 +28,7 @@ public sealed class DapperNotaCreditoVentaReadRepository(IDbSession session) : I
         LEFT JOIN "SociosNegocio" sv ON sv."Id" = n."SocioNegocioId"
         LEFT JOIN "SociosNegocio" sf ON sf."Id" = n."SocioNegocioFacturarAId"
         LEFT JOIN "RegistrosContables" r ON r."Id" = n."RegistroContableId"
+        -- A lo sumo un borrador vivo enlaza cada nota (índice único parcial): el JOIN no duplica filas.
         LEFT JOIN "NotasCreditoVentaBorrador" nb ON nb."NotaCreditoVentaNumero" = n."Numero" AND nb."IsDeleted" = false
         """;
 
