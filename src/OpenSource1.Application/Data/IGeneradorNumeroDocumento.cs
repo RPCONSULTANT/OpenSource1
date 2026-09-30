@@ -1,24 +1,32 @@
 using OpenSource1.Core.Common;
+using OpenSource1.Core.Enums;
 
 namespace OpenSource1.Application.Data;
 
 /// <summary>
-/// Genera el siguiente número de documento de una <see cref="Core.Entities.Serie"/>, sin
-/// huecos ni duplicados bajo concurrencia. Consumida por las Fases 4 y 6 (diarios de
-/// inventario, facturas). Primer consumidor real: el alta de socio de negocio (serie
-/// <c>SOCIOS</c>, <c>CreateSocioNegocioCommandHandler</c>, Task 2.6).
+/// Motor de numeración (spec no-series). Emite el siguiente número de una serie, sin huecos ni duplicados bajo concurrencia, dentro
+/// de la transacción del documento: <see cref="SiguienteAsync(Guid, TipoDocumentoSerie, DateOnly, CancellationToken)"/> lee la serie
+/// <c>FOR SHARE</c> (una desactivación o un cambio de tipo concurrente espera al commit), valida tipo y actividad, bloquea la línea
+/// vigente (la última con <c>FechaInicial &lt;= fecha</c>, no bloqueada) <c>FOR UPDATE</c> y actualiza su contador. Si el documento
+/// falla, el rollback devuelve el número. Exige transacción activa (<c>numeracion.sin_transaccion</c>).
+/// <para>
+/// <see cref="ProximoNumeroAsync"/> es solo una vista previa orientativa: no bloquea, no exige transacción y no reserva el número.
+/// <see cref="SerieConfiguradaAsync"/> lee la serie predeterminada de un tipo (<c>ConfiguracionesNumeracion</c>).
+/// </para>
 /// </summary>
-/// <remarks>
-/// <see cref="SiguienteAsync"/> exige una transacción activa en la <c>IDbSession</c> del
-/// scope: internamente hace un <c>SELECT ... FOR UPDATE</c> sobre la <c>LineaSerie</c>
-/// vigente, y ese bloqueo de fila solo se retiene hasta el commit/rollback de una
-/// transacción — fuera de una transacción, Postgres lo libera al terminar el statement, lo
-/// que rompe la garantía de "sin huecos" bajo concurrencia. El llamante (un handler de
-/// posteo en Fases 4/6) debe invocar esta operación dentro de un
-/// <c>IUnitOfWork.BeginTransactionAsync</c>; si no hay transacción activa, el método falla
-/// explícitamente con <c>Result.Fallo</c> en vez de relajar el requisito.
-/// </remarks>
 public interface IGeneradorNumeroDocumento
 {
+    Task<Result<NumeroGenerado>> SiguienteAsync(
+        Guid serieId, TipoDocumentoSerie tipoEsperado, DateOnly fecha, CancellationToken cancellationToken = default);
+
+    Task<Result<NumeroGenerado>> SiguientePorTipoAsync(TipoDocumentoSerie tipo, DateOnly fecha, CancellationToken cancellationToken = default);
+
+    Task<Result<NumeroGenerado>> ProximoNumeroAsync(Guid serieId, DateOnly fecha, CancellationToken cancellationToken = default);
+
+    Task<Result<Guid>> SerieConfiguradaAsync(TipoDocumentoSerie tipo, CancellationToken cancellationToken = default);
+
+    Task<Result> ValidarSerieAsync(Guid serieId, TipoDocumentoSerie tipoEsperado, CancellationToken cancellationToken = default);
+
+    /// <summary>TRANSITORIO (lo retira S4): numeración por código fijo mientras se migran los consumidores.</summary>
     Task<Result<string>> SiguienteAsync(string codigoSerie, DateOnly fecha, CancellationToken cancellationToken = default);
 }

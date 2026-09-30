@@ -1,11 +1,14 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using Dapper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
 using OpenSource1.Application.Data;
 using OpenSource1.Core.Common;
 using OpenSource1.Core.Entities;
+using OpenSource1.Core.Entities.Clientes;
 using OpenSource1.Core.Enums;
 using OpenSource1.Infrastructure.Data;
 using OpenSource1.SmokeTests.TestInfrastructure;
@@ -32,6 +35,12 @@ namespace OpenSource1.SmokeTests.Infrastructure;
 /// <c>IServiceScope</c> — y por tanto su propio <see cref="IDbSession"/> con su propia conexión
 /// física <c>NpgsqlConnection</c> y su propia transacción — nunca comparten una conexión entre
 /// sí. Eso es lo que hace la concurrencia genuina en vez de simulada.
+///
+/// Espera SOLO DE PRUEBA: cada tarea retiene el bloqueo (transacción abierta tras numerar) una
+/// demora fija antes del commit. Sin ella, 10 llamadas contra un Postgres local son tan rápidas
+/// que rara vez se solapan y la prueba dejaría de demostrar contención real; con ella, las demás
+/// transacciones hacen cola en el <c>FOR UPDATE</c> y el tiempo total medido (≥ (tareas − 1) ×
+/// demora) lo confirma. Nunca en código de producción.
 /// </summary>
 [Collection(PostgresCollection.Name)]
 public sealed class GeneradorNumeroDocumentoTests : IClassFixture<PostgresTestFixture>, IAsyncLifetime
@@ -73,191 +82,289 @@ public sealed class GeneradorNumeroDocumentoTests : IClassFixture<PostgresTestFi
         await _provider.DisposeAsync();
     }
 
-    [Fact]
-    public async Task SiguienteAsync_ConcurrenciaReal_NoProduceNumerosDuplicados()
+
+    [Theory]
+    [InlineData("", 5)]
+    [InlineData("PX-", 5)]
+    public async Task SiguienteAsync_ConcurrenciaReal_SinDuplicadosNiHuecos(string prefijo, int ancho)
     {
-        var codigoSerie = $"CONC{Guid.NewGuid():N}"[..12];
         var fecha = new DateOnly(2026, 1, 1);
-        await SembrarSerieAsync(codigoSerie, fecha);
+        var (serieId, _) = await SembrarSerieAsync(fecha, numeroInicial: prefijo + "1".PadLeft(ancho, '0'),
+            numeroFinal: prefijo + "9".PadLeft(ancho, '9'), ultimoNumeroUsado: "");
 
         const int tareas = 10;
         const int demoraCriticaMs = 150;
-
-        var resultados = new ConcurrentBag<Result<string>>();
+        var resultados = new ConcurrentBag<Result<NumeroGenerado>>();
         var cronometro = Stopwatch.StartNew();
 
-        var trabajos = Enumerable.Range(0, tareas).Select(async _ =>
+        await Task.WhenAll(Enumerable.Range(0, tareas).Select(async _ =>
         {
-            // Scope propio => IDbSession propio => NpgsqlConnection física propia. Ninguna de las
-            // 10 tareas comparte conexión ni transacción con otra.
             await using var scope = _provider.CreateAsyncScope();
             var session = scope.ServiceProvider.GetRequiredService<IDbSession>();
             var generador = scope.ServiceProvider.GetRequiredService<IGeneradorNumeroDocumento>();
-
             await session.EnsureOpenAsync();
             await using var tx = await session.BeginTransactionAsync();
-
-            var resultado = await generador.SiguienteAsync(codigoSerie, fecha);
-
-            // Espera deliberada SOLO DE PRUEBA dentro de la sección crítica (mientras la
-            // transacción sigue abierta, el FOR UPDATE de arriba sigue reteniendo el bloqueo de
-            // fila). Nunca en código de producción. Sin esta espera, 10 llamadas contra un
-            // Postgres en localhost son tan rápidas (~1-2ms de round-trip) que rara vez llegan a
-            // solaparse de verdad: cada transacción podría encontrar la fila ya liberada por el
-            // commit anterior sin haber tenido que esperar nunca en la cola del bloqueo, y la
-            // prueba dejaría de demostrar contención real aunque el resultado final (sin huecos,
-            // sin duplicados) fuera casualmente correcto. Al retener el bloqueo con una espera
-            // fija tras adquirirlo, se obliga a que las otras 9 transacciones hagan cola real en
-            // el FOR UPDATE mientras esta sigue abierta — y el tiempo total medido más abajo lo
-            // confirma.
+            var resultado = await generador.SiguienteAsync(serieId, TipoDocumentoSerie.DiarioInventario, fecha);
+            // Espera SOLO DE PRUEBA con el bloqueo retenido (ver el XML doc de la clase).
             await Task.Delay(demoraCriticaMs);
-
             await session.CommitAsync();
             resultados.Add(resultado);
-        });
-
-        await Task.WhenAll(trabajos);
+        }));
         cronometro.Stop();
 
-        Assert.Equal(tareas, resultados.Count);
-        Assert.All(resultados, r => Assert.True(
-            r.EsExito,
-            r.EsFallo ? string.Join("; ", r.Errores.Select(e => $"{e.Codigo}: {e.Mensaje}")) : string.Empty));
-
-        var numeros = resultados.Select(r => r.Valor).OrderBy(n => n, StringComparer.Ordinal).ToList();
-        var esperados = Enumerable.Range(1, tareas).Select(n => n.ToString().PadLeft(5, '0')).ToList();
-
-        // Consecutivos y sin huecos: exactamente 00001..00010, cada uno una sola vez.
-        Assert.Equal(esperados, numeros);
-        Assert.Equal(tareas, numeros.Distinct(StringComparer.Ordinal).Count());
-
-        // Evidencia de serialización real: si las 10 secciones críticas (cada una reteniendo el
-        // bloqueo demoraCriticaMs) hubieran corrido sin contención, el tiempo total habría sido
-        // ~demoraCriticaMs (las 10 en paralelo, sin esperar unas a otras). Al estar serializadas
-        // por el FOR UPDATE, el tiempo total debe acercarse a tareas * demoraCriticaMs.
-        var minimoEsperadoMs = (tareas - 1) * demoraCriticaMs;
-        Assert.True(
-            cronometro.ElapsedMilliseconds >= minimoEsperadoMs,
-            $"Tiempo total ({cronometro.ElapsedMilliseconds}ms) sugiere que las transacciones NO se serializaron " +
-            $"(se esperaba >= {minimoEsperadoMs}ms si el FOR UPDATE realmente puso a las demás en cola).");
+        Assert.All(resultados, r => Assert.True(r.EsExito, r.EsFallo ? r.Errores[0].Codigo : string.Empty));
+        var numeros = resultados.Select(r => r.Valor.Numero).OrderBy(n => n, StringComparer.Ordinal).ToList();
+        Assert.Equal(Enumerable.Range(1, tareas).Select(n => prefijo + n.ToString().PadLeft(ancho, '0')), numeros);
+        Assert.True(cronometro.ElapsedMilliseconds >= (tareas - 1) * demoraCriticaMs,
+            $"Tiempo total ({cronometro.ElapsedMilliseconds} ms): las transacciones no se serializaron.");
     }
 
     [Fact]
     public async Task SiguienteAsync_SinTransaccionActiva_DevuelveFallo()
     {
-        var codigoSerie = $"SINTX{Guid.NewGuid():N}"[..12];
-        await SembrarSerieAsync(codigoSerie, new DateOnly(2026, 1, 1));
-
+        var (serieId, _) = await SembrarSerieAsync(new DateOnly(2026, 1, 1));
         await using var scope = _provider.CreateAsyncScope();
-        var session = scope.ServiceProvider.GetRequiredService<IDbSession>();
-        var generador = scope.ServiceProvider.GetRequiredService<IGeneradorNumeroDocumento>();
+        await scope.ServiceProvider.GetRequiredService<IDbSession>().EnsureOpenAsync();
 
-        await session.EnsureOpenAsync();
+        var resultado = await Generador(scope).SiguienteAsync(serieId, TipoDocumentoSerie.DiarioInventario, new DateOnly(2026, 1, 1));
 
-        var resultado = await generador.SiguienteAsync(codigoSerie, new DateOnly(2026, 1, 1));
-
-        Assert.True(resultado.EsFallo);
         Assert.Equal("numeracion.sin_transaccion", resultado.Errores[0].Codigo);
     }
 
     [Fact]
     public async Task SiguienteAsync_SerieInexistente_DevuelveFallo()
     {
-        await using var scope = _provider.CreateAsyncScope();
-        var session = scope.ServiceProvider.GetRequiredService<IDbSession>();
-        var generador = scope.ServiceProvider.GetRequiredService<IGeneradorNumeroDocumento>();
+        var resultado = await EnTransaccionAsync(g => g.SiguienteAsync(Guid.NewGuid(), TipoDocumentoSerie.DiarioInventario, new DateOnly(2026, 1, 1)));
 
-        await session.EnsureOpenAsync();
-        await using var tx = await session.BeginTransactionAsync();
-
-        var resultado = await generador.SiguienteAsync("NO-EXISTE", new DateOnly(2026, 1, 1));
-
-        Assert.True(resultado.EsFallo);
-        Assert.Equal("numeracion.serie_inexistente", resultado.Errores[0].Codigo);
-
-        await session.RollbackAsync();
+        Assert.Equal(("numeracion.serie_inexistente", "SerieId"), (resultado.Errores[0].Codigo, resultado.Errores[0].Campo));
     }
 
     [Fact]
     public async Task SiguienteAsync_SinLineaVigenteParaLaFecha_DevuelveFallo()
     {
-        var codigoSerie = $"SINLIN{Guid.NewGuid():N}"[..12];
-        await SembrarSerieAsync(codigoSerie, new DateOnly(2026, 6, 1));
+        var (serieId, _) = await SembrarSerieAsync(new DateOnly(2026, 6, 1));
 
-        await using var scope = _provider.CreateAsyncScope();
-        var session = scope.ServiceProvider.GetRequiredService<IDbSession>();
-        var generador = scope.ServiceProvider.GetRequiredService<IGeneradorNumeroDocumento>();
+        var resultado = await EnTransaccionAsync(g => g.SiguienteAsync(serieId, TipoDocumentoSerie.DiarioInventario, new DateOnly(2026, 1, 1)));
 
-        await session.EnsureOpenAsync();
-        await using var tx = await session.BeginTransactionAsync();
-
-        // La línea sembrada solo es vigente a partir de 2026-06-01.
-        var resultado = await generador.SiguienteAsync(codigoSerie, new DateOnly(2026, 1, 1));
-
-        Assert.True(resultado.EsFallo);
         Assert.Equal("numeracion.sin_linea_vigente", resultado.Errores[0].Codigo);
-
-        await session.RollbackAsync();
     }
 
     [Fact]
-    public async Task SiguienteAsync_SerieAgotada_DevuelveFallo()
+    public async Task SiguienteAsync_SerieAgotada_DevuelveFallo_SinTocarElContador()
     {
-        var codigoSerie = $"AGOT{Guid.NewGuid():N}"[..12];
         var fecha = new DateOnly(2026, 1, 1);
+        var (serieId, lineaId) = await SembrarSerieAsync(fecha, numeroInicial: "00001", numeroFinal: "00001", ultimoNumeroUsado: "00001");
 
-        // Rango de un solo número, ya usado: el siguiente (00002) excede NumeroFinal (00001).
-        await SembrarSerieAsync(codigoSerie, fecha, numeroInicial: "00001", numeroFinal: "00001", ultimoNumeroUsado: "00001");
+        var resultado = await EnTransaccionAsync(g => g.SiguienteAsync(serieId, TipoDocumentoSerie.DiarioInventario, fecha), confirmar: true);
+
+        Assert.Equal("numeracion.serie_agotada", resultado.Errores[0].Codigo);
+        Assert.Equal("00001", await UltimoAsync(lineaId));
+    }
+
+    [Fact]
+    public async Task SiguienteAsync_SoloDigitos_SinCambios_YGuardaElNumeroCompleto()
+    {
+        var fecha = new DateOnly(2026, 1, 1);
+        var (serieId, lineaId) = await SembrarSerieAsync(fecha, ultimoNumeroUsado: "00041");
+
+        var resultado = await EnTransaccionAsync(g => g.SiguienteAsync(serieId, TipoDocumentoSerie.DiarioInventario, fecha), confirmar: true);
+
+        Assert.Equal(new NumeroGenerado("00042", null), resultado.Valor);
+        Assert.Equal("00042", await UltimoAsync(lineaId));
+    }
+
+    [Fact]
+    public async Task SiguienteAsync_ContadorSinRelleno_SigueNumerandoIgual()
+    {
+        var fecha = new DateOnly(2026, 1, 1);
+        var (serieId, lineaId) = await SembrarSerieAsync(fecha, numeroInicial: "00000001", numeroFinal: "99999999", ultimoNumeroUsado: "7");
+
+        var resultado = await EnTransaccionAsync(g => g.SiguienteAsync(serieId, TipoDocumentoSerie.DiarioInventario, fecha), confirmar: true);
+
+        Assert.Equal("00000008", resultado.Valor.Numero);
+        Assert.Equal("00000008", await UltimoAsync(lineaId));
+    }
+
+    [Fact]
+    public async Task SiguienteAsync_ConPrefijo_YLineaSinUsarConIncremento()
+    {
+        var fecha = new DateOnly(2026, 1, 1);
+        var (serieId, lineaId) = await SembrarSerieAsync(fecha, numeroInicial: "A-0005", numeroFinal: "A-9999", ultimoNumeroUsado: "", incremento: 5);
+
+        var primero = await EnTransaccionAsync(g => g.SiguienteAsync(serieId, TipoDocumentoSerie.DiarioInventario, fecha), confirmar: true);
+        var segundo = await EnTransaccionAsync(g => g.SiguienteAsync(serieId, TipoDocumentoSerie.DiarioInventario, fecha), confirmar: true);
+
+        Assert.Equal(("A-0005", "A-0010"), (primero.Valor.Numero, segundo.Valor.Numero));
+        Assert.Equal("A-0010", await UltimoAsync(lineaId));
+    }
+
+    [Fact]
+    public async Task SiguienteAsync_SerieInactiva_Falla_SinConsumir()
+    {
+        var fecha = new DateOnly(2026, 1, 1);
+        var (serieId, lineaId) = await SembrarSerieAsync(fecha, activa: false);
+
+        var resultado = await EnTransaccionAsync(g => g.SiguienteAsync(serieId, TipoDocumentoSerie.DiarioInventario, fecha), confirmar: true);
+
+        Assert.Equal(("numeracion.serie_inactiva", "SerieId"), (resultado.Errores[0].Codigo, resultado.Errores[0].Campo));
+        Assert.Equal("00000", await UltimoAsync(lineaId));
+    }
+
+    [Fact]
+    public async Task SiguienteAsync_TipoIncorrecto_Falla_SinConsumir()
+    {
+        var fecha = new DateOnly(2026, 1, 1);
+        var (serieId, lineaId) = await SembrarSerieAsync(fecha, tipo: TipoDocumentoSerie.Cobro);
+
+        var resultado = await EnTransaccionAsync(g => g.SiguienteAsync(serieId, TipoDocumentoSerie.FacturaVenta, fecha), confirmar: true);
+
+        Assert.Equal("numeracion.tipo_incorrecto", resultado.Errores[0].Codigo);
+        Assert.Contains("Cobro de cliente", resultado.Errores[0].Mensaje);
+        Assert.Equal("00000", await UltimoAsync(lineaId));
+    }
+
+    [Fact]
+    public async Task SiguientePorTipoAsync_UsaLaSerieConfigurada()
+    {
+        var fecha = new DateOnly(2026, 1, 1);
+        var (serieId, _) = await SembrarSerieAsync(fecha, numeroInicial: "CFG-001", numeroFinal: "CFG-999", ultimoNumeroUsado: "");
 
         await using var scope = _provider.CreateAsyncScope();
         var session = scope.ServiceProvider.GetRequiredService<IDbSession>();
-        var generador = scope.ServiceProvider.GetRequiredService<IGeneradorNumeroDocumento>();
-
         await session.EnsureOpenAsync();
         await using var tx = await session.BeginTransactionAsync();
+        // Dentro de la transacción (se deshace): la configuración del diario apunta a la serie de prueba.
+        await session.Connection.ExecuteAsync(
+            """UPDATE "ConfiguracionesNumeracion" SET "SerieId" = @S WHERE "TipoDocumento" = 8""", new { S = serieId }, session.CurrentTransaction);
 
-        var resultado = await generador.SiguienteAsync(codigoSerie, fecha);
-
-        Assert.True(resultado.EsFallo);
-        Assert.Equal("numeracion.serie_agotada", resultado.Errores[0].Codigo);
-
+        var resultado = await Generador(scope).SiguientePorTipoAsync(TipoDocumentoSerie.DiarioInventario, fecha);
         await session.RollbackAsync();
+
+        Assert.Equal("CFG-001", resultado.Valor.Numero);
     }
 
-    private async Task SembrarSerieAsync(
-        string codigo,
+    [Fact]
+    public async Task SiguientePorTipoAsync_SinConfiguracion_Falla()
+    {
+        await using var scope = _provider.CreateAsyncScope();
+        var session = scope.ServiceProvider.GetRequiredService<IDbSession>();
+        await session.EnsureOpenAsync();
+        await using var tx = await session.BeginTransactionAsync();
+        await session.Connection.ExecuteAsync(
+            """UPDATE "ConfiguracionesNumeracion" SET "IsDeleted" = true WHERE "TipoDocumento" = 5""", transaction: session.CurrentTransaction);
+
+        var resultado = await Generador(scope).SiguientePorTipoAsync(TipoDocumentoSerie.Cobro, new DateOnly(2026, 1, 1));
+        await session.RollbackAsync();
+
+        Assert.Equal(("numeracion.sin_configuracion", "TipoDocumento"), (resultado.Errores[0].Codigo, resultado.Errores[0].Campo));
+    }
+
+    [Fact]
+    public async Task SiguienteAsync_AlAlcanzarElNumeroDeAviso_DevuelveLaAdvertencia()
+    {
+        var fecha = new DateOnly(2026, 1, 1);
+        var (serieId, _) = await SembrarSerieAsync(fecha, ultimoNumeroUsado: "00004", numeroAviso: "00005");
+
+        var resultado = await EnTransaccionAsync(g => g.SiguienteAsync(serieId, TipoDocumentoSerie.DiarioInventario, fecha), confirmar: true);
+
+        Assert.Equal("00005", resultado.Valor.Numero);
+        Assert.Contains("número de aviso", resultado.Valor.Aviso);
+    }
+
+    [Fact]
+    public async Task ProximoNumeroAsync_NoConsume_NoExigeTransaccion_NiEsperaAlBloqueo()
+    {
+        var fecha = new DateOnly(2026, 1, 1);
+        var (serieId, lineaId) = await SembrarSerieAsync(fecha, ultimoNumeroUsado: "00009");
+
+        // Otra transacción retiene el FOR UPDATE de la línea (numera y no confirma todavía).
+        await using var bloqueo = _provider.CreateAsyncScope();
+        var sesionBloqueo = bloqueo.ServiceProvider.GetRequiredService<IDbSession>();
+        await sesionBloqueo.EnsureOpenAsync();
+        await using var tx = await sesionBloqueo.BeginTransactionAsync();
+        Assert.True((await Generador(bloqueo).SiguienteAsync(serieId, TipoDocumentoSerie.DiarioInventario, fecha)).EsExito);
+
+        await using var lectura = _provider.CreateAsyncScope();
+        var proximo = await Generador(lectura).ProximoNumeroAsync(serieId, fecha).WaitAsync(TimeSpan.FromSeconds(5));
+
+        await sesionBloqueo.RollbackAsync();
+        Assert.Equal("00010", proximo.Valor.Numero);
+        Assert.Equal("00009", await UltimoAsync(lineaId));
+    }
+
+    [Fact]
+    public async Task ValidarSerieAsync_YSerieConfiguradaAsync()
+    {
+        var (serieId, _) = await SembrarSerieAsync(new DateOnly(2026, 1, 1), tipo: TipoDocumentoSerie.Cobro);
+        await using var scope = _provider.CreateAsyncScope();
+        var generador = Generador(scope);
+
+        Assert.True((await generador.ValidarSerieAsync(serieId, TipoDocumentoSerie.Cobro)).EsExito);
+        Assert.Equal("numeracion.tipo_incorrecto", (await generador.ValidarSerieAsync(serieId, TipoDocumentoSerie.FacturaVenta)).Errores[0].Codigo);
+        Assert.Equal(SerieCobroIds.SerieId, (await generador.SerieConfiguradaAsync(TipoDocumentoSerie.Cobro)).Valor);
+    }
+
+    private static IGeneradorNumeroDocumento Generador(AsyncServiceScope scope) =>
+        scope.ServiceProvider.GetRequiredService<IGeneradorNumeroDocumento>();
+
+    private async Task<Result<T>> EnTransaccionAsync<T>(Func<IGeneradorNumeroDocumento, Task<Result<T>>> accion, bool confirmar = false)
+    {
+        await using var scope = _provider.CreateAsyncScope();
+        var session = scope.ServiceProvider.GetRequiredService<IDbSession>();
+        await session.EnsureOpenAsync();
+        await using var tx = await session.BeginTransactionAsync();
+        var resultado = await accion(Generador(scope));
+        if (confirmar && resultado.EsExito)
+        {
+            await session.CommitAsync();
+        }
+        else
+        {
+            await session.RollbackAsync();
+        }
+
+        return resultado;
+    }
+
+    private async Task<string> UltimoAsync(Guid lineaId)
+    {
+        await using var conexion = new NpgsqlConnection(_fixture.AppConnectionString);
+        return (await conexion.ExecuteScalarAsync<string>(
+            """SELECT "UltimoNumeroUsado" FROM "LineasSerie" WHERE "Id" = @Id""", new { Id = lineaId }))!;
+    }
+
+    private async Task<(Guid SerieId, Guid LineaId)> SembrarSerieAsync(
         DateOnly fechaInicial,
+        TipoDocumentoSerie tipo = TipoDocumentoSerie.DiarioInventario,
+        bool activa = true,
         string numeroInicial = "00001",
         string numeroFinal = "00100",
-        string ultimoNumeroUsado = "00000")
+        string ultimoNumeroUsado = "00000",
+        int incremento = 1,
+        string? numeroAviso = null)
     {
-        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseNpgsql(_fixture.AppConnectionString)
-            .Options;
-
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(_fixture.AppConnectionString).Options;
         await using var context = new ApplicationDbContext(options);
-
         var serie = new Serie
         {
-            Codigo = codigo,
+            Codigo = $"GEN{Guid.NewGuid():N}"[..12].ToUpperInvariant(),
             Descripcion = "Serie de prueba de numeración",
-            TipoDocumento = TipoDocumentoSerie.DiarioInventario,
-            PermiteHuecos = false,
+            TipoDocumento = tipo,
+            Activa = activa,
         };
         context.Series.Add(serie);
-        await context.SaveChangesAsync();
-
         var linea = new LineaSerie
         {
             SerieId = serie.Id,
             NumeroInicial = numeroInicial,
             NumeroFinal = numeroFinal,
+            NumeroAviso = numeroAviso,
             UltimoNumeroUsado = ultimoNumeroUsado,
             FechaInicial = fechaInicial,
-            Incremento = 1,
-            Bloqueada = false,
+            Incremento = incremento,
         };
         context.LineasSerie.Add(linea);
         await context.SaveChangesAsync();
+        return (serie.Id, linea.Id);
     }
 }
