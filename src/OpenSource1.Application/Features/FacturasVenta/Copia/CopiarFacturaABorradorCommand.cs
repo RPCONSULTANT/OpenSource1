@@ -8,8 +8,9 @@ namespace OpenSource1.Application.Features.FacturasVenta.Copia;
 /// hoy y serie de registro configurada; cabecera con el cliente, el facturar-a, el almacén, la moneda y la descripción de la factura, y
 /// el nombre, el término de pago y los grupos ACTUALES del cliente; líneas (producto, cuenta contable y comentario) con producto o
 /// cuenta, unidad, cantidad, precio y descuento. Una línea que ya no pasa la validación actual (producto borrado o bloqueado…) se omite
-/// con aviso; un almacén de la factura que ya no vale se sustituye por el predeterminado con aviso; un cliente bloqueado (cualquier
-/// bloqueo) o borrado impide la copia. Atómico.
+/// con aviso; un almacén de la factura que ya no vale se sustituye por el predeterminado con aviso, y el almacén propio de una línea
+/// que ya no vale, por el de la cabecera del borrador con aviso (la línea se conserva); un cliente bloqueado (cualquier bloqueo) o
+/// borrado impide la copia. Atómico.
 /// </summary>
 public sealed record CopiarFacturaABorradorCommand(string FacturaVentaNumero) : IRequest<Result<CopiaFacturaResponse>>;
 

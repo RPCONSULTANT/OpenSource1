@@ -107,16 +107,27 @@ public sealed class CopiarFacturaABorradorCommandHandler(
         await unitOfWork.Repository<FacturaVentaBorrador>().AddAsync(entity, cancellationToken);
 
         var lineasRepo = unitOfWork.Repository<LineaFacturaVentaBorrador>();
-        foreach (var original in (await facturas.LineasFacturaAsync(factura.Numero, cancellationToken)).OrderBy(l => l.NumeroLinea))
+        // LineasFacturaAsync ya las devuelve por NumeroLinea.
+        foreach (var original in await facturas.LineasFacturaAsync(factura.Numero, cancellationToken))
         {
             var comentario = original.Tipo == TipoLineaFactura.Comentario;
+
+            // El almacén de la cabecera de la factura no se fija en la línea: sigue al de la cabecera del borrador (quizá sustituido).
+            // Un almacén propio de la línea que ya no vale se sustituye por el de la cabecera del borrador, con aviso (ruling NSC5).
+            var almacenLinea = original.AlmacenId == factura.AlmacenId ? null : original.AlmacenId;
+            if (almacenLinea is { } propio
+                && (await FacturaVentaBorradorReglas.ResolverAlmacenAsync(unitOfWork, propio, cancellationToken)).EsFallo)
+            {
+                almacenLinea = null;
+                avisos.Add($"Línea {original.NumeroLinea}: el almacén de la línea ya no está disponible: usa el almacén del borrador.");
+            }
+
             var datos = new LineaFacturaDatos(
                 original.Tipo,
                 original.ProductoId,
                 original.CuentaContableId,
                 original.Descripcion,
-                // El almacén de la cabecera de la factura no se fija en la línea: sigue al de la cabecera del borrador (quizá sustituido).
-                original.AlmacenId == factura.AlmacenId ? null : original.AlmacenId,
+                almacenLinea,
                 original.UnidadMedidaId,
                 comentario ? null : original.Cantidad,
                 comentario ? null : original.PrecioUnitario,

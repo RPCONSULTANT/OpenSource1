@@ -1271,6 +1271,73 @@ public sealed class PostearFacturaVentaTests(PostgresTestFixture fixture) : ICla
     }
 
     [Fact]
+    public async Task Copia_ClienteBorrado_400_SinCrearNada()
+    {
+        var socio = await SocioAsync();
+        var almacen = await _prueba.SembrarAlmacenAsync();
+        var producto = await ProductoAsync();
+        await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Entrada(producto, almacen, 10m, 1m, D1));
+        var borrador = await BorradorAsync(socio, almacen: almacen);
+        await LineaProductoAsync(borrador.Id, producto, 1m, 10m);
+        var factura = await PostearOkAsync(borrador.Id);
+        await EjecutarSqlAsync("""UPDATE "SociosNegocio" SET "IsDeleted" = true WHERE "Id" = @Id""", new { Id = socio });
+        var antes = await FotoCopiaAsync();
+
+        var resultado = await CopiarAsync(factura.Numero);
+
+        Assert.Equal(("factura.copia_cliente_invalido", "SocioNegocioId"), Unico(resultado));
+        Assert.Equal(antes, await FotoCopiaAsync());
+    }
+
+    [Fact]
+    public async Task Copia_FacturarABloqueado_400_EnSuCampo_SinCrearNada()
+    {
+        var socio = await SocioAsync();
+        var facturarA = await SocioAsync(nombre: "Facturar a");
+        var almacen = await _prueba.SembrarAlmacenAsync();
+        var producto = await ProductoAsync();
+        await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Entrada(producto, almacen, 10m, 1m, D1));
+        var borrador = await BorradorAsync(socio, facturarA, almacen);
+        await LineaProductoAsync(borrador.Id, producto, 1m, 10m);
+        var factura = await PostearOkAsync(borrador.Id);
+        await EjecutarSqlAsync("""UPDATE "SociosNegocio" SET "Bloqueado" = @B WHERE "Id" = @Id""", new { B = (short)BloqueoSocioNegocio.Facturacion, Id = facturarA });
+        var antes = await FotoCopiaAsync();
+
+        var resultado = await CopiarAsync(factura.Numero);
+
+        Assert.Equal(("factura.copia_cliente_invalido", "SocioNegocioFacturarAId"), Unico(resultado));
+        Assert.Equal(antes, await FotoCopiaAsync());
+    }
+
+    [Fact]
+    public async Task Copia_AlmacenPropioDeLineaBloqueado_UsaElDeLaCabeceraConAviso()
+    {
+        var socio = await SocioAsync();
+        var cabecera = await _prueba.SembrarAlmacenAsync();
+        var propio = await _prueba.SembrarAlmacenAsync();
+        var producto = await ProductoAsync();
+        await _prueba.RegistrarOkAsync(LibroInventarioPrueba.Entrada(producto, propio, 10m, 1m, D1));
+        var borrador = await BorradorAsync(socio, almacen: cabecera);
+        await LineaProductoAsync(borrador.Id, producto, 1m, 10m, almacen: propio);
+        var factura = await PostearOkAsync(borrador.Id);
+        await EjecutarSqlAsync("""UPDATE "Almacenes" SET "Bloqueado" = true WHERE "Id" = @Id""", new { Id = propio });
+        try
+        {
+            var copia = Ok(await CopiarAsync(factura.Numero));
+
+            var aviso = Assert.Single(copia.Avisos);
+            Assert.Equal("Línea 10000: el almacén de la línea ya no está disponible: usa el almacén del borrador.", aviso);
+            Assert.Equal(cabecera, Ok(await ObtenerBorradorAsync(copia.BorradorId)).AlmacenId);
+            var linea = Assert.Single(await LineasBorradorAsync(copia.BorradorId));
+            Assert.Equal((producto, cabecera), (linea.ProductoId!.Value, linea.AlmacenId!.Value));
+        }
+        finally
+        {
+            await EjecutarSqlAsync("""UPDATE "Almacenes" SET "Bloqueado" = false WHERE "Id" = @Id""", new { Id = propio });
+        }
+    }
+
+    [Fact]
     public async Task Copia_SerieDeBorradoresConfiguradaInactiva_400_SinCrearNada()
     {
         var socio = await SocioAsync();
