@@ -112,3 +112,25 @@ Rama: `feat/no-series` (desde `d54e934`, final de `Fix-Features`). Fecha: 2026-0
 ## Fuera de alcance
 
 Comprobantes fiscales (NCF), series de compras, renumeración de documentos emitidos, reserva de número en el borrador.
+
+## Resultado
+
+Implementado en la rama `feat/no-series` (`d54e934..HEAD`, commits locales) según el plan
+[`2026-09-29-no-series.md`](../plans/2026-09-29-no-series.md), cuya sección "Resultado de feat/no-series" recoge los
+commits por task, la cadena de migraciones, las decisiones de ejecución (NS1–NS22, F1–F20, NS-S1, NS-S11/b/c,
+NSC1–NSC6) y los residuales aceptados.
+
+- **Parte 1 — Series:** tipo de documento, `Activa` y número de aviso en series y líneas; formato con prefijo y
+  ancho; motor por tipo y por serie sin códigos fijos, con la numeración sin huecos y el orden de bloqueos intactos;
+  configuración por tipo con ocho filas semilla. La serie asignada a un tipo no se elimina ni se desactiva (NS5,
+  aceptado en F13); la usada no se elimina pero sí se desactiva.
+- **Parte 2 — API y páginas:** `/series` (lista, ficha con líneas, alta) y `/configuracion/numeracion`, escrituras con
+  `CanAdministrar`, `xmin`, sin solapes entre series del mismo tipo.
+- **Parte 3 — Flujo del borrador:** series de borrador y de registro elegibles con próximo número; el posteo usa la
+  serie de registro, devuelve el aviso de numeración y deja el borrador Posteada en solo lectura enlazado a su
+  documento (doble posteo → 409); copia de factura posteada a borrador nuevo.
+- **Parte 4 — Documento en una sola página:** borradores de factura y de nota con cabecera editable, líneas en la fila
+  y totales; documentos posteados con el mismo diseño en solo lectura.
+- **Verificación de cierre:** suite xUnit 1969/1969, build con 0 avisos, sin cambios de modelo pendientes, E2E
+  15 passed + `@api-caida` skipped; cadena de migraciones desde vacío y desde el volcado de Fix-Features con datos, Down y vuelta, sin
+  errores; sin interactividad añadida ni cambios en `appsettings*.json`.
