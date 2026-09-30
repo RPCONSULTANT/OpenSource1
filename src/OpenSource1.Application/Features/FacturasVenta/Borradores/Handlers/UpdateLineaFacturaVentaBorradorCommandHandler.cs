@@ -41,6 +41,11 @@ public sealed class UpdateLineaFacturaVentaBorradorCommandHandler(
             return Result<LineaFacturaVentaBorradorResponse>.Fallo(FacturaVentaBorradorErrores.LineaNoEncontrada());
         }
 
+        if (estado == EstadoFacturaBorrador.Posteada)
+        {
+            return Result<LineaFacturaVentaBorradorResponse>.Fallo(FacturaVentaBorradorErrores.Posteada("FacturaVentaBorradorId"));
+        }
+
         if (estado == EstadoFacturaBorrador.Liberada)
         {
             return Result<LineaFacturaVentaBorradorResponse>.Fallo(FacturaVentaBorradorErrores.Liberada("FacturaVentaBorradorId"));

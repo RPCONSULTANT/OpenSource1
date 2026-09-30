@@ -1,4 +1,5 @@
 using MediatR;
+using OpenSource1.Application.Data;
 using OpenSource1.Application.Data.UnitOfWork;
 using OpenSource1.Application.Features.FacturasVenta.Borradores.Commands;
 using OpenSource1.Application.Features.FacturasVenta.Borradores.Dtos;
@@ -14,14 +15,17 @@ namespace OpenSource1.Application.Features.FacturasVenta.Borradores.Handlers;
 /// <c>FOR UPDATE</c> del borrador antes de leer, igual que las líneas: si cambia el grupo de IVA de negocio, el IVA congelado de
 /// las líneas se recalcula en la misma transacción (un setup inexistente para alguna línea -&gt; 400
 /// <c>Lineas[n].GrupoIvaProductoId</c> y no se guarda nada). Si cambia algún socio, los nuevos se bloquean <c>FOR SHARE</c>
-/// (después del borrador) antes de validarlos.
+/// (después del borrador) antes de validarlos. Una serie de registro nueva se valida con
+/// <see cref="IGeneradorNumeroDocumento.ValidarSerieAsync"/> (tipo <c>FacturaVenta</c> y activa; error en <c>SerieRegistroId</c>).
+/// Un borrador <c>Posteada</c> es de solo lectura (409).
 /// </summary>
 public sealed class UpdateFacturaVentaBorradorCommandHandler(
     IUnitOfWork unitOfWork,
     IFacturaVentaBorradorBloqueoService bloqueo,
     IDerivadorCuentas derivador,
     IFacturaVentaBorradorReadRepository readRepository,
-    IFacturaVentaBorradorDatos borradorDatos)
+    IFacturaVentaBorradorDatos borradorDatos,
+    IGeneradorNumeroDocumento generadorNumero)
     : IRequestHandler<UpdateFacturaVentaBorradorCommand, Result<FacturaVentaBorradorResponse>>
 {
     public async Task<Result<FacturaVentaBorradorResponse>> Handle(UpdateFacturaVentaBorradorCommand request, CancellationToken cancellationToken)
@@ -32,6 +36,11 @@ public sealed class UpdateFacturaVentaBorradorCommandHandler(
         if (estado is null)
         {
             return Result<FacturaVentaBorradorResponse>.Fallo(FacturaVentaBorradorErrores.BorradorNoEncontrado());
+        }
+
+        if (estado == EstadoFacturaBorrador.Posteada)
+        {
+            return Result<FacturaVentaBorradorResponse>.Fallo(FacturaVentaBorradorErrores.Posteada());
         }
 
         if (estado == EstadoFacturaBorrador.Liberada)
@@ -101,6 +110,19 @@ public sealed class UpdateFacturaVentaBorradorCommandHandler(
             {
                 return Result<FacturaVentaBorradorResponse>.Fallo(recalculo);
             }
+        }
+
+        // Serie de registro: null = conservar; una nueva se valida (no numera: la factura se numera al postear).
+        if (request.SerieRegistroId is { } serieRegistroId && serieRegistroId != entity.SerieRegistroId)
+        {
+            var valida = await generadorNumero.ValidarSerieAsync(serieRegistroId, TipoDocumentoSerie.FacturaVenta, cancellationToken);
+            if (valida.EsFallo)
+            {
+                return Result<FacturaVentaBorradorResponse>.Fallo(
+                    [.. valida.Errores.Select(e => e.Campo == "SerieId" ? e with { Campo = "SerieRegistroId" } : e)]);
+            }
+
+            entity.SerieRegistroId = serieRegistroId;
         }
 
         repository.EstablecerVersionOriginal(entity, request.Xmin);

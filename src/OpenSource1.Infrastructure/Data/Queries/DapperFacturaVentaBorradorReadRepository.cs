@@ -7,7 +7,8 @@ using OpenSource1.Core.Common;
 namespace OpenSource1.Infrastructure.Data.Queries;
 
 /// <summary>
-/// Cabeceras de borradores con los códigos de socios/término/almacén y el conteo de líneas vivas. La consulta se aplana en
+/// Cabeceras de borradores con los códigos de socios/término/almacén/series, la factura de un borrador <c>Posteada</c> y el conteo
+/// de líneas vivas. El listado sin estado devuelve solo los borradores en curso (Abierta y Liberada). La consulta se aplana en
 /// una subconsulta (<c>b</c>) para que los filtros y el orden nombren columnas sin calificar sin ambigüedad (mismo motivo que
 /// <c>DapperProductoReadRepository</c>).
 /// </summary>
@@ -24,6 +25,8 @@ public sealed class DapperFacturaVentaBorradorReadRepository(IDbSession session)
                f."FechaRegistro", f."FechaDocumento", f."FechaVencimiento", f."TerminoPagoId", t."Codigo" AS "TerminoPagoCodigo",
                f."GrupoNegocioId", f."GrupoIvaNegocioId", f."GrupoClienteContableId", f."AlmacenId", a."Codigo" AS "AlmacenCodigo",
                f."Estado", f."Moneda", f."Descripcion",
+               f."SerieBorradorId", sb."Codigo" AS "SerieBorradorCodigo", f."SerieRegistroId", sr."Codigo" AS "SerieRegistroCodigo",
+               f."FacturaVentaNumero",
                (SELECT COUNT(*) FROM "LineasFacturaVentaBorrador" l
                 WHERE l."FacturaVentaBorradorId" = f."Id" AND l."IsDeleted" = false)::int AS "NumeroLineas",
                f.xmin::text::bigint AS "Xmin", f."CreatedAtUtc", f."UpdatedAtUtc", f."CreatedBy", f."UpdatedBy"
@@ -32,6 +35,8 @@ public sealed class DapperFacturaVentaBorradorReadRepository(IDbSession session)
         LEFT JOIN "SociosNegocio" sf ON sf."Id" = f."SocioNegocioFacturarAId"
         LEFT JOIN "TerminosPago" t ON t."Id" = f."TerminoPagoId"
         LEFT JOIN "Almacenes" a ON a."Id" = f."AlmacenId"
+        LEFT JOIN "Series" sb ON sb."Id" = f."SerieBorradorId"
+        LEFT JOIN "Series" sr ON sr."Id" = f."SerieRegistroId"
         WHERE f."IsDeleted" = false
         """;
 
@@ -68,6 +73,11 @@ public sealed class DapperFacturaVentaBorradorReadRepository(IDbSession session)
         {
             filters.Add("\"Estado\" = @Estado");
             parameters.Add("Estado", (short)estado);
+        }
+        else
+        {
+            // Por defecto, los borradores en curso (spec no-series): los Posteada se ven con estado=3.
+            filters.Add("\"Estado\" IN (1, 2)");
         }
 
         var whereSql = filters.Count == 0 ? string.Empty : Environment.NewLine + "WHERE " + string.Join(" AND ", filters);

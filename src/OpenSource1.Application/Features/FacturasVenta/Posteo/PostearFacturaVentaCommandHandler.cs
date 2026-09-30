@@ -18,25 +18,29 @@ namespace OpenSource1.Application.Features.FacturasVenta.Posteo;
 /// <summary>
 /// Motor de posteo de facturas de venta (spec 6.5 con las desviaciones de la Fase 6). Todo ocurre en UNA transacción de
 /// <see cref="IUnitOfWork"/> (EF y Dapper comparten la conexión): un <c>Result</c> fallido o una excepción deshacen TODO, incluido
-/// el número de la serie configurada para el tipo <c>FacturaVenta</c>, que así nunca deja huecos.
+/// el número de la serie de registro del borrador (tipo <c>FacturaVenta</c>), que así nunca deja huecos.
 /// <list type="number">
 /// <item>Bloqueo del borrador (<c>FOR UPDATE</c>) y de sus líneas: dos posteos del mismo borrador se serializan y el segundo lo
-/// ve ya borrado (404). Un borrador Abierta o Liberada se puede postear: liberar es una revisión opcional, no un requisito.</item>
+/// ve ya <c>Posteada</c> (409 <c>factura_borrador.posteada.conflicto</c>). Un borrador Abierta o Liberada se puede postear: liberar
+/// es una revisión opcional, no un requisito.</item>
 /// <item>Bloqueo compartido de los socios vender-a y facturar-a (contra su borrado concurrente) y de los productos (orden único,
 /// antes de revalidarlos: el factor y la unidad base no pueden cambiar hasta el commit).</item>
 /// <item>Revalidación contra el estado ACTUAL (socios, término, productos, almacenes, unidades y factor congelado, cuentas de
 /// líneas CuentaContable, IVA coherente, fecha de registro permitida — Task 8.5) y <b>derivación de TODAS las cuentas</b> (CxC, Ventas, IVA, inventario) antes de
 /// escribir nada: cualquier fallo devuelve todos los errores (con el número de línea) sin haber intentado un solo INSERT.</item>
 /// <item>IVA agrupado (<see cref="CalculadoraIvaFactura"/>).</item>
-/// <item>Número de la serie de facturas (tipo <c>FacturaVenta</c>; si la línea alcanza su número de aviso, el resultado trae la
-/// advertencia), salidas de inventario (Venta), movimiento de cliente (facturar-a), asiento contable y, al
-/// final, el documento posteado con su <c>RegistroContableId</c> (sin UPDATE de la factura). Borrado lógico del borrador.</item>
+/// <item>Número de la serie de registro del borrador (revalidada: tipo <c>FacturaVenta</c> y activa, error en <c>SerieRegistroId</c>
+/// sin escribir nada; si la línea alcanza su número de aviso, el resultado trae la advertencia), salidas de inventario (Venta),
+/// movimiento de cliente (facturar-a), asiento contable y, al final, el documento posteado con su <c>RegistroContableId</c> (sin
+/// UPDATE de la factura). El borrador queda <c>Posteada</c>, enlazado a la factura (<c>FacturaVentaNumero</c>) y de solo lectura,
+/// con sus líneas.</item>
 /// <item>Total 0 (Task 8.4: todas las líneas al 100 % de descuento, un regalo): se postea el documento (líneas y líneas de IVA de
 /// base 0) y sale el inventario, pero NO hay movimiento de cliente ni asiento (<c>RegistroContableId</c> null, número
 /// de asiento sin consumir). Las demás validaciones y derivaciones (CxC, Ventas, IVA, inventario) se exigen igual.</item>
 /// </list>
 /// <para>
-/// Orden GLOBAL de locks: borrador → líneas → socios (compartido) → productos (ordenados) → serie de facturas (<c>FOR SHARE</c>) y su línea →
+/// Orden GLOBAL de locks: borrador → líneas → socios (compartido) → productos (ordenados) → serie de registro (<c>FOR SHARE</c>) y su
+/// línea (<c>FOR UPDATE</c>) →
 /// almacenes (compartidos, dentro de <see cref="IRegistroMovimientosInventario.RegistrarAsync"/>) → cuentas (<c>FOR SHARE</c>,
 /// orden de Id, dentro de <see cref="IRegistroContable"/>) → serie de asientos y su línea.
 /// </para>
@@ -44,7 +48,6 @@ namespace OpenSource1.Application.Features.FacturasVenta.Posteo;
 public sealed class PostearFacturaVentaCommandHandler(
     IUnitOfWork unitOfWork,
     IFacturaVentaBorradorBloqueoService borradorBloqueo,
-    IFacturaVentaBorradorDatos borradorDatos,
     IPosteoFacturaVentaDatos datos,
     IConversionUnidadMedidaService conversion,
     IDerivadorCuentas derivador,
@@ -73,10 +76,16 @@ public sealed class PostearFacturaVentaCommandHandler(
         // Sin CommitAsync, salir del "await using" deshace la transacción y libera los bloqueos.
         await using var transaccion = await unitOfWork.BeginTransactionAsync(cancellationToken);
 
-        // 1. Borrador y líneas (FOR UPDATE).
-        if (await borradorBloqueo.BloquearYObtenerEstadoAsync(request.FacturaVentaBorradorId, cancellationToken) is null)
+        // 1. Borrador y líneas (FOR UPDATE). Un borrador Posteada es de solo lectura (el segundo de dos posteos lo ve así).
+        var estadoBorrador = await borradorBloqueo.BloquearYObtenerEstadoAsync(request.FacturaVentaBorradorId, cancellationToken);
+        if (estadoBorrador is null)
         {
             return Fallo(FacturaVentaBorradorErrores.BorradorNoEncontrado());
+        }
+
+        if (estadoBorrador == EstadoFacturaBorrador.Posteada)
+        {
+            return Fallo(FacturaVentaBorradorErrores.Posteada());
         }
 
         var repositorio = unitOfWork.Repository<FacturaVentaBorrador>();
@@ -134,12 +143,14 @@ public sealed class PostearFacturaVentaCommandHandler(
         // Total 0 (regalo): sin movimiento de cliente ni asiento. Las líneas ya se revalidaron (precio > 0, importe 0 solo al 100 %).
         var conImporte = totales.ImporteTotal != 0m;
 
-        // 5. Número de la factura (FOR UPDATE de la línea de la serie de facturas, sin huecos: se deshace con todo lo demás).
-        var numeroResultado = await generadorNumero.SiguientePorTipoAsync(
-            TipoDocumentoSerie.FacturaVenta, DateOnly.FromDateTime(DateTime.UtcNow), cancellationToken);
+        // 5. Número con la serie de registro del borrador (FOR SHARE de la serie y FOR UPDATE de su línea: mismo punto del orden
+        //    global de bloqueos, sin huecos: se deshace con todo lo demás). Se revalidan tipo y actividad: si la serie se desactivó o
+        //    cambió de tipo desde el alta, no se escribe nada.
+        var numeroResultado = await generadorNumero.SiguienteAsync(
+            borrador.SerieRegistroId, TipoDocumentoSerie.FacturaVenta, DateOnly.FromDateTime(DateTime.UtcNow), cancellationToken);
         if (!numeroResultado.TryObtenerValor(out var generado))
         {
-            return Result<ResultadoPosteoFactura>.Fallo(numeroResultado);
+            return Fallo([.. numeroResultado.Errores.Select(e => e.Campo == "SerieId" ? e with { Campo = "SerieRegistroId" } : e)]);
         }
 
         var numero = generado.Numero;
@@ -211,16 +222,10 @@ public sealed class PostearFacturaVentaCommandHandler(
             })],
             cancellationToken);
 
-        // 10. Borrado lógico del borrador y de TODAS sus líneas (incluidas las de comentario).
-        var borradas = await borradorDatos.BorrarLineasAsync(borrador.Id, creadoPor, cancellationToken);
-        if (borradas != lineas.Count)
-        {
-            // Imposible con las líneas bloqueadas FOR UPDATE: abortar antes que dejar líneas posteadas vivas.
-            throw new InvalidOperationException(
-                $"Se esperaba borrar {lineas.Count} líneas del borrador {borrador.Numero} y se borraron {borradas}.");
-        }
-
-        repositorio.Remove(borrador);
+        // 10. El borrador queda Posteada, enlazado a la factura y de solo lectura (spec no-series): ni él ni sus líneas se borran.
+        borrador.Estado = EstadoFacturaBorrador.Posteada;
+        borrador.FacturaVentaNumero = numero;
+        repositorio.Update(borrador);
         await unitOfWork.CommitAsync(cancellationToken);
 
         return Result<ResultadoPosteoFactura>.Exito(

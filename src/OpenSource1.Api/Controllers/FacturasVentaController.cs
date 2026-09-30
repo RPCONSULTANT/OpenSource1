@@ -71,7 +71,10 @@ public sealed class FacturasVentaController(ISender sender) : ControllerBase
 
     // ----- Borradores (cabecera) -----
 
-    /// <summary>Listado paginado. <c>estado</c> como entero (1 = Abierta, 2 = Liberada); <c>socioId</c> filtra vender-a o facturar-a.</summary>
+    /// <summary>
+    /// Listado paginado. <c>estado</c> como entero (1 = Abierta, 2 = Liberada, 3 = Posteada; sin estado = Abierta y Liberada);
+    /// <c>socioId</c> filtra vender-a o facturar-a.
+    /// </summary>
     [HttpGet("borradores")]
     [Authorize(Policy = ApplicationPolicies.CanConsult)]
     [ProducesResponseType<PagedResult<FacturaVentaBorradorResponse>>(StatusCodes.Status200OK)]
@@ -114,7 +117,7 @@ public sealed class FacturasVentaController(ISender sender) : ControllerBase
         var result = await sender.Send(
             new CreateFacturaVentaBorradorCommand(
                 request.SocioNegocioId, request.SocioNegocioFacturarAId, request.FechaRegistro, request.FechaDocumento,
-                request.FechaVencimiento, request.AlmacenId, request.Descripcion),
+                request.FechaVencimiento, request.AlmacenId, request.Descripcion, request.SerieBorradorId, request.SerieRegistroId),
             cancellationToken);
 
         return result.EsFallo
@@ -133,7 +136,7 @@ public sealed class FacturasVentaController(ISender sender) : ControllerBase
         var result = await sender.Send(
             new UpdateFacturaVentaBorradorCommand(
                 id, request.SocioNegocioId, request.SocioNegocioFacturarAId, request.FechaRegistro, request.FechaDocumento,
-                request.FechaVencimiento, request.AlmacenId, request.Descripcion, request.Xmin),
+                request.FechaVencimiento, request.AlmacenId, request.Descripcion, request.Xmin, request.SerieRegistroId),
             cancellationToken);
 
         return result.EsFallo ? result.ToActionResult() : Ok(result.Valor);
@@ -276,7 +279,9 @@ public sealed record CreateFacturaVentaBorradorRequest(
     DateOnly? FechaDocumento = null,
     DateOnly? FechaVencimiento = null,
     Guid? AlmacenId = null,
-    string? Descripcion = null);
+    string? Descripcion = null,
+    Guid? SerieBorradorId = null,
+    Guid? SerieRegistroId = null);
 
 /// <summary>Todos los campos salvo <c>Xmin</c> con semántica "null = conservar" (<c>descripcion</c> "" = limpiar).</summary>
 public sealed record UpdateFacturaVentaBorradorRequest(
@@ -287,7 +292,8 @@ public sealed record UpdateFacturaVentaBorradorRequest(
     DateOnly? FechaDocumento = null,
     DateOnly? FechaVencimiento = null,
     Guid? AlmacenId = null,
-    string? Descripcion = null);
+    string? Descripcion = null,
+    Guid? SerieRegistroId = null);
 
 public sealed record CreateLineaFacturaVentaBorradorRequest(
     TipoLineaFactura Tipo,

@@ -28,6 +28,11 @@ public sealed class DeleteLineaFacturaVentaBorradorCommandHandler(IUnitOfWork un
             return Result.Fallo(FacturaVentaBorradorErrores.LineaNoEncontrada());
         }
 
+        if (estado == EstadoFacturaBorrador.Posteada)
+        {
+            return Result.Fallo(FacturaVentaBorradorErrores.Posteada("FacturaVentaBorradorId"));
+        }
+
         if (estado == EstadoFacturaBorrador.Liberada)
         {
             return Result.Fallo(FacturaVentaBorradorErrores.Liberada("FacturaVentaBorradorId"));

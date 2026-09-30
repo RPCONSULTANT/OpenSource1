@@ -14,7 +14,7 @@ namespace OpenSource1.SmokeTests.Api;
 
 /// <summary>
 /// <c>POST api/facturas-venta/borradores/{id}/postear</c> (Task 6.4) y la guarda de borrado de socios contra Postgres real:
-/// 200 con número, total y registro contable; permisos (CanModify); 400 con el campo de la línea; 404 al repetir; 409 al borrar un
+/// 200 con número, total y registro contable; permisos (CanModify); 400 con el campo de la línea; 409 al repetir (el borrador queda Posteada); 409 al borrar un
 /// socio con borradores o facturas. REQUIERE DOCKER. Los casos del motor están en <c>PostearFacturaVentaTests</c>.
 /// </summary>
 [Collection(PostgresCollection.Name)]
@@ -33,7 +33,7 @@ public sealed class FacturasVentaPosteoApiTests : IClassFixture<PostgresTestFixt
     }
 
     [Fact]
-    public async Task Postear_CanModify_200ConNumeroTotalYRegistro_LaFacturaSeConsulta_Y404AlRepetir()
+    public async Task Postear_CanModify_200ConNumeroTotalYRegistro_LaFacturaSeConsulta_Y409AlRepetir()
     {
         var client = Admin();
         var socio = await CrearSocioAsync(client, "Cliente API");
@@ -66,9 +66,12 @@ public sealed class FacturasVentaPosteoApiTests : IClassFixture<PostgresTestFixt
         var saldo = JsonDocument.Parse(await Admin().GetStringAsync($"/api/clientes/{socio}/saldo")).RootElement;
         Assert.Equal(118m, saldo.GetProperty("saldo").GetDecimal());
 
-        // El borrador ya no existe: repetir el posteo o consultarlo -> 404.
-        await AssertErrorAsync(await Admin().PostAsync($"{Base}/borradores/{borrador.Id}/postear", null), HttpStatusCode.NotFound, "Id");
-        Assert.Equal(HttpStatusCode.NotFound, (await Admin().GetAsync($"{Base}/borradores/{borrador.Id}")).StatusCode);
+        // El borrador queda Posteada (spec no-series): repetir el posteo -> 409 en Id; consultarlo -> 200 enlazado a la factura.
+        await AssertErrorAsync(
+            await Admin().PostAsync($"{Base}/borradores/{borrador.Id}/postear", null), HttpStatusCode.Conflict, "Id", "ya se posteó");
+        var posteado = (await Admin().GetFromJsonAsync<FacturaVentaBorradorResponse>($"{Base}/borradores/{borrador.Id}"))!;
+        Assert.Equal((EstadoFacturaBorrador.Posteada, numero), (posteado.Estado, posteado.FacturaVentaNumero));
+        Assert.Equal(borrador.Id, detalle.Cabecera.FacturaVentaBorradorId);
     }
 
     [Fact]

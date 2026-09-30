@@ -26,6 +26,11 @@ public sealed class DeleteFacturaVentaBorradorCommandHandler(
             return Result.Fallo(FacturaVentaBorradorErrores.BorradorNoEncontrado());
         }
 
+        if (estado == EstadoFacturaBorrador.Posteada)
+        {
+            return Result.Fallo(FacturaVentaBorradorErrores.Posteada());
+        }
+
         if (estado == EstadoFacturaBorrador.Liberada)
         {
             return Result.Fallo(FacturaVentaBorradorErrores.Liberada());

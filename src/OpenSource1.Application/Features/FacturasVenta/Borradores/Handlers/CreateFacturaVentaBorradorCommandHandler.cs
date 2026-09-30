@@ -11,8 +11,10 @@ namespace OpenSource1.Application.Features.FacturasVenta.Borradores.Handlers;
 
 /// <summary>
 /// Alta de un borrador: snapshot del facturar-a y grupos congelados (<see cref="FacturaVentaBorradorReglas.TomarSnapshotAsync"/>),
-/// vencimiento por el término de pago, almacén predeterminado, moneda DOP y número de la serie configurada para el tipo <c>BorradorFacturaVenta</c>, con la serie de registro configurada para
-/// <c>FacturaVenta</c> (<see cref="NumeracionBorrador.NumerarBorradorAsync"/>, dentro de la transacción, que <see cref="IGeneradorNumeroDocumento"/> exige). Los socios se bloquean <c>FOR SHARE</c> dentro de la transacción
+/// vencimiento por el término de pago, almacén predeterminado, moneda DOP y número de la serie de borradores elegida (o la configurada
+/// para <c>BorradorFacturaVenta</c>), con la serie de registro elegida (o la configurada para <c>FacturaVenta</c>), validada sin numerar
+/// (<see cref="NumeracionBorrador.NumerarBorradorAsync"/>, dentro de la transacción, que <see cref="IGeneradorNumeroDocumento"/> exige;
+/// errores de serie en <c>SerieBorradorId</c>/<c>SerieRegistroId</c>, sin consumir número). Los socios se bloquean <c>FOR SHARE</c> dentro de la transacción
 /// ANTES de validarlos: un borrado concurrente del socio no puede dejar un borrador de un socio borrado.
 /// </summary>
 public sealed class CreateFacturaVentaBorradorCommandHandler(
@@ -59,9 +61,11 @@ public sealed class CreateFacturaVentaBorradorCommandHandler(
             return Result<FacturaVentaBorradorResponse>.Fallo(almacen);
         }
 
-        // Series del borrador (spec no-series): la de borradores da el número; la de registro numerará la factura al postear.
+        // Series del borrador (spec no-series): las elegidas o, si no vienen, las configuradas. La de borradores da el número; la de
+        // registro solo se valida (numerará la factura al postear).
         var series = await generadorNumero.NumerarBorradorAsync(
-            TipoDocumentoSerie.BorradorFacturaVenta, TipoDocumentoSerie.FacturaVenta, null, null, hoy, cancellationToken);
+            TipoDocumentoSerie.BorradorFacturaVenta, TipoDocumentoSerie.FacturaVenta, request.SerieBorradorId, request.SerieRegistroId, hoy,
+            cancellationToken);
         if (!series.TryObtenerValor(out var numeradas))
         {
             return Result<FacturaVentaBorradorResponse>.Fallo(series);
