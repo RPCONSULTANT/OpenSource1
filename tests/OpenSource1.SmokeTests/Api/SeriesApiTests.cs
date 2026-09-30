@@ -121,6 +121,36 @@ public sealed class SeriesApiTests(PostgresTestFixture fixture) : IClassFixture<
         Assert.Equal($"{p}00000001", otra.NumeroInicial);
     }
 
+    /// <summary>
+    /// Final review 2: datos heredados solapados (por SQL) no impiden bloquear o editar una línea sin cambiar su rango; el control de
+    /// solapamiento solo corre si cambia el número inicial o el final.
+    /// </summary>
+    [Fact]
+    public async Task LineaHeredadaSolapada_SinCambiarElRango_SeBloquea_YCambiarElRangoSigueValidando()
+    {
+        var admin = Rol("Administrador");
+        var p = Prefijo();
+        var serieA = await CrearSerieAsync(admin, TipoDocumentoSerie.DiarioInventario);
+        var serieB = await CrearSerieAsync(admin, TipoDocumentoSerie.DiarioInventario);
+        await CrearLineaAsync(admin, serieA.Id, new { numeroInicial = $"{p}0001", numeroFinal = $"{p}0100", fechaInicial = Desde });
+        var lineaB = await CrearLineaAsync(admin, serieB.Id, new { numeroInicial = $"{p}0200", numeroFinal = $"{p}0300", fechaInicial = Desde });
+        await using (var conexion = new NpgsqlConnection(fixture.AppConnectionString))
+        {
+            await conexion.ExecuteAsync("""UPDATE "LineasSerie" SET "NumeroInicial" = @I WHERE "Id" = @Id""", new { I = $"{p}0050", lineaB.Id });
+        }
+
+        var xmin = Assert.Single((await admin.GetFromJsonAsync<SerieDetalleResponse>($"{Ruta}/{serieB.Id}"))!.Lineas).Xmin;
+        var bloquea = await admin.PutAsJsonAsync($"{Ruta}/{serieB.Id}/lineas/{lineaB.Id}",
+            new { numeroInicial = $"{p}0050", numeroFinal = $"{p}0300", fechaInicial = Desde, xmin, bloqueada = true });
+        Assert.True(bloquea.StatusCode == HttpStatusCode.OK, await bloquea.Content.ReadAsStringAsync());
+        var bloqueada = Assert.Single((await admin.GetFromJsonAsync<SerieDetalleResponse>($"{Ruta}/{serieB.Id}"))!.Lineas);
+        Assert.True(bloqueada.Bloqueada);
+
+        await AssertErrorAsync(await admin.PutAsJsonAsync($"{Ruta}/{serieB.Id}/lineas/{lineaB.Id}",
+            new { numeroInicial = $"{p}0050", numeroFinal = $"{p}0400", fechaInicial = Desde, xmin = bloqueada.Xmin, bloqueada = true }),
+            HttpStatusCode.BadRequest, "NumeroInicial");
+    }
+
     [Fact]
     public async Task CambiarTipo_ConLineasQueSeSolapan_400()
     {

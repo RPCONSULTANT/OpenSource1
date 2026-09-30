@@ -116,11 +116,18 @@ public sealed class UpdateLineaSerieCommandHandler(IUnitOfWork unitOfWork, ISeri
             return Result<LineaSerieResponse>.Fallo(duplicada);
         }
 
-        await lectura.BloquearTipoAsync(tipo!.Value, cancellationToken);
-        var delTipo = await lectura.LineasDelTipoAsync(tipo.Value, cancellationToken);
-        if (SerieReglas.Solapada(request.NumeroInicial, request.NumeroFinal, delTipo, request.Id) is { } solapada)
+        // El solapamiento solo se comprueba si cambia el rango: datos heredados ya solapados no impiden bloquear la línea ni cambiar
+        // su aviso, fecha o incremento.
+        var rangoCambia = !string.Equals(request.NumeroInicial, entity.NumeroInicial, StringComparison.Ordinal)
+            || !string.Equals(request.NumeroFinal, entity.NumeroFinal, StringComparison.Ordinal);
+        if (rangoCambia)
         {
-            return Result<LineaSerieResponse>.Fallo(solapada);
+            await lectura.BloquearTipoAsync(tipo!.Value, cancellationToken);
+            var delTipo = await lectura.LineasDelTipoAsync(tipo.Value, cancellationToken);
+            if (SerieReglas.Solapada(request.NumeroInicial, request.NumeroFinal, delTipo, request.Id) is { } solapada)
+            {
+                return Result<LineaSerieResponse>.Fallo(solapada);
+            }
         }
 
         repositorio.EstablecerVersionOriginal(entity, request.Xmin);
