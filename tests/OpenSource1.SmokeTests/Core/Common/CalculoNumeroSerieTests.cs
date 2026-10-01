@@ -20,14 +20,14 @@ public sealed class CalculoNumeroSerieTests
         Assert.False(CalculoNumeroSerie.EsTextoAviso("Su cuenta fue bloqueada: llame al 555-0100."));
         Assert.False(CalculoNumeroSerie.EsTextoAviso(generado + " Llame al 555-0100."));
         Assert.False(CalculoNumeroSerie.EsTextoAviso(
-            "La serie FV alcanzó su número de aviso (llame al 555-0100 ya): quedan 3 número(s) en la línea."));
+            "La serie FV alcanzó su número de aviso (llame al 555 0100): quedan 3 número(s) en la línea."));
         Assert.False(CalculoNumeroSerie.EsTextoAviso(
             "La serie PAGUE EN EFECTIVO alcanzó su número de aviso (FV-000091): quedan 3 número(s) en la línea."));
     }
 
     /// <summary>
-    /// Minor de la re-review: anclas estrictas (<c>\z</c>, <c>[0-9]</c>) y los mismos caracteres de prefijo que
-    /// <see cref="FormatoNumeroSerie.TryParse"/> y de los códigos heredados, sin admitir texto libre.
+    /// Minor de la re-review: anclas estrictas (<c>\z</c>, <c>[0-9]</c>), códigos heredados con punto y prefijos
+    /// <c>[A-Za-z0-9._/-]</c>; nunca espacios ni paréntesis (texto libre de un enlace manipulado).
     /// </summary>
     [Fact]
     public void EsTextoAviso_CasosLimite()
@@ -37,7 +37,9 @@ public sealed class CalculoNumeroSerieTests
         var codigoConPunto = Ok(CalculoNumeroSerie.Siguiente("F.V", "FV-000001", "FV-000100", "FV-000090", 1, "FV-000091")).Aviso!;
         var prefijoConPunto = Ok(CalculoNumeroSerie.Siguiente("FV", "F.V/000001", "F.V/000100", "F.V/000090", 1, "F.V/000091")).Aviso!;
 
-        Assert.True(CalculoNumeroSerie.EsTextoAviso(prefijoConEspacio));
+        // Ruling del controlador: sin espacios ni paréntesis aunque FormatoNumeroSerie los admita en el prefijo (no se muestra).
+        Assert.False(CalculoNumeroSerie.EsTextoAviso(prefijoConEspacio));
+        Assert.False(CalculoNumeroSerie.EsTextoAviso(generado.Replace("FV-000091", "FV(X)000091", StringComparison.Ordinal)));
         Assert.True(CalculoNumeroSerie.EsTextoAviso(codigoConPunto));
         Assert.True(CalculoNumeroSerie.EsTextoAviso(prefijoConPunto));
 
