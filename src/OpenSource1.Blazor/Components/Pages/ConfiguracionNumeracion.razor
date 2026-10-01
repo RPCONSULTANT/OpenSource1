@@ -104,10 +104,12 @@
 
         if (puedeAdministrar)
         {
-            foreach (var tipo in filas.Select(f => f.TipoDocumento).Distinct())
+            // En paralelo; ActivasAsync nunca lanza: si falla un tipo, solo su selector conserva la serie vigente rotulada "(actual)" (F7).
+            var tipos = filas.Select(f => f.TipoDocumento).Distinct().ToList();
+            var cargas = await Task.WhenAll(tipos.Select(tipo => SeriesOpciones.ActivasAsync(SerieApiClient, tipo, Logger)));
+            for (var i = 0; i < tipos.Count; i++)
             {
-                // Nunca lanza: si falla, el selector conserva la serie vigente rotulada "(actual)" (F7).
-                seriesPorTipo[tipo] = await SeriesOpciones.ActivasAsync(SerieApiClient, tipo, Logger);
+                seriesPorTipo[tipos[i]] = cargas[i];
             }
         }
 
@@ -155,6 +157,13 @@
         catch (Exception ex)
         {
             Logger.LogWarning(ex, "Could not save configuración de numeración.");
+            // Se conserva la elección de TODAS las filas enviadas (la que lanzó y las que no llegaron a procesarse); las guardadas
+            // se informan en el resumen y, tras recargar, su elección coincide con la vigente.
+            foreach (var fila in Input!.Filas.Where(f => f.SerieId is not null))
+            {
+                eleccionesFallidas[(TipoDocumentoSerie)fila.Tipo] = fila.SerieId;
+            }
+
             (messageType, message, errores) = ("danger", Resumen(guardados, "No fue posible guardar la configuración."), fallos);
         }
 
