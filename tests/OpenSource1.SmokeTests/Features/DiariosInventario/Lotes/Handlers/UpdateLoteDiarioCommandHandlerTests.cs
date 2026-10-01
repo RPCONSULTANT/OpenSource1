@@ -2,6 +2,7 @@ using Moq;
 using OpenSource1.Application.Data.UnitOfWork;
 using OpenSource1.Application.Features.DiariosInventario.Lotes.Commands;
 using OpenSource1.Application.Features.DiariosInventario.Lotes.Handlers;
+using OpenSource1.Application.Features.Series;
 using OpenSource1.Core.Entities;
 using OpenSource1.Core.Entities.Inventario;
 using OpenSource1.Core.Enums;
@@ -16,7 +17,7 @@ public class UpdateLoteDiarioCommandHandlerTests
     {
         var unitOfWork = ArmarUnitOfWork(out _, out _, out _);
 
-        var handler = new UpdateLoteDiarioCommandHandler(unitOfWork.Object);
+        var handler = new UpdateLoteDiarioCommandHandler(unitOfWork.Object, LecturaSeries(unitOfWork));
         var result = await handler.Handle(
             new UpdateLoteDiarioCommand(Guid.NewGuid(), "COD", "Nombre", null, null, 1), default);
 
@@ -31,7 +32,7 @@ public class UpdateLoteDiarioCommandHandlerTests
         var serieOriginal = Guid.NewGuid();
         var entity = lotes.Agregar(new LoteDiario { PlantillaDiarioId = Guid.NewGuid(), Codigo = "OLD", Nombre = "Viejo", SerieId = serieOriginal });
 
-        var handler = new UpdateLoteDiarioCommandHandler(unitOfWork.Object);
+        var handler = new UpdateLoteDiarioCommandHandler(unitOfWork.Object, LecturaSeries(unitOfWork));
         var result = await handler.Handle(
             new UpdateLoteDiarioCommand(entity.Id, " new ", " Nuevo ", null, null, 1), default);
 
@@ -47,7 +48,7 @@ public class UpdateLoteDiarioCommandHandlerTests
         var unitOfWork = ArmarUnitOfWork(out var lotes, out _, out _);
         var entity = lotes.Agregar(new LoteDiario { PlantillaDiarioId = Guid.NewGuid(), Codigo = "OLD", Nombre = "Viejo", SerieId = Guid.NewGuid() });
 
-        var handler = new UpdateLoteDiarioCommandHandler(unitOfWork.Object);
+        var handler = new UpdateLoteDiarioCommandHandler(unitOfWork.Object, LecturaSeries(unitOfWork));
         var result = await handler.Handle(
             new UpdateLoteDiarioCommand(entity.Id, "OLD", "Viejo", Guid.Empty, null, 1), default);
 
@@ -61,7 +62,7 @@ public class UpdateLoteDiarioCommandHandlerTests
         var unitOfWork = ArmarUnitOfWork(out var lotes, out _, out _);
         var entity = lotes.Agregar(new LoteDiario { PlantillaDiarioId = Guid.NewGuid(), Codigo = "OLD", Nombre = "Viejo" });
 
-        var handler = new UpdateLoteDiarioCommandHandler(unitOfWork.Object);
+        var handler = new UpdateLoteDiarioCommandHandler(unitOfWork.Object, LecturaSeries(unitOfWork));
         var result = await handler.Handle(
             new UpdateLoteDiarioCommand(entity.Id, "OLD", "Viejo", Guid.NewGuid(), null, 1), default);
 
@@ -77,7 +78,7 @@ public class UpdateLoteDiarioCommandHandlerTests
         var entity = lotes.Agregar(new LoteDiario { PlantillaDiarioId = Guid.NewGuid(), Codigo = "OLD", Nombre = "Viejo" });
         var socios = series.Agregar(new Serie { Codigo = "SOCIOS", Descripcion = "Códigos de socios de negocio" });
 
-        var handler = new UpdateLoteDiarioCommandHandler(unitOfWork.Object);
+        var handler = new UpdateLoteDiarioCommandHandler(unitOfWork.Object, LecturaSeries(unitOfWork));
         var result = await handler.Handle(
             new UpdateLoteDiarioCommand(entity.Id, "OLD", "Viejo", socios.Id, null, 1), default);
 
@@ -93,7 +94,7 @@ public class UpdateLoteDiarioCommandHandlerTests
         var unitOfWork = ArmarUnitOfWork(out var lotes, out _, out _);
         var entity = lotes.Agregar(new LoteDiario { PlantillaDiarioId = Guid.NewGuid(), Codigo = "OLD", Nombre = "Viejo" });
 
-        var handler = new UpdateLoteDiarioCommandHandler(unitOfWork.Object);
+        var handler = new UpdateLoteDiarioCommandHandler(unitOfWork.Object, LecturaSeries(unitOfWork));
         await handler.Handle(new UpdateLoteDiarioCommand(entity.Id, "OLD", "Viejo", null, null, 42), default);
 
         lotes.Mock.Verify(r => r.EstablecerVersionOriginal(entity, 42), Times.Once);
@@ -109,7 +110,7 @@ public class UpdateLoteDiarioCommandHandlerTests
         {
             Codigo = "DIARIO-VIEJA", Descripcion = "Vieja", TipoDocumento = TipoDocumentoSerie.DiarioInventario, Activa = false,
         });
-        var handler = new UpdateLoteDiarioCommandHandler(unitOfWork.Object);
+        var handler = new UpdateLoteDiarioCommandHandler(unitOfWork.Object, LecturaSeries(unitOfWork));
 
         var aceptada = await handler.Handle(new UpdateLoteDiarioCommand(entity.Id, "OLD", "Viejo", propia.Id, null, 1), default);
         var rechazada = await handler.Handle(new UpdateLoteDiarioCommand(entity.Id, "OLD", "Viejo", inactiva.Id, null, 1), default);
@@ -133,5 +134,17 @@ public class UpdateLoteDiarioCommandHandlerTests
         unitOfWork.Setup(u => u.Repository<LineaDiario>()).Returns(lineas.Repo);
         unitOfWork.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
         return unitOfWork;
+    }
+
+    /// <summary>La lectura <c>FOR SHARE</c> de la serie, simulada sobre el mismo repositorio en memoria de series.</summary>
+    private static ISerieReadRepository LecturaSeries(Mock<IUnitOfWork> unitOfWork)
+    {
+        var lectura = new Mock<ISerieReadRepository>();
+        lectura.Setup(r => r.LeerSerieCompartidaAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .Returns(async (Guid id, CancellationToken ct) =>
+                await unitOfWork.Object.Repository<Serie>().FirstOrDefaultAsync(x => x.Id == id, cancellationToken: ct) is { } s
+                    ? new EstadoSerie(s.TipoDocumento, s.Activa)
+                    : null);
+        return lectura.Object;
     }
 }

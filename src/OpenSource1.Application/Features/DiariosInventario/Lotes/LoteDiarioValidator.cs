@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
+using OpenSource1.Application.Features.Series;
 using OpenSource1.Core.Common;
-using OpenSource1.Core.Entities;
 using OpenSource1.Core.Enums;
 
 namespace OpenSource1.Application.Features.DiariosInventario.Lotes;
@@ -46,8 +46,11 @@ internal static partial class LoteDiarioValidator
     /// La serie de un lote debe numerar diarios de inventario (<see cref="TipoDocumentoSerie.DiarioInventario"/>) y estar activa
     /// (spec no-series: sustituye a la regla del prefijo <c>DIARIO-</c>).
     /// </summary>
-    public static bool EsSerieDeDiarioValida(Serie serie) =>
-        serie.TipoDocumento == TipoDocumentoSerie.DiarioInventario && serie.Activa;
+    public static bool EsSerieDeDiarioValida(EstadoSerie? serie) =>
+        serie is { Tipo: TipoDocumentoSerie.DiarioInventario, Activa: true };
+
+    public static Error SerieInvalida() => new(
+        "diario.serie_invalida", "La serie indicada no existe, no es de diarios de inventario o está inactiva.", "SerieId");
 
     [GeneratedRegex("^[A-Z0-9_-]{1,20}$")]
     private static partial Regex CodigoValido();

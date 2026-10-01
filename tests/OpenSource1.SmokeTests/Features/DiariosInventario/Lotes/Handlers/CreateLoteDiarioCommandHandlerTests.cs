@@ -2,6 +2,7 @@ using Moq;
 using OpenSource1.Application.Data.UnitOfWork;
 using OpenSource1.Application.Features.DiariosInventario.Lotes.Commands;
 using OpenSource1.Application.Features.DiariosInventario.Lotes.Handlers;
+using OpenSource1.Application.Features.Series;
 using OpenSource1.Core.Entities;
 using OpenSource1.Core.Entities.Inventario;
 using OpenSource1.Core.Enums;
@@ -16,7 +17,7 @@ public class CreateLoteDiarioCommandHandlerTests
     {
         var unitOfWork = ArmarUnitOfWork(out var lotes, out _, out _);
 
-        var handler = new CreateLoteDiarioCommandHandler(unitOfWork.Object);
+        var handler = new CreateLoteDiarioCommandHandler(unitOfWork.Object, LecturaSeries(unitOfWork));
         var result = await handler.Handle(
             new CreateLoteDiarioCommand(Guid.NewGuid(), "LOTE1", "Lote de prueba", null, false), default);
 
@@ -31,7 +32,7 @@ public class CreateLoteDiarioCommandHandlerTests
         var unitOfWork = ArmarUnitOfWork(out var lotes, out var plantillas, out _);
         var plantilla = plantillas.Agregar(new PlantillaDiario { Codigo = "ARTICULO", Nombre = "Artículo", Tipo = TipoPlantillaDiario.Articulo });
 
-        var handler = new CreateLoteDiarioCommandHandler(unitOfWork.Object);
+        var handler = new CreateLoteDiarioCommandHandler(unitOfWork.Object, LecturaSeries(unitOfWork));
         var result = await handler.Handle(
             new CreateLoteDiarioCommand(plantilla.Id, "LOTE1", "Lote de prueba", Guid.NewGuid(), false), default);
 
@@ -49,7 +50,7 @@ public class CreateLoteDiarioCommandHandlerTests
         var plantilla = plantillas.Agregar(new PlantillaDiario { Codigo = "ARTICULO", Nombre = "Artículo", Tipo = TipoPlantillaDiario.Articulo });
         var socios = series.Agregar(new Serie { Codigo = "SOCIOS", Descripcion = "Códigos de socios de negocio" });
 
-        var handler = new CreateLoteDiarioCommandHandler(unitOfWork.Object);
+        var handler = new CreateLoteDiarioCommandHandler(unitOfWork.Object, LecturaSeries(unitOfWork));
         var result = await handler.Handle(
             new CreateLoteDiarioCommand(plantilla.Id, "LOTE1", "Lote de prueba", socios.Id, false), default);
 
@@ -64,7 +65,7 @@ public class CreateLoteDiarioCommandHandlerTests
     {
         var unitOfWork = ArmarUnitOfWork(out var lotes, out _, out _);
 
-        var handler = new CreateLoteDiarioCommandHandler(unitOfWork.Object);
+        var handler = new CreateLoteDiarioCommandHandler(unitOfWork.Object, LecturaSeries(unitOfWork));
         var result = await handler.Handle(
             new CreateLoteDiarioCommand(Guid.NewGuid(), "lote inválido!", "Lote", null, false), default);
 
@@ -79,7 +80,7 @@ public class CreateLoteDiarioCommandHandlerTests
         var unitOfWork = ArmarUnitOfWork(out var lotes, out var plantillas, out _);
         var plantilla = plantillas.Agregar(new PlantillaDiario { Codigo = "ARTICULO", Nombre = "Artículo", Tipo = TipoPlantillaDiario.Articulo });
 
-        var handler = new CreateLoteDiarioCommandHandler(unitOfWork.Object);
+        var handler = new CreateLoteDiarioCommandHandler(unitOfWork.Object, LecturaSeries(unitOfWork));
         var result = await handler.Handle(
             new CreateLoteDiarioCommand(plantilla.Id, " lote1 ", " Lote de prueba ", null, false), default);
 
@@ -100,7 +101,7 @@ public class CreateLoteDiarioCommandHandlerTests
         {
             Codigo = "DIARIO-VIEJA", Descripcion = "Vieja", TipoDocumento = TipoDocumentoSerie.DiarioInventario, Activa = false,
         });
-        var handler = new CreateLoteDiarioCommandHandler(unitOfWork.Object);
+        var handler = new CreateLoteDiarioCommandHandler(unitOfWork.Object, LecturaSeries(unitOfWork));
 
         var aceptada = await handler.Handle(new CreateLoteDiarioCommand(plantilla.Id, "LOTE1", "Lote", propia.Id, false), default);
         var rechazada = await handler.Handle(new CreateLoteDiarioCommand(plantilla.Id, "LOTE2", "Lote", inactiva.Id, false), default);
@@ -122,5 +123,17 @@ public class CreateLoteDiarioCommandHandlerTests
         unitOfWork.Setup(u => u.Repository<Serie>()).Returns(series.Repo);
         unitOfWork.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
         return unitOfWork;
+    }
+
+    /// <summary>La lectura <c>FOR SHARE</c> de la serie, simulada sobre el mismo repositorio en memoria de series.</summary>
+    private static ISerieReadRepository LecturaSeries(Mock<IUnitOfWork> unitOfWork)
+    {
+        var lectura = new Mock<ISerieReadRepository>();
+        lectura.Setup(r => r.LeerSerieCompartidaAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .Returns(async (Guid id, CancellationToken ct) =>
+                await unitOfWork.Object.Repository<Serie>().FirstOrDefaultAsync(x => x.Id == id, cancellationToken: ct) is { } s
+                    ? new EstadoSerie(s.TipoDocumento, s.Activa)
+                    : null);
+        return lectura.Object;
     }
 }

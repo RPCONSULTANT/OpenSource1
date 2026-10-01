@@ -173,6 +173,20 @@ public sealed class DapperSerieReadRepository(IDbSession session) : ISerieReadRe
         return tipo is { } valor ? (TipoDocumentoSerie)valor : null;
     }
 
+    public async Task<EstadoSerie?> LeerSerieCompartidaAsync(Guid serieId, CancellationToken cancellationToken = default)
+    {
+        await session.EnsureOpenAsync(cancellationToken);
+        if (session.CurrentTransaction is null)
+        {
+            throw new InvalidOperationException("Leer una serie con bloqueo compartido requiere una transacción activa.");
+        }
+
+        var fila = await session.Connection.QuerySingleOrDefaultAsync<(short Tipo, bool Activa)?>(new CommandDefinition(
+            """SELECT "TipoDocumento" AS "Tipo", "Activa" FROM "Series" WHERE "Id" = @Id AND "IsDeleted" = false FOR SHARE""",
+            new { Id = serieId }, session.CurrentTransaction, cancellationToken: cancellationToken));
+        return fila is { } f ? new EstadoSerie((TipoDocumentoSerie)f.Tipo, f.Activa) : null;
+    }
+
     public async Task BloquearTipoAsync(TipoDocumentoSerie tipo, CancellationToken cancellationToken = default)
     {
         await session.EnsureOpenAsync(cancellationToken);
