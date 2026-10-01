@@ -164,13 +164,19 @@ else
     private bool MuestraDialogoBorrar => puedeAdministrar && serieAEliminar is not null;
     private IReadOnlyList<Miga> Migas => [new("Configuración", "/modulos/configuracion"), new("Series de numeración")];
 
-    /// <summary>NS5: la serie usada o predeterminada no se elimina (la API responde 409); Eliminar sale deshabilitado con el motivo.</summary>
+    /// <summary>
+    /// NS5/NS6: la serie usada, predeterminada o usada por plantillas/lotes de diario no se elimina (la API responde 409); Eliminar
+    /// sale deshabilitado con el motivo.
+    /// </summary>
     private string? MotivoNoEliminable => Seleccionada switch
     {
         { Asignada: true } => "La serie es la predeterminada de su tipo: asigne otra en la configuración de numeración.",
         { Usada: true } => "La serie ya emitió números: no se puede eliminar; desactívela.",
+        { Referenciada: true } => MotivoReferenciada,
         _ => null,
     };
+
+    public const string MotivoReferenciada = "La serie la usan plantillas o lotes de diario de inventario: no se puede eliminar.";
 
     protected override async Task OnInitializedAsync()
     {

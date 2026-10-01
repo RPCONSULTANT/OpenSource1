@@ -276,6 +276,32 @@ public sealed class SeriesPaginasTests
         Assert.Equal($"/series/{IdSerie}?ok=modificada", FormulariosSsr.Destino(respuesta));
     }
 
+    /// <summary>NS6 visible: una serie que usan plantillas o lotes de diario no se elimina (motivo en la lista) ni cambia de tipo (ficha).</summary>
+    [Fact]
+    public async Task SerieReferenciada_ListaSinEliminar_YFichaConElTipoBloqueadoYSuMotivo()
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+        var api = app.Simular<ISerieApiClient>();
+        var referenciada = new SerieResponse
+        {
+            Id = IdOtra, Codigo = "DIA", Descripcion = "Diarios", TipoDocumento = TipoDocumentoSerie.DiarioInventario, Activa = true,
+            Referenciada = true, Xmin = 5,
+        };
+        api.Setup(c => c.ListAsync(It.IsAny<SerieFiltro?>(), It.IsAny<PageRequest?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PagedResult<SerieResponse>([referenciada], 1, 50, 1));
+        api.Setup(c => c.GetAsync(IdOtra, It.IsAny<CancellationToken>())).ReturnsAsync(new SerieDetalleResponse(referenciada, []));
+
+        var lista = HtmlSsr.Decodificar(await HtmlSsr.HtmlAsync(app.Cliente(), $"/series?sel={IdOtra}"));
+        var ficha = HtmlSsr.Decodificar(await HtmlSsr.HtmlAsync(app.Cliente(), $"/series/{IdOtra}"));
+
+        Assert.Matches("<span data-testid=\"accion-eliminar\" aria-disabled=\"true\" title=\"La serie la usan plantillas o lotes de diario", lista);
+        Assert.DoesNotContain($"deleteId={IdOtra}", lista);
+        Assert.Matches("<select[^>]*name=\"UpdateInput.TipoDocumento\"[^>]*disabled", ficha);
+        Assert.Contains("<input type=\"hidden\" name=\"UpdateInput.TipoDocumento\" value=\"8\"", ficha);
+        Assert.Contains("La serie la usan plantillas o lotes de diario de inventario: su tipo no cambia.", ficha);
+        Assert.Matches("<input type=\"checkbox\" id=\"UpdateInput_Activa\" name=\"UpdateInput.Activa\"", ficha);
+    }
+
     /// <summary>
     /// Minor NS5: el "Activa" bloqueado de una serie asignada viaja oculto con su valor REAL. Una serie asignada e inactiva (datos
     /// heredados o creada por SQL) no se reactiva al guardar la cabecera.

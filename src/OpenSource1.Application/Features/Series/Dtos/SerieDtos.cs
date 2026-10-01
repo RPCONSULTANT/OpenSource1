@@ -18,6 +18,8 @@ public sealed class SerieResponse
     public bool EnAviso { get; init; }
     public bool Usada { get; init; }
     public bool Asignada { get; init; }
+    /// <summary>La usan plantillas o lotes de diario de inventario (misma regla que <c>UsoSerie.Referenciada</c>): ni cambia de tipo ni se elimina.</summary>
+    public bool Referenciada { get; init; }
     public long Xmin { get; init; }
 }
 

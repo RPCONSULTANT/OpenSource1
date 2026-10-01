@@ -41,7 +41,7 @@ else if (detalle.Serie.Aviso is not null)
 @* Cabecera: editable con CanAdministrar; si no, la tarjeta de solo lectura (el EditForm vacío de update-serie lo pone el componente). *@
 <DocumentoCabeceraEditable Model="UpdateInput" FormName="update-serie" OnValidSubmit="UpdateAsync" Mostrar="@MuestraFormularios">
     <input type="hidden" name="UpdateInput.Xmin" value="@UpdateInput!.Xmin" />
-    <SerieCabeceraCampos Model="UpdateInput" Prefix="UpdateInput" TipoBloqueado="@(detalle?.Serie is { } bloqueo && (bloqueo.Usada || bloqueo.Asignada))"
+    <SerieCabeceraCampos Model="UpdateInput" Prefix="UpdateInput" TipoBloqueado="@(MotivoTipoBloqueado is not null)" MotivoTipoBloqueado="@MotivoTipoBloqueado"
                          ActivaBloqueada="@(detalle?.Serie.Asignada == true)" />
     <p class="mt-4 text-xs text-slate-500">
         <a href="@UrlBase" data-testid="limpiar" class="font-semibold text-slate-600 hover:underline">Limpiar campos</a>
@@ -209,6 +209,17 @@ else if (detalle.Serie.Aviso is not null)
     private bool MuestraEdicionLinea => MuestraFormularios && EditLineaId.HasValue;
     private bool MuestraDialogoBorrarLinea => MuestraFormularios && lineaAEliminar is not null;
     private IReadOnlyList<Miga> Migas => [new("Configuración", "/modulos/configuracion"), new("Series de numeración", "/series"), new(detalle?.Serie.Codigo ?? "Serie")];
+
+    /// <summary>NS6: el tipo no cambia si la serie emitió números, está asignada o la usan plantillas/lotes de diario (la API responde 409).</summary>
+    private string? MotivoTipoBloqueado => detalle?.Serie switch
+    {
+        { Usada: true } => "La serie ya emitió números: su tipo no cambia.",
+        { Asignada: true } => "La serie está asignada en la configuración de numeración: su tipo no cambia.",
+        { Referenciada: true } => MotivoTipoReferenciada,
+        _ => null,
+    };
+
+    public const string MotivoTipoReferenciada = "La serie la usan plantillas o lotes de diario de inventario: su tipo no cambia.";
 
     private IReadOnlyList<CampoDocumento> CamposCabecera =>
     [

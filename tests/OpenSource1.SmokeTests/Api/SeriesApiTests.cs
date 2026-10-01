@@ -293,6 +293,11 @@ public sealed class SeriesApiTests(PostgresTestFixture fixture) : IClassFixture<
         {
             await conexion.ExecuteAsync("""UPDATE "PlantillasDiario" SET "SerieId" = @S WHERE "Id" = @Id""", new { S = serie.Id, Id = PlantillaDiarioIds.Articulo });
 
+            // NS6 visible: la respuesta expone Referenciada (misma regla que la guarda) en la ficha y en el listado.
+            Assert.False(serie.Referenciada);
+            Assert.True((await admin.GetFromJsonAsync<SerieDetalleResponse>($"{Ruta}/{serie.Id}"))!.Serie.Referenciada);
+            Assert.True(Assert.Single((await admin.GetFromJsonAsync<PagedResult<SerieResponse>>($"{Ruta}?tipo=8&codigo={serie.Codigo}"))!.Items).Referenciada);
+
             var borrar = await AssertErrorAsync(await admin.DeleteAsync($"{Ruta}/{serie.Id}"), HttpStatusCode.Conflict, "Id");
             Assert.Contains("plantillas o lotes", borrar.RootElement.GetRawText());
             await AssertErrorAsync(await admin.PutAsJsonAsync($"{Ruta}/{serie.Id}",
@@ -303,6 +308,22 @@ public sealed class SeriesApiTests(PostgresTestFixture fixture) : IClassFixture<
         {
             await conexion.ExecuteAsync("""UPDATE "PlantillasDiario" SET "SerieId" = @S WHERE "Id" = @Id""", new { S = original, Id = PlantillaDiarioIds.Articulo });
         }
+    }
+
+    [Fact]
+    public async Task SerieUsadaPorLoteDeDiario_ExponeReferenciada_YNoSeElimina_409()
+    {
+        var admin = Rol("Administrador");
+        var serie = await CrearSerieAsync(admin, TipoDocumentoSerie.DiarioInventario);
+        var codigoLote = $"L{Guid.NewGuid():N}"[..12].ToUpperInvariant();
+        var lote = await admin.PostAsJsonAsync("/api/diarios-inventario/lotes",
+            new { plantillaDiarioId = PlantillaDiarioIds.Articulo, codigo = codigoLote, nombre = "Lote con serie", serieId = serie.Id, bloqueado = false });
+        Assert.True(lote.StatusCode == HttpStatusCode.Created, await lote.Content.ReadAsStringAsync());
+
+        var detalle = (await admin.GetFromJsonAsync<SerieDetalleResponse>($"{Ruta}/{serie.Id}"))!;
+        Assert.Equal((true, false, false), (detalle.Serie.Referenciada, detalle.Serie.Usada, detalle.Serie.Asignada));
+        Assert.True(Assert.Single((await admin.GetFromJsonAsync<PagedResult<SerieResponse>>($"{Ruta}?tipo=8&codigo={serie.Codigo}"))!.Items).Referenciada);
+        await AssertErrorAsync(await admin.DeleteAsync($"{Ruta}/{serie.Id}?xmin={detalle.Serie.Xmin}"), HttpStatusCode.Conflict, "Id");
     }
 
     [Fact]

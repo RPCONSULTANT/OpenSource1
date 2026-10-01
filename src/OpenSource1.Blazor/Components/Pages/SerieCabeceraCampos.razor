@@ -19,7 +19,7 @@
         {
             @* Un <select disabled> no se envía: el tipo vigente viaja oculto. *@
             <input type="hidden" name="@($"{Prefix}.TipoDocumento")" value="@Model.TipoDocumento" />
-            <p class="mt-1 text-xs text-slate-400">La serie ya emitió números o está asignada: su tipo no cambia.</p>
+            <p class="mt-1 text-xs text-slate-400" data-testid="motivo-tipo">@(MotivoTipoBloqueado ?? "La serie ya emitió números, está asignada o la usan plantillas o lotes de diario: su tipo no cambia.")</p>
         }
     </div>
     <div class="sm:col-span-2">
@@ -55,8 +55,10 @@
     [Parameter, EditorRequired] public SerieForm Model { get; set; } = default!;
     /// <summary>Prefijo de los nombres del formulario (<c>Input</c> en el alta, <c>UpdateInput</c> en la ficha).</summary>
     [Parameter, EditorRequired] public string Prefix { get; set; } = default!;
-    /// <summary>Serie usada o asignada (NS6): el tipo se muestra pero no se puede cambiar.</summary>
+    /// <summary>Serie usada, asignada o referenciada por plantillas/lotes de diario (NS6): el tipo se muestra pero no se puede cambiar.</summary>
     [Parameter] public bool TipoBloqueado { get; set; }
+    /// <summary>Motivo concreto del bloqueo del tipo (null = texto genérico).</summary>
+    [Parameter] public string? MotivoTipoBloqueado { get; set; }
     /// <summary>Serie asignada en la configuración (NS5): "Activa" se muestra marcada y no se puede desmarcar.</summary>
     [Parameter] public bool ActivaBloqueada { get; set; }
 

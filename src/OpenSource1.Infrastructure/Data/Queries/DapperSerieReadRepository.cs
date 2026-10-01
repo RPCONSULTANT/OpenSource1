@@ -11,13 +11,22 @@ public sealed class DapperSerieReadRepository(IDbSession session) : ISerieReadRe
 {
     private static readonly ColumnasPermitidas ColumnasPermitidas = new("Codigo", "Descripcion", "TipoDocumento", "CreatedAtUtc");
 
+    // Una sola definición de "Asignada" y "Referenciada" (alias s con la columna "Id") para el listado, la ficha y las guardas (UsoAsync).
+    private const string AsignadaSql = """EXISTS (SELECT 1 FROM "ConfiguracionesNumeracion" c WHERE c."SerieId" = s."Id" AND c."IsDeleted" = false)""";
+
+    private const string ReferenciadaSql = """
+        (EXISTS (SELECT 1 FROM "PlantillasDiario" p WHERE p."SerieId" = s."Id" AND p."IsDeleted" = false)
+         OR EXISTS (SELECT 1 FROM "LotesDiario" l WHERE l."SerieId" = s."Id" AND l."IsDeleted" = false))
+        """;
+
     // "Usada" NO se calcula en SQL: lo decide CalculoNumeroSerie.EstaUsada en C# (ver SeriesUsadasAsync).
-    private const string Base = """
+    private const string Base = $$"""
         SELECT s."Id", s."Codigo", s."Descripcion", s."TipoDocumento", s."PermiteHuecos", s."Activa", s."CreatedAtUtc",
                s.xmin::text::bigint AS "Xmin",
                v."NumeroInicial" AS "VigenteInicial", v."NumeroFinal" AS "VigenteFinal", v."UltimoNumeroUsado" AS "VigenteUltimo",
                v."Incremento" AS "VigenteIncremento", v."NumeroAviso" AS "VigenteAviso",
-               EXISTS (SELECT 1 FROM "ConfiguracionesNumeracion" c WHERE c."SerieId" = s."Id" AND c."IsDeleted" = false) AS "Asignada"
+               {{AsignadaSql}} AS "Asignada",
+               {{ReferenciadaSql}} AS "Referenciada"
         FROM "Series" s
         LEFT JOIN LATERAL (
             SELECT l."NumeroInicial", l."NumeroFinal", l."UltimoNumeroUsado", l."Incremento", l."NumeroAviso"
@@ -108,10 +117,9 @@ public sealed class DapperSerieReadRepository(IDbSession session) : ISerieReadRe
     {
         var usada = (await SeriesUsadasAsync([serieId], cancellationToken)).Count > 0;
         var protecciones = await session.Connection.QuerySingleAsync<(bool Asignada, bool Referenciada)>(new CommandDefinition(
-            """
-            SELECT EXISTS (SELECT 1 FROM "ConfiguracionesNumeracion" c WHERE c."SerieId" = @Id AND c."IsDeleted" = false) AS "Asignada",
-                   (EXISTS (SELECT 1 FROM "PlantillasDiario" p WHERE p."SerieId" = @Id AND p."IsDeleted" = false)
-                    OR EXISTS (SELECT 1 FROM "LotesDiario" l WHERE l."SerieId" = @Id AND l."IsDeleted" = false)) AS "Referenciada"
+            $"""
+            SELECT {AsignadaSql} AS "Asignada", {ReferenciadaSql} AS "Referenciada"
+            FROM (SELECT @Id AS "Id") s
             """,
             new { Id = serieId }, session.CurrentTransaction, cancellationToken: cancellationToken));
         return new UsoSerie(usada, protecciones.Asignada, protecciones.Referenciada);
@@ -226,6 +234,7 @@ public sealed class DapperSerieReadRepository(IDbSession session) : ISerieReadRe
             EnAviso = aviso is not null && proximo is not null,
             Usada = usada,
             Asignada = f.Asignada,
+            Referenciada = f.Referenciada,
             Xmin = f.Xmin,
         };
     }
@@ -246,6 +255,7 @@ public sealed class DapperSerieReadRepository(IDbSession session) : ISerieReadRe
         public int? VigenteIncremento { get; init; }
         public string? VigenteAviso { get; init; }
         public bool Asignada { get; init; }
+        public bool Referenciada { get; init; }
     }
 
     private sealed class LineaFila
