@@ -1,5 +1,6 @@
 @using System.Globalization
-@* Totales al pie del documento (spec no-series): subtotal, descuentos, importe sin ITBIS, ITBIS y total; IVA agrupado por identificador. *@
+@* Totales al pie del documento (spec no-series): subtotal, descuentos, importe sin ITBIS, ITBIS y total; IVA agrupado por identificador.
+   MostrarCuenta añade la columna "Cuenta" del grupo de IVA (TotalesDocumento.CuentasIva; documentos posteados). *@
 <div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden mb-6" data-testid="totales">
     <div class="px-6 py-4 border-b border-slate-100"><h2 class="text-sm font-semibold text-slate-700">@Titulo</h2></div>
     @if (Totales is null)
@@ -10,15 +11,18 @@
     {
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 px-6 py-4">
             <table class="min-w-full text-sm">
-                <thead><tr class="text-xs uppercase text-slate-500"><th class="text-left py-1">Grupo</th><th class="text-right py-1">%</th><th class="text-right py-1">Base</th><th class="text-right py-1">ITBIS</th></tr></thead>
+                <thead><tr class="text-xs uppercase text-slate-500"><th class="text-left py-1">Grupo</th>@if (MostrarCuenta)
+                {<th class="text-left py-1">Cuenta</th>}<th class="text-right py-1">%</th><th class="text-right py-1">Base</th><th class="text-right py-1">ITBIS</th></tr></thead>
                 <tbody>
                     @if (Totales.Grupos.Count == 0)
                     {
-                        <tr><td colspan="4" class="py-1 text-slate-400">Sin ITBIS.</td></tr>
+                        <tr><td colspan="@(MostrarCuenta ? 5 : 4)" class="py-1 text-slate-400">Sin ITBIS.</td></tr>
                     }
-                    @foreach (var g in Totales.Grupos)
+                    @for (var i = 0; i < Totales.Grupos.Count; i++)
                     {
-                        <tr><td class="py-1 text-slate-700">@g.IdentificadorIva</td><td class="py-1 text-right text-slate-500">@g.PorcentajeIva.ToString("0.#####", CultureInfo.InvariantCulture)</td><td class="py-1 text-right">@VentasOpciones.Importe(g.BaseImponible)</td><td class="py-1 text-right">@VentasOpciones.Importe(g.ImporteIva)</td></tr>
+                        var g = Totales.Grupos[i];
+                        <tr><td class="py-1 text-slate-700">@g.IdentificadorIva</td>@if (MostrarCuenta)
+                        {<td class="py-1 font-mono text-xs text-slate-600">@(Totales.CuentasIva?.ElementAtOrDefault(i) ?? "—")</td>}<td class="py-1 text-right text-slate-500">@g.PorcentajeIva.ToString("0.#####", CultureInfo.InvariantCulture)</td><td class="py-1 text-right">@VentasOpciones.Importe(g.BaseImponible)</td><td class="py-1 text-right">@VentasOpciones.Importe(g.ImporteIva)</td></tr>
                     }
                 </tbody>
             </table>
@@ -37,4 +41,6 @@
     /// <summary><see langword="null"/> = no se pudieron obtener (la página sigue funcionando).</summary>
     [Parameter] public TotalesDocumento? Totales { get; set; }
     [Parameter] public string Titulo { get; set; } = "Totales";
+    /// <summary>Muestra la columna "Cuenta" del grupo de IVA (oculta por defecto: los borradores no la tienen).</summary>
+    [Parameter] public bool MostrarCuenta { get; set; }
 }

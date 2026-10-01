@@ -162,7 +162,7 @@ else
                             Lineas="@detalle.Lineas.OrderBy(l => l.NumeroLinea).Select(LineaDocumento.Desde).ToList()"
                             TextoVacio="La nota de crédito no tiene líneas." />
 
-    <DocumentoTotales Totales="@TotalesDocumento.Desde(detalle)"
+    <DocumentoTotales Totales="@TotalesDocumento.Desde(detalle)" MostrarCuenta="true"
                       Titulo="Totales de la nota" />
     <p class="-mt-3 mb-8 text-xs"><a class="text-brand-700 underline" href="@($"/ventas/movimientos-cliente?socioId={c.SocioNegocioFacturarAId}")">Movimientos del cliente</a></p>
 }

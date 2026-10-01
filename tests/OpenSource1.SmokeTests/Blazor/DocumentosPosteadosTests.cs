@@ -218,7 +218,7 @@ public sealed class DocumentosPosteadosTests
                     },
                     new LineaFacturaVentaResponse { Id = 102, NumeroLinea = 20000, Tipo = OpenSource1.Core.Enums.TipoLineaFactura.Comentario, Descripcion = "Nota interna" },
                 ],
-                [new LineaIvaFacturaVentaResponse { IdentificadorIva = "ITBIS18", PorcentajeIva = 18m, BaseImponible = 180m, ImporteIva = 32.40m }]));
+                [new LineaIvaFacturaVentaResponse { IdentificadorIva = "ITBIS18", PorcentajeIva = 18m, BaseImponible = 180m, ImporteIva = 32.40m, CuentaIvaNumero = "2101" }]));
         var notas = app.Simular<INotaCreditoVentaApiClient>();
         notas.Setup(c => c.ListNotasAsync(It.IsAny<NotaCreditoVentaSearchCriteria?>(), It.IsAny<PageRequest?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new PagedResult<NotaCreditoVentaResponse>([new NotaCreditoVentaResponse { Numero = "NC-000003", FacturaVentaNumero = "FV-000009" }], 1, 50, 1));
@@ -257,6 +257,10 @@ public sealed class DocumentosPosteadosTests
         Assert.Contains("data-testid=\"total-sin-iva\">180.00", html);
         Assert.Contains("data-testid=\"total-iva\">32.40", html);
         Assert.Contains("data-testid=\"total\">212.40", html);
+        // Grupo de IVA con su cuenta (la del posteo, guardada en la línea de IVA).
+        var totales = html[html.IndexOf("data-testid=\"totales\"", StringComparison.Ordinal)..];
+        Assert.Contains(">Cuenta</th>", totales);
+        Assert.Matches("ITBIS18</td>.*?<td[^>]*>2101</td>", totales);
     }
 
     [Fact]
@@ -280,7 +284,7 @@ public sealed class DocumentosPosteadosTests
                         ImporteLinea = 90m, IdentificadorIva = "ITBIS18", PorcentajeIva = 18m, DevolverInventario = true,
                     },
                 ],
-                [new LineaIvaNotaCreditoVentaResponse { IdentificadorIva = "ITBIS18", PorcentajeIva = 18m, BaseImponible = 90m, ImporteIva = 16.20m }]));
+                [new LineaIvaNotaCreditoVentaResponse { IdentificadorIva = "ITBIS18", PorcentajeIva = 18m, BaseImponible = 90m, ImporteIva = 16.20m, CuentaIvaNumero = "2102" }]));
 
         var html = HtmlSsr.Decodificar(await HtmlSsr.HtmlAsync(app.Cliente(), "/notas-credito-venta/NC-000003"));
 
@@ -292,6 +296,9 @@ public sealed class DocumentosPosteadosTests
         Assert.Contains("data-testid=\"total-sin-iva\">90.00", html);
         Assert.Contains("data-testid=\"total-iva\">16.20", html);
         Assert.Contains("data-testid=\"total\">106.20", html);
+        var totales = html[html.IndexOf("data-testid=\"totales\"", StringComparison.Ordinal)..];
+        Assert.Contains(">Cuenta</th>", totales);
+        Assert.Matches("ITBIS18</td>.*?<td[^>]*>2102</td>", totales);
     }
 
     [Fact]

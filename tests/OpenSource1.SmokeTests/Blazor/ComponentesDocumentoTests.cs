@@ -35,6 +35,23 @@ public sealed class ComponentesDocumentoTests
         Assert.Contains("data-testid=\"total-iva\">17.10<", html);
         Assert.Contains(">112.10<", html);
         Assert.Contains("ITBIS18", html);
+        // Por defecto (borradores) sin la columna de la cuenta del grupo de IVA.
+        Assert.DoesNotContain(">Cuenta</th>", html);
+    }
+
+    [Fact]
+    public async Task Totales_ConMostrarCuenta_ColumnaCuentaDelGrupoDeIva()
+    {
+        var totales = new TotalesDocumento(100m, 0m, 100m, 18m, 118m,
+            [new GrupoIvaCalculado("ITBIS18", 18m, 80m, 14.40m), new GrupoIvaCalculado("ITBIS16", 16m, 20m, 3.20m)], ["2101", null]);
+
+        var html = await Renderizar<DocumentoTotales>(new() { ["Totales"] = totales, ["MostrarCuenta"] = true });
+
+        Assert.Contains(">Cuenta</th>", html);
+        Assert.Matches("ITBIS18</td>.*?<td[^>]*>2101</td>", html);
+        Assert.Matches("ITBIS16</td>.*?<td[^>]*>—</td>", html);
+        var sinGrupos = await Renderizar<DocumentoTotales>(new() { ["Totales"] = new TotalesDocumento(10m, 0m, 10m, 0m, 10m, []), ["MostrarCuenta"] = true });
+        Assert.Contains("colspan=\"5\"", sinGrupos);
     }
 
     [Fact]
