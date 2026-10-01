@@ -113,6 +113,7 @@ public class CreateLoteDiarioCommandHandlerTests
 
         Assert.True(aceptada.EsExito, aceptada.EsFallo ? aceptada.Errores[0].Codigo : string.Empty);
         Assert.Equal(("diario.serie_invalida", "SerieId"), (rechazada.Errores[0].Codigo, rechazada.Errores[0].Campo));
+        unitOfWork.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     private static Mock<IUnitOfWork> ArmarUnitOfWork(

@@ -23,6 +23,7 @@ public class UpdateLoteDiarioCommandHandlerTests
 
         Assert.True(result.EsFallo);
         Assert.Equal("diario_lote.no_encontrado", result.Errores[0].Codigo);
+        unitOfWork.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -122,6 +123,7 @@ public class UpdateLoteDiarioCommandHandlerTests
 
         Assert.True(aceptada.EsExito, aceptada.EsFallo ? aceptada.Errores[0].Codigo : string.Empty);
         Assert.Equal(("diario.serie_invalida", "SerieId"), (rechazada.Errores[0].Codigo, rechazada.Errores[0].Campo));
+        unitOfWork.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     private static Mock<IUnitOfWork> ArmarUnitOfWork(
