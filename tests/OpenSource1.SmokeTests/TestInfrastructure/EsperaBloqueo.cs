@@ -23,7 +23,7 @@ internal static class EsperaBloqueo
                 return;
             }
 
-            Assert.False(tarea.IsCompleted, $"{mensaje} (terminó sin esperar el bloqueo).");
+            Assert.False(tarea.IsCompleted, $"{mensaje} (terminó sin esperar el bloqueo{(tarea.Exception is { } ex ? $": {ex.InnerException?.Message}" : "")}).");
             await Task.Delay(50);
         }
 

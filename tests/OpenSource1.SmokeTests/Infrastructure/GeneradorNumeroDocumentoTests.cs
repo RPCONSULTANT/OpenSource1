@@ -6,6 +6,9 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using OpenSource1.Application.Data;
+using OpenSource1.Application.Features.Series.Commands;
+using OpenSource1.Application.Features.Series.Dtos;
+using OpenSource1.Application.Features.Series.Handlers;
 using OpenSource1.Core.Common;
 using OpenSource1.Core.Entities;
 using OpenSource1.Core.Entities.Clientes;
@@ -67,6 +70,7 @@ public sealed class GeneradorNumeroDocumentoTests : IClassFixture<PostgresTestFi
         var services = new ServiceCollection();
         services.AddSingleton<IConfiguration>(configuration);
         services.AddLogging();
+        services.AddHttpContextAccessor();
         services.AddApplicationData(configuration);
         _provider = services.BuildServiceProvider();
 
@@ -342,6 +346,109 @@ public sealed class GeneradorNumeroDocumentoTests : IClassFixture<PostgresTestFi
             await admin.ExecuteAsync("""UPDATE "ConfiguracionesNumeracion" SET "SerieId" = @S WHERE "TipoDocumento" = 8""", new { S = original });
         }
     }
+
+    /// <summary>
+    /// NS18 (residual): un posteo de factura numera y retiene la serie <c>FOR SHARE</c> hasta su commit. La desactivación concurrente
+    /// (administración de series, que bloquea la serie <c>FOR UPDATE</c>) espera al posteo y después se aplica; el posteo numeró con
+    /// la serie aún válida y el contador guarda exactamente ese número (ninguno perdido ni repetido). Después la serie ya no numera.
+    /// </summary>
+    [Fact]
+    public async Task NS18_DesactivacionConcurrente_EsperaAlPosteo_YDespuesSeAplica_SinPerderNumeros()
+    {
+        var fecha = new DateOnly(2026, 1, 1);
+        var p = Prefijo();
+        var (serieId, lineaId) = await SembrarSerieAsync(fecha, tipo: TipoDocumentoSerie.FacturaVenta, numeroInicial: $"{p}001", numeroFinal: $"{p}999", ultimoNumeroUsado: "");
+
+        var (numero, admin) = await PosteoConAdministracionConcurrenteAsync(serieId, fecha, TipoDocumentoSerie.FacturaVenta, activa: false, confirmarPosteo: true);
+
+        Assert.True(admin.EsExito, admin.EsFallo ? admin.Errores[0].Codigo : string.Empty);
+        Assert.False(admin.Valor.Activa);
+        Assert.Equal($"{p}001", numero.Valor.Numero);
+        Assert.Equal($"{p}001", await UltimoAsync(lineaId));
+        var despues = await EnTransaccionAsync(g => g.SiguienteAsync(serieId, TipoDocumentoSerie.FacturaVenta, fecha));
+        Assert.Equal("numeracion.serie_inactiva", despues.Errores[0].Codigo);
+        Assert.Equal($"{p}001", await UltimoAsync(lineaId));
+    }
+
+    /// <summary>
+    /// NS18 (residual), cambio de tipo: espera igual al posteo. Si el posteo se confirma, la serie ya emitió números y el cambio se
+    /// rechaza (409); si el posteo se deshace, el cambio se aplica y el contador vuelve a quedar sin usar (ningún número perdido).
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task NS18_CambioDeTipoConcurrente_EsperaAlPosteo_YSeDecideConLoQueQuedo(bool confirmarPosteo)
+    {
+        var fecha = new DateOnly(2026, 1, 1);
+        var p = Prefijo();
+        var (serieId, lineaId) = await SembrarSerieAsync(fecha, tipo: TipoDocumentoSerie.FacturaVenta, numeroInicial: $"{p}001", numeroFinal: $"{p}999", ultimoNumeroUsado: "");
+
+        var (numero, admin) = await PosteoConAdministracionConcurrenteAsync(serieId, fecha, TipoDocumentoSerie.Cobro, activa: true, confirmarPosteo);
+
+        Assert.Equal($"{p}001", numero.Valor.Numero);
+        if (confirmarPosteo)
+        {
+            Assert.Equal(("serie.tipo_en_uso.conflicto", "TipoDocumento"), (admin.Errores[0].Codigo, admin.Errores[0].Campo));
+            Assert.Equal($"{p}001", await UltimoAsync(lineaId));
+            var siguiente = await EnTransaccionAsync(g => g.SiguienteAsync(serieId, TipoDocumentoSerie.FacturaVenta, fecha));
+            Assert.Equal($"{p}002", siguiente.Valor.Numero);
+        }
+        else
+        {
+            Assert.True(admin.EsExito, admin.EsFallo ? admin.Errores[0].Codigo : string.Empty);
+            Assert.Equal(TipoDocumentoSerie.Cobro, admin.Valor.TipoDocumento);
+            Assert.Equal(string.Empty, await UltimoAsync(lineaId));
+            var cobro = await EnTransaccionAsync(g => g.SiguienteAsync(serieId, TipoDocumentoSerie.Cobro, fecha));
+            Assert.Equal($"{p}001", cobro.Valor.Numero);
+        }
+    }
+
+    /// <summary>
+    /// "Posteo": transacción que numera con la serie (FOR SHARE de la serie, FOR UPDATE de su línea) y no termina todavía. Mientras,
+    /// la administración de series (handler real) modifica la cabecera; debe quedar bloqueada por el posteo. Luego el posteo se
+    /// confirma o se deshace y se espera a la administración.
+    /// </summary>
+    private async Task<(Result<NumeroGenerado> Numero, Result<SerieResponse> Admin)> PosteoConAdministracionConcurrenteAsync(
+        Guid serieId, DateOnly fecha, TipoDocumentoSerie tipoNuevo, bool activa, bool confirmarPosteo)
+    {
+        string codigo;
+        long xmin;
+        await using (var conexion = new NpgsqlConnection(_fixture.AppConnectionString))
+        {
+            (codigo, xmin) = await conexion.QuerySingleAsync<(string, long)>(
+                """SELECT "Codigo", xmin::text::bigint FROM "Series" WHERE "Id" = @Id""", new { Id = serieId });
+        }
+
+        await using var posteo = _provider.CreateAsyncScope();
+        var session = posteo.ServiceProvider.GetRequiredService<IDbSession>();
+        await session.EnsureOpenAsync();
+        await using var tx = await session.BeginTransactionAsync();
+        var numero = await Generador(posteo).SiguienteAsync(serieId, TipoDocumentoSerie.FacturaVenta, fecha);
+        Assert.True(numero.EsExito, numero.EsFallo ? numero.Errores[0].Codigo : string.Empty);
+
+        var administracion = Task.Run(async () =>
+        {
+            await using var scope = _provider.CreateAsyncScope();
+            var handler = ActivatorUtilities.CreateInstance<UpdateSerieCommandHandler>(scope.ServiceProvider);
+            return await handler.Handle(new UpdateSerieCommand(serieId, codigo, "Serie de prueba NS18", tipoNuevo, false, activa, xmin), default);
+        });
+        await EsperaBloqueo.EsperarBloqueadaPorAsync(
+            _fixture.AppConnectionString, ((NpgsqlConnection)session.Connection).ProcessID, administracion,
+            "La administración de la serie debía esperar al posteo");
+
+        if (confirmarPosteo)
+        {
+            await session.CommitAsync();
+        }
+        else
+        {
+            await session.RollbackAsync();
+        }
+
+        return (numero, await administracion.WaitAsync(TimeSpan.FromSeconds(10)));
+    }
+
+    private static string Prefijo() => $"N{Guid.NewGuid():N}"[..5].ToUpperInvariant() + "-";
 
     [Fact]
     public async Task SiguientePorTipoAsync_SerieConfiguradaInactivaSinReasignar_SigueFallando()
