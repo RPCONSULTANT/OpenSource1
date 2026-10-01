@@ -39,7 +39,7 @@ public sealed class SeriesApiTests(PostgresTestFixture fixture) : IClassFixture<
         Assert.Equal(HttpStatusCode.OK, (await client.GetAsync($"{Ruta}/{id}/lineas")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsJsonAsync(Ruta, new { codigo = "X", descripcion = "X", tipoDocumento = 8 })).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await client.PutAsJsonAsync($"{Ruta}/{id}", new { codigo = "FV", descripcion = "X", tipoDocumento = 2, activa = true, xmin = 1 })).StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, (await client.DeleteAsync($"{Ruta}/{id}")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.DeleteAsync($"{Ruta}/{id}?xmin=1")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsJsonAsync($"{Ruta}/{id}/lineas", new { numeroInicial = "1", numeroFinal = "9", fechaInicial = Desde })).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await client.PutAsJsonAsync($"{Ruta}/{id}/lineas/{SerieFacturaVentaIds.LineaSeriePosteadaId}",
             new { numeroInicial = "00000001", numeroFinal = "99999999", fechaInicial = Desde, xmin = 1 })).StatusCode);
@@ -78,7 +78,7 @@ public sealed class SeriesApiTests(PostgresTestFixture fixture) : IClassFixture<
         var detalle = (await admin.GetFromJsonAsync<SerieDetalleResponse>($"{Ruta}/{serie.Id}"))!;
         Assert.Equal(("Renombrada", true), (detalle.Serie.Descripcion, detalle.Serie.PermiteHuecos));
         Assert.Equal(HttpStatusCode.NoContent, (await admin.DeleteAsync($"{Ruta}/{serie.Id}/lineas/{linea.Id}")).StatusCode);
-        Assert.Equal(HttpStatusCode.NoContent, (await admin.DeleteAsync($"{Ruta}/{serie.Id}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await BorrarSerieAsync(admin, serie.Id)).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await admin.GetAsync($"{Ruta}/{serie.Id}")).StatusCode);
     }
 
@@ -174,7 +174,7 @@ public sealed class SeriesApiTests(PostgresTestFixture fixture) : IClassFixture<
         var linea = await CrearLineaAsync(admin, serie.Id, new { numeroInicial = $"{p}0001", numeroFinal = $"{p}0100", fechaInicial = Desde, ultimoNumeroUsado = $"{p}0005" });
         Assert.True(linea.Usada);
 
-        await AssertErrorAsync(await admin.DeleteAsync($"{Ruta}/{serie.Id}"), HttpStatusCode.Conflict, "Id");
+        await AssertErrorAsync(await BorrarSerieAsync(admin, serie.Id), HttpStatusCode.Conflict, "Id");
         await AssertErrorAsync(await admin.DeleteAsync($"{Ruta}/{serie.Id}/lineas/{linea.Id}"), HttpStatusCode.Conflict, "Id");
         await AssertErrorAsync(await admin.PutAsJsonAsync($"{Ruta}/{serie.Id}/lineas/{linea.Id}",
             new { numeroInicial = $"{p}0002", numeroFinal = $"{p}0100", fechaInicial = Desde, xmin = linea.Xmin }), HttpStatusCode.Conflict, "NumeroInicial");
@@ -237,7 +237,7 @@ public sealed class SeriesApiTests(PostgresTestFixture fixture) : IClassFixture<
         {
             await conexion.ExecuteAsync("""UPDATE "ConfiguracionesNumeracion" SET "SerieId" = @S WHERE "TipoDocumento" = 5""", new { S = serie.Id });
 
-            await AssertErrorAsync(await admin.DeleteAsync($"{Ruta}/{serie.Id}"), HttpStatusCode.Conflict, "Id");
+            await AssertErrorAsync(await BorrarSerieAsync(admin, serie.Id), HttpStatusCode.Conflict, "Id");
             await AssertErrorAsync(await admin.PutAsJsonAsync($"{Ruta}/{serie.Id}",
                 new { codigo = serie.Codigo, descripcion = "X", tipoDocumento = 5, permiteHuecos = false, activa = false, xmin = serie.Xmin }),
                 HttpStatusCode.Conflict, "Activa");
@@ -275,7 +275,7 @@ public sealed class SeriesApiTests(PostgresTestFixture fixture) : IClassFixture<
         var fila = Assert.Single((await admin.GetFromJsonAsync<PagedResult<SerieResponse>>($"{Ruta}?tipo=8&codigo={serie.Codigo}"))!.Items);
         Assert.True(fila.Usada);
 
-        await AssertErrorAsync(await admin.DeleteAsync($"{Ruta}/{serie.Id}"), HttpStatusCode.Conflict, "Id");
+        await AssertErrorAsync(await BorrarSerieAsync(admin, serie.Id), HttpStatusCode.Conflict, "Id");
         await AssertErrorAsync(await admin.PutAsJsonAsync($"{Ruta}/{serie.Id}",
             new { codigo = serie.Codigo, descripcion = "X", tipoDocumento = 5, permiteHuecos = false, activa = true, xmin = serie.Xmin }),
             HttpStatusCode.Conflict, "TipoDocumento");
@@ -298,7 +298,7 @@ public sealed class SeriesApiTests(PostgresTestFixture fixture) : IClassFixture<
             Assert.True((await admin.GetFromJsonAsync<SerieDetalleResponse>($"{Ruta}/{serie.Id}"))!.Serie.Referenciada);
             Assert.True(Assert.Single((await admin.GetFromJsonAsync<PagedResult<SerieResponse>>($"{Ruta}?tipo=8&codigo={serie.Codigo}"))!.Items).Referenciada);
 
-            var borrar = await AssertErrorAsync(await admin.DeleteAsync($"{Ruta}/{serie.Id}"), HttpStatusCode.Conflict, "Id");
+            var borrar = await AssertErrorAsync(await BorrarSerieAsync(admin, serie.Id), HttpStatusCode.Conflict, "Id");
             Assert.Contains("plantillas o lotes", borrar.RootElement.GetRawText());
             await AssertErrorAsync(await admin.PutAsJsonAsync($"{Ruta}/{serie.Id}",
                 new { codigo = serie.Codigo, descripcion = "X", tipoDocumento = 7, permiteHuecos = false, activa = true, xmin = serie.Xmin }),
@@ -324,6 +324,37 @@ public sealed class SeriesApiTests(PostgresTestFixture fixture) : IClassFixture<
         Assert.Equal((true, false, false), (detalle.Serie.Referenciada, detalle.Serie.Usada, detalle.Serie.Asignada));
         Assert.True(Assert.Single((await admin.GetFromJsonAsync<PagedResult<SerieResponse>>($"{Ruta}?tipo=8&codigo={serie.Codigo}"))!.Items).Referenciada);
         await AssertErrorAsync(await admin.DeleteAsync($"{Ruta}/{serie.Id}?xmin={detalle.Serie.Xmin}"), HttpStatusCode.Conflict, "Id");
+    }
+
+    /// <summary>Declinado de la re-review: el borrado exige el xmin (sin él 400; obsoleto 409 y la serie sigue viva).</summary>
+    [Fact]
+    public async Task Borrado_ExigeElXmin_SinXmin400_Obsoleto409()
+    {
+        var admin = Rol("Administrador");
+        var serie = await CrearSerieAsync(admin, TipoDocumentoSerie.DiarioInventario);
+        var modificada = await admin.PutAsJsonAsync($"{Ruta}/{serie.Id}",
+            new { codigo = serie.Codigo, descripcion = "Cambiada", tipoDocumento = 8, permiteHuecos = false, activa = true, xmin = serie.Xmin });
+        Assert.Equal(HttpStatusCode.OK, modificada.StatusCode);
+
+        await AssertErrorAsync(await admin.DeleteAsync($"{Ruta}/{serie.Id}"), HttpStatusCode.BadRequest, "Xmin");
+        await AssertErrorAsync(await admin.DeleteAsync($"{Ruta}/{serie.Id}?xmin={serie.Xmin}"), HttpStatusCode.Conflict, "Xmin");
+        Assert.Equal(HttpStatusCode.OK, (await admin.GetAsync($"{Ruta}/{serie.Id}")).StatusCode);
+
+        var vigente = (await modificada.Content.ReadFromJsonAsync<SerieResponse>())!.Xmin;
+        Assert.Equal(HttpStatusCode.NoContent, (await admin.DeleteAsync($"{Ruta}/{serie.Id}?xmin={vigente}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await admin.DeleteAsync($"{Ruta}/{serie.Id}?xmin={vigente}")).StatusCode);
+    }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("9")]
+    [InlineData("-1")]
+    [InlineData("65538")]
+    public async Task Listado_TipoFueraDeRango_400ConCampoTipo(string tipo)
+    {
+        var admin = Rol("Supervisor");
+
+        await AssertErrorAsync(await admin.GetAsync($"{Ruta}?tipo={tipo}"), HttpStatusCode.BadRequest, "Tipo");
     }
 
     [Fact]
@@ -357,7 +388,7 @@ public sealed class SeriesApiTests(PostgresTestFixture fixture) : IClassFixture<
         await CrearLineaAsync(admin, a.Id, new { numeroInicial = $"{p}0200", numeroFinal = $"{p}0300", fechaInicial = Desde });
 
         // Al borrar la serie B se borran sus líneas: el rango vuelve a quedar libre.
-        var borrarB = await admin.DeleteAsync($"{Ruta}/{b.Id}");
+        var borrarB = await BorrarSerieAsync(admin, b.Id);
         Assert.True(borrarB.StatusCode == HttpStatusCode.NoContent, await borrarB.Content.ReadAsStringAsync());
         await CrearLineaAsync(admin, a.Id, rango with { fechaInicial = Desde.AddYears(1) });
     }
@@ -401,6 +432,13 @@ public sealed class SeriesApiTests(PostgresTestFixture fixture) : IClassFixture<
             var cuerpo = await AssertErrorAsync(perdedora, HttpStatusCode.Conflict, "Codigo");
             Assert.Contains($"Ya existe una serie con el código {codigo}", cuerpo.RootElement.GetRawText());
         }
+    }
+
+    /// <summary>DELETE de la serie con su xmin vigente (el borrado lo exige).</summary>
+    private static async Task<HttpResponseMessage> BorrarSerieAsync(HttpClient client, Guid id)
+    {
+        var xmin = (await client.GetFromJsonAsync<SerieDetalleResponse>($"{Ruta}/{id}"))!.Serie.Xmin;
+        return await client.DeleteAsync($"{Ruta}/{id}?xmin={xmin}");
     }
 
     private static string Prefijo() => $"T{Guid.NewGuid():N}"[..5].ToUpperInvariant() + "-";

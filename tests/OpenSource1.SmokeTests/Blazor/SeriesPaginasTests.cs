@@ -213,7 +213,7 @@ public sealed class SeriesPaginasTests
     {
         using var app = Configurar(new BlazorSsrFactory());
         app.Simular<ISerieApiClient>()
-            .Setup(c => c.DeleteAsync(IdSerie, It.IsAny<CancellationToken>()))
+            .Setup(c => c.DeleteAsync(IdSerie, It.IsAny<long>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new VentaOperationResult<bool>(false, "La serie está asignada en la configuración de numeración: no se puede eliminar."));
 
         var respuesta = await FormulariosSsr.EnviarAsync(app.Cliente(), "/series", "delete-serie",
@@ -221,6 +221,23 @@ public sealed class SeriesPaginasTests
 
         Assert.Equal(HttpStatusCode.OK, respuesta.StatusCode);
         Assert.Contains("no se puede eliminar", HtmlSsr.Decodificar(await respuesta.Content.ReadAsStringAsync()));
+    }
+
+    /// <summary>El borrado envía el xmin que se mostró (oculto en el diálogo); la API responde 409 si quedó obsoleto.</summary>
+    [Fact]
+    public async Task Lista_EliminarSerieSinUso_EnviaElXminDelDialogo()
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+        var api = app.Simular<ISerieApiClient>();
+        api.Setup(c => c.DeleteAsync(IdOtra, 1, It.IsAny<CancellationToken>())).ReturnsAsync(new VentaOperationResult<bool>(true, "ok", true));
+
+        var html = await HtmlSsr.HtmlAsync(app.Cliente(), $"/series?sel={IdOtra}&deleteId={IdOtra}");
+        var respuesta = await FormulariosSsr.EnviarAsync(app.Cliente(), "/series", "delete-serie",
+            new Dictionary<string, string> { ["DeleteInput.Id"] = IdOtra.ToString(), ["DeleteInput.Xmin"] = "1" });
+
+        Assert.Contains("<input type=\"hidden\" name=\"DeleteInput.Xmin\" value=\"1\"", html);
+        Assert.Equal("/series?ok=eliminada", FormulariosSsr.Destino(respuesta));
+        api.Verify(c => c.DeleteAsync(IdOtra, 1, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

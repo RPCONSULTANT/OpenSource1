@@ -14,7 +14,8 @@ namespace OpenSource1.Api.Controllers;
 
 /// <summary>
 /// Series de numeración y sus líneas (spec no-series, Parte 3). Consultar = CanConsult; crear, modificar y eliminar series y líneas =
-/// <see cref="ApplicationPolicies.CanAdministrar"/>. <c>tipo</c> viaja como entero (1–8).
+/// <see cref="ApplicationPolicies.CanAdministrar"/>. <c>tipo</c> viaja como entero (1–8; otro valor -&gt; 400 con el campo <c>Tipo</c>).
+/// El borrado de una serie exige <c>?xmin=</c> (sin él 400; obsoleto 409).
 /// </summary>
 [ApiController]
 [Route("api/series")]
@@ -28,6 +29,12 @@ public sealed class SeriesController(ISender sender) : ControllerBase
         [FromQuery] int pagina = 1, [FromQuery] int tamanoPagina = PageRequest.TamanoPorDefecto,
         [FromQuery] string? ordenarPor = null, [FromQuery] bool descendente = false, CancellationToken cancellationToken = default)
     {
+        // Se valida el entero ANTES de convertirlo: (short)65538 sería 2, un tipo válido.
+        if (tipo is { } t && !(t is >= short.MinValue and <= short.MaxValue && TipoDocumentoSerieNombres.EsValido((TipoDocumentoSerie)t)))
+        {
+            return Result.Fallo(new Error("serie.tipo_invalido", "El tipo de documento debe ser un valor entre 1 y 8.", "Tipo")).ToActionResult();
+        }
+
         var result = await sender.Send(new ListSeriesQuery(
             new SerieSearchCriteria(codigo, (TipoDocumentoSerie?)tipo, activa),
             new PageRequest(pagina, tamanoPagina, ordenarPor ?? "Codigo", descendente)), cancellationToken);
@@ -78,9 +85,14 @@ public sealed class SeriesController(ISender sender) : ControllerBase
 
     [HttpDelete("{id:guid}")]
     [Authorize(Policy = ApplicationPolicies.CanAdministrar)]
-    public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
+    public async Task<IActionResult> Delete(Guid id, [FromQuery] long? xmin, CancellationToken cancellationToken)
     {
-        var result = await sender.Send(new DeleteSerieCommand(id), cancellationToken);
+        if (xmin is not { } version)
+        {
+            return Result.Fallo(new Error("serie.xmin_requerido", "Indique el xmin de la serie que se elimina.", "Xmin")).ToActionResult();
+        }
+
+        var result = await sender.Send(new DeleteSerieCommand(id, version), cancellationToken);
         return result.EsFallo ? result.ToActionResult() : NoContent();
     }
 

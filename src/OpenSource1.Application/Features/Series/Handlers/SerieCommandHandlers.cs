@@ -124,7 +124,10 @@ public sealed class UpdateSerieCommandHandler(IUnitOfWork unitOfWork, ISerieRead
     }
 }
 
-/// <summary>Borrado lógico de una serie sin uso (y de sus líneas). Usada, asignada o referenciada -&gt; 409 con el motivo.</summary>
+/// <summary>
+/// Borrado lógico de una serie sin uso (y de sus líneas) con <c>xmin</c>: si la serie cambió desde que el usuario la vio, 409 sin
+/// borrar. Usada, asignada o referenciada -&gt; 409 con el motivo.
+/// </summary>
 public sealed class DeleteSerieCommandHandler(IUnitOfWork unitOfWork, ISerieReadRepository lectura) : IRequestHandler<DeleteSerieCommand, Result>
 {
     public async Task<Result> Handle(DeleteSerieCommand request, CancellationToken cancellationToken)
@@ -134,6 +137,15 @@ public sealed class DeleteSerieCommandHandler(IUnitOfWork unitOfWork, ISerieRead
         if (await lectura.BloquearSerieAsync(request.Id, cancellationToken) is null)
         {
             return Result.Fallo(SerieReglas.NoEncontrada());
+        }
+
+        // Con la fila ya bloqueada, su xmin no cambia hasta el commit: la comparación es exacta.
+        var repositorio = unitOfWork.Repository<Serie>();
+        var entity = (await repositorio.FirstOrDefaultAsync(x => x.Id == request.Id, asTracking: true, cancellationToken: cancellationToken))!;
+        if (repositorio.ObtenerVersionActual(entity) != request.Xmin)
+        {
+            return Result.Fallo(new Error(
+                "serie.modificada.conflicto", "La serie fue modificada por otro usuario: recargue la página y vuelva a intentarlo.", "Xmin"));
         }
 
         var uso = await lectura.UsoAsync(request.Id, cancellationToken);
@@ -154,8 +166,6 @@ public sealed class DeleteSerieCommandHandler(IUnitOfWork unitOfWork, ISerieRead
                 "serie.en_uso.conflicto", "La serie la usan plantillas o lotes de diario de inventario: no se puede eliminar.", "Id"));
         }
 
-        var repositorio = unitOfWork.Repository<Serie>();
-        var entity = (await repositorio.FirstOrDefaultAsync(x => x.Id == request.Id, asTracking: true, cancellationToken: cancellationToken))!;
         // Una sola consulta con seguimiento; el UnitOfWork convierte cada Remove en borrado lógico.
         var lineas = unitOfWork.Repository<LineaSerie>();
         foreach (var linea in await lineas.ListRastreadasAsync(x => x.SerieId == request.Id, cancellationToken))

@@ -106,7 +106,7 @@ public sealed class SerieApiClientTests
 
         var creada = await new SerieApiClient(Http(alta), NullLogger<SerieApiClient>.Instance).CreateAsync(input);
         await new SerieApiClient(Http(modificacion), NullLogger<SerieApiClient>.Instance).UpdateAsync(id, input, xmin: 7);
-        var eliminada = await new SerieApiClient(Http(borrado), NullLogger<SerieApiClient>.Instance).DeleteAsync(id);
+        var eliminada = await new SerieApiClient(Http(borrado), NullLogger<SerieApiClient>.Instance).DeleteAsync(id, xmin: 9);
         var lineaNo = await new SerieApiClient(Http(borradoLinea), NullLogger<SerieApiClient>.Instance).DeleteLineaAsync(id, Guid.Empty);
         await new SerieApiClient(Http(listado), NullLogger<SerieApiClient>.Instance).ListAsync(new SerieFiltro(" fv ", null, null));
 
@@ -128,6 +128,8 @@ public sealed class SerieApiClientTests
 
         Assert.True(eliminada.Succeeded);
         Assert.Equal(HttpMethod.Delete, borrado.Metodo);
+        Assert.Equal($"/api/series/{id}", borrado.Uri!.AbsolutePath);
+        Assert.Equal("?xmin=9", borrado.Uri.Query);
         Assert.Equal("La línea está usada.", lineaNo.Message);
         Assert.Contains("codigo=fv", listado.Uri!.Query);
         Assert.Contains("ordenarPor=Codigo", listado.Uri.Query);

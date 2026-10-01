@@ -60,9 +60,9 @@ public sealed class SerieApiClient(HttpClient httpClient, ILogger<SerieApiClient
         return await VentaApiRespuestas.ToResultAsync<SerieResponse>(response, "Serie modificada.", NoEncontrada, Entidad, logger, cancellationToken);
     }
 
-    public async Task<VentaOperationResult<bool>> DeleteAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<VentaOperationResult<bool>> DeleteAsync(Guid id, long xmin, CancellationToken cancellationToken = default)
     {
-        using var response = await httpClient.DeleteAsync($"{Ruta}/{id}", cancellationToken);
+        using var response = await httpClient.DeleteAsync($"{Ruta}/{id}?xmin={xmin}", cancellationToken);
         return await VentaApiRespuestas.ToPlainResultAsync(response, "Serie eliminada.", NoEncontrada, Entidad, logger, cancellationToken);
     }
 

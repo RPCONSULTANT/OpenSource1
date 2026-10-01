@@ -27,7 +27,8 @@ public interface ISerieApiClient
 
     Task<VentaOperationResult<SerieResponse>> UpdateAsync(Guid id, SerieInput input, long xmin, CancellationToken cancellationToken = default);
 
-    Task<VentaOperationResult<bool>> DeleteAsync(Guid id, CancellationToken cancellationToken = default);
+    /// <summary>Borrado con el <c>xmin</c> que vio el usuario (la API responde 409 si quedó obsoleto).</summary>
+    Task<VentaOperationResult<bool>> DeleteAsync(Guid id, long xmin, CancellationToken cancellationToken = default);
 
     /// <summary>Alta de una línea. <c>UltimoNumeroUsado</c> solo se admite en el alta (null = línea sin usar).</summary>
     Task<VentaOperationResult<LineaSerieResponse>> CreateLineaAsync(Guid serieId, LineaSerieInput input, CancellationToken cancellationToken = default);
