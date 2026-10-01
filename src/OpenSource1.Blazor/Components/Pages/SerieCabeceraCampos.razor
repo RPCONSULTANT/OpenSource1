@@ -34,8 +34,9 @@
         <label class="flex items-center gap-2 text-sm text-slate-700">
             @if (ActivaBloqueada)
             {
-                @* NS5: la serie predeterminada de su tipo no se desactiva. Un checkbox deshabilitado no se envía: Activa viaja oculta. *@
-                <input type="checkbox" id="@($"{Prefix}_Activa")" checked disabled /> <span>Activa</span>
+                @* NS5: la serie predeterminada de su tipo no se desactiva. Un checkbox deshabilitado no se envía: Activa viaja oculta con
+                   su valor real (una serie asignada e inactiva por datos heredados no se reactiva al guardar). *@
+                <input type="checkbox" id="@($"{Prefix}_Activa")" checked="@Model.Activa" disabled /> <span>Activa</span>
             }
             else
             {
@@ -44,7 +45,7 @@
         </label>
         @if (ActivaBloqueada)
         {
-            <input type="hidden" name="@($"{Prefix}.Activa")" value="true" />
+            <input type="hidden" name="@($"{Prefix}.Activa")" value="@(Model.Activa ? "true" : "false")" />
             <p class="mt-1 text-xs text-slate-400" data-testid="motivo-activa">@MotivoActivaBloqueada</p>
         }
     </div>

@@ -276,6 +276,39 @@ public sealed class SeriesPaginasTests
         Assert.Equal($"/series/{IdSerie}?ok=modificada", FormulariosSsr.Destino(respuesta));
     }
 
+    /// <summary>
+    /// Minor NS5: el "Activa" bloqueado de una serie asignada viaja oculto con su valor REAL. Una serie asignada e inactiva (datos
+    /// heredados o creada por SQL) no se reactiva al guardar la cabecera.
+    /// </summary>
+    [Fact]
+    public async Task Ficha_SerieAsignadaEInactiva_ActivaOcultaFalse_YNoSeReactivaAlGuardar()
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+        var api = app.Simular<ISerieApiClient>();
+        var inactiva = new SerieResponse
+        {
+            Id = IdOtra, Codigo = "FV2", Descripcion = "Sucursal", TipoDocumento = TipoDocumentoSerie.FacturaVenta, Activa = false,
+            Asignada = true, Xmin = 6,
+        };
+        api.Setup(c => c.GetAsync(IdOtra, It.IsAny<CancellationToken>())).ReturnsAsync(new SerieDetalleResponse(inactiva, []));
+        api.Setup(c => c.UpdateAsync(IdOtra, It.IsAny<SerieInput>(), 6, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new VentaOperationResult<SerieResponse>(true, "ok", inactiva));
+        var url = $"/series/{IdOtra}";
+
+        var html = HtmlSsr.Decodificar(await HtmlSsr.HtmlAsync(app.Cliente(), url));
+        var activaOculta = System.Text.RegularExpressions.Regex.Match(html, "<input type=\"hidden\" name=\"UpdateInput.Activa\" value=\"([^\"]*)\"").Groups[1].Value;
+        var respuesta = await FormulariosSsr.EnviarAsync(app.Cliente(), url, "update-serie", new Dictionary<string, string>
+        {
+            ["UpdateInput.Codigo"] = "FV2", ["UpdateInput.Descripcion"] = "Sucursal 2", ["UpdateInput.TipoDocumento"] = "2",
+            ["UpdateInput.Activa"] = activaOculta, ["UpdateInput.Xmin"] = "6",
+        });
+
+        Assert.Equal("false", activaOculta);
+        Assert.DoesNotMatch("<input type=\"checkbox\" id=\"UpdateInput_Activa\" checked", html);
+        Assert.Equal($"/series/{IdOtra}?ok=modificada", FormulariosSsr.Destino(respuesta));
+        api.Verify(c => c.UpdateAsync(IdOtra, It.Is<SerieInput>(i => !i.Activa && i.Descripcion == "Sucursal 2"), 6, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
     [Fact]
     public async Task Configuracion_FalloParcial_RecargaLaGuardada_ConservaLaEleccionFallida_YNoLaReenvia()
     {
