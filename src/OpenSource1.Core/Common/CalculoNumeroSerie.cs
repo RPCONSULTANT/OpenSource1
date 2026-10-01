@@ -87,8 +87,10 @@ public static partial class CalculoNumeroSerie
 
     /// <summary>
     /// El posteo pasa el aviso a la página del documento por la query (<c>?aviso=</c>); esa página solo lo muestra si tiene la
-    /// forma exacta de <see cref="TextoAviso"/> (código de serie sin espacios, número de aviso válido, cantidad entera), para no
-    /// reflejar texto libre de un enlace manipulado.
+    /// forma exacta de <see cref="TextoAviso"/>, para no reflejar texto libre de un enlace manipulado: código de serie sin espacios
+    /// ni caracteres de control (admite los heredados, p. ej. con punto), número de aviso que <see cref="FormatoNumeroSerie.TryParse"/>
+    /// interpreta (mismos caracteres de prefijo, incluido el espacio interior) y cantidad en dígitos ASCII, anclado con <c>\z</c>
+    /// (sin salto de línea final).
     /// </summary>
     public static bool EsTextoAviso(string? texto)
     {
@@ -101,7 +103,9 @@ public static partial class CalculoNumeroSerie
         return coincidencia.Success && FormatoNumeroSerie.TryParse(coincidencia.Groups["aviso"].Value, out _);
     }
 
-    [GeneratedRegex(@"^La serie [\p{L}\p{N}_-]{1,20} alcanzó su número de aviso \((?<aviso>[^\s\p{C}()]{1,20})\): quedan \d{1,19} número\(s\) en la línea\.$", RegexOptions.CultureInvariant)]
+    // Código: sin espacios ni controles (ni separadores de línea/párrafo). Aviso: los caracteres que admite FormatoNumeroSerie (sin
+    // controles ni U+2028/U+2029) y luego TryParse decide. Cantidad: [0-9] (\d admitiría dígitos Unicode). \z: "$" admite "\n" final.
+    [GeneratedRegex(@"\ALa serie [^\s\p{Cc}\u2028\u2029]{1,20} alcanzó su número de aviso \((?<aviso>[^\p{Cc}\u2028\u2029]{1,20})\): quedan [0-9]{1,19} número\(s\) en la línea\.\z", RegexOptions.CultureInvariant)]
     private static partial Regex AvisoRegex();
 
     private static Result<NumeroGenerado> LineaInvalida(string codigoSerie) => Result<NumeroGenerado>.Fallo(new Error(

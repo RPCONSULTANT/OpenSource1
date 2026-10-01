@@ -20,9 +20,40 @@ public sealed class CalculoNumeroSerieTests
         Assert.False(CalculoNumeroSerie.EsTextoAviso("Su cuenta fue bloqueada: llame al 555-0100."));
         Assert.False(CalculoNumeroSerie.EsTextoAviso(generado + " Llame al 555-0100."));
         Assert.False(CalculoNumeroSerie.EsTextoAviso(
-            "La serie FV alcanzó su número de aviso (llame al 555 0100): quedan 3 número(s) en la línea."));
+            "La serie FV alcanzó su número de aviso (llame al 555-0100 ya): quedan 3 número(s) en la línea."));
         Assert.False(CalculoNumeroSerie.EsTextoAviso(
             "La serie PAGUE EN EFECTIVO alcanzó su número de aviso (FV-000091): quedan 3 número(s) en la línea."));
+    }
+
+    /// <summary>
+    /// Minor de la re-review: anclas estrictas (<c>\z</c>, <c>[0-9]</c>) y los mismos caracteres de prefijo que
+    /// <see cref="FormatoNumeroSerie.TryParse"/> y de los códigos heredados, sin admitir texto libre.
+    /// </summary>
+    [Fact]
+    public void EsTextoAviso_CasosLimite()
+    {
+        var generado = Ok(CalculoNumeroSerie.Siguiente("FV", "FV-000001", "FV-000100", "FV-000090", 1, "FV-000091")).Aviso!;
+        var prefijoConEspacio = Ok(CalculoNumeroSerie.Siguiente("FV", "FAC 000001", "FAC 000100", "FAC 000090", 1, "FAC 000091")).Aviso!;
+        var codigoConPunto = Ok(CalculoNumeroSerie.Siguiente("F.V", "FV-000001", "FV-000100", "FV-000090", 1, "FV-000091")).Aviso!;
+        var prefijoConPunto = Ok(CalculoNumeroSerie.Siguiente("FV", "F.V/000001", "F.V/000100", "F.V/000090", 1, "F.V/000091")).Aviso!;
+
+        Assert.True(CalculoNumeroSerie.EsTextoAviso(prefijoConEspacio));
+        Assert.True(CalculoNumeroSerie.EsTextoAviso(codigoConPunto));
+        Assert.True(CalculoNumeroSerie.EsTextoAviso(prefijoConPunto));
+
+        // Salto de línea final: "$" lo admitía; "\z" no.
+        Assert.False(CalculoNumeroSerie.EsTextoAviso(generado + "\n"));
+        // Dígitos Unicode (árabe-índicos) en la cantidad o en el número de aviso.
+        Assert.False(CalculoNumeroSerie.EsTextoAviso(generado.Replace("quedan 9", "quedan \u0669", StringComparison.Ordinal)));
+        Assert.False(CalculoNumeroSerie.EsTextoAviso(generado.Replace("FV-000091", "FV-\u0660\u0669\u0661", StringComparison.Ordinal)));
+        // Prefijo con espacio inicial (el número no se interpreta: FormatoNumeroSerie exige el texto recortado).
+        Assert.False(CalculoNumeroSerie.EsTextoAviso(generado.Replace("(FV-000091)", "( FV-000091)", StringComparison.Ordinal)));
+        // Control dentro del número o código con espacios: texto libre.
+        Assert.False(CalculoNumeroSerie.EsTextoAviso(generado.Replace("FV-000091", "FV\t000091", StringComparison.Ordinal)));
+        Assert.False(CalculoNumeroSerie.EsTextoAviso(generado.Replace("La serie FV ", "La serie F V ", StringComparison.Ordinal)));
+        Assert.False(CalculoNumeroSerie.EsTextoAviso(
+            "La serie FV alcanzó su número de aviso (FV-000091): quedan 3 número(s) en la línea. Llame al 555-0100."));
+        Assert.False(CalculoNumeroSerie.EsTextoAviso("Texto arbitrario: llame al 555-0100."));
     }
 
     [Theory]
