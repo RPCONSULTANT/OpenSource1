@@ -314,6 +314,8 @@ else
 
 @code {
     private const string BorradorNoDisponible = "No se encontró el borrador de factura: puede haber sido posteado o eliminado por otro usuario.";
+    /// <summary>Guarda de los POST sin borrador: si la carga falló (loadError) no se sabe si existe, así que se pide recargar.</summary>
+    private string BorradorNoCargado => loadError is null ? BorradorNoDisponible : "No fue posible cargar el borrador; recargue la página.";
     private const string InputCss = "block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20";
 
     [Parameter] public Guid BorradorId { get; set; }
@@ -851,7 +853,7 @@ else
     {
         if (borrador is null)
         {
-            Show("warning", BorradorNoDisponible);
+            Show(loadError is null ? "warning" : "danger", BorradorNoCargado);
             return;
         }
 
@@ -889,7 +891,7 @@ else
     {
         if (borrador is null)
         {
-            Show("warning", BorradorNoDisponible);
+            Show(loadError is null ? "warning" : "danger", BorradorNoCargado);
             return;
         }
 
@@ -948,7 +950,7 @@ else
     {
         if (borrador is null)
         {
-            Show("warning", BorradorNoDisponible);
+            Show(loadError is null ? "warning" : "danger", BorradorNoCargado);
             return;
         }
 

@@ -43,8 +43,9 @@ public sealed class ConversionDocumentosUsuariosTests
 
     [Theory]
     [InlineData("/diarios-inventario?editId={0}", "/diarios-inventario/{0}/editar", "/diarios-inventario")]
-    [InlineData("/facturas-venta/borradores?editId={0}", "/facturas-venta/borradores/{0}/editar", "/facturas-venta/borradores")]
-    [InlineData("/notas-credito-venta/borradores?editId={0}", "/notas-credito-venta/borradores/{0}/editar", "/notas-credito-venta/borradores")]
+    [InlineData("/facturas-venta/borradores?editId={0}", "/facturas-venta/borradores/{0}", "/facturas-venta/borradores")]
+    [InlineData("/notas-credito-venta/borradores?editId={0}", "/notas-credito-venta/borradores/{0}", "/notas-credito-venta/borradores")]
+    // Los borradores de factura y nota van directamente a la página única (un solo salto), sin pasar por /editar.
     public async Task EditIdLegado_RedirigeALaRutaNueva(string origen, string destino, string lista)
     {
         using var app = Configurar(new BlazorSsrFactory());

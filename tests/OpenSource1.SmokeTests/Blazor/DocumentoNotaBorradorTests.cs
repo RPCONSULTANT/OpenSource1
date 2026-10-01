@@ -341,6 +341,25 @@ public sealed class DocumentoNotaBorradorTests
         Assert.Contains($"<a data-testid=\"accion-editar\" href=\"{Url(IdAbierta)}?returnUrl=", abierta);
     }
 
+    [Theory]
+    [InlineData("guardar-cabecera-nota")]
+    [InlineData("add-linea")]
+    [InlineData("update-linea")]
+    public async Task PostTrasFalloDeCarga_PideRecargar_YNoDiceQueFueEliminado(string formulario)
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+        var id = Guid.NewGuid();
+        app.Simular<INotaCreditoVentaApiClient>()
+            .Setup(c => c.GetBorradorAsync(id, It.IsAny<CancellationToken>())).ThrowsAsync(new HttpRequestException("caída"));
+
+        var respuesta = await FormulariosSsr.EnviarAsync(app.Cliente(), Url(id), formulario, Cabecera(IdSerieNc));
+        var html = HtmlSsr.Decodificar(await respuesta.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, respuesta.StatusCode);
+        Assert.Contains("No fue posible cargar el borrador; recargue la página.", html);
+        Assert.DoesNotContain("puede haber sido eliminado", html);
+    }
+
     private static Dictionary<string, string> Cabecera(Guid serie) => new()
     {
         ["UpdateInput.Xmin"] = "5", ["UpdateInput.FechaRegistroTexto"] = "2026-09-02", ["UpdateInput.FechaDocumentoTexto"] = "2026-09-02",

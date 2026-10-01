@@ -178,7 +178,7 @@
     // Tolerante (ola final Fix-Features): un ?sel= ilegible se ignora como selección vacía; con Guid? el binder lanzaría.
     [SupplyParameterFromQuery(Name = "sel")] private string? SelTexto { get; set; }
     private Guid? Sel => InventarioVistasOpciones.ParseGuid(SelTexto);
-    // Solo para redirigir la ruta antigua (?editId=) a /facturas-venta/borradores/{id}/editar (que a su vez redirige a la página única).
+    // Solo para redirigir la ruta antigua (?editId=) directamente a la página única /facturas-venta/borradores/{id} (un solo salto, con returnUrl).
     [SupplyParameterFromQuery(Name = "editId")] private Guid? EditId { get; set; }
     [SupplyParameterFromQuery(Name = "deleteId")] private Guid? DeleteId { get; set; }
     [SupplyParameterFromQuery(Name = "ok")] private string? Ok { get; set; }
@@ -217,7 +217,7 @@
     {
         if (EditId is { } editId)
         {
-            Nav.NavigateTo(RetornoLocal.ConRetorno($"/facturas-venta/borradores/{editId}/editar", UrlActual), replace: true);
+            Nav.NavigateTo(RetornoLocal.ConRetorno($"/facturas-venta/borradores/{editId}", UrlActual), replace: true);
             return;
         }
 

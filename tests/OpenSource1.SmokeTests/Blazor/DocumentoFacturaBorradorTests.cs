@@ -351,6 +351,25 @@ public sealed class DocumentoFacturaBorradorTests
         TerminoPagoCodigo = "30D", RazonSocialFacturacion = "Comercial Uno SRL", NumeroDocumentoFiscal = "101000001",
     };
 
+    [Theory]
+    [InlineData("guardar-cabecera")]
+    [InlineData("add-linea")]
+    [InlineData("update-linea")]
+    public async Task PostTrasFalloDeCarga_PideRecargar_YNoDiceQueFueEliminado(string formulario)
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+        var id = Guid.NewGuid();
+        app.Simular<IFacturaVentaApiClient>()
+            .Setup(c => c.GetBorradorAsync(id, It.IsAny<CancellationToken>())).ThrowsAsync(new HttpRequestException("caída"));
+
+        var respuesta = await FormulariosSsr.EnviarAsync(app.Cliente(), Url(id), formulario, new Dictionary<string, string>());
+        var html = HtmlSsr.Decodificar(await respuesta.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, respuesta.StatusCode);
+        Assert.Contains("No fue posible cargar el borrador; recargue la página.", html);
+        Assert.DoesNotContain("puede haber sido", html);
+    }
+
     private static BlazorSsrFactory Configurar(BlazorSsrFactory app)
     {
         var facturas = app.Simular<IFacturaVentaApiClient>();
