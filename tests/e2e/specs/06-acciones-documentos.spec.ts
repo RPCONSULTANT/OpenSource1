@@ -16,7 +16,8 @@ test('desde un cliente: Crear ▾ Factura abre la nueva factura con el cliente p
 test('facturas filtradas por cliente y ficha de producto con acciones', async ({ page }) => {
   await iniciarSesion(page, usuarios.admin);
   // Producto E2E propio (el catálogo puede estar vacío); se elimina al final.
-  const codigo = unico('E2E').slice(0, 14);
+  // Sin recortar: unico() da 16 caracteres (con su sufijo aleatorio) y el código de producto admite 50.
+  const codigo = unico('E2E');
   await page.goto('/productos/nuevo');
   await page.locator('[name="Input.Codigo"]').fill(codigo);
   await page.locator('[name="Input.Nombre"]').fill(`E2E Producto ${codigo}`);

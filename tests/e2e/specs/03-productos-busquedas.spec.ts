@@ -24,7 +24,8 @@ async function crearProducto(
 test('productos: agregar, buscar (código, nombre, categoría, precio, estado), modificar y eliminar', async ({ page }) => {
   // Dos productos E2E de la misma ejecución: A coincide con cada búsqueda y B no (salvo el estado de existencia, que
   // ninguno tiene), para que la evidencia muestre que el filtro excluye registros.
-  const etiqueta = unico('E2E').slice(0, 12);
+  // Sin recortar: unico() da 16 caracteres (con su sufijo aleatorio) y la categoría (etiqueta-C) admite 30.
+  const etiqueta = unico('E2E');
   const a = { codigo: `${etiqueta}-A`, nombre: `E2E Producto ${etiqueta} A`, precio: '125.50' };
   const b = { codigo: `${etiqueta}-B`, nombre: `E2E Producto ${etiqueta} B`, precio: '99.00' };
   const categoriaB = `${etiqueta}-C`;
