@@ -46,7 +46,7 @@
         @if (ActivaBloqueada)
         {
             <input type="hidden" name="@($"{Prefix}.Activa")" value="@(Model.Activa ? "true" : "false")" />
-            <p class="mt-1 text-xs text-slate-400" data-testid="motivo-activa">@MotivoActivaBloqueada</p>
+            <p class="mt-1 text-xs text-slate-400" data-testid="motivo-activa">@(Model.Activa ? MotivoActivaBloqueada : MotivoActivaBloqueadaInactiva)</p>
         }
     </div>
 </div>
@@ -64,4 +64,8 @@
 
     public const string MotivoActivaBloqueada =
         "La serie es la predeterminada de su tipo: asigne otra en la configuración de numeración antes de desactivarla.";
+
+    /// <summary>Serie asignada que ya está inactiva (datos heredados): "Activa" no se cambia desde aquí.</summary>
+    public const string MotivoActivaBloqueadaInactiva =
+        "La serie es la predeterminada de su tipo y está inactiva: asigne otra serie activa en la configuración de numeración.";
 }

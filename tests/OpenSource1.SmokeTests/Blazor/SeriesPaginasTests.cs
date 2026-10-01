@@ -240,6 +240,24 @@ public sealed class SeriesPaginasTests
         api.Verify(c => c.DeleteAsync(IdOtra, 1, It.IsAny<CancellationToken>()), Times.Once);
     }
 
+    /// <summary>Un <c>?tipo=</c> fuera de 1–8 se trata como "sin filtro" (la API lo rechazaría con 400) en vez de mostrar un fallo de carga.</summary>
+    [Theory]
+    [InlineData("9")]
+    [InlineData("0")]
+    [InlineData("65538")]
+    public async Task Lista_TipoFueraDeRango_SinFiltro(string tipo)
+    {
+        using var app = Configurar(new BlazorSsrFactory());
+        var api = app.Simular<ISerieApiClient>();
+
+        var html = HtmlSsr.Decodificar(await HtmlSsr.HtmlAsync(app.Cliente(), $"/series?tipo={tipo}"));
+
+        Assert.DoesNotContain("No fue posible cargar las series.", html);
+        Assert.Contains("FV-000013", html);
+        Assert.Matches("<option[^>]*selected[^>]*>Todos</option>", html);
+        api.Verify(c => c.ListAsync(It.Is<SerieFiltro?>(f => f != null && f.Tipo == null), It.IsAny<PageRequest?>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
     [Fact]
     public async Task Lista_SerieAsignadaSeleccionada_EliminarDeshabilitadoConMotivo()
     {
@@ -347,6 +365,8 @@ public sealed class SeriesPaginasTests
         });
 
         Assert.Equal("false", activaOculta);
+        Assert.Contains("La serie es la predeterminada de su tipo y está inactiva", html);
+        Assert.DoesNotContain("antes de desactivarla", html);
         Assert.DoesNotMatch("<input type=\"checkbox\" id=\"UpdateInput_Activa\" checked", html);
         Assert.Equal($"/series/{IdOtra}?ok=modificada", FormulariosSsr.Destino(respuesta));
         api.Verify(c => c.UpdateAsync(IdOtra, It.Is<SerieInput>(i => !i.Activa && i.Descripcion == "Sucursal 2"), 6, It.IsAny<CancellationToken>()), Times.Once);

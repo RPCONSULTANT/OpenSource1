@@ -40,6 +40,7 @@ public class UpdateLoteDiarioCommandHandlerTests
         Assert.Equal("NEW", entity.Codigo);
         Assert.Equal("Nuevo", entity.Nombre);
         Assert.Equal(serieOriginal, entity.SerieId);
+        unitOfWork.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -69,6 +70,8 @@ public class UpdateLoteDiarioCommandHandlerTests
         Assert.True(result.EsFallo);
         Assert.Equal("diario.serie_invalida", result.Errores[0].Codigo);
         unitOfWork.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+        unitOfWork.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
+        lotes.Mock.Verify(r => r.Update(It.IsAny<LoteDiario>()), Times.Never);
     }
 
     [Fact]
@@ -86,6 +89,8 @@ public class UpdateLoteDiarioCommandHandlerTests
         Assert.Equal("diario.serie_invalida", result.Errores[0].Codigo);
         Assert.Equal("SerieId", result.Errores[0].Campo);
         unitOfWork.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+        unitOfWork.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
+        lotes.Mock.Verify(r => r.Update(It.IsAny<LoteDiario>()), Times.Never);
     }
 
     [Fact]

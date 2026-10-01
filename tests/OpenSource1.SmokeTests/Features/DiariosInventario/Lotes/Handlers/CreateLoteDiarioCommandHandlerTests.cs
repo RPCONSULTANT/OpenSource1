@@ -24,6 +24,7 @@ public class CreateLoteDiarioCommandHandlerTests
         Assert.True(result.EsFallo);
         Assert.Equal("diario.plantilla_invalida", result.Errores[0].Codigo);
         lotes.Mock.Verify(r => r.AddAsync(It.IsAny<LoteDiario>(), It.IsAny<CancellationToken>()), Times.Never);
+        unitOfWork.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -39,6 +40,7 @@ public class CreateLoteDiarioCommandHandlerTests
         Assert.True(result.EsFallo);
         Assert.Equal("diario.serie_invalida", result.Errores[0].Codigo);
         lotes.Mock.Verify(r => r.AddAsync(It.IsAny<LoteDiario>(), It.IsAny<CancellationToken>()), Times.Never);
+        unitOfWork.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -58,6 +60,7 @@ public class CreateLoteDiarioCommandHandlerTests
         Assert.Equal("diario.serie_invalida", result.Errores[0].Codigo);
         Assert.Equal("SerieId", result.Errores[0].Campo);
         lotes.Mock.Verify(r => r.AddAsync(It.IsAny<LoteDiario>(), It.IsAny<CancellationToken>()), Times.Never);
+        unitOfWork.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -72,6 +75,7 @@ public class CreateLoteDiarioCommandHandlerTests
         Assert.True(result.EsFallo);
         Assert.Equal("diario.lote_codigo_invalido", result.Errores[0].Codigo);
         lotes.Mock.Verify(r => r.AddAsync(It.IsAny<LoteDiario>(), It.IsAny<CancellationToken>()), Times.Never);
+        unitOfWork.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -89,6 +93,7 @@ public class CreateLoteDiarioCommandHandlerTests
         Assert.Equal("Lote de prueba", result.Valor.Nombre);
         Assert.Equal(0, result.Valor.NumeroLineas);
         lotes.Mock.Verify(r => r.AddAsync(It.IsAny<LoteDiario>(), It.IsAny<CancellationToken>()), Times.Once);
+        unitOfWork.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

@@ -88,7 +88,7 @@ public static partial class CalculoNumeroSerie
     /// <summary>
     /// El posteo pasa el aviso a la página del documento por la query (<c>?aviso=</c>); esa página solo lo muestra si tiene la
     /// forma exacta de <see cref="TextoAviso"/>, para que un enlace manipulado no pueda mostrar texto libre: código de serie de
-    /// letras, dígitos ASCII, punto, guion o guion bajo (admite los heredados con punto), número de aviso con prefijo de
+    /// letras y dígitos ASCII, punto, guion o guion bajo (admite los heredados con punto), número de aviso con prefijo de
     /// <c>[A-Za-z0-9._/-]</c> que además interprete <see cref="FormatoNumeroSerie.TryParse"/>, cantidad en dígitos ASCII y anclas
     /// estrictas (<c>\z</c>: sin salto de línea final). Sin espacios ni paréntesis aunque <see cref="FormatoNumeroSerie"/> sea más
     /// permisivo: el aviso legítimo de una línea con prefijo con espacios o paréntesis no se muestra en la página (aceptado; el
@@ -105,7 +105,7 @@ public static partial class CalculoNumeroSerie
         return coincidencia.Success && FormatoNumeroSerie.TryParse(coincidencia.Groups["aviso"].Value, out _);
     }
 
-    [GeneratedRegex(@"\ALa serie [\p{L}0-9._-]{1,20} alcanzó su número de aviso \((?<aviso>[A-Za-z0-9._/-]{1,20})\): quedan [0-9]{1,19} número\(s\) en la línea\.\z", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"\ALa serie [A-Za-z0-9._-]{1,20} alcanzó su número de aviso \((?<aviso>[A-Za-z0-9._/-]{1,20})\): quedan [0-9]{1,19} número\(s\) en la línea\.\z", RegexOptions.CultureInvariant)]
     private static partial Regex AvisoRegex();
 
     private static Result<NumeroGenerado> LineaInvalida(string codigoSerie) => Result<NumeroGenerado>.Fallo(new Error(

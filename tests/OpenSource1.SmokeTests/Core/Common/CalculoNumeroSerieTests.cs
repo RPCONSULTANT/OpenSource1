@@ -56,6 +56,8 @@ public sealed class CalculoNumeroSerieTests
         Assert.False(CalculoNumeroSerie.EsTextoAviso(
             "La serie FV alcanzó su número de aviso (FV-000091): quedan 3 número(s) en la línea. Llame al 555-0100."));
         Assert.False(CalculoNumeroSerie.EsTextoAviso("Texto arbitrario: llame al 555-0100."));
+        // Código con letras no ASCII: fuera de [A-Za-z0-9._-].
+        Assert.False(CalculoNumeroSerie.EsTextoAviso(generado.Replace("La serie FV ", "La serie FÇ ", StringComparison.Ordinal)));
     }
 
     [Theory]

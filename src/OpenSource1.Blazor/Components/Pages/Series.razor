@@ -141,7 +141,7 @@ else
 
 @code {
     [SupplyParameterFromQuery(Name = "codigo")] private string? Codigo { get; set; }
-    [SupplyParameterFromQuery(Name = "tipo")] private int? Tipo { get; set; }
+    [SupplyParameterFromQuery(Name = "tipo")] private int? TipoTexto { get; set; }
     [SupplyParameterFromQuery(Name = "sel")] private string? SelTexto { get; set; }
     [SupplyParameterFromQuery(Name = "deleteId")] private string? DeleteIdTexto { get; set; }
     [SupplyParameterFromQuery(Name = "ok")] private string? Ok { get; set; }
@@ -159,6 +159,8 @@ else
     private string messageType = "info";
     private IReadOnlyList<string> errores = [];
 
+    /// <summary>Un <c>?tipo=</c> fuera de 1–8 (enlace manipulado) se trata como "sin filtro": la API lo rechazaría con 400.</summary>
+    private int? Tipo => TipoTexto is { } t && t is >= 1 and <= short.MaxValue && TipoDocumentoSerieNombres.EsValido((TipoDocumentoSerie)t) ? t : null;
     private Guid? DeleteId => InventarioVistasOpciones.ParseGuid(DeleteIdTexto);
     private Guid? Sel => InventarioVistasOpciones.ParseGuid(SelTexto);
     private SerieResponse? Seleccionada => series.FirstOrDefault(s => s.Id == Sel);
