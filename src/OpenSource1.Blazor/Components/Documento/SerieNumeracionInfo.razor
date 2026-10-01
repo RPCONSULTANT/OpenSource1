@@ -1,0 +1,23 @@
+@* Serie de registro y próximo número (vista previa sin reserva, spec no-series). Error prevalece sobre ProximoNumero; el aviso se muestra siempre que haya. *@
+<p class="text-xs text-slate-500" data-testid="serie-registro">
+    Serie de registro: @if (Codigo is null) { <span>—</span> } else { <strong>@Codigo</strong> }
+    @if (Error is not null)
+    {
+        <span class="ml-1 text-red-600">· @Error</span>
+    }
+    else if (ProximoNumero is not null)
+    {
+        <span> · Próximo número: <strong>@ProximoNumero</strong> <span class="text-slate-400">(vista previa: no se reserva)</span></span>
+    }
+    @if (Aviso is not null)
+    {
+        <span class="ml-1 text-amber-700" data-testid="aviso-serie">· @Aviso</span>
+    }
+</p>
+
+@code {
+    [Parameter] public string? Codigo { get; set; }
+    [Parameter] public string? ProximoNumero { get; set; }
+    [Parameter] public string? Aviso { get; set; }
+    [Parameter] public string? Error { get; set; }
+}

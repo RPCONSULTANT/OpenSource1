@@ -7,6 +7,7 @@ using OpenSource1.Application.Features.FacturasVenta.Borradores.Commands;
 using OpenSource1.Application.Features.FacturasVenta.Borradores.Dtos;
 using OpenSource1.Application.Features.FacturasVenta.Borradores.Queries;
 using OpenSource1.Application.Features.FacturasVenta.Calculo;
+using OpenSource1.Application.Features.FacturasVenta.Copia;
 using OpenSource1.Application.Features.FacturasVenta.Posteadas;
 using OpenSource1.Application.Features.FacturasVenta.Posteo;
 using OpenSource1.Application.Features.FacturasVenta.Posteadas.Dtos;
@@ -69,9 +70,30 @@ public sealed class FacturasVentaController(ISender sender) : ControllerBase
         return result.EsFallo ? result.ToActionResult() : Ok(result.Valor);
     }
 
+    /// <summary>
+    /// Copiar una factura posteada a un borrador nuevo (spec no-series): 201 con el borrador y los avisos (líneas omitidas o almacén
+    /// sustituido; vacío = copia completa). CanAdd. 404 si la factura no existe; 400 si el cliente está bloqueado o borrado, o por la
+    /// numeración.
+    /// </summary>
+    [HttpPost("{numero:maxlength(20)}/copiar-a-borrador")]
+    [Authorize(Policy = ApplicationPolicies.CanAdd)]
+    [ProducesResponseType<CopiaFacturaResponse>(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> CopiarABorrador(string numero, CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(new CopiarFacturaABorradorCommand(numero), cancellationToken);
+        return result.EsFallo
+            ? result.ToActionResult()
+            : CreatedAtAction(nameof(GetBorradorById), new { id = result.Valor.BorradorId }, result.Valor);
+    }
+
     // ----- Borradores (cabecera) -----
 
-    /// <summary>Listado paginado. <c>estado</c> como entero (1 = Abierta, 2 = Liberada); <c>socioId</c> filtra vender-a o facturar-a.</summary>
+    /// <summary>
+    /// Listado paginado. <c>estado</c> como entero (1 = Abierta, 2 = Liberada, 3 = Posteada; sin estado = Abierta y Liberada);
+    /// <c>socioId</c> filtra vender-a o facturar-a.
+    /// </summary>
     [HttpGet("borradores")]
     [Authorize(Policy = ApplicationPolicies.CanConsult)]
     [ProducesResponseType<PagedResult<FacturaVentaBorradorResponse>>(StatusCodes.Status200OK)]
@@ -114,7 +136,7 @@ public sealed class FacturasVentaController(ISender sender) : ControllerBase
         var result = await sender.Send(
             new CreateFacturaVentaBorradorCommand(
                 request.SocioNegocioId, request.SocioNegocioFacturarAId, request.FechaRegistro, request.FechaDocumento,
-                request.FechaVencimiento, request.AlmacenId, request.Descripcion),
+                request.FechaVencimiento, request.AlmacenId, request.Descripcion, request.SerieBorradorId, request.SerieRegistroId),
             cancellationToken);
 
         return result.EsFallo
@@ -133,7 +155,7 @@ public sealed class FacturasVentaController(ISender sender) : ControllerBase
         var result = await sender.Send(
             new UpdateFacturaVentaBorradorCommand(
                 id, request.SocioNegocioId, request.SocioNegocioFacturarAId, request.FechaRegistro, request.FechaDocumento,
-                request.FechaVencimiento, request.AlmacenId, request.Descripcion, request.Xmin),
+                request.FechaVencimiento, request.AlmacenId, request.Descripcion, request.Xmin, request.SerieRegistroId),
             cancellationToken);
 
         return result.EsFallo ? result.ToActionResult() : Ok(result.Valor);
@@ -276,7 +298,9 @@ public sealed record CreateFacturaVentaBorradorRequest(
     DateOnly? FechaDocumento = null,
     DateOnly? FechaVencimiento = null,
     Guid? AlmacenId = null,
-    string? Descripcion = null);
+    string? Descripcion = null,
+    Guid? SerieBorradorId = null,
+    Guid? SerieRegistroId = null);
 
 /// <summary>Todos los campos salvo <c>Xmin</c> con semántica "null = conservar" (<c>descripcion</c> "" = limpiar).</summary>
 public sealed record UpdateFacturaVentaBorradorRequest(
@@ -287,7 +311,8 @@ public sealed record UpdateFacturaVentaBorradorRequest(
     DateOnly? FechaDocumento = null,
     DateOnly? FechaVencimiento = null,
     Guid? AlmacenId = null,
-    string? Descripcion = null);
+    string? Descripcion = null,
+    Guid? SerieRegistroId = null);
 
 public sealed record CreateLineaFacturaVentaBorradorRequest(
     TipoLineaFactura Tipo,

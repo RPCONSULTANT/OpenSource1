@@ -5,6 +5,7 @@ using Npgsql;
 using OpenSource1.Application.Data;
 using OpenSource1.Application.Services.Contabilidad;
 using OpenSource1.Core.Common;
+using OpenSource1.Core.Entities;
 using OpenSource1.Core.Entities.Contabilidad;
 using OpenSource1.Core.Enums;
 using OpenSource1.SmokeTests.TestInfrastructure;
@@ -257,7 +258,7 @@ public sealed class RegistroContableTests(PostgresTestFixture fixture) : IClassF
         Assert.All(registrados, r => Assert.Equal(r.DesdeMovimiento + 3, r.HastaMovimiento));
         for (var i = 1; i < n; i++)
         {
-            // Serializados por la serie: el orden de número coincide con el de ids y los rangos son disjuntos (cada uno contiguo
+            // Serializados por el bloqueo del libro: el orden de número coincide con el de ids y los rangos son disjuntos (cada uno contiguo
             // por dentro, comprobado arriba; entre registros podría haber huecos inocuos de un rollback tras nextval).
             Assert.True(registrados[i].DesdeMovimiento > registrados[i - 1].HastaMovimiento);
         }
@@ -299,6 +300,76 @@ public sealed class RegistroContableTests(PostgresTestFixture fixture) : IClassF
                 (segundo.RegistroContableId, segundo.DesdeMovimiento, segundo.HastaMovimiento, 2L, 0m),
             ],
             porRegistro);
+    }
+
+    /// <summary>
+    /// Ruling NSC2: el libro contable se serializa con su propio advisory lock, no con la línea de la serie. T1 registra sin
+    /// confirmar; se reasigna AsientoContable a una segunda serie (confirmado); T2 (que ya numeraría con otra línea) espera a que
+    /// T1 termine, y cada registro conserva su rango de ids contiguo.
+    /// </summary>
+    [Fact]
+    public async Task ReasignarLaSerieDeAsientos_ConUnRegistroEnVuelo_ElSegundoEsperaAlBloqueoDelLibro()
+    {
+        var a = await CuentaAsync();
+        var b = await CuentaAsync();
+        Guid otraSerie;
+        await using (var contexto = _prueba.NuevoContexto())
+        {
+            var serie = new Serie
+            {
+                Codigo = $"AS{Guid.NewGuid():N}"[..12].ToUpperInvariant(),
+                Descripcion = "Segunda serie de asientos",
+                TipoDocumento = TipoDocumentoSerie.AsientoContable,
+            };
+            contexto.Series.Add(serie);
+            contexto.LineasSerie.Add(new LineaSerie
+            {
+                SerieId = serie.Id, NumeroInicial = "ALT-000001", NumeroFinal = "ALT-999999", UltimoNumeroUsado = "",
+                FechaInicial = new DateOnly(2020, 1, 1), Incremento = 1,
+            });
+            await contexto.SaveChangesAsync();
+            otraSerie = serie.Id;
+        }
+
+        await using var scope = _prueba.Provider.CreateAsyncScope();
+        var sesion = scope.ServiceProvider.GetRequiredService<IDbSession>();
+        var registro = scope.ServiceProvider.GetRequiredService<IRegistroContable>();
+        try
+        {
+            AsientoRegistrado primero;
+            Task<Result<AsientoRegistrado>> segundoTask;
+            await using (await sesion.BeginTransactionAsync())
+            {
+                primero = Ok(await registro.RegistrarAsync(Asiento((a, 5m), (b, -2m), (b, -3m))));
+                await ConfigurarSerieDeAsientosAsync(otraSerie);
+
+                segundoTask = Task.Run(() => RegistrarAsync(Asiento((b, 7m), (a, -7m))));
+                var terminoAntes = await Task.WhenAny(segundoTask, Task.Delay(TimeSpan.FromSeconds(2))) == segundoTask;
+                Assert.False(terminoAntes, "El segundo registro no esperó al bloqueo del libro contable.");
+
+                await sesion.CommitAsync();
+            }
+
+            var segundo = Ok(await segundoTask.WaitAsync(TimeSpan.FromSeconds(30)));
+            Assert.StartsWith("ALT-", segundo.NumeroRegistro);
+            Assert.Equal((primero.DesdeMovimiento + 2, segundo.DesdeMovimiento + 1), (primero.HastaMovimiento, segundo.HastaMovimiento));
+            Assert.True(segundo.DesdeMovimiento > primero.HastaMovimiento);
+            Assert.Equal(0L, await RegistrosSinCuadrarAsync());
+        }
+        finally
+        {
+            await ConfigurarSerieDeAsientosAsync(SerieContabilidadIds.SerieId);
+            await using var conexion = _prueba.NuevaConexion();
+            await conexion.ExecuteAsync("""UPDATE "Series" SET "IsDeleted" = true WHERE "Id" = @Id""", new { Id = otraSerie });
+        }
+    }
+
+    private async Task ConfigurarSerieDeAsientosAsync(Guid serieId)
+    {
+        await using var conexion = _prueba.NuevaConexion();
+        await conexion.ExecuteAsync(
+            """UPDATE "ConfiguracionesNumeracion" SET "SerieId" = @S WHERE "TipoDocumento" = @T AND "IsDeleted" = false""",
+            new { S = serieId, T = (short)TipoDocumentoSerie.AsientoContable });
     }
 
     /// <summary>

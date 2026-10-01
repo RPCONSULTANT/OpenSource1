@@ -13,6 +13,12 @@ public interface IGenericRepository<TEntity>
     Task<IReadOnlyList<TEntity>> ListAsync(Expression<Func<TEntity, bool>>? predicate = null, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Como <see cref="ListAsync"/> pero CON seguimiento, en una sola consulta: para modificar o borrar varias filas (el <c>xmin</c>
+    /// rastreado es el leído; una entidad sin seguimiento adjuntada después perdería esa propiedad sombra).
+    /// </summary>
+    Task<IReadOnlyList<TEntity>> ListRastreadasAsync(Expression<Func<TEntity, bool>> predicate, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Variante paginada de <see cref="ListAsync"/>. Implementada con un <c>CountAsync</c> más un
     /// <c>Skip</c>/<c>Take</c> sobre la misma consulta, ambos ejecutados contra la conexión del
     /// scope actual. <see cref="ListAsync"/> sin paginar se conserva para el uso interno de los

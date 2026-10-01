@@ -3,6 +3,7 @@
 @attribute [Authorize(Policy = ApplicationPolicies.CanConsult)]
 @using System.Globalization
 @using Microsoft.AspNetCore.Authorization
+@using OpenSource1.Application.Features.FacturasVenta.Calculo
 @using OpenSource1.Application.Features.NotasCreditoVenta.Posteadas
 @using OpenSource1.Application.Features.NotasCreditoVenta.Posteadas.Dtos
 @using OpenSource1.Application.Security
@@ -41,6 +42,11 @@
             <MessageBox Type="@messageType" Message="@message" />
         }
     </div>
+}
+
+@if (detalle is not null && Ok == "posteada" && CalculoNumeroSerie.EsTextoAviso(AvisoNumeracion))
+{
+    <div class="mb-6" data-testid="aviso-numeracion"><MessageBox Type="warning" Message="@AvisoNumeracion" /></div>
 }
 
 @if (Numero is null)
@@ -147,108 +153,18 @@ else if (detalle is null)
 else
 {
     var c = detalle.Cabecera;
-    <div class="rounded-2xl border border-slate-200 bg-white shadow-sm mb-6 px-6 py-5" data-testid="cabecera-nota">
-        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 text-sm">
-            <div><p class="text-xs font-bold uppercase tracking-wide text-slate-400">Facturar a</p>
-                <p class="mt-1 text-slate-700"><a class="hover:underline" href="@($"/clientes/{c.SocioNegocioFacturarAId}")">@c.SocioNegocioFacturarACodigo — @c.NombreFacturacion</a></p>
-                <p class="text-xs text-slate-400">@c.RazonSocialFacturacion @c.NumeroDocumentoFiscal</p></div>
-            <div><p class="text-xs font-bold uppercase tracking-wide text-slate-400">Factura acreditada</p>
-                <p class="mt-1"><a class="font-mono text-brand-700 underline" href="@($"/facturas-venta/{Uri.EscapeDataString(c.FacturaVentaNumero)}")" data-testid="factura-nota">@c.FacturaVentaNumero</a></p>
-                <p class="text-xs text-slate-400">Borrador de origen: @c.NumeroBorrador</p></div>
-            <div><p class="text-xs font-bold uppercase tracking-wide text-slate-400">Fechas</p><p class="mt-1 text-slate-700">Reg. @EntradaFecha.Formatear(c.FechaRegistro) · Doc. @EntradaFecha.Formatear(c.FechaDocumento)</p></div>
-            <div><p class="text-xs font-bold uppercase tracking-wide text-slate-400">Asiento</p>
-                <p class="mt-1 text-xs font-mono text-slate-500" data-testid="registro-contable">@(c.NumeroRegistroContable ?? "Sin asiento (total 0)")</p></div>
-            @if (!string.IsNullOrWhiteSpace(c.Descripcion))
-            {
-                <div class="sm:col-span-2 lg:col-span-4"><p class="text-xs font-bold uppercase tracking-wide text-slate-400">Descripción</p><p class="mt-1 text-slate-700">@c.Descripcion</p></div>
-            }
-        </div>
+    @* NS20: el mismo diseño de documento en solo lectura que la factura posteada. *@
+    <div data-testid="cabecera-nota">
+        <DocumentoCabecera Campos="@CamposNota(c)" />
     </div>
 
-    <div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden mb-6">
-        <div class="px-6 py-4 border-b border-slate-100"><h2 class="text-sm font-semibold text-slate-700">Líneas</h2><p class="mt-1 text-xs text-slate-500">El número de línea es el de la factura acreditada.</p></div>
-        <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-slate-100 text-sm" data-testid="lineas-nota">
-                <thead class="bg-slate-50">
-                    <tr>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">#</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Tipo</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Producto / Cuenta</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Descripción</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Almacén</th>
-                        <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Cantidad</th>
-                        <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Precio</th>
-                        <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Descuento</th>
-                        <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Importe</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">IVA</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Devolución</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-50 bg-white">
-                    @foreach (var l in detalle.Lineas.OrderBy(x => x.NumeroLinea))
-                    {
-                        <tr @key="l.Id">
-                            <td class="px-4 py-3 text-xs text-slate-400">@l.NumeroLinea</td>
-                            <td class="px-4 py-3 text-xs text-slate-700">@VentasOpciones.TipoLinea(l.Tipo)</td>
-                            <td class="px-4 py-3 text-xs text-slate-700">@(l.ProductoCodigo ?? l.CuentaContableNumero ?? "—")</td>
-                            <td class="px-4 py-3 text-slate-700">@l.Descripcion</td>
-                            <td class="px-4 py-3 text-xs text-slate-500">@(l.AlmacenCodigo ?? "—")</td>
-                            <td class="px-4 py-3 text-right text-slate-700">@l.Cantidad.ToString("0.######", CultureInfo.InvariantCulture) <span class="text-xs text-slate-400">@l.UnidadMedidaCodigo</span></td>
-                            <td class="px-4 py-3 text-right text-slate-700">@l.PrecioUnitario.ToString("0.00##", CultureInfo.InvariantCulture)</td>
-                            <td class="px-4 py-3 text-right text-slate-500">@(l.ImporteDescuentoLinea == 0 ? "—" : $"{VentasOpciones.Importe(l.ImporteDescuentoLinea)} ({l.PorcentajeDescuentoLinea.ToString("0.#####", CultureInfo.InvariantCulture)}%)")</td>
-                            <td class="px-4 py-3 text-right font-semibold text-slate-800">@VentasOpciones.Importe(l.ImporteLinea)</td>
-                            <td class="px-4 py-3 text-xs text-slate-500">@l.IdentificadorIva @l.PorcentajeIva.ToString("0.##", CultureInfo.InvariantCulture)%</td>
-                            <td class="px-4 py-3 text-xs @(l.DevolverInventario ? "font-semibold text-emerald-700" : "text-slate-400")">
-                                @if (l.DevolverInventario && l.ProductoId is { } productoId)
-                                {
-                                    <a class="underline" href="@($"/inventario/movimientos-producto?productoId={productoId}&tipoOrigen={(int)TipoOrigenMovimiento.NotaCreditoVenta}")">Sí</a>
-                                }
-                                else
-                                {
-                                    @("No")
-                                }
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
-    </div>
+    <DocumentoLineasLectura TLinea="LineaDocumento" Columnas="ColumnasDocumento.Nota"
+                            Lineas="@detalle.Lineas.OrderBy(l => l.NumeroLinea).Select(LineaDocumento.Desde).ToList()"
+                            TextoVacio="La nota de crédito no tiene líneas." />
 
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        <div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-            <div class="px-6 py-4 border-b border-slate-100"><h2 class="text-sm font-semibold text-slate-700">Líneas de IVA</h2></div>
-            <table class="min-w-full text-sm" data-testid="lineas-iva">
-                <thead class="bg-slate-50"><tr>
-                    <th class="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase">Identificador</th>
-                    <th class="px-4 py-2 text-right text-xs font-semibold text-slate-500 uppercase">%</th>
-                    <th class="px-4 py-2 text-right text-xs font-semibold text-slate-500 uppercase">Base</th>
-                    <th class="px-4 py-2 text-right text-xs font-semibold text-slate-500 uppercase">IVA</th>
-                    <th class="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase">Cuenta</th>
-                </tr></thead>
-                <tbody class="divide-y divide-slate-50">
-                    @foreach (var iva in detalle.LineasIva)
-                    {
-                        <tr @key="iva.Id">
-                            <td class="px-4 py-2 text-slate-700">@iva.IdentificadorIva</td>
-                            <td class="px-4 py-2 text-right text-slate-500">@iva.PorcentajeIva.ToString("0.#####", CultureInfo.InvariantCulture)</td>
-                            <td class="px-4 py-2 text-right">@VentasOpciones.Importe(iva.BaseImponible)</td>
-                            <td class="px-4 py-2 text-right">@VentasOpciones.Importe(iva.ImporteIva)</td>
-                            <td class="px-4 py-2 font-mono text-xs text-slate-500">@iva.CuentaIvaNumero</td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
-        <div class="rounded-2xl border border-slate-200 bg-white shadow-sm px-6 py-5">
-            <dl class="text-sm space-y-2" data-testid="totales-nota">
-                <div class="flex justify-between"><dt class="text-slate-500">Importe sin IVA</dt><dd class="font-semibold text-slate-800">@VentasOpciones.Importe(c.ImporteSinIva)</dd></div>
-                <div class="flex justify-between"><dt class="text-slate-500">IVA</dt><dd class="font-semibold text-slate-800">@VentasOpciones.Importe(c.ImporteIva)</dd></div>
-                <div class="flex justify-between border-t border-slate-100 pt-2"><dt class="font-bold text-slate-700">Total acreditado</dt><dd class="text-lg font-extrabold text-slate-900">@VentasOpciones.Importe(c.ImporteTotal)</dd></div>
-            </dl>
-            <p class="mt-4 text-xs"><a class="text-brand-700 underline" href="@($"/ventas/movimientos-cliente?socioId={c.SocioNegocioFacturarAId}")">Movimientos del cliente</a></p>
-        </div>
-    </div>
+    <DocumentoTotales Totales="@TotalesDocumento.Desde(detalle)" MostrarCuenta="true"
+                      Titulo="Totales de la nota" />
+    <p class="-mt-3 mb-8 text-xs"><a class="text-brand-700 underline" href="@($"/ventas/movimientos-cliente?socioId={c.SocioNegocioFacturarAId}")">Movimientos del cliente</a></p>
 }
 
 @code {
@@ -263,8 +179,9 @@ else
     [SupplyParameterFromQuery(Name = "hasta")] private string? SearchHasta { get; set; }
     [SupplyParameterFromQuery(Name = "pagina")] private int Pagina { get; set; } = 1;
     [SupplyParameterFromQuery(Name = "ok")] private string? Ok { get; set; }
-    [SupplyParameterFromQuery(Name = "registro")] private string? Registro { get; set; }
     [SupplyParameterFromQuery(Name = "aplicado")] private string? Aplicado { get; set; }
+    // Aviso de numeración del posteo (NS4): lo añade el borrador al redirigir aquí tras postear.
+    [SupplyParameterFromQuery(Name = "aviso")] private string? AvisoNumeracion { get; set; }
 
     private IReadOnlyList<NotaCreditoVentaResponse> notas = [];
     private long total;
@@ -298,7 +215,7 @@ else
         if (Ok == "posteada" && detalle is not null)
         {
             var c = detalle.Cabecera;
-            var registro = Registro ?? c.NumeroRegistroContable;
+            var registro = c.NumeroRegistroContable;
             var aplicado = decimal.TryParse(Aplicado, NumberStyles.Number, CultureInfo.InvariantCulture, out var a) ? a : (decimal?)null;
             Show("success", $"Nota de crédito {c.Numero} posteada por {VentasOpciones.Importe(c.ImporteTotal)} sobre la factura {c.FacturaVentaNumero}. " +
                 (registro is null
@@ -361,6 +278,18 @@ else
         if (pagina > 1) parameters.Add($"pagina={pagina}");
         return parameters.Count == 0 ? "/notas-credito-venta" : $"/notas-credito-venta?{string.Join("&", parameters)}";
     }
+
+    /// <summary>Cabecera en solo lectura (NS20); "Borrador de origen" enlaza al borrador Posteada si la nota lo conserva.</summary>
+    private static IReadOnlyList<CampoDocumento> CamposNota(NotaCreditoVentaResponse c) =>
+    [
+        new("Factura acreditada", c.FacturaVentaNumero, $"/facturas-venta/{Uri.EscapeDataString(c.FacturaVentaNumero)}"),
+        new("Facturar a", $"{c.SocioNegocioFacturarACodigo} — {c.NombreFacturacion}", $"/clientes/{c.SocioNegocioFacturarAId}",
+            $"{c.RazonSocialFacturacion} {c.NumeroDocumentoFiscal}".Trim()),
+        new("Fechas", $"Reg. {EntradaFecha.Formatear(c.FechaRegistro)} · Doc. {EntradaFecha.Formatear(c.FechaDocumento)}", null, c.Moneda),
+        new("Asiento", c.NumeroRegistroContable ?? "Sin asiento (total 0)"),
+        new("Borrador de origen", c.NumeroBorrador, c.NotaCreditoVentaBorradorId is { } b ? $"/notas-credito-venta/borradores/{b}" : null),
+        new("Descripción", string.IsNullOrWhiteSpace(c.Descripcion) ? "—" : c.Descripcion, Ancho: true),
+    ];
 
     private void Show(string type, string text) { messageType = type; message = text; }
 

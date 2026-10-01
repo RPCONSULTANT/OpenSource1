@@ -38,6 +38,11 @@ public sealed class CreateLineaFacturaVentaBorradorCommandHandler(
                 FacturaVentaBorradorErrores.BorradorNoEncontrado("FacturaVentaBorradorId"));
         }
 
+        if (estado == EstadoFacturaBorrador.Posteada)
+        {
+            return Result<LineaFacturaVentaBorradorResponse>.Fallo(FacturaVentaBorradorErrores.Posteada("FacturaVentaBorradorId"));
+        }
+
         if (estado == EstadoFacturaBorrador.Liberada)
         {
             return Result<LineaFacturaVentaBorradorResponse>.Fallo(FacturaVentaBorradorErrores.Liberada("FacturaVentaBorradorId"));

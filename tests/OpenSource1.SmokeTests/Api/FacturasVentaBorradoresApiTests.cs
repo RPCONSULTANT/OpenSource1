@@ -9,6 +9,7 @@ using OpenSource1.Application.Features.FacturasVenta.Calculo;
 using OpenSource1.Core.Common;
 using OpenSource1.Core.Entities;
 using OpenSource1.Core.Entities.Contabilidad;
+using OpenSource1.Core.Entities.Ventas;
 using OpenSource1.Core.Enums;
 using OpenSource1.SmokeTests.TestInfrastructure;
 
@@ -693,6 +694,61 @@ public sealed class FacturasVentaBorradoresApiTests : IClassFixture<PostgresTest
         Assert.All(respuestas, r => Assert.Equal(HttpStatusCode.Created, r.StatusCode));
         var lineas = await client.GetFromJsonAsync<List<LineaFacturaVentaBorradorResponse>>($"{Base}/borradores/{borrador.Id}/lineas");
         Assert.Equal(Enumerable.Range(1, 8).Select(i => i * 10000), lineas!.Select(l => l.NumeroLinea));
+    }
+
+    [Fact]
+    public async Task Listado_SinEstadoIncluyeLosEnCurso_YEstado3SoloLosPosteados_AlPostearPasaDeUnoAOtro()
+    {
+        var client = Admin();
+        var socio = await CrearSocioAsync(client, "Cliente filtro posteadas");
+        var cuenta = await CrearCuentaAsync(client);
+        var borrador = await CrearBorradorOkAsync(client, new { socioNegocioId = socio, fechaRegistro = D10 });
+        await CrearLineaOkAsync(client, borrador.Id, LineaCuenta(cuenta));
+
+        var porDefecto = await client.GetFromJsonAsync<PagedResult<FacturaVentaBorradorResponse>>($"{Base}/borradores?socioId={socio}");
+        var posteados = await client.GetFromJsonAsync<PagedResult<FacturaVentaBorradorResponse>>($"{Base}/borradores?socioId={socio}&estado=3");
+
+        Assert.Contains(porDefecto!.Items, b => b.Id == borrador.Id && b.SerieBorradorCodigo == "FV-BORR" && b.SerieRegistroCodigo == "FV");
+        Assert.DoesNotContain(posteados!.Items, b => b.Id == borrador.Id);
+
+        // Al postearlo por la API sale del listado por defecto y aparece con estado=3, enlazado a su factura.
+        var posteo = await client.PostAsync($"{Base}/borradores/{borrador.Id}/postear", null);
+        var cuerpo = await posteo.Content.ReadAsStringAsync();
+        Assert.True(posteo.StatusCode == HttpStatusCode.OK, cuerpo);
+        var numero = JsonDocument.Parse(cuerpo).RootElement.GetProperty("numero").GetString();
+
+        porDefecto = await client.GetFromJsonAsync<PagedResult<FacturaVentaBorradorResponse>>($"{Base}/borradores?socioId={socio}");
+        posteados = await client.GetFromJsonAsync<PagedResult<FacturaVentaBorradorResponse>>($"{Base}/borradores?socioId={socio}&estado=3");
+
+        Assert.DoesNotContain(porDefecto!.Items, b => b.Id == borrador.Id);
+        var fila = Assert.Single(posteados!.Items);
+        Assert.Equal((borrador.Id, EstadoFacturaBorrador.Posteada, numero), (fila.Id, fila.Estado, fila.FacturaVentaNumero));
+    }
+
+    [Fact]
+    public async Task Alta_ConSeriesElegidas_LasGuarda_YUnaSerieDeOtroTipo400EnSuCampo()
+    {
+        var client = Admin();
+        var socio = await CrearSocioAsync(client, "Cliente series elegidas");
+        var (serieBorrador, _, prefijo) = await SeriesPrueba.CrearAsync(_fixture.AppConnectionString, TipoDocumentoSerie.BorradorFacturaVenta);
+        var (serieRegistro, _, _) = await SeriesPrueba.CrearAsync(_fixture.AppConnectionString, TipoDocumentoSerie.FacturaVenta);
+
+        var borrador = await CrearBorradorOkAsync(client, new { socioNegocioId = socio, serieBorradorId = serieBorrador, serieRegistroId = serieRegistro });
+
+        Assert.Equal(($"{prefijo}000001", serieBorrador, serieRegistro), (borrador.Numero, borrador.SerieBorradorId, borrador.SerieRegistroId));
+        await AssertErrorAsync(
+            await client.PostAsJsonAsync($"{Base}/borradores", new { socioNegocioId = socio, serieRegistroId = serieBorrador }),
+            HttpStatusCode.BadRequest, null, "SerieRegistroId");
+
+        // Modificar: la serie de registro se cambia con el PUT (otra del tipo de borrador -> 400 en su campo).
+        await AssertErrorAsync(
+            await client.PutAsJsonAsync($"{Base}/borradores/{borrador.Id}", new { xmin = borrador.Xmin, serieRegistroId = serieBorrador }),
+            HttpStatusCode.BadRequest, null, "SerieRegistroId");
+        var modificado = await client.PutAsJsonAsync(
+            $"{Base}/borradores/{borrador.Id}", new { xmin = borrador.Xmin, serieRegistroId = SerieFacturaVentaIds.SeriePosteadaId });
+        Assert.True(modificado.IsSuccessStatusCode, await modificado.Content.ReadAsStringAsync());
+        var leido = await GetBorradorAsync(client, borrador.Id);
+        Assert.Equal(("FV", SerieFacturaVentaIds.SeriePosteadaId), (leido.SerieRegistroCodigo, leido.SerieRegistroId));
     }
 
     // ----- Helpers -----

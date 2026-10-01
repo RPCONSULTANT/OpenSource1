@@ -16,7 +16,7 @@ public sealed class DapperNotaCreditoVentaReadRepository(IDbSession session) : I
         new("Numero", "FacturaVentaNumero", "NombreFacturacion", "FechaRegistro", "FechaDocumento", "ImporteTotal", "CreatedAtUtc");
 
     private const string Base = """
-        SELECT n."Numero", n."NumeroBorrador", n."FacturaVentaNumero", n."SocioNegocioId", sv."Codigo" AS "SocioNegocioCodigo",
+        SELECT n."Numero", n."NumeroBorrador", nb."Id" AS "NotaCreditoVentaBorradorId", n."FacturaVentaNumero", n."SocioNegocioId", sv."Codigo" AS "SocioNegocioCodigo",
                sv."NombreComercial" AS "SocioNegocioNombre", n."SocioNegocioFacturarAId", sf."Codigo" AS "SocioNegocioFacturarACodigo",
                n."NombreFacturacion", n."RazonSocialFacturacion", n."TipoDocumentoFiscal", n."NumeroDocumentoFiscal",
                n."FechaRegistro", n."FechaDocumento", n."GrupoNegocioId", n."GrupoIvaNegocioId", n."GrupoClienteContableId",
@@ -28,6 +28,8 @@ public sealed class DapperNotaCreditoVentaReadRepository(IDbSession session) : I
         LEFT JOIN "SociosNegocio" sv ON sv."Id" = n."SocioNegocioId"
         LEFT JOIN "SociosNegocio" sf ON sf."Id" = n."SocioNegocioFacturarAId"
         LEFT JOIN "RegistrosContables" r ON r."Id" = n."RegistroContableId"
+        -- A lo sumo un borrador vivo enlaza cada nota (índice único parcial): el JOIN no duplica filas.
+        LEFT JOIN "NotasCreditoVentaBorrador" nb ON nb."NotaCreditoVentaNumero" = n."Numero" AND nb."IsDeleted" = false
         """;
 
     public async Task<NotaCreditoVentaDetalleResponse?> GetByNumeroAsync(string numero, CancellationToken cancellationToken = default)

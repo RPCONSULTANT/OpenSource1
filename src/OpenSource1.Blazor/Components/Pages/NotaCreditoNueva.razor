@@ -3,6 +3,7 @@
 @using System.ComponentModel.DataAnnotations
 @using Microsoft.AspNetCore.Authorization
 @using OpenSource1.Application.Features.MovimientosCliente.Dtos
+@using OpenSource1.Application.Features.Series.Dtos
 @using OpenSource1.Application.Features.SociosNegocio.Dtos
 @using OpenSource1.Application.Security
 @using OpenSource1.Blazor.Services
@@ -10,6 +11,7 @@
 @inject INotaCreditoVentaApiClient NotaApiClient
 @inject ICobroApiClient CobroApiClient
 @inject ISocioNegocioApiClient SocioApiClient
+@inject ISerieApiClient SerieApiClient
 @inject IAuthorizationService AuthorizationService
 @inject ILogger<NotaCreditoNueva> Logger
 @inject NavigationManager Nav
@@ -106,6 +108,16 @@
                         <input id="NotaInput_Descripcion" type="text" name="NotaInput.Descripcion" value="@NotaInput.Descripcion" maxlength="200" class="@VentasCss.Input" />
                         <ValidationMessage For="() => NotaInput.Descripcion" />
                     </div>
+                    <div>
+                        <label class="mb-1 block text-sm font-medium text-slate-700" for="NotaInput_SerieBorradorId">Serie del borrador</label>
+                        <SelectorSerie Id="NotaInput_SerieBorradorId" Name="NotaInput.SerieBorradorId" Series="@seriesBorrador.Items" CargaFallida="@seriesBorrador.CargaFallida"
+                                       Seleccion="@NotaInput.SerieBorradorId" OpcionConfigurada="true" />
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-sm font-medium text-slate-700" for="NotaInput_SerieRegistroId">Serie de registro</label>
+                        <SelectorSerie Id="NotaInput_SerieRegistroId" Name="NotaInput.SerieRegistroId" Series="@seriesRegistro.Items" CargaFallida="@seriesRegistro.CargaFallida"
+                                       Seleccion="@NotaInput.SerieRegistroId" OpcionConfigurada="true" />
+                    </div>
                 </div>
                 <label class="mt-4 flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200" for="NotaInput_CopiarLineas">
                     <input id="NotaInput_CopiarLineas" type="checkbox" name="NotaInput.CopiarLineas" value="true" checked="@NotaInput.CopiarLineas" class="rounded border-slate-300" />
@@ -115,7 +127,7 @@
                     <input id="NotaInput_DevolverInventario" type="checkbox" name="NotaInput.DevolverInventario" value="true" checked="@NotaInput.DevolverInventario" class="rounded border-slate-300" />
                     Devolver al inventario las líneas de producto copiadas
                 </label>
-                <p class="mt-2 text-xs text-slate-400">Fechas vacías: registro = hoy, documento = registro. La fecha de registro no puede ser anterior a la de la factura.</p>
+                <p class="mt-2 text-xs text-slate-400">Fechas vacías: registro = hoy, documento = registro. La fecha de registro no puede ser anterior a la de la factura. Series vacías: las configuradas para las notas de crédito.</p>
                 <FormularioAcciones CancelarHref="@Volver" LimpiarHref="@Nav.Uri" TextoGuardar="Crear borrador" />
             </EditForm>
         }
@@ -139,6 +151,8 @@
     [CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
 
     private OpcionesCargadas<SocioNegocioResponse> socios = OpcionesCargadas<SocioNegocioResponse>.SinCargar;
+    private OpcionesCargadas<SerieResponse> seriesBorrador = OpcionesCargadas<SerieResponse>.SinCargar;
+    private OpcionesCargadas<SerieResponse> seriesRegistro = OpcionesCargadas<SerieResponse>.SinCargar;
     private SocioNegocioResponse? socio;
     private IReadOnlyList<MovimientoClienteResponse> facturas = [];
     private bool cargaFallida;
@@ -197,6 +211,14 @@
             cargaFallida = true;
             Show("danger", "No fue posible cargar las facturas pendientes del cliente; recargue la página.");
         }
+
+        // Series del alta (spec no-series): solo cuando el formulario se muestra. Si no cargan, los selectores quedan en
+        // "— La configurada —" (null) y el alta sigue funcionando con la serie configurada del tipo.
+        if (facturas.Count > 0)
+        {
+            seriesBorrador = await SeriesOpciones.ActivasAsync(SerieApiClient, TipoDocumentoSerie.BorradorNotaCreditoVenta, Logger);
+            seriesRegistro = await SeriesOpciones.ActivasAsync(SerieApiClient, TipoDocumentoSerie.NotaCreditoVenta, Logger);
+        }
     }
 
     private async Task CrearAsync()
@@ -216,7 +238,8 @@
         {
             var result = await NotaApiClient.CreateBorradorAsync(new NotaCreditoBorradorInput(
                 f.FacturaVentaNumero.Trim(), f.FechaRegistro, f.FechaDocumento,
-                string.IsNullOrWhiteSpace(f.Descripcion) ? null : f.Descripcion.Trim(), f.CopiarLineas, f.DevolverInventario));
+                string.IsNullOrWhiteSpace(f.Descripcion) ? null : f.Descripcion.Trim(), f.CopiarLineas, f.DevolverInventario,
+                f.SerieBorradorId, f.SerieRegistroId));
             if (result.Succeeded)
             {
                 destino = $"/notas-credito-venta/borradores/{result.Valor!.Id}?ok=creado";
@@ -260,6 +283,12 @@
         public bool CopiarLineas { get; set; }
 
         public bool DevolverInventario { get; set; }
+
+        /// <summary>Serie que numera el borrador (tipo BorradorNotaCreditoVenta); null = la configurada.</summary>
+        public Guid? SerieBorradorId { get; set; }
+
+        /// <summary>Serie con la que se numerará la nota al postear (tipo NotaCreditoVenta); null = la configurada.</summary>
+        public Guid? SerieRegistroId { get; set; }
 
         public DateOnly? FechaRegistro => Fecha(FechaRegistroTexto);
 

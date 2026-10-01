@@ -10,6 +10,10 @@ public sealed class NotaCreditoVentaResponse
 {
     public string Numero { get; init; } = string.Empty;
     public string NumeroBorrador { get; init; } = string.Empty;
+
+    /// <summary>Borrador (Posteada) del que salió la nota; <see langword="null"/> en notas anteriores a la spec no-series.</summary>
+    public Guid? NotaCreditoVentaBorradorId { get; init; }
+
     public string FacturaVentaNumero { get; init; } = string.Empty;
     public Guid SocioNegocioId { get; init; }
     public string? SocioNegocioCodigo { get; init; }

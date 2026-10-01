@@ -1,10 +1,13 @@
 @using OpenSource1.Application.Features.Almacenes.Dtos
 @using OpenSource1.Application.Features.FacturasVenta.Borradores.Dtos
+@using OpenSource1.Application.Features.Series.Dtos
 @using OpenSource1.Application.Features.SociosNegocio.Dtos
 @using OpenSource1.Blazor.Components.Pages
 
 @* Campos de la cabecera de un borrador de factura, compartidos por el alta (/facturas-venta/nueva, Vigente = null) y la
-   modificación de cabecera (/facturas-venta/borradores/{id}/editar, Vigente = borrador guardado). Va dentro del EditForm. *@
+   cabecera editable de la página única (/facturas-venta/borradores/{id}, Vigente = borrador guardado). Va dentro del EditForm.
+   Series (spec no-series): en el alta, serie de borrador y de registro con "— La configurada —"; en la cabecera, solo la de
+   registro (conserva la actual aunque ya no esté activa o la carga falle, F7) con el próximo número. *@
 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4" data-testid="cabecera-factura-fields">
     @if (!SocioBloqueado)
     {
@@ -64,6 +67,27 @@
             }
         </select>
     </div>
+    @if (SeriesBorrador is not null)
+    {
+        <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{Prefix}_SerieBorradorId")">Serie de borrador</label>
+            <SelectorSerie Id="@($"{Prefix}_SerieBorradorId")" Name="@($"{Prefix}.SerieBorradorId")" Series="@SeriesBorrador"
+                           Seleccion="@Model.SerieBorradorId" OpcionConfigurada="true" CargaFallida="@SeriesCargaFallida" />
+        </div>
+    }
+    @if (SeriesRegistro is not null)
+    {
+        <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{Prefix}_SerieRegistroId")">Serie de registro</label>
+            <SelectorSerie Id="@($"{Prefix}_SerieRegistroId")" Name="@($"{Prefix}.SerieRegistroId")" Series="@SeriesRegistro"
+                           Seleccion="@Model.SerieRegistroId" VigenteId="@Vigente?.SerieRegistroId" VigenteCodigo="@Vigente?.SerieRegistroCodigo"
+                           OpcionConfigurada="@EsAlta" CargaFallida="@SeriesCargaFallida" />
+            @if (Proximo is not null)
+            {
+                <div class="mt-1"><SerieNumeracionInfo Codigo="@Vigente?.SerieRegistroCodigo" ProximoNumero="@Proximo.Numero" Aviso="@Proximo.Aviso" Error="@Proximo.Error" /></div>
+            }
+        </div>
+    }
     <div class="sm:col-span-2">
         <label class="block text-sm font-medium text-slate-700 mb-1" for="@($"{Prefix}_Descripcion")">Descripción</label>
         <input id="@($"{Prefix}_Descripcion")" type="text" name="@($"{Prefix}.Descripcion")" value="@Model.Descripcion" maxlength="200" class="@VentasCss.Input" />
@@ -94,6 +118,18 @@
 
     /// <summary>Borrador guardado en la modificación de cabecera; null en el alta.</summary>
     [Parameter] public FacturaVentaBorradorResponse? Vigente { get; set; }
+
+    /// <summary>Series activas de facturas (null = sin selector de serie de registro).</summary>
+    [Parameter] public IReadOnlyList<SerieResponse>? SeriesRegistro { get; set; }
+
+    /// <summary>Series activas de borradores; solo en el alta (null = sin selector).</summary>
+    [Parameter] public IReadOnlyList<SerieResponse>? SeriesBorrador { get; set; }
+
+    /// <summary>La carga de series falló (F7): no bloquea guardar; el selector conserva y rotula la serie actual.</summary>
+    [Parameter] public bool SeriesCargaFallida { get; set; }
+
+    /// <summary>Próximo número de la serie de registro vigente (vista previa, solo en la cabecera de un borrador).</summary>
+    [Parameter] public ProximoVista? Proximo { get; set; }
 
     private bool EsAlta => Vigente is null;
     private string Obligatoria => EsAlta ? "" : " *";

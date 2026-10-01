@@ -5,6 +5,8 @@ using Dapper;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Npgsql;
 using OpenSource1.Application.Features.Busqueda.Dtos;
+using OpenSource1.Core.Entities.Contabilidad;
+using OpenSource1.Core.Enums;
 using OpenSource1.SmokeTests.TestInfrastructure;
 using static OpenSource1.SmokeTests.TestInfrastructure.LibroClientesSemilla;
 
@@ -108,6 +110,60 @@ public sealed class BusquedaApiTests : IClassFixture<PostgresTestFixture>
         var anonimo = new HttpRequestMessage(HttpMethod.Get, "/api/busqueda?q=abc");
         anonimo.Headers.Add("X-Test-Anonymous", "true");
         Assert.Equal(HttpStatusCode.Unauthorized, (await _client.SendAsync(anonimo)).StatusCode);
+    }
+
+    [Fact]
+    public async Task ExcluyeLosBorradoresPosteados_DeFacturaYDeNota()
+    {
+        var marcador = Marcador();
+        var client = Rol("Administrador");
+        await using var conexion = await AbrirAsync();
+        var socio = await InsertarSocioAsync(conexion, $"Comercial {marcador}");
+        var factura = Guid.NewGuid().ToString("N")[..12].ToUpperInvariant();
+        await InsertarFacturaAsync(conexion, factura, socio, new DateOnly(2026, 9, 10),
+            [new Linea(10000, TipoLineaFactura.CuentaContable, 50m, CuentaContableId: CuentaContableIds.Ventas)],
+            [new LineaIva("ITBIS18", 18m, 50m, 9m)], null, $"Cliente {marcador}");
+        var borradorFactura = await CrearAsync(client, "/api/facturas-venta/borradores", new { socioNegocioId = socio });
+        var borradorNota = await CrearAsync(client, "/api/notas-credito-venta/borradores", new { facturaVentaNumero = factura, fechaRegistro = "2026-09-12" });
+        var numeroNota = borradorNota.GetProperty("numero").GetString()!;
+
+        Assert.Contains(Grupo(await BuscarAsync(client, marcador), TiposResultadoBusqueda.BorradoresFactura),
+            r => r.Id == borradorFactura.GetProperty("id").GetGuid().ToString());
+        Assert.Contains(Grupo(await BuscarAsync(client, numeroNota), TiposResultadoBusqueda.BorradoresNotaCredito),
+            r => r.Id == borradorNota.GetProperty("id").GetGuid().ToString());
+
+        // Los dos borradores pasan a Posteada (con su documento, como deja el posteo): la búsqueda global ya no los muestra.
+        var nota = $"T{Guid.NewGuid():N}"[..20];
+        await conexion.ExecuteAsync(
+            """
+            UPDATE "FacturasVentaBorrador" SET "Estado" = 3, "FacturaVentaNumero" = @F WHERE "Id" = @Bf;
+            INSERT INTO "NotasCreditoVenta" ("Numero", "NumeroBorrador", "FacturaVentaNumero", "SocioNegocioId", "SocioNegocioFacturarAId",
+                "NombreFacturacion", "TipoDocumentoFiscal", "FechaRegistro", "FechaDocumento", "GrupoNegocioId", "GrupoIvaNegocioId",
+                "GrupoClienteContableId", "Moneda", "ImporteSinIva", "ImporteIva", "ImporteTotal", "CreatedAtUtc", "CreatedBy")
+            SELECT @N, @Nb, "Numero", "SocioNegocioId", "SocioNegocioFacturarAId", "NombreFacturacion", "TipoDocumentoFiscal",
+                   "FechaRegistro", "FechaDocumento", "GrupoNegocioId", "GrupoIvaNegocioId", "GrupoClienteContableId", "Moneda", 0, 0, 0,
+                   now(), 'test'
+            FROM "FacturasVenta" WHERE "Numero" = @F;
+            UPDATE "NotasCreditoVentaBorrador" SET "Estado" = 3, "NotaCreditoVentaNumero" = @N WHERE "Id" = @Bn;
+            """,
+            new
+            {
+                F = factura, N = nota, Nb = numeroNota,
+                Bf = borradorFactura.GetProperty("id").GetGuid(), Bn = borradorNota.GetProperty("id").GetGuid(),
+            });
+
+        var porCliente = await BuscarAsync(client, marcador);
+        Assert.Empty(Grupo(porCliente, TiposResultadoBusqueda.BorradoresFactura));
+        Assert.Single(Grupo(porCliente, TiposResultadoBusqueda.Facturas));
+        var porNumero = await BuscarAsync(client, numeroNota);
+        Assert.DoesNotContain(Grupo(porNumero, TiposResultadoBusqueda.BorradoresNotaCredito), r => r.Id == borradorNota.GetProperty("id").GetGuid().ToString());
+    }
+
+    private static async Task<JsonElement> CrearAsync(HttpClient client, string ruta, object cuerpo)
+    {
+        var response = await client.PostAsJsonAsync(ruta, cuerpo);
+        Assert.True(response.StatusCode == HttpStatusCode.Created, await response.Content.ReadAsStringAsync());
+        return JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement.Clone();
     }
 
     private static string Marcador() => "Zq" + Guid.NewGuid().ToString("N")[..10];

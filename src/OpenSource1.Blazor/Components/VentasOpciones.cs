@@ -110,6 +110,14 @@ public static class VentasOpciones
     {
         EstadoFacturaBorrador.Abierta => "Abierta",
         EstadoFacturaBorrador.Liberada => "Liberada",
+        EstadoFacturaBorrador.Posteada => "Posteada",
+        _ => estado.ToString()
+    };
+
+    public static string EstadoNota(EstadoNotaCreditoBorrador estado) => estado switch
+    {
+        EstadoNotaCreditoBorrador.Abierta => "Abierta",
+        EstadoNotaCreditoBorrador.Posteada => "Posteada",
         _ => estado.ToString()
     };
 

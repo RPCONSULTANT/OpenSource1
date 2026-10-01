@@ -12,13 +12,13 @@ public sealed class RegistroContable
 {
     public long Id { get; set; }
 
-    /// <summary>varchar(20), único. Número de la serie <c>CONTAB</c>.</summary>
+    /// <summary>varchar(20), único. Número de la serie configurada para el tipo <c>AsientoContable</c>.</summary>
     public required string NumeroRegistro { get; set; }
 
     /// <summary>Menor <c>MovimientosContables."Id"</c> del registro.</summary>
     public long DesdeMovimiento { get; set; }
 
-    /// <summary>Mayor <c>MovimientosContables."Id"</c> del registro (rango contiguo: los escritores se serializan por la serie).</summary>
+    /// <summary>Mayor <c>MovimientosContables."Id"</c> del registro (rango contiguo: los escritores se serializan por el advisory lock del libro contable).</summary>
     public long HastaMovimiento { get; set; }
 
     public DateTimeOffset FechaCreacion { get; set; }

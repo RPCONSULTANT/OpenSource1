@@ -43,8 +43,9 @@ public sealed class ConversionDocumentosUsuariosTests
 
     [Theory]
     [InlineData("/diarios-inventario?editId={0}", "/diarios-inventario/{0}/editar", "/diarios-inventario")]
-    [InlineData("/facturas-venta/borradores?editId={0}", "/facturas-venta/borradores/{0}/editar", "/facturas-venta/borradores")]
-    [InlineData("/notas-credito-venta/borradores?editId={0}", "/notas-credito-venta/borradores/{0}/editar", "/notas-credito-venta/borradores")]
+    [InlineData("/facturas-venta/borradores?editId={0}", "/facturas-venta/borradores/{0}", "/facturas-venta/borradores")]
+    [InlineData("/notas-credito-venta/borradores?editId={0}", "/notas-credito-venta/borradores/{0}", "/notas-credito-venta/borradores")]
+    // Los borradores de factura y nota van directamente a la página única (un solo salto), sin pasar por /editar.
     public async Task EditIdLegado_RedirigeALaRutaNueva(string origen, string destino, string lista)
     {
         using var app = Configurar(new BlazorSsrFactory());
@@ -188,61 +189,13 @@ public sealed class ConversionDocumentosUsuariosTests
         var abierto = await HtmlSsr.HtmlAsync(app.Cliente(), $"/facturas-venta/borradores?numero=B&sel={IdBorrador}");
         var liberado = await HtmlSsr.HtmlAsync(app.Cliente(), $"/facturas-venta/borradores?sel={IdBorradorLiberado}");
 
-        Assert.Contains($"<a data-testid=\"accion-editar\" href=\"/facturas-venta/borradores/{IdBorrador}/editar?returnUrl=", abierto);
+        Assert.Contains($"<a data-testid=\"accion-editar\" href=\"/facturas-venta/borradores/{IdBorrador}?returnUrl=", abierto);
         Assert.Contains("href=\"/facturas-venta/nueva?returnUrl=", abierto);
         Assert.Contains("value=\"B\"", abierto);
         // Fix-Features C3 (R7): un liberado se selecciona (Ver ▾ Abrir borrador / Cliente) pero Modificar y Eliminar se ocultan.
         Assert.DoesNotContain("data-testid=\"accion-editar\"", liberado);
         Assert.DoesNotContain("data-testid=\"accion-eliminar\"", liberado);
         Assert.Contains($"href=\"/facturas-venta/borradores/{IdBorradorLiberado}\"", liberado);
-    }
-
-    [Fact]
-    public async Task FacturaCabecera_CargaLoGuardado_YGuardaConXmin()
-    {
-        using var app = Configurar(new BlazorSsrFactory());
-        var api = app.Simular<IFacturaVentaApiClient>();
-        api.Setup(c => c.UpdateBorradorAsync(IdBorrador, It.Is<BorradorCabeceraInput>(i => i.SocioNegocioId == IdSocio && i.Descripcion == "Nueva"), 11, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new VentaOperationResult<FacturaVentaBorradorResponse>(true, "ok"));
-        var url = $"/facturas-venta/borradores/{IdBorrador}/editar";
-
-        var html = await HtmlSsr.HtmlAsync(app.Cliente(), url);
-        var respuesta = await FormulariosSsr.EnviarAsync(app.Cliente(), url, "update-borrador", new Dictionary<string, string>
-        {
-            ["UpdateInput.Xmin"] = "11", ["UpdateInput.SocioNegocioId"] = IdSocio.ToString(), ["UpdateInput.AlmacenId"] = IdAlmacen.ToString(),
-            ["UpdateInput.FechaRegistroTexto"] = "2026-09-01", ["UpdateInput.FechaDocumentoTexto"] = "2026-09-01", ["UpdateInput.Descripcion"] = "Nueva",
-        });
-
-        Assert.Contains("data-testid=\"entity-form-page\"", html);
-        Assert.Contains("name=\"_handler\" value=\"update-borrador\"", html);
-        Assert.Contains("value=\"Vieja\"", html);
-        Assert.Contains("name=\"UpdateInput.Xmin\" value=\"11\"", html);
-        Assert.Equal($"/facturas-venta/borradores/{IdBorrador}?ok=modificado", FormulariosSsr.Destino(respuesta));
-        api.Verify(c => c.UpdateBorradorAsync(IdBorrador, It.IsAny<BorradorCabeceraInput>(), 11, It.IsAny<CancellationToken>()), Times.Once);
-    }
-
-    [Fact]
-    public async Task FacturaCabecera_SinCanModify_Mensaje_YPostForzado_DevuelveMensajeDeLaApi()
-    {
-        using var app = Configurar(new BlazorSsrFactory());
-        app.Simular<IFacturaVentaApiClient>()
-            .Setup(c => c.UpdateBorradorAsync(IdBorrador, It.IsAny<BorradorCabeceraInput>(), It.IsAny<long>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new VentaOperationResult<FacturaVentaBorradorResponse>(false, "No tiene permisos para modificar borradores."));
-        var ejecutor = app.Cliente("Ejecutor");
-        var url = $"/facturas-venta/borradores/{IdBorrador}/editar";
-
-        var html = await HtmlSsr.HtmlAsync(ejecutor, url);
-        var forzado = await FormulariosSsr.EnviarAsync(ejecutor, url, "update-borrador", new Dictionary<string, string>
-        {
-            ["UpdateInput.Xmin"] = "11", ["UpdateInput.SocioNegocioId"] = IdSocio.ToString(),
-            ["UpdateInput.FechaRegistroTexto"] = "2026-09-01", ["UpdateInput.FechaDocumentoTexto"] = "2026-09-01",
-        });
-
-        Assert.Contains("No tiene permiso para realizar esta acción.", html);
-        Assert.Contains("value=\"update-borrador\"", html);
-        Assert.DoesNotContain("data-testid=\"guardar\"", html);
-        Assert.Equal(HttpStatusCode.OK, forzado.StatusCode);
-        Assert.Contains("No tiene permisos para modificar borradores.", HtmlSsr.Decodificar(await forzado.Content.ReadAsStringAsync()));
     }
 
     [Fact]
@@ -264,42 +217,6 @@ public sealed class ConversionDocumentosUsuariosTests
     }
 
     [Fact]
-    public async Task NotaCabecera_CargaLoGuardado_YGuardaConXmin()
-    {
-        using var app = Configurar(new BlazorSsrFactory());
-        var api = app.Simular<INotaCreditoVentaApiClient>();
-        api.Setup(c => c.UpdateBorradorAsync(IdNota, new DateOnly(2026, 9, 2), new DateOnly(2026, 9, 3), "Devolución", 5, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new VentaOperationResult<NotaCreditoVentaBorradorResponse>(true, "ok"));
-        var url = $"/notas-credito-venta/borradores/{IdNota}/editar";
-
-        var html = await HtmlSsr.HtmlAsync(app.Cliente(), url);
-        var respuesta = await FormulariosSsr.EnviarAsync(app.Cliente(), url, "update-borrador-nota", new Dictionary<string, string>
-        {
-            ["UpdateInput.Xmin"] = "5", ["UpdateInput.FechaRegistroTexto"] = "2026-09-02", ["UpdateInput.FechaDocumentoTexto"] = "2026-09-03",
-            ["UpdateInput.Descripcion"] = "Devolución",
-        });
-
-        Assert.Contains("data-testid=\"entity-form-page\"", html);
-        Assert.Contains("name=\"_handler\" value=\"update-borrador-nota\"", html);
-        Assert.Contains("FAC-0001", html);
-        Assert.Contains("name=\"UpdateInput.Xmin\" value=\"5\"", html);
-        Assert.Equal($"/notas-credito-venta/borradores/{IdNota}?ok=modificado", FormulariosSsr.Destino(respuesta));
-        api.Verify(c => c.UpdateBorradorAsync(IdNota, It.IsAny<DateOnly?>(), It.IsAny<DateOnly?>(), It.IsAny<string>(), 5, It.IsAny<CancellationToken>()), Times.Once);
-    }
-
-    [Fact]
-    public async Task NotaCabecera_NoEncontrada_Mensaje()
-    {
-        using var app = Configurar(new BlazorSsrFactory());
-
-        var html = await HtmlSsr.HtmlAsync(app.Cliente(), $"/notas-credito-venta/borradores/{Guid.NewGuid()}/editar");
-
-        Assert.Contains("No se encontró el borrador seleccionado", html);
-        Assert.DoesNotContain("data-testid=\"guardar\"", html);
-        Assert.Contains("value=\"update-borrador-nota\"", html);
-    }
-
-    [Fact]
     public async Task CabeceraFactura_ComponenteCompartido_EnAltaYEdicion()
     {
         using var app = Configurar(new BlazorSsrFactory());
@@ -315,7 +232,8 @@ public sealed class ConversionDocumentosUsuariosTests
             });
 
         var alta = await HtmlSsr.HtmlAsync(app.Cliente(), "/facturas-venta/nueva");
-        var edicion = await HtmlSsr.HtmlAsync(app.Cliente(), $"/facturas-venta/borradores/{borradorOtro}/editar");
+        // Spec no-series (Parte 4, F4): la edición de la cabecera vive en la página única del borrador.
+        var edicion = await HtmlSsr.HtmlAsync(app.Cliente(), $"/facturas-venta/borradores/{borradorOtro}");
 
         Assert.Contains("data-testid=\"cabecera-factura-fields\"", alta);
         Assert.Contains("name=\"AddInput.SocioNegocioId\"", alta);
@@ -329,6 +247,11 @@ public sealed class ConversionDocumentosUsuariosTests
         Assert.DoesNotContain("— Predeterminado —", edicion);
         Assert.Contains($"<option value=\"{otroSocio}\" selected=\"selected\">C-009 — Otro Cliente</option>", edicion);
         Assert.Contains("la API lo recalcula", edicion);
+        Assert.Contains("data-testid=\"cabecera-editable\"", edicion);
+        Assert.Contains("name=\"UpdateInput.SerieRegistroId\"", edicion);
+        Assert.DoesNotContain("name=\"UpdateInput.SerieBorradorId\"", edicion);
+        Assert.Contains("name=\"AddInput.SerieBorradorId\"", alta);
+        Assert.Contains("name=\"AddInput.SerieRegistroId\"", alta);
     }
 
     [Fact]
@@ -401,6 +324,9 @@ public sealed class ConversionDocumentosUsuariosTests
             .Setup(c => c.ListAsync(It.IsAny<AlmacenSearchFilter?>(), It.IsAny<PageRequest?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new PagedResult<AlmacenResponse>([new AlmacenResponse { Id = IdAlmacen, Codigo = "PRINC", Nombre = "Principal" }], 1, 50, 1));
         app.Simular<IUserAdminApiClient>();
+        // F7: series simuladas (sin series activas) para el alta y la cabecera del borrador.
+        app.Simular<ISerieApiClient>()
+            .Setup(c => c.ActivasDelTipoAsync(It.IsAny<TipoDocumentoSerie>(), It.IsAny<CancellationToken>())).ReturnsAsync([]);
         return app;
     }
 }

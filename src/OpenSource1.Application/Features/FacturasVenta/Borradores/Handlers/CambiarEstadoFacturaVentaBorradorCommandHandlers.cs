@@ -46,6 +46,12 @@ internal static class CambioEstadoFacturaVentaBorrador
             return Result<FacturaVentaBorradorResponse>.Fallo(FacturaVentaBorradorErrores.BorradorNoEncontrado());
         }
 
+        // Un borrador Posteada es de solo lectura: ni se libera ni se reabre.
+        if (estado == EstadoFacturaBorrador.Posteada)
+        {
+            return Result<FacturaVentaBorradorResponse>.Fallo(FacturaVentaBorradorErrores.Posteada());
+        }
+
         if (estado == nuevoEstado)
         {
             return Result<FacturaVentaBorradorResponse>.Fallo(nuevoEstado == EstadoFacturaBorrador.Liberada

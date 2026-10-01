@@ -3,6 +3,7 @@ using OpenSource1.Application.Data;
 using OpenSource1.Application.Features.NotasCreditoVenta.Borradores;
 using OpenSource1.Application.Features.NotasCreditoVenta.Borradores.Dtos;
 using OpenSource1.Core.Common;
+using OpenSource1.Core.Enums;
 
 namespace OpenSource1.Infrastructure.Data.Queries;
 
@@ -27,22 +28,29 @@ public sealed class DapperNotaCreditoVentaBorradorReadRepository(IDbSession sess
                n."CuentaCxCId", c."Numero" AS "CuentaCxCNumero", n."Moneda", n."Descripcion",
                (SELECT COUNT(*) FROM "LineasNotaCreditoVentaBorrador" l
                 WHERE l."NotaCreditoVentaBorradorId" = n."Id" AND l."IsDeleted" = false)::int AS "NumeroLineas",
+               n."Estado", n."SerieBorradorId", sb."Codigo" AS "SerieBorradorCodigo",
+               n."SerieRegistroId", sr."Codigo" AS "SerieRegistroCodigo", n."NotaCreditoVentaNumero",
                n.xmin::text::bigint AS "Xmin", n."CreatedAtUtc", n."UpdatedAtUtc", n."CreatedBy", n."UpdatedBy"
         FROM "NotasCreditoVentaBorrador" n
         JOIN "FacturasVenta" f ON f."Numero" = n."FacturaVentaNumero"
         LEFT JOIN "SociosNegocio" sv ON sv."Id" = n."SocioNegocioId"
         LEFT JOIN "SociosNegocio" sf ON sf."Id" = n."SocioNegocioFacturarAId"
         LEFT JOIN "CuentasContables" c ON c."Id" = n."CuentaCxCId"
+        LEFT JOIN "Series" sb ON sb."Id" = n."SerieBorradorId"
+        LEFT JOIN "Series" sr ON sr."Id" = n."SerieRegistroId"
         WHERE n."IsDeleted" = false
         """;
 
-    // Acreditado de la línea de factura por notas POSTEADAS.
+    // Acreditado de la línea de factura por notas POSTEADAS, sin la propia nota de un borrador Posteada (no se resta a sí mismo).
     private const string ColumnasLinea = """
         l."Id", l."NotaCreditoVentaBorradorId", l."LineaFacturaVentaId", l."NumeroLinea", l."Tipo",
         l."ProductoId", p."Codigo" AS "ProductoCodigo", l."CuentaContableId", c."Numero" AS "CuentaContableNumero",
         l."Descripcion", l."AlmacenId", a."Codigo" AS "AlmacenCodigo", l."UnidadMedidaId", u."Codigo" AS "UnidadMedidaCodigo",
         l."CantidadPorUnidadMedida", l."Cantidad", lf."Cantidad" AS "CantidadFacturada",
-        COALESCE((SELECT SUM(ln."Cantidad") FROM "LineasNotaCreditoVenta" ln WHERE ln."LineaFacturaVentaId" = l."LineaFacturaVentaId"), 0)
+        COALESCE((SELECT SUM(ln."Cantidad") FROM "LineasNotaCreditoVenta" ln
+                  WHERE ln."LineaFacturaVentaId" = l."LineaFacturaVentaId"
+                    AND ln."NotaCreditoVentaNumero" IS DISTINCT FROM (
+                        SELECT nb."NotaCreditoVentaNumero" FROM "NotasCreditoVentaBorrador" nb WHERE nb."Id" = l."NotaCreditoVentaBorradorId")), 0)
             AS "CantidadAcreditada",
         l."PrecioUnitario", l."PorcentajeDescuentoLinea", l."ImporteDescuentoLinea", l."ImporteLinea",
         l."GrupoProductoId", l."GrupoIvaProductoId", l."GrupoInventarioId", l."IdentificadorIva", l."PorcentajeIva",
@@ -81,6 +89,10 @@ public sealed class DapperNotaCreditoVentaBorradorReadRepository(IDbSession sess
             filters.Add("(\"SocioNegocioId\" = @SocioNegocioId OR \"SocioNegocioFacturarAId\" = @SocioNegocioId)");
             parameters.Add("SocioNegocioId", socioId);
         }
+
+        // Sin estado, solo los Abierta (los Posteada se consultan con estado=3).
+        filters.Add("\"Estado\" = @Estado");
+        parameters.Add("Estado", (short)(search.Estado ?? EstadoNotaCreditoBorrador.Abierta));
 
         var whereSql = filters.Count == 0 ? string.Empty : Environment.NewLine + "WHERE " + string.Join(" AND ", filters);
         var ordenColumna = ColumnasPermitidas.EsValida(pagina.OrdenarPor) ? pagina.OrdenarPor! : "CreatedAtUtc";
@@ -141,7 +153,9 @@ public sealed class DapperNotaCreditoVentaBorradorReadRepository(IDbSession sess
                 SELECT lf."Id" AS "LineaFacturaVentaId", lf."NumeroLinea", lf."Tipo", lf."ProductoId", p."Codigo" AS "ProductoCodigo",
                        lf."CuentaContableId", c."Numero" AS "CuentaContableNumero", lf."Descripcion", u."Codigo" AS "UnidadMedidaCodigo",
                        lf."PrecioUnitario", lf."PorcentajeDescuentoLinea", lf."Cantidad" AS "CantidadFacturada",
-                       COALESCE((SELECT SUM(ln."Cantidad") FROM "LineasNotaCreditoVenta" ln WHERE ln."LineaFacturaVentaId" = lf."Id"), 0)
+                       COALESCE((SELECT SUM(ln."Cantidad") FROM "LineasNotaCreditoVenta" ln
+                                 WHERE ln."LineaFacturaVentaId" = lf."Id"
+                                   AND ln."NotaCreditoVentaNumero" IS DISTINCT FROM n."NotaCreditoVentaNumero"), 0)
                            AS "CantidadAcreditada",
                        lb."Id" AS "LineaNotaId", lb."Cantidad" AS "CantidadEnBorrador"
                 FROM "NotasCreditoVentaBorrador" n

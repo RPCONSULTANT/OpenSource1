@@ -34,6 +34,17 @@ public sealed class FacturaVentaBorradorResponse
     public Guid AlmacenId { get; init; }
     public string? AlmacenCodigo { get; init; }
     public EstadoFacturaBorrador Estado { get; init; }
+
+    /// <summary>Serie que numeró el borrador.</summary>
+    public Guid SerieBorradorId { get; init; }
+    public string? SerieBorradorCodigo { get; init; }
+
+    /// <summary>Serie con la que se numera (o se numeró) la factura al postear.</summary>
+    public Guid SerieRegistroId { get; init; }
+    public string? SerieRegistroCodigo { get; init; }
+
+    /// <summary>Factura emitida al postear (solo en un borrador <c>Posteada</c>).</summary>
+    public string? FacturaVentaNumero { get; init; }
     public string Moneda { get; init; } = string.Empty;
     public string? Descripcion { get; init; }
     public int NumeroLineas { get; init; }

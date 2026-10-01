@@ -1,0 +1,46 @@
+@using System.Globalization
+@* Totales al pie del documento (spec no-series): subtotal, descuentos, importe sin ITBIS, ITBIS y total; IVA agrupado por identificador.
+   MostrarCuenta añade la columna "Cuenta" del grupo de IVA (TotalesDocumento.CuentasIva; documentos posteados). *@
+<div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden mb-6" data-testid="totales">
+    <div class="px-6 py-4 border-b border-slate-100"><h2 class="text-sm font-semibold text-slate-700">@Titulo</h2></div>
+    @if (Totales is null)
+    {
+        <p class="px-6 py-4 text-sm text-slate-400">No fue posible calcular los totales.</p>
+    }
+    else
+    {
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 px-6 py-4">
+            <table class="min-w-full text-sm">
+                <thead><tr class="text-xs uppercase text-slate-500"><th class="text-left py-1">Grupo</th>@if (MostrarCuenta)
+                {<th class="text-left py-1">Cuenta</th>}<th class="text-right py-1">%</th><th class="text-right py-1">Base</th><th class="text-right py-1">ITBIS</th></tr></thead>
+                <tbody>
+                    @if (Totales.Grupos.Count == 0)
+                    {
+                        <tr><td colspan="@(MostrarCuenta ? 5 : 4)" class="py-1 text-slate-400">Sin ITBIS.</td></tr>
+                    }
+                    @for (var i = 0; i < Totales.Grupos.Count; i++)
+                    {
+                        var g = Totales.Grupos[i];
+                        <tr><td class="py-1 text-slate-700">@g.IdentificadorIva</td>@if (MostrarCuenta)
+                        {<td class="py-1 font-mono text-xs text-slate-600">@(Totales.CuentasIva?.ElementAtOrDefault(i) ?? "—")</td>}<td class="py-1 text-right text-slate-500">@g.PorcentajeIva.ToString("0.#####", CultureInfo.InvariantCulture)</td><td class="py-1 text-right">@VentasOpciones.Importe(g.BaseImponible)</td><td class="py-1 text-right">@VentasOpciones.Importe(g.ImporteIva)</td></tr>
+                    }
+                </tbody>
+            </table>
+            <dl class="text-sm space-y-1">
+                <div class="flex justify-between"><dt class="text-slate-500">Subtotal</dt><dd class="font-semibold text-slate-800" data-testid="total-subtotal">@VentasOpciones.Importe(Totales.Subtotal)</dd></div>
+                <div class="flex justify-between"><dt class="text-slate-500">Descuentos</dt><dd class="font-semibold text-slate-800" data-testid="total-descuentos">@VentasOpciones.Importe(Totales.Descuentos)</dd></div>
+                <div class="flex justify-between"><dt class="text-slate-500">Importe sin ITBIS</dt><dd class="font-semibold text-slate-800" data-testid="total-sin-iva">@VentasOpciones.Importe(Totales.ImporteSinIva)</dd></div>
+                <div class="flex justify-between"><dt class="text-slate-500">ITBIS</dt><dd class="font-semibold text-slate-800" data-testid="total-iva">@VentasOpciones.Importe(Totales.Itbis)</dd></div>
+                <div class="flex justify-between border-t border-slate-100 pt-1"><dt class="font-bold text-slate-700">Total</dt><dd class="text-lg font-extrabold text-slate-900" data-testid="total">@VentasOpciones.Importe(Totales.Total)</dd></div>
+            </dl>
+        </div>
+    }
+</div>
+
+@code {
+    /// <summary><see langword="null"/> = no se pudieron obtener (la página sigue funcionando).</summary>
+    [Parameter] public TotalesDocumento? Totales { get; set; }
+    [Parameter] public string Titulo { get; set; } = "Totales";
+    /// <summary>Muestra la columna "Cuenta" del grupo de IVA (oculta por defecto: los borradores no la tienen).</summary>
+    [Parameter] public bool MostrarCuenta { get; set; }
+}

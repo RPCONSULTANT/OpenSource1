@@ -572,6 +572,27 @@ public sealed class CobrosTests(PostgresTestFixture fixture) : IClassFixture<Pos
         Assert.Equal(("socio_negocio.no_encontrado", "Id"), Unico(resultado));
     }
 
+    [Fact]
+    public async Task SinSerieConfiguradaParaCobros_400EnTipoDocumento_SinEscribirNada()
+    {
+        var socio = await SocioAsync();
+        await FacturaPosteadaAsync(socio, 100m);
+        var antes = await FotoAsync();
+        try
+        {
+            await EjecutarSqlAsync("""UPDATE "ConfiguracionesNumeracion" SET "IsDeleted" = true WHERE "TipoDocumento" = @Tipo""", new { Tipo = (short)TipoDocumentoSerie.Cobro });
+
+            var resultado = await PagarAsync(new RegistrarPagoClienteCommand(socio, 10m, D12));
+
+            Assert.Equal(("numeracion.sin_configuracion", "TipoDocumento"), (resultado.Errores[0].Codigo, resultado.Errores[0].Campo));
+            Assert.Equal(antes, await FotoAsync());
+        }
+        finally
+        {
+            await EjecutarSqlAsync("""UPDATE "ConfiguracionesNumeracion" SET "IsDeleted" = false WHERE "TipoDocumento" = @Tipo""", new { Tipo = (short)TipoDocumentoSerie.Cobro });
+        }
+    }
+
     // ----- Helpers: siembra -----
 
     private async Task<Guid> SocioAsync(Guid? grupoCliente = null)

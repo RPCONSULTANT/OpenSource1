@@ -1,6 +1,7 @@
 using System.Net.Http.Json;
 using OpenSource1.Application.Features.FacturasVenta.Borradores.Dtos;
 using OpenSource1.Application.Features.FacturasVenta.Calculo;
+using OpenSource1.Application.Features.FacturasVenta.Copia;
 using OpenSource1.Application.Features.FacturasVenta.Posteadas;
 using OpenSource1.Application.Features.FacturasVenta.Posteadas.Dtos;
 using OpenSource1.Application.Features.FacturasVenta.Posteo;
@@ -46,7 +47,7 @@ public sealed class FacturaVentaApiClient(HttpClient httpClient, ILogger<Factura
     {
         var body = new CreateBorradorBody(
             input.SocioNegocioId, input.SocioNegocioFacturarAId, input.FechaRegistro, input.FechaDocumento, input.FechaVencimiento,
-            input.AlmacenId, input.Descripcion);
+            input.AlmacenId, input.Descripcion, input.SerieBorradorId, input.SerieRegistroId);
         using var response = await httpClient.PostAsJsonAsync($"{BaseRoute}/borradores", body, cancellationToken);
         return await VentaApiRespuestas.ToResultAsync<FacturaVentaBorradorResponse>(
             response, "Borrador de factura creado.", BorradorNoEncontrado, "borradores de factura", logger, cancellationToken);
@@ -58,7 +59,7 @@ public sealed class FacturaVentaApiClient(HttpClient httpClient, ILogger<Factura
         // Ambos socios SIEMPRE: si el facturar-a no se indica explícitamente, es el mismo que el vender-a (como en el alta).
         var body = new UpdateBorradorBody(
             xmin, input.SocioNegocioId, input.SocioNegocioFacturarAId ?? input.SocioNegocioId, input.FechaRegistro,
-            input.FechaDocumento, input.FechaVencimiento, input.AlmacenId, input.Descripcion);
+            input.FechaDocumento, input.FechaVencimiento, input.AlmacenId, input.Descripcion, input.SerieRegistroId);
         using var response = await httpClient.PutAsJsonAsync($"{BaseRoute}/borradores/{id}", body, cancellationToken);
         return await VentaApiRespuestas.ToResultAsync<FacturaVentaBorradorResponse>(
             response, "Borrador de factura modificado.", BorradorNoEncontrado, "borradores de factura", logger, cancellationToken);
@@ -156,6 +157,13 @@ public sealed class FacturaVentaApiClient(HttpClient httpClient, ILogger<Factura
         VentaApiRespuestas.GetOrNullAsync<FacturaVentaDetalleResponse>(
             httpClient, $"{BaseRoute}/{Uri.EscapeDataString(numero)}", "la factura de venta", logger, cancellationToken);
 
+    public async Task<VentaOperationResult<CopiaFacturaResponse>> CopiarABorradorAsync(string numero, CancellationToken cancellationToken = default)
+    {
+        using var response = await httpClient.PostAsync($"{BaseRoute}/{Uri.EscapeDataString(numero)}/copiar-a-borrador", content: null, cancellationToken);
+        return await VentaApiRespuestas.ToResultAsync<CopiaFacturaResponse>(
+            response, "Borrador creado desde la factura.", "No se encontró la factura indicada.", "facturas de venta", logger, cancellationToken);
+    }
+
     private async Task<VentaOperationResult<FacturaVentaBorradorResponse>> CambiarEstadoAsync(
         Guid id, string accion, string successMessage, CancellationToken cancellationToken)
     {
@@ -175,11 +183,11 @@ public sealed class FacturaVentaApiClient(HttpClient httpClient, ILogger<Factura
     // Cuerpos de red exactos de FacturasVentaController (Blazor no referencia el proyecto Api).
     private sealed record CreateBorradorBody(
         Guid SocioNegocioId, Guid? SocioNegocioFacturarAId, DateOnly? FechaRegistro, DateOnly? FechaDocumento,
-        DateOnly? FechaVencimiento, Guid? AlmacenId, string? Descripcion);
+        DateOnly? FechaVencimiento, Guid? AlmacenId, string? Descripcion, Guid? SerieBorradorId, Guid? SerieRegistroId);
 
     private sealed record UpdateBorradorBody(
         long Xmin, Guid SocioNegocioId, Guid SocioNegocioFacturarAId, DateOnly? FechaRegistro, DateOnly? FechaDocumento,
-        DateOnly? FechaVencimiento, Guid? AlmacenId, string? Descripcion);
+        DateOnly? FechaVencimiento, Guid? AlmacenId, string? Descripcion, Guid? SerieRegistroId);
 
     private sealed record LineaBody(
         TipoLineaFactura Tipo, Guid? ProductoId, Guid? CuentaContableId, string? Descripcion, Guid? AlmacenId, Guid? UnidadMedidaId,

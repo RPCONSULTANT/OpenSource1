@@ -18,6 +18,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<CategoriaProducto> CategoriasProducto => Set<CategoriaProducto>();
     public DbSet<Serie>      Series       => Set<Serie>();
     public DbSet<LineaSerie> LineasSerie  => Set<LineaSerie>();
+    public DbSet<ConfiguracionNumeracion> ConfiguracionesNumeracion => Set<ConfiguracionNumeracion>();
     public DbSet<Almacen>    Almacenes    => Set<Almacen>();
     public DbSet<MovimientoProducto> MovimientosProducto => Set<MovimientoProducto>();
     public DbSet<MovimientoValor> MovimientosValor => Set<MovimientoValor>();
@@ -257,7 +258,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
         modelBuilder.Entity<Serie>(entity =>
         {
-            entity.ToTable("Series");
+            entity.ToTable("Series", t => t.HasCheckConstraint("CK_Series_TipoDocumento", "\"TipoDocumento\" BETWEEN 1 AND 8"));
             entity.HasKey(x => x.Id);
             entity.Property(x => x.Codigo).HasMaxLength(20).IsRequired();
             entity.Property(x => x.Descripcion).HasMaxLength(200).IsRequired();
@@ -280,7 +281,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                 Codigo = "DIARIO-INV",
                 Descripcion = "Diarios de inventario",
                 PermiteHuecos = false,
-                PorDefecto = false,
+                TipoDocumento = TipoDocumentoSerie.DiarioInventario,
+                Activa = true,
                 CreatedAtUtc = FechaSemilla,
                 CreatedBy = "system",
                 IsDeleted = false
@@ -293,7 +295,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                 Codigo = SerieContabilidadIds.Codigo,
                 Descripcion = "Registros contables",
                 PermiteHuecos = false,
-                PorDefecto = false,
+                TipoDocumento = TipoDocumentoSerie.AsientoContable,
+                Activa = true,
                 CreatedAtUtc = FechaSemilla,
                 CreatedBy = "system",
                 IsDeleted = false
@@ -308,7 +311,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                     Codigo = SerieFacturaVentaIds.CodigoBorrador,
                     Descripcion = "Borradores de factura de venta",
                     PermiteHuecos = true,
-                    PorDefecto = false,
+                    TipoDocumento = TipoDocumentoSerie.BorradorFacturaVenta,
+                    Activa = true,
                     CreatedAtUtc = FechaSemilla,
                     CreatedBy = "system",
                     IsDeleted = false
@@ -319,7 +323,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                     Codigo = SerieFacturaVentaIds.CodigoPosteada,
                     Descripcion = "Facturas de venta",
                     PermiteHuecos = false,
-                    PorDefecto = false,
+                    TipoDocumento = TipoDocumentoSerie.FacturaVenta,
+                    Activa = true,
                     CreatedAtUtc = FechaSemilla,
                     CreatedBy = "system",
                     IsDeleted = false
@@ -333,7 +338,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                     Codigo = SerieNotaCreditoVentaIds.CodigoBorrador,
                     Descripcion = "Borradores de nota de crédito de venta",
                     PermiteHuecos = true,
-                    PorDefecto = false,
+                    TipoDocumento = TipoDocumentoSerie.BorradorNotaCreditoVenta,
+                    Activa = true,
                     CreatedAtUtc = FechaSemilla,
                     CreatedBy = "system",
                     IsDeleted = false
@@ -344,7 +350,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                     Codigo = SerieNotaCreditoVentaIds.CodigoPosteada,
                     Descripcion = "Notas de crédito de venta",
                     PermiteHuecos = false,
-                    PorDefecto = false,
+                    TipoDocumento = TipoDocumentoSerie.NotaCreditoVenta,
+                    Activa = true,
                     CreatedAtUtc = FechaSemilla,
                     CreatedBy = "system",
                     IsDeleted = false
@@ -357,7 +364,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                 Codigo = SerieCobroIds.Codigo,
                 Descripcion = "Cobros de clientes",
                 PermiteHuecos = false,
-                PorDefecto = false,
+                TipoDocumento = TipoDocumentoSerie.Cobro,
+                Activa = true,
                 CreatedAtUtc = FechaSemilla,
                 CreatedBy = "system",
                 IsDeleted = false
@@ -371,6 +379,10 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.Property(x => x.NumeroInicial).HasMaxLength(50).IsRequired();
             entity.Property(x => x.NumeroFinal).HasMaxLength(50).IsRequired();
             entity.Property(x => x.UltimoNumeroUsado).HasMaxLength(50).IsRequired();
+            entity.Property(x => x.NumeroAviso).HasMaxLength(20);
+            // Una sola línea por fecha inicial: el generador elige "la última FechaInicial <= fecha" y no puede haber empate.
+            entity.HasIndex(x => new { x.SerieId, x.FechaInicial }).IsUnique()
+                .HasFilter("\"IsDeleted\" = false").HasDatabaseName("IX_LineasSerie_SerieId_FechaInicial");
             entity.Property(x => x.CreatedBy).HasMaxLength(100).IsRequired();
             entity.Property(x => x.UpdatedBy).HasMaxLength(100);
             entity.HasIndex(x => x.CreatedAtUtc).HasDatabaseName("IX_LineasSerie_CreatedAtUtc");
@@ -768,8 +780,12 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
         modelBuilder.Entity<FacturaVentaBorrador>(entity =>
         {
-            entity.ToTable("FacturasVentaBorrador", t => t.HasCheckConstraint(
-                "CK_FacturasVentaBorrador_Estado", "\"Estado\" IN (1, 2)"));
+            entity.ToTable("FacturasVentaBorrador", t =>
+            {
+                t.HasCheckConstraint("CK_FacturasVentaBorrador_Estado", "\"Estado\" IN (1, 2, 3)");
+                // Posteada <=> lleva el número de la factura (y nada más lo lleva).
+                t.HasCheckConstraint("CK_FacturasVentaBorrador_Posteada", "(\"Estado\" = 3) = (\"FacturaVentaNumero\" IS NOT NULL)");
+            });
             entity.HasKey(x => x.Id);
             entity.Property(x => x.Numero).HasMaxLength(20).IsRequired();
             entity.Property(x => x.NombreFacturacion).HasMaxLength(200).IsRequired();
@@ -796,6 +812,14 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.HasOne<GrupoIvaNegocio>().WithMany().HasForeignKey(x => x.GrupoIvaNegocioId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne<GrupoClienteContable>().WithMany().HasForeignKey(x => x.GrupoClienteContableId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne<Almacen>().WithMany().HasForeignKey(x => x.AlmacenId).OnDelete(DeleteBehavior.Restrict);
+            entity.Property(x => x.FacturaVentaNumero).HasMaxLength(20);
+            entity.HasOne<Serie>().WithMany().HasForeignKey(x => x.SerieBorradorId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<Serie>().WithMany().HasForeignKey(x => x.SerieRegistroId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<FacturaVenta>().WithMany().HasForeignKey(x => x.FacturaVentaNumero).OnDelete(DeleteBehavior.Restrict);
+            // Una factura la enlaza a lo sumo un borrador vivo: respaldo en BD del doble posteo (el FOR UPDATE del borrador es la
+            // defensa principal); también hace segura la lectura del enlace factura -> borrador.
+            entity.HasIndex(x => x.FacturaVentaNumero).IsUnique()
+                .HasFilter("\"FacturaVentaNumero\" IS NOT NULL AND \"IsDeleted\" = false");
 
             entity.Property<uint>("xmin").HasColumnName("xmin").IsRowVersion();
             entity.Property(x => x.IsDeleted).HasDefaultValue(false);
@@ -1139,7 +1163,11 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     {
         modelBuilder.Entity<NotaCreditoVentaBorrador>(entity =>
         {
-            entity.ToTable("NotasCreditoVentaBorrador");
+            entity.ToTable("NotasCreditoVentaBorrador", t =>
+            {
+                t.HasCheckConstraint("CK_NotasCreditoVentaBorrador_Estado", "\"Estado\" IN (1, 3)");
+                t.HasCheckConstraint("CK_NotasCreditoVentaBorrador_Posteada", "(\"Estado\" = 3) = (\"NotaCreditoVentaNumero\" IS NOT NULL)");
+            });
             entity.HasKey(x => x.Id);
             entity.Property(x => x.Numero).HasMaxLength(20).IsRequired();
             entity.Property(x => x.FacturaVentaNumero).HasMaxLength(20).IsRequired();
@@ -1165,6 +1193,13 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.HasOne<GrupoIvaNegocio>().WithMany().HasForeignKey(x => x.GrupoIvaNegocioId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne<GrupoClienteContable>().WithMany().HasForeignKey(x => x.GrupoClienteContableId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne<CuentaContable>().WithMany().HasForeignKey(x => x.CuentaCxCId).OnDelete(DeleteBehavior.Restrict);
+            entity.Property(x => x.NotaCreditoVentaNumero).HasMaxLength(20);
+            entity.HasOne<Serie>().WithMany().HasForeignKey(x => x.SerieBorradorId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<Serie>().WithMany().HasForeignKey(x => x.SerieRegistroId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<NotaCreditoVenta>().WithMany().HasForeignKey(x => x.NotaCreditoVentaNumero).OnDelete(DeleteBehavior.Restrict);
+            // Una nota la enlaza a lo sumo un borrador vivo (mismo respaldo del doble posteo que en facturas).
+            entity.HasIndex(x => x.NotaCreditoVentaNumero).IsUnique()
+                .HasFilter("\"NotaCreditoVentaNumero\" IS NOT NULL AND \"IsDeleted\" = false");
 
             entity.Property<uint>("xmin").HasColumnName("xmin").IsRowVersion();
             entity.Property(x => x.IsDeleted).HasDefaultValue(false);
@@ -1422,6 +1457,44 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.Property(x => x.IsDeleted).HasDefaultValue(false);
             entity.Property(x => x.DeletedBy).HasMaxLength(100);
             entity.HasQueryFilter(x => !x.IsDeleted);
+        });
+
+        modelBuilder.Entity<ConfiguracionNumeracion>(entity =>
+        {
+            entity.ToTable("ConfiguracionesNumeracion", t => t.HasCheckConstraint(
+                "CK_ConfiguracionesNumeracion_TipoDocumento", "\"TipoDocumento\" BETWEEN 1 AND 8"));
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.CreatedBy).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.UpdatedBy).HasMaxLength(100);
+            entity.HasIndex(x => x.TipoDocumento).IsUnique().HasFilter("\"IsDeleted\" = false");
+            entity.HasOne<Serie>().WithMany().HasForeignKey(x => x.SerieId).OnDelete(DeleteBehavior.Restrict);
+            entity.Property<uint>("xmin").HasColumnName("xmin").IsRowVersion();
+            entity.Property(x => x.IsDeleted).HasDefaultValue(false);
+            entity.Property(x => x.DeletedBy).HasMaxLength(100);
+            entity.HasQueryFilter(x => !x.IsDeleted);
+
+            // Una fila por tipo con la serie que hoy usa el código fijo. SOCIOS no está en HasData (se sembró por SQL en
+            // ExtendSocioNegocio, anterior a esta migración): la FK existe al insertar.
+            var semilla = new (TipoDocumentoSerie Tipo, Guid SerieId)[]
+            {
+                (TipoDocumentoSerie.BorradorFacturaVenta, SerieFacturaVentaIds.SerieBorradorId),
+                (TipoDocumentoSerie.FacturaVenta, SerieFacturaVentaIds.SeriePosteadaId),
+                (TipoDocumentoSerie.BorradorNotaCreditoVenta, SerieNotaCreditoVentaIds.SerieBorradorId),
+                (TipoDocumentoSerie.NotaCreditoVenta, SerieNotaCreditoVentaIds.SeriePosteadaId),
+                (TipoDocumentoSerie.Cobro, SerieCobroIds.SerieId),
+                (TipoDocumentoSerie.AsientoContable, SerieContabilidadIds.SerieId),
+                (TipoDocumentoSerie.Cliente, SerieClienteIds.SerieId),
+                (TipoDocumentoSerie.DiarioInventario, SerieDiarioInventarioIds.SerieId),
+            };
+            entity.HasData(semilla.Select(s => new
+            {
+                Id = ConfiguracionNumeracionIds.De(s.Tipo),
+                TipoDocumento = s.Tipo,
+                SerieId = s.SerieId,
+                CreatedAtUtc = FechaSemilla,
+                CreatedBy = "system",
+                IsDeleted = false,
+            }));
         });
     }
 

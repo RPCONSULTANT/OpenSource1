@@ -16,7 +16,10 @@ namespace OpenSource1.Application.Features.NotasCreditoVenta.Borradores.Handlers
 /// (<c>nota_credito.factura_invalida</c>, 400: es una referencia del cuerpo), le queda algo por acreditar
 /// (<c>nota_credito.factura_sin_pendiente</c>), sus socios siguen vivos (<c>FOR SHARE</c> antes de comprobarlo, contra su borrado
 /// concurrente) y la fecha de registro no es anterior a la suya. Copia de la factura la cabecera y de su movimiento de cliente la
-/// CxC congelada; con <c>CopiarLineas</c>, una línea por todo lo pendiente de cada línea acreditable. Número de <c>NC-BORR</c>.
+/// CxC congelada; con <c>CopiarLineas</c>, una línea por todo lo pendiente de cada línea acreditable. Número de la serie elegida
+/// (<c>SerieBorradorId</c>) o de la configurada para <c>BorradorNotaCreditoVenta</c>; serie de registro la elegida
+/// (<c>SerieRegistroId</c>) o la configurada para <c>NotaCreditoVenta</c> (<see cref="NumeracionBorrador.NumerarBorradorAsync"/>:
+/// una serie inexistente, de otro tipo o inactiva -&gt; 400 en su campo).
 /// </summary>
 public sealed class CreateNotaCreditoVentaBorradorCommandHandler(
     IUnitOfWork unitOfWork,
@@ -40,7 +43,7 @@ public sealed class CreateNotaCreditoVentaBorradorCommandHandler(
             return Fallo(NotaCreditoVentaErrores.FacturaInvalida());
         }
 
-        // Sin CommitAsync, salir del "await using" deshace la transacción (el número de NC-BORR no se consume).
+        // Sin CommitAsync, salir del "await using" deshace la transacción (el número del borrador no se consume).
         await using var transaccion = await unitOfWork.BeginTransactionAsync(cancellationToken);
 
         var factura = await datos.ObtenerFacturaAsync(request.FacturaVentaNumero.Trim(), bloquear: false, cancellationToken);
@@ -86,16 +89,21 @@ public sealed class CreateNotaCreditoVentaBorradorCommandHandler(
 
         var movimiento = await datos.MovimientoClienteFacturaAsync(factura.Numero, cancellationToken);
 
-        var numero = await generadorNumero.SiguienteAsync(
-            SerieNotaCreditoVentaIds.CodigoBorrador, DateOnly.FromDateTime(DateTime.UtcNow), cancellationToken);
-        if (!numero.TryObtenerValor(out var numeroBorrador))
+        // Series del borrador (spec no-series): la de borradores da el número; la de registro numerará la nota al postear.
+        var series = await generadorNumero.NumerarBorradorAsync(
+            TipoDocumentoSerie.BorradorNotaCreditoVenta, TipoDocumentoSerie.NotaCreditoVenta, request.SerieBorradorId, request.SerieRegistroId,
+            DateOnly.FromDateTime(DateTime.UtcNow), cancellationToken);
+        if (!series.TryObtenerValor(out var numeradas))
         {
-            return Result<NotaCreditoVentaBorradorResponse>.Fallo(numero);
+            return Result<NotaCreditoVentaBorradorResponse>.Fallo(series);
         }
 
         var entity = new NotaCreditoVentaBorrador
         {
-            Numero = numeroBorrador,
+            Numero = numeradas.Numero.Numero,
+            SerieBorradorId = numeradas.SerieBorradorId,
+            SerieRegistroId = numeradas.SerieRegistroId,
+            Estado = EstadoNotaCreditoBorrador.Abierta,
             FacturaVentaNumero = factura.Numero,
             SocioNegocioId = factura.SocioNegocioId,
             SocioNegocioFacturarAId = factura.SocioNegocioFacturarAId,

@@ -66,6 +66,8 @@ public sealed class RegistroModulosTests
         Assert.Contains("clientes", visibles);
         Assert.Equal(usuarios, visibles.Contains("usuarios"));
         Assert.Equal(fechas, visibles.Contains("fechas-registro"));
+        Assert.Equal(fechas, visibles.Contains("series-numeracion"));
+        Assert.Equal(fechas, visibles.Contains("configuracion-numeracion"));
         Assert.Equal(bitacora, visibles.Contains("bitacora"));
     }
 
@@ -134,6 +136,9 @@ public sealed class RegistroModulosTests
     [InlineData("/admin/users/abc/editar", "usuarios")]
     [InlineData("/facturas-venta/borradores/3f2b8c1e-0000-0000-0000-000000000001/editar", "borradores-factura")]
     [InlineData("/notas-credito-venta/borradores/3f2b8c1e-0000-0000-0000-000000000001/editar", "borradores-nota-credito")]
+    [InlineData("/series/nueva", "series-numeracion")]
+    [InlineData("/series/3f2b8c1e-0000-0000-0000-000000000001", "series-numeracion")]
+    [InlineData("/configuracion/numeracion", "configuracion-numeracion")]
     public void ModuloDeRuta_AltasYEdiciones_MarcanSuModulo(string ruta, string clave)
     {
         Assert.Equal(clave, Registro().ModuloDeRuta(ruta)?.Clave);

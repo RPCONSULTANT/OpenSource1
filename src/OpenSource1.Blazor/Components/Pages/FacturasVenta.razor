@@ -4,11 +4,14 @@
 @using System.ComponentModel.DataAnnotations
 @using System.Globalization
 @using Microsoft.AspNetCore.Authorization
+@using OpenSource1.Application.Features.FacturasVenta.Calculo
+@using OpenSource1.Application.Features.FacturasVenta.Copia
 @using OpenSource1.Application.Features.FacturasVenta.Posteadas
 @using OpenSource1.Application.Features.FacturasVenta.Posteadas.Dtos
 @using OpenSource1.Application.Features.NotasCreditoVenta.Borradores.Dtos
 @using OpenSource1.Application.Features.NotasCreditoVenta.Posteadas
 @using OpenSource1.Application.Features.NotasCreditoVenta.Posteadas.Dtos
+@using OpenSource1.Application.Features.Series.Dtos
 @using OpenSource1.Application.Features.SociosNegocio.Dtos
 @using OpenSource1.Application.Security
 @using OpenSource1.Blazor.Services
@@ -17,6 +20,7 @@
 @inject IFacturaVentaApiClient FacturaApiClient
 @inject INotaCreditoVentaApiClient NotaApiClient
 @inject ISocioNegocioApiClient SocioApiClient
+@inject ISerieApiClient SerieApiClient
 @inject IAuthorizationService AuthorizationService
 @inject ILogger<FacturasVenta> Logger
 @inject NavigationManager Nav
@@ -55,6 +59,19 @@ else
         {
             <MessageBox Type="@messageType" Message="@message" Errors="@errores" />
         }
+    </div>
+}
+
+@if (detalle is not null && Ok == "posteada" && CalculoNumeroSerie.EsTextoAviso(AvisoNumeracion))
+{
+    <div class="mb-6" data-testid="aviso-numeracion"><MessageBox Type="warning" Message="@AvisoNumeracion" /></div>
+}
+
+@if (copia is not null)
+{
+    <div class="mb-6">
+        <MessageBox Type="warning" Message="@($"Se creó el borrador {copia.Numero}, pero algunas líneas no se copiaron:")" Errors="@copia.Avisos" />
+        <a data-testid="borrador-copiado" href="@($"/facturas-venta/borradores/{copia.BorradorId}")" class="mt-2 inline-block text-sm font-semibold text-brand-600 hover:underline">Abrir el borrador @copia.Numero</a>
     </div>
 }
 
@@ -172,124 +189,16 @@ else if (detalle is null)
 else
 {
     var c = detalle.Cabecera;
-    <div class="rounded-2xl border border-slate-200 bg-white shadow-sm mb-6 px-6 py-5" data-testid="cabecera-factura">
-        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 text-sm">
-            <div><p class="text-xs font-bold uppercase tracking-wide text-slate-400">Facturar a</p>
-                <p class="mt-1 text-slate-700"><a class="hover:underline" href="@($"/clientes/{c.SocioNegocioFacturarAId}")">@c.SocioNegocioFacturarACodigo — @c.NombreFacturacion</a></p>
-                <p class="text-xs text-slate-400">@c.RazonSocialFacturacion @c.NumeroDocumentoFiscal</p>
-                <p class="text-xs text-slate-400">@c.DireccionFacturacionLinea1 @c.CiudadFacturacion @c.PaisCodigoFacturacion</p></div>
-            <div><p class="text-xs font-bold uppercase tracking-wide text-slate-400">Vender a</p><p class="mt-1 text-slate-700">@c.SocioNegocioCodigo — @c.SocioNegocioNombre</p>
-                <p class="text-xs text-slate-400">Borrador de origen: @c.NumeroBorrador</p></div>
-            <div><p class="text-xs font-bold uppercase tracking-wide text-slate-400">Fechas</p><p class="mt-1 text-slate-700">Reg. @EntradaFecha.Formatear(c.FechaRegistro) · Doc. @EntradaFecha.Formatear(c.FechaDocumento)</p>
-                <p class="text-xs text-slate-500">Vence @EntradaFecha.Formatear(c.FechaVencimiento)@(c.TerminoPagoCodigo is null ? "" : $" ({c.TerminoPagoCodigo})")</p></div>
-            <div><p class="text-xs font-bold uppercase tracking-wide text-slate-400">Almacén / Asiento</p><p class="mt-1 text-slate-700">@c.AlmacenCodigo · @c.Moneda</p>
-                <p class="text-xs font-mono text-slate-500" data-testid="registro-contable">@(c.NumeroRegistroContable ?? "Sin asiento (total 0)")</p></div>
-            @if (!string.IsNullOrWhiteSpace(c.Descripcion))
-            {
-                <div class="sm:col-span-2 lg:col-span-4"><p class="text-xs font-bold uppercase tracking-wide text-slate-400">Descripción</p><p class="mt-1 text-slate-700">@c.Descripcion</p></div>
-            }
-        </div>
+    @* NS20: diseño del documento en solo lectura; "cabecera-factura" y la etiqueta "Vender a" los usa el E2E 06. *@
+    <div data-testid="cabecera-factura">
+        <DocumentoCabecera Campos="@CamposFactura(c)" />
     </div>
 
-    <div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden mb-6">
-        <div class="px-6 py-4 border-b border-slate-100"><h2 class="text-sm font-semibold text-slate-700">Líneas</h2></div>
-        <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-slate-100 text-sm" data-testid="lineas-factura">
-                <thead class="bg-slate-50">
-                    <tr>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">#</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Tipo</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Producto / Cuenta</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Descripción</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Almacén</th>
-                        <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Cantidad</th>
-                        <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Precio</th>
-                        <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Descuento</th>
-                        <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Importe</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">IVA</th>
-                        <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Acreditado</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-50 bg-white">
-                    @foreach (var l in detalle.Lineas.OrderBy(x => x.NumeroLinea))
-                    {
-                        <tr @key="l.Id">
-                            <td class="px-4 py-3 text-xs text-slate-400">@l.NumeroLinea</td>
-                            <td class="px-4 py-3 text-xs text-slate-700">@VentasOpciones.TipoLinea(l.Tipo)</td>
-                            <td class="px-4 py-3 text-xs text-slate-700">@(l.ProductoCodigo ?? l.CuentaContableNumero ?? "—")</td>
-                            <td class="px-4 py-3 text-slate-700">@l.Descripcion</td>
-                            <td class="px-4 py-3 text-xs text-slate-500">@(l.AlmacenCodigo ?? "—")</td>
-                            @if (l.Tipo == TipoLineaFactura.Comentario)
-                            {
-                                <td colspan="6"></td>
-                            }
-                            else
-                            {
-                                <td class="px-4 py-3 text-right text-slate-700">@l.Cantidad.ToString("0.######", CultureInfo.InvariantCulture) <span class="text-xs text-slate-400">@l.UnidadMedidaCodigo</span></td>
-                                <td class="px-4 py-3 text-right text-slate-700">@l.PrecioUnitario.ToString("0.00##", CultureInfo.InvariantCulture)</td>
-                                <td class="px-4 py-3 text-right text-slate-500">@(l.ImporteDescuentoLinea == 0 ? "—" : $"{VentasOpciones.Importe(l.ImporteDescuentoLinea)} ({l.PorcentajeDescuentoLinea.ToString("0.#####", CultureInfo.InvariantCulture)}%)")</td>
-                                <td class="px-4 py-3 text-right font-semibold text-slate-800">@VentasOpciones.Importe(l.ImporteLinea)</td>
-                                <td class="px-4 py-3 text-xs text-slate-500">@l.IdentificadorIva @l.PorcentajeIva.ToString("0.##", CultureInfo.InvariantCulture)%</td>
-                                <td class="px-4 py-3 text-right text-xs @(Acreditado(l.Id).Cantidad > 0 ? "font-semibold text-amber-700" : "text-slate-400")" data-testid="acreditado">
-                                    @if (notasCargaFallida)
-                                    {
-                                        @("?")
-                                    }
-                                    else if (Acreditado(l.Id) is { Cantidad: > 0 } a)
-                                    {
-                                        @($"{a.Cantidad.ToString("0.######", CultureInfo.InvariantCulture)} · {VentasOpciones.Importe(a.Importe)}")
-                                        @if (a.Devuelto > 0)
-                                        {
-                                            <span class="block text-slate-400">devuelto @a.Devuelto.ToString("0.######", CultureInfo.InvariantCulture)</span>
-                                        }
-                                    }
-                                    else
-                                    {
-                                        @("—")
-                                    }
-                                </td>
-                            }
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
-    </div>
+    <DocumentoLineasLectura TLinea="LineaFacturaVentaResponse" Columnas="ColumnasFactura" Lineas="@detalle.Lineas.OrderBy(l => l.NumeroLinea).ToList()"
+                            TextoVacio="La factura no tiene líneas." />
 
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        <div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-            <div class="px-6 py-4 border-b border-slate-100"><h2 class="text-sm font-semibold text-slate-700">Líneas de IVA</h2></div>
-            <table class="min-w-full text-sm" data-testid="lineas-iva">
-                <thead class="bg-slate-50"><tr>
-                    <th class="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase">Identificador</th>
-                    <th class="px-4 py-2 text-right text-xs font-semibold text-slate-500 uppercase">%</th>
-                    <th class="px-4 py-2 text-right text-xs font-semibold text-slate-500 uppercase">Base</th>
-                    <th class="px-4 py-2 text-right text-xs font-semibold text-slate-500 uppercase">IVA</th>
-                    <th class="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase">Cuenta</th>
-                </tr></thead>
-                <tbody class="divide-y divide-slate-50">
-                    @foreach (var iva in detalle.LineasIva)
-                    {
-                        <tr @key="iva.Id">
-                            <td class="px-4 py-2 text-slate-700">@iva.IdentificadorIva</td>
-                            <td class="px-4 py-2 text-right text-slate-500">@iva.PorcentajeIva.ToString("0.#####", CultureInfo.InvariantCulture)</td>
-                            <td class="px-4 py-2 text-right">@VentasOpciones.Importe(iva.BaseImponible)</td>
-                            <td class="px-4 py-2 text-right">@VentasOpciones.Importe(iva.ImporteIva)</td>
-                            <td class="px-4 py-2 font-mono text-xs text-slate-500">@iva.CuentaIvaNumero</td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
-        <div class="rounded-2xl border border-slate-200 bg-white shadow-sm px-6 py-5">
-            <dl class="text-sm space-y-2" data-testid="totales-factura">
-                <div class="flex justify-between"><dt class="text-slate-500">Importe sin IVA</dt><dd class="font-semibold text-slate-800">@VentasOpciones.Importe(c.ImporteSinIva)</dd></div>
-                <div class="flex justify-between"><dt class="text-slate-500">IVA</dt><dd class="font-semibold text-slate-800">@VentasOpciones.Importe(c.ImporteIva)</dd></div>
-                <div class="flex justify-between border-t border-slate-100 pt-2"><dt class="font-bold text-slate-700">Total</dt><dd class="text-lg font-extrabold text-slate-900">@VentasOpciones.Importe(c.ImporteTotal)</dd></div>
-            </dl>
-            <p class="mt-4 text-xs"><a class="text-brand-700 underline" href="@($"/cobros?socioId={c.SocioNegocioFacturarAId}")">Movimientos y cobros del cliente</a></p>
-        </div>
-    </div>
+    <DocumentoTotales Totales="@TotalesDocumento.Desde(detalle)" MostrarCuenta="true" />
+    <p class="-mt-3 mb-8 text-xs"><a class="text-brand-700 underline" href="@($"/cobros?socioId={c.SocioNegocioFacturarAId}")">Movimientos y cobros del cliente</a></p>
 
     <!-- ── Notas de crédito de la factura ── -->
     <div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden mb-8" data-testid="notas-factura">
@@ -365,6 +274,16 @@ else
                         <input id="CrearNotaInput_Descripcion" type="text" name="CrearNotaInput.Descripcion" value="@CrearNotaInput.Descripcion" maxlength="200" class="@InputCss" />
                         <ValidationMessage For="() => CrearNotaInput.Descripcion" />
                     </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1" for="CrearNotaInput_SerieBorradorId">Serie del borrador</label>
+                        <SelectorSerie Id="CrearNotaInput_SerieBorradorId" Name="CrearNotaInput.SerieBorradorId" Series="seriesBorradorNota.Items"
+                                       Seleccion="CrearNotaInput.SerieBorradorId" OpcionConfigurada="true" />
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1" for="CrearNotaInput_SerieRegistroId">Serie de registro</label>
+                        <SelectorSerie Id="CrearNotaInput_SerieRegistroId" Name="CrearNotaInput.SerieRegistroId" Series="seriesRegistroNota.Items"
+                                       Seleccion="CrearNotaInput.SerieRegistroId" OpcionConfigurada="true" />
+                    </div>
                     <label class="inline-flex items-center gap-2 text-sm text-slate-700" for="CrearNotaInput_CopiarLineas">
                         <input id="CrearNotaInput_CopiarLineas" type="checkbox" name="CrearNotaInput.CopiarLineas" value="true" checked="@CrearNotaInput.CopiarLineas" class="rounded border-slate-300" />
                         Copiar todo lo pendiente (nota total)
@@ -383,6 +302,23 @@ else
             </EditForm>
         </ConfirmDialog>
     }
+
+    @if (MuestraDialogoCopiar)
+    {
+        <ConfirmDialog Title="Copiar a borrador" Message="@($"Se creará un borrador nuevo con la cabecera y las líneas de la factura {c.Numero}, la fecha de hoy y los datos actuales del cliente.")" Variant="success" CancelHref="@UrlFactura">
+            <EditForm Model="CopiarInput" FormName="copiar-borrador" OnValidSubmit="CopiarAsync" class="mt-4">
+                <button type="submit" class="btn-press rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700">Sí, copiar</button>
+                <a href="@UrlFactura" class="btn-press ml-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Cancelar</a>
+            </EditForm>
+        </ConfirmDialog>
+    }
+}
+
+@* Copiar a borrador: el formulario queda en el árbol aunque el diálogo no se muestre (sin CanAdd, sin ?copiar=true o copia ya
+   hecha): un POST forzado u obsoleto llega al handler y recibe el mensaje real de la API. *@
+@if (!MuestraDialogoCopiar)
+{
+    <EditForm Model="CopiarInput" FormName="copiar-borrador" OnValidSubmit="CopiarAsync"></EditForm>
 }
 
 @* El formulario de alta de la nota se mantiene en el árbol aunque el permiso o el estado (factura acreditada del todo, diálogo
@@ -404,8 +340,10 @@ else
     [SupplyParameterFromQuery(Name = "hasta")] private string? SearchHasta { get; set; }
     [SupplyParameterFromQuery(Name = "pagina")] private int Pagina { get; set; } = 1;
     [SupplyParameterFromQuery(Name = "ok")] private string? Ok { get; set; }
-    [SupplyParameterFromQuery(Name = "registro")] private string? Registro { get; set; }
     [SupplyParameterFromQuery(Name = "crearNota")] private bool CrearNota { get; set; }
+    [SupplyParameterFromQuery(Name = "copiar")] private bool CopiarConfirm { get; set; }
+    // Aviso de numeración del posteo (NS4): lo añade el borrador al redirigir aquí tras postear.
+    [SupplyParameterFromQuery(Name = "aviso")] private string? AvisoNumeracion { get; set; }
     [SupplyParameterFromQuery(Name = "returnUrl")] private string? ReturnUrl { get; set; }
     // Tolerante (ola final Fix-Features): un ?socioId= ilegible se ignora; con Guid? el binder lanzaría (página de error).
     [SupplyParameterFromQuery(Name = "socioId")] private string? SocioIdTexto { get; set; }
@@ -413,6 +351,7 @@ else
     [SupplyParameterFromQuery(Name = "sel")] private string? Sel { get; set; }
 
     [SupplyParameterFromForm(FormName = "crear-nota")] private CrearNotaForm? CrearNotaInput { get; set; }
+    [SupplyParameterFromForm(FormName = "copiar-borrador")] private AccionCopiarForm? CopiarInput { get; set; }
 
     [CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
 
@@ -433,6 +372,9 @@ else
     private bool notasCargaFallida;
     private string? crearNotaError;
     private IReadOnlyList<string> crearNotaErrores = [];
+    private OpcionesCargadas<SerieResponse> seriesBorradorNota = OpcionesCargadas<SerieResponse>.SinCargar;
+    private OpcionesCargadas<SerieResponse> seriesRegistroNota = OpcionesCargadas<SerieResponse>.SinCargar;
+    private CopiaFacturaResponse? copia;
 
     private static readonly IReadOnlyList<Miga> MigasListado = [new("Facturación", "/modulos/facturacion"), new("Facturas")];
 
@@ -449,8 +391,59 @@ else
         new("Nota de crédito de la factura", IconosModulo.Documento, id => $"/facturas-venta/{Uri.EscapeDataString(id!)}?crearNota=true", ApplicationPolicies.CanAdd, RequiereSeleccion: true, LlevaRetorno: true),
     ];
 
-    /// <summary>En el detalle, la nota solo se ofrece si queda importe por acreditar (una sola entrada: la de la barra).</summary>
-    private IReadOnlyList<AccionPagina> CrearDetalle => TienePendiente ? CrearFactura : [];
+    /// <summary>
+    /// En el detalle: Copiar a borrador (siempre, CanAdd) y la nota de crédito solo si queda importe por acreditar (una sola entrada
+    /// para la nota: la de la barra).
+    /// </summary>
+    private IReadOnlyList<AccionPagina> CrearDetalle =>
+    [
+        new("Copiar a borrador", IconosModulo.Documento, id => $"/facturas-venta/{Uri.EscapeDataString(id!)}?copiar=true", ApplicationPolicies.CanAdd, RequiereSeleccion: true),
+        .. TienePendiente ? CrearFactura : [],
+    ];
+
+    /// <summary>Cabecera en solo lectura (NS20); "Borrador de origen" enlaza al borrador Posteada si la factura lo conserva.</summary>
+    private static IReadOnlyList<CampoDocumento> CamposFactura(FacturaVentaResponse c) =>
+    [
+        new("Vender a", $"{c.SocioNegocioCodigo} — {c.SocioNegocioNombre}", $"/clientes/{c.SocioNegocioId}"),
+        new("Facturar a", $"{c.SocioNegocioFacturarACodigo} — {c.NombreFacturacion}", $"/clientes/{c.SocioNegocioFacturarAId}",
+            DetalleFacturarA(c)),
+        new("Fechas", $"Reg. {EntradaFecha.Formatear(c.FechaRegistro)} · Doc. {EntradaFecha.Formatear(c.FechaDocumento)}", null,
+            $"Vence {EntradaFecha.Formatear(c.FechaVencimiento)}{(c.TerminoPagoCodigo is null ? "" : $" ({c.TerminoPagoCodigo})")}"),
+        new("Almacén / Moneda", $"{c.AlmacenCodigo} · {c.Moneda}", null,
+            c.NumeroRegistroContable is null ? "Sin asiento (total 0)" : $"Asiento {c.NumeroRegistroContable}"),
+        new("Borrador de origen", c.NumeroBorrador, c.FacturaVentaBorradorId is { } b ? $"/facturas-venta/borradores/{b}" : null),
+        new("Descripción", string.IsNullOrWhiteSpace(c.Descripcion) ? "—" : c.Descripcion, Ancho: true),
+    ];
+
+    /// <summary>Razón social y RNC de facturación y, debajo en la misma línea, la dirección (línea 1, ciudad y país) guardada en la factura.</summary>
+    private static string DetalleFacturarA(FacturaVentaResponse c)
+    {
+        var fiscal = $"{c.RazonSocialFacturacion} {c.NumeroDocumentoFiscal}".Trim();
+        var direccion = string.Join(", ", new[] { c.DireccionFacturacionLinea1, c.CiudadFacturacion, c.PaisCodigoFacturacion }
+            .Where(p => !string.IsNullOrWhiteSpace(p)).Select(p => p!.Trim()));
+        return string.Join(" · ", new[] { fiscal, direccion }.Where(p => p.Length > 0));
+    }
+
+    /// <summary>
+    /// Columnas fijas de la factura (<see cref="ColumnasDocumento.Factura"/>) más lo acreditado por notas posteadas en cada línea
+    /// (cantidad · importe y, si hubo devolución, lo devuelto), que la factura posteada ya mostraba.
+    /// </summary>
+    private IReadOnlyList<ColumnaDocumento<LineaFacturaVentaResponse>> ColumnasFactura =>
+    [
+        .. ColumnasDocumento.Factura.Select(col => new ColumnaDocumento<LineaFacturaVentaResponse>(
+            col.Titulo, l => col.Valor(LineaDocumento.Desde(l)), col.Derecha, col.Clase,
+            col.Detalle is { } detalleCol ? l => detalleCol(LineaDocumento.Desde(l)) : null)),
+        new("Acreditado", l => l.Tipo == TipoLineaFactura.Comentario ? null : TextoAcreditado(l.Id), Derecha: true, Clase: "text-xs text-slate-500",
+            Detalle: l => !notasCargaFallida && Acreditado(l.Id).Devuelto > 0
+                ? $"devuelto {Acreditado(l.Id).Devuelto.ToString("0.######", CultureInfo.InvariantCulture)}"
+                : null),
+    ];
+
+    private string TextoAcreditado(long lineaId) => notasCargaFallida
+        ? "?"
+        : Acreditado(lineaId) is { Cantidad: > 0 } a
+            ? $"{a.Cantidad.ToString("0.######", CultureInfo.InvariantCulture)} · {VentasOpciones.Importe(a.Importe)}"
+            : "—";
 
     private string UrlFactura => $"/facturas-venta/{Uri.EscapeDataString(Numero ?? string.Empty)}";
 
@@ -474,6 +467,9 @@ else
 
     private bool MuestraFormCrearNota => detalle is not null && canAdd && CrearNota;
 
+    /// <summary>Diálogo de Copiar a borrador: con ?copiar=true y CanAdd, mientras no se haya hecho ya la copia (con avisos).</summary>
+    private bool MuestraDialogoCopiar => detalle is not null && canAdd && CopiarConfirm && copia is null;
+
     /// <summary>Queda algo por acreditar en alguna línea (si las notas no cargaron, se asume que sí: la API valida).</summary>
     private bool TienePendiente => detalle is not null && (notasCargaFallida || detalle.Lineas
         .Where(l => l.Tipo != TipoLineaFactura.Comentario)
@@ -485,6 +481,7 @@ else
     protected override async Task OnInitializedAsync()
     {
         CrearNotaInput ??= new();
+        CopiarInput ??= new();
         permisos = await PermisosPagina.CargarAsync(AuthorizationService, AuthenticationStateTask);
         canAdd = permisos.CanAdd;
     }
@@ -515,9 +512,16 @@ else
             await CargarNotasAsync(detalle.Cabecera.Numero);
         }
 
+        // Series del diálogo "Crear nota de crédito" (vacío = la configurada): solo cuando el diálogo se muestra.
+        if (MuestraFormCrearNota)
+        {
+            seriesBorradorNota = await SeriesOpciones.ActivasAsync(SerieApiClient, TipoDocumentoSerie.BorradorNotaCreditoVenta, Logger);
+            seriesRegistroNota = await SeriesOpciones.ActivasAsync(SerieApiClient, TipoDocumentoSerie.NotaCreditoVenta, Logger);
+        }
+
         if (Ok == "posteada" && detalle is not null)
         {
-            var registro = Registro ?? detalle.Cabecera.NumeroRegistroContable;
+            var registro = detalle.Cabecera.NumeroRegistroContable;
             Show("success", $"Factura {detalle.Cabecera.Numero} posteada por {VentasOpciones.Importe(detalle.Cabecera.ImporteTotal)}. " +
                 (registro is null ? "Total 0 (100 % de descuento): sin movimiento de cliente ni registro contable." : $"Registro contable {registro}."));
         }
@@ -573,18 +577,21 @@ else
         }
 
         var f = CrearNotaInput!;
+        string? destino = null;
         try
         {
             var result = await NotaApiClient.CreateBorradorAsync(new NotaCreditoBorradorInput(
-                detalle.Cabecera.Numero, f.FechaRegistro, f.FechaDocumento, EmptyAsNull(f.Descripcion), f.CopiarLineas, f.DevolverInventario));
+                detalle.Cabecera.Numero, f.FechaRegistro, f.FechaDocumento, EmptyAsNull(f.Descripcion), f.CopiarLineas, f.DevolverInventario,
+                f.SerieBorradorId, f.SerieRegistroId));
             if (result.Succeeded)
             {
-                Nav.NavigateTo($"/notas-credito-venta/borradores/{result.Valor!.Id}?ok=creado");
-                return;
+                destino = $"/notas-credito-venta/borradores/{result.Valor!.Id}?ok=creado";
             }
-
-            crearNotaErrores = result.Errors ?? [];
-            crearNotaError = result.Message;
+            else
+            {
+                crearNotaErrores = result.Errors ?? [];
+                crearNotaError = result.Message;
+            }
         }
         catch (Exception ex)
         {
@@ -592,11 +599,63 @@ else
             crearNotaError = "No fue posible crear el borrador de nota de crédito.";
         }
 
+        // R17: la navegación va fuera del try/catch (la NavigationException de SSR no debe tratarse como error).
+        if (destino is not null)
+        {
+            Nav.NavigateTo(destino);
+            return;
+        }
+
         // Si el diálogo no está a la vista (POST obsoleto o sin permiso), el mensaje real se muestra arriba.
         if (!MuestraFormCrearNota)
         {
             errores = crearNotaErrores;
             Show("warning", crearNotaError!);
+        }
+    }
+
+    /// <summary>
+    /// Copiar a borrador: sin avisos abre el borrador nuevo; con avisos (líneas omitidas, almacén sustituido…) se queda aquí y los
+    /// muestra con el enlace al borrador; un error muestra el mensaje real de la API (también en un POST forzado sin CanAdd).
+    /// </summary>
+    private async Task CopiarAsync()
+    {
+        if (Numero is null)
+        {
+            return;
+        }
+
+        string? destino = null;
+        try
+        {
+            var result = await FacturaApiClient.CopiarABorradorAsync(Numero);
+            if (result is { Succeeded: true, Valor: { } valor })
+            {
+                if (valor.Avisos.Count == 0)
+                {
+                    destino = $"/facturas-venta/borradores/{valor.BorradorId}?ok=copiado";
+                }
+                else
+                {
+                    copia = valor;
+                }
+            }
+            else
+            {
+                errores = result.Errors ?? [];
+                Show("warning", result.Message);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not copy factura {Numero} to a borrador.", Numero);
+            Show("danger", "No fue posible copiar la factura a un borrador.");
+        }
+
+        // R17: la navegación va fuera del try/catch.
+        if (destino is not null)
+        {
+            Nav.NavigateTo(destino);
         }
     }
 
@@ -676,6 +735,11 @@ else
 
     private static string? EmptyAsNull(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
+    /// <summary>Formulario sin campos de Copiar a borrador (solo el POST con antiforgery).</summary>
+    public sealed class AccionCopiarForm
+    {
+    }
+
     /// <summary>Alta de un borrador de nota desde la factura: fechas opcionales (vacías = valores por defecto de la API).</summary>
     public sealed class CrearNotaForm : IValidatableObject
     {
@@ -689,6 +753,12 @@ else
         public bool CopiarLineas { get; set; }
 
         public bool DevolverInventario { get; set; }
+
+        /// <summary>Serie del borrador de nota (null = la configurada).</summary>
+        public Guid? SerieBorradorId { get; set; }
+
+        /// <summary>Serie de registro de la nota (null = la configurada).</summary>
+        public Guid? SerieRegistroId { get; set; }
 
         public DateOnly? FechaRegistro => Fecha(FechaRegistroTexto);
 

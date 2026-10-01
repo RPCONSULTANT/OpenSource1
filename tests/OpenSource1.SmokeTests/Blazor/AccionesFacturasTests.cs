@@ -309,7 +309,7 @@ public sealed class AccionesFacturasTests
         Assert.DoesNotContain("data-testid=\"accion-editar\"", liberado);
         Assert.DoesNotContain("data-testid=\"accion-eliminar\"", liberado);
 
-        Assert.Contains($"<a data-testid=\"accion-editar\" href=\"/facturas-venta/borradores/{IdBorradorAbierto}/editar?returnUrl=", abierto);
+        Assert.Contains($"<a data-testid=\"accion-editar\" href=\"/facturas-venta/borradores/{IdBorradorAbierto}?returnUrl=", abierto);
         Assert.Contains($"href=\"/clientes/{IdCliente}\"", abierto);
 
         Assert.Contains("<span data-testid=\"accion-editar\" aria-disabled=\"true\"", sinSeleccion);
@@ -328,17 +328,15 @@ public sealed class AccionesFacturasTests
         Assert.Contains("href=\"/notas-credito-venta/nueva?returnUrl=", html);
     }
 
-    [Theory]
-    [InlineData("/facturas-venta/borradores/{0}", "/facturas-venta/borradores/{0}/editar?returnUrl=%2Ffacturas-venta%2Fborradores%2F{0}")]
-    [InlineData("/notas-credito-venta/borradores/{0}", "/notas-credito-venta/borradores/{0}/editar?returnUrl=%2Fnotas-credito-venta%2Fborradores%2F{0}")]
-    public async Task EditorBorrador_ModificarCabecera_VaALaRutaNuevaConRetorno(string ruta, string esperado)
+    [Fact]
+    public async Task EditorBorradorFactura_LaCabeceraSeEditaEnLaMismaPagina_SinRutaEditar()
     {
         using var app = Configurar(new BlazorSsrFactory());
-        var id = ruta.StartsWith("/facturas", StringComparison.Ordinal) ? IdBorradorAbierto : IdNota;
 
-        var html = await HtmlSsr.HtmlAsync(app.Cliente(), string.Format(System.Globalization.CultureInfo.InvariantCulture, ruta, id));
+        var html = await HtmlSsr.HtmlAsync(app.Cliente(), $"/facturas-venta/borradores/{IdBorradorAbierto}");
 
-        Assert.Contains($"href=\"{string.Format(System.Globalization.CultureInfo.InvariantCulture, esperado, id)}\"", html);
+        Assert.Contains("data-testid=\"cabecera-editable\"", html);
+        Assert.DoesNotContain("/editar", html);
         Assert.DoesNotContain("editId=", html);
     }
 
@@ -398,6 +396,9 @@ public sealed class AccionesFacturasTests
         app.Simular<IAlmacenApiClient>()
             .Setup(c => c.ListAsync(It.IsAny<AlmacenSearchFilter?>(), It.IsAny<PageRequest?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new PagedResult<AlmacenResponse>([new AlmacenResponse { Id = Guid.NewGuid(), Codigo = "PRINC", Nombre = "Principal" }], 1, 50, 1));
+        // F7: series simuladas (sin series activas): el alta y la cabecera del borrador las cargan.
+        app.Simular<ISerieApiClient>()
+            .Setup(c => c.ActivasDelTipoAsync(It.IsAny<TipoDocumentoSerie>(), It.IsAny<CancellationToken>())).ReturnsAsync([]);
         return app;
     }
 }

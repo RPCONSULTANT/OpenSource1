@@ -19,6 +19,10 @@ internal static class FacturaVentaBorradorErrores
 
     public static Error Liberada(string campo = "Id") =>
         new("factura.liberada", "El borrador está liberado: reábralo para modificarlo.", campo);
+
+    /// <summary>Un borrador <c>Posteada</c> es de solo lectura (spec no-series): toda escritura sobre él o sus líneas -&gt; 409.</summary>
+    public static Error Posteada(string campo = "Id") =>
+        new("factura_borrador.posteada.conflicto", "El borrador ya se posteó: es de solo lectura (abra su factura).", campo);
 }
 
 /// <summary>Datos que un borrador toma del socio al asignarlo: snapshot del facturar-a, su término y los grupos congelados.</summary>

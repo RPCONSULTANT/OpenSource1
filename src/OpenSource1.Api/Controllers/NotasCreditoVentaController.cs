@@ -13,6 +13,7 @@ using OpenSource1.Application.Features.NotasCreditoVenta.Posteadas.Queries;
 using OpenSource1.Application.Features.NotasCreditoVenta.Posteo;
 using OpenSource1.Application.Security;
 using OpenSource1.Core.Common;
+using OpenSource1.Core.Enums;
 
 namespace OpenSource1.Api.Controllers;
 
@@ -68,6 +69,7 @@ public sealed class NotasCreditoVentaController(ISender sender) : ControllerBase
 
     // ----- Borradores (cabecera) -----
 
+    /// <summary>Borradores por estado: <c>estado</c> 1 = Abierta (por defecto), 3 = Posteada; cualquier otro valor, 400 en <c>Estado</c>.</summary>
     [HttpGet("borradores")]
     [Authorize(Policy = ApplicationPolicies.CanConsult)]
     [ProducesResponseType<PagedResult<NotaCreditoVentaBorradorResponse>>(StatusCodes.Status200OK)]
@@ -76,6 +78,7 @@ public sealed class NotasCreditoVentaController(ISender sender) : ControllerBase
         [FromQuery] string? facturaVentaNumero,
         [FromQuery] string? nombreFacturacion,
         [FromQuery] Guid? socioId,
+        [FromQuery] int? estado,
         [FromQuery] int pagina = 1,
         [FromQuery] int tamanoPagina = PageRequest.TamanoPorDefecto,
         [FromQuery] string? ordenarPor = null,
@@ -84,7 +87,10 @@ public sealed class NotasCreditoVentaController(ISender sender) : ControllerBase
     {
         var result = await sender.Send(
             new ListNotasCreditoVentaBorradorQuery(
-                new NotaCreditoVentaBorradorSearchCriteria(numero, facturaVentaNumero, nombreFacturacion, socioId),
+                new NotaCreditoVentaBorradorSearchCriteria(
+                    numero, facturaVentaNumero, nombreFacturacion, socioId,
+                    // Fuera del rango de short, un valor no definido (0) para que el handler lo rechace en vez de truncarlo.
+                    estado is { } e ? (EstadoNotaCreditoBorrador)(e is >= short.MinValue and <= short.MaxValue ? e : 0) : null),
                 new PageRequest(pagina, tamanoPagina, ordenarPor, descendente)),
             cancellationToken);
 
@@ -111,7 +117,7 @@ public sealed class NotasCreditoVentaController(ISender sender) : ControllerBase
         var result = await sender.Send(
             new CreateNotaCreditoVentaBorradorCommand(
                 request.FacturaVentaNumero, request.FechaRegistro, request.FechaDocumento, request.Descripcion,
-                request.CopiarLineas, request.DevolverInventario),
+                request.CopiarLineas, request.DevolverInventario, request.SerieBorradorId, request.SerieRegistroId),
             cancellationToken);
 
         return result.EsFallo
@@ -128,7 +134,8 @@ public sealed class NotasCreditoVentaController(ISender sender) : ControllerBase
     public async Task<IActionResult> UpdateBorrador(Guid id, UpdateNotaCreditoVentaBorradorRequest request, CancellationToken cancellationToken)
     {
         var result = await sender.Send(
-            new UpdateNotaCreditoVentaBorradorCommand(id, request.FechaRegistro, request.FechaDocumento, request.Descripcion, request.Xmin),
+            new UpdateNotaCreditoVentaBorradorCommand(
+                id, request.FechaRegistro, request.FechaDocumento, request.Descripcion, request.Xmin, request.SerieRegistroId),
             cancellationToken);
 
         return result.EsFallo ? result.ToActionResult() : Ok(result.Valor);
@@ -138,6 +145,7 @@ public sealed class NotasCreditoVentaController(ISender sender) : ControllerBase
     [Authorize(Policy = ApplicationPolicies.CanDelete)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> DeleteBorrador(Guid id, CancellationToken cancellationToken)
     {
         var result = await sender.Send(new DeleteNotaCreditoVentaBorradorCommand(id), cancellationToken);
@@ -153,6 +161,7 @@ public sealed class NotasCreditoVentaController(ISender sender) : ControllerBase
     [ProducesResponseType<ResultadoPosteoNotaCredito>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> PostearBorrador(Guid id, CancellationToken cancellationToken)
     {
         var result = await sender.Send(new PostearNotaCreditoVentaCommand(id), cancellationToken);
@@ -250,11 +259,16 @@ public sealed record CreateNotaCreditoVentaBorradorRequest(
     DateOnly? FechaDocumento = null,
     string? Descripcion = null,
     bool CopiarLineas = false,
-    bool DevolverInventario = false);
+    bool DevolverInventario = false,
+    Guid? SerieBorradorId = null,
+    Guid? SerieRegistroId = null);
 
-/// <summary>Fechas y descripción con semántica "null = conservar" (<c>descripcion</c> "" = limpiar).</summary>
+/// <summary>
+/// Fechas, descripción y serie de registro con semántica "null = conservar" (<c>descripcion</c> "" = limpiar); solo en un borrador
+/// Abierta (Posteada -&gt; 409).
+/// </summary>
 public sealed record UpdateNotaCreditoVentaBorradorRequest(
-    long Xmin, DateOnly? FechaRegistro = null, DateOnly? FechaDocumento = null, string? Descripcion = null);
+    long Xmin, DateOnly? FechaRegistro = null, DateOnly? FechaDocumento = null, string? Descripcion = null, Guid? SerieRegistroId = null);
 
 public sealed record CreateLineaNotaCreditoVentaBorradorRequest(long LineaFacturaVentaId, decimal? Cantidad, bool DevolverInventario = false);
 

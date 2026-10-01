@@ -142,6 +142,74 @@ public sealed class FacturasVentaConsultasApiTests : IClassFixture<PostgresTestF
         Assert.True(JsonDocument.Parse(await borradores.Content.ReadAsStringAsync()).RootElement.TryGetProperty("items", out _));
     }
 
+    // ----- Copiar a borrador (spec no-series) -----
+
+    [Fact]
+    public async Task CopiarABorrador_FacturaInexistente_404_SinPermisoDeAlta_403_YAnonimo_401()
+    {
+        var noExiste = await Admin().PostAsync($"{Base}/NO-EXISTE/copiar-a-borrador", null);
+        Assert.Equal(HttpStatusCode.NotFound, noExiste.StatusCode);
+        Assert.Contains("No existe la factura NO-EXISTE", await noExiste.Content.ReadAsStringAsync());
+
+        // Supervisor no tiene CanAdd (copiar a borrador es un alta).
+        Assert.Equal(HttpStatusCode.Forbidden, (await Rol("Supervisor").PostAsync($"{Base}/NO-EXISTE/copiar-a-borrador", null)).StatusCode);
+
+        var anonimo = new HttpRequestMessage(HttpMethod.Post, $"{Base}/NO-EXISTE/copiar-a-borrador");
+        anonimo.Headers.Add("X-Test-Anonymous", "true");
+        Assert.Equal(HttpStatusCode.Unauthorized, (await _client.SendAsync(anonimo)).StatusCode);
+    }
+
+    [Fact]
+    public async Task CopiarABorrador_FacturaPosteada_201_ConLocationDelBorrador()
+    {
+        var client = Admin();
+        await using var conexion = await AbrirAsync();
+        var socio = await InsertarSocioAsync(conexion, "Copia API");
+        var numero = Numero();
+        await InsertarFacturaAsync(conexion, numero, socio, D10,
+            [
+                new Linea(10000, TipoLineaFactura.CuentaContable, 50m, CuentaContableId: CuentaContableIds.Ventas),
+                new Linea(20000, TipoLineaFactura.Comentario, 0m, Descripcion: "Gracias"),
+            ],
+            [new LineaIva("ITBIS18", 18m, 50m, 9m)], null);
+
+        var respuesta = await client.PostAsync($"{Base}/{numero}/copiar-a-borrador", null);
+
+        Assert.True(respuesta.StatusCode == HttpStatusCode.Created, await respuesta.Content.ReadAsStringAsync());
+        var cuerpo = JsonDocument.Parse(await respuesta.Content.ReadAsStringAsync()).RootElement;
+        var id = cuerpo.GetProperty("borradorId").GetGuid();
+        Assert.Equal(0, cuerpo.GetProperty("avisos").GetArrayLength());
+        Assert.EndsWith($"{Base}/borradores/{id}", respuesta.Headers.Location!.ToString());
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync(respuesta.Headers.Location)).StatusCode);
+    }
+
+    [Fact]
+    public async Task CopiarABorrador_LineaQueYaNoValida_201_ConAvisoYSinLaLinea()
+    {
+        var client = Admin();
+        var producto = await CrearProductoAsync(client);
+        await using var conexion = await AbrirAsync();
+        var socio = await InsertarSocioAsync(conexion, "Copia API con aviso");
+        var numero = Numero();
+        await InsertarFacturaAsync(conexion, numero, socio, D10,
+            [
+                new Linea(10000, TipoLineaFactura.CuentaContable, 50m, CuentaContableId: CuentaContableIds.Ventas),
+                new Linea(20000, TipoLineaFactura.Producto, 10m, ProductoId: producto),
+            ],
+            [new LineaIva("ITBIS18", 18m, 60m, 10.8m)], null);
+        await conexion.ExecuteAsync("""UPDATE "Productos" SET "Bloqueado" = 2 WHERE "Id" = @Id""", new { Id = producto });
+
+        var respuesta = await client.PostAsync($"{Base}/{numero}/copiar-a-borrador", null);
+
+        Assert.True(respuesta.StatusCode == HttpStatusCode.Created, await respuesta.Content.ReadAsStringAsync());
+        var cuerpo = JsonDocument.Parse(await respuesta.Content.ReadAsStringAsync()).RootElement;
+        var aviso = Assert.Single(cuerpo.GetProperty("avisos").EnumerateArray()).GetString();
+        Assert.Contains("Línea 20000", aviso);
+        var lineas = JsonDocument.Parse(await client.GetStringAsync($"{Base}/borradores/{cuerpo.GetProperty("borradorId").GetGuid()}/lineas")).RootElement;
+        var linea = Assert.Single(lineas.EnumerateArray());
+        Assert.Equal(CuentaContableIds.Ventas, linea.GetProperty("cuentaContableId").GetGuid());
+    }
+
     // ----- Libro de clientes -----
 
     [Fact]

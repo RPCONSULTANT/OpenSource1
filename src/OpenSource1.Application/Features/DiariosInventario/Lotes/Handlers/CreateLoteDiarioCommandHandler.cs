@@ -2,13 +2,18 @@ using MediatR;
 using OpenSource1.Application.Data.UnitOfWork;
 using OpenSource1.Application.Features.DiariosInventario.Lotes.Commands;
 using OpenSource1.Application.Features.DiariosInventario.Lotes.Dtos;
+using OpenSource1.Application.Features.Series;
 using OpenSource1.Core.Common;
-using OpenSource1.Core.Entities;
 using OpenSource1.Core.Entities.Inventario;
 
 namespace OpenSource1.Application.Features.DiariosInventario.Lotes.Handlers;
 
-public sealed class CreateLoteDiarioCommandHandler(IUnitOfWork unitOfWork)
+/// <summary>
+/// Alta de un lote de diario. La serie elegida se lee <c>FOR SHARE</c> dentro de la transacción del alta antes de validar tipo y
+/// Activa (mismo bloqueo que el motor): un cambio de tipo o una desactivación concurrentes no se cuelan entre la validación y el
+/// commit.
+/// </summary>
+public sealed class CreateLoteDiarioCommandHandler(IUnitOfWork unitOfWork, ISerieReadRepository series)
     : IRequestHandler<CreateLoteDiarioCommand, Result<LoteDiarioResponse>>
 {
     public async Task<Result<LoteDiarioResponse>> Handle(CreateLoteDiarioCommand request, CancellationToken cancellationToken)
@@ -29,15 +34,12 @@ public sealed class CreateLoteDiarioCommandHandler(IUnitOfWork unitOfWork)
                 "diario.plantilla_invalida", "La plantilla de diario indicada no existe.", "PlantillaDiarioId"));
         }
 
-        if (request.SerieId is { } serieId && serieId != Guid.Empty)
+        // Sin CommitAsync, salir del "await using" deshace la transacción.
+        await using var transaccion = await unitOfWork.BeginTransactionAsync(cancellationToken);
+        if (request.SerieId is { } serieId && serieId != Guid.Empty
+            && !LoteDiarioValidator.EsSerieDeDiarioValida(await series.LeerSerieCompartidaAsync(serieId, cancellationToken)))
         {
-            var serie = await unitOfWork.Repository<Serie>().FirstOrDefaultAsync(
-                x => x.Id == serieId, cancellationToken: cancellationToken);
-            if (serie is null || !LoteDiarioValidator.EsSerieDeDiarioValida(serie.Codigo))
-            {
-                return Result<LoteDiarioResponse>.Fallo(new Error(
-                    "diario.serie_invalida", "La serie indicada no existe o no es una serie de diarios de inventario.", "SerieId"));
-            }
+            return Result<LoteDiarioResponse>.Fallo(LoteDiarioValidator.SerieInvalida());
         }
 
         var entity = new LoteDiario
@@ -51,7 +53,7 @@ public sealed class CreateLoteDiarioCommandHandler(IUnitOfWork unitOfWork)
 
         var repository = unitOfWork.Repository<LoteDiario>();
         await repository.AddAsync(entity, cancellationToken);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        await unitOfWork.CommitAsync(cancellationToken);
 
         return Result<LoteDiarioResponse>.Exito(ToResponse(entity, numeroLineas: 0, repository.ObtenerVersionActual(entity)));
     }

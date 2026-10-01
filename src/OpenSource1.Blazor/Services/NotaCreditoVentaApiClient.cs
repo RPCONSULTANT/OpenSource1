@@ -27,6 +27,11 @@ public sealed class NotaCreditoVentaApiClient(HttpClient httpClient, ILogger<Not
             parameters.Add($"socioId={socioId}");
         }
 
+        if (filtro?.Estado is { } estado)
+        {
+            parameters.Add($"estado={estado}");
+        }
+
         using var response = await httpClient.GetAsync(ApiRespuestas.ConPaginacion($"{BaseRoute}/borradores", parameters, paginacion), cancellationToken);
         await VentaApiRespuestas.AsegurarExitoAsync(response, "los borradores de nota de crédito", logger, cancellationToken);
         return await response.Content.ReadFromJsonAsync<PagedResult<NotaCreditoVentaBorradorResponse>>(cancellationToken)
@@ -41,17 +46,18 @@ public sealed class NotaCreditoVentaApiClient(HttpClient httpClient, ILogger<Not
         NotaCreditoBorradorInput input, CancellationToken cancellationToken = default)
     {
         var body = new CreateBorradorBody(
-            input.FacturaVentaNumero, input.FechaRegistro, input.FechaDocumento, input.Descripcion, input.CopiarLineas, input.DevolverInventario);
+            input.FacturaVentaNumero, input.FechaRegistro, input.FechaDocumento, input.Descripcion, input.CopiarLineas, input.DevolverInventario,
+            input.SerieBorradorId, input.SerieRegistroId);
         using var response = await httpClient.PostAsJsonAsync($"{BaseRoute}/borradores", body, cancellationToken);
         return await VentaApiRespuestas.ToResultAsync<NotaCreditoVentaBorradorResponse>(
             response, "Borrador de nota de crédito creado.", BorradorNoEncontrado, Entidad, logger, cancellationToken);
     }
 
     public async Task<VentaOperationResult<NotaCreditoVentaBorradorResponse>> UpdateBorradorAsync(
-        Guid id, DateOnly? fechaRegistro, DateOnly? fechaDocumento, string? descripcion, long xmin, CancellationToken cancellationToken = default)
+        Guid id, NotaCreditoCabeceraInput input, long xmin, CancellationToken cancellationToken = default)
     {
-        using var response = await httpClient.PutAsJsonAsync(
-            $"{BaseRoute}/borradores/{id}", new UpdateBorradorBody(xmin, fechaRegistro, fechaDocumento, descripcion), cancellationToken);
+        var body = new UpdateBorradorBody(xmin, input.FechaRegistro, input.FechaDocumento, input.Descripcion, input.SerieRegistroId);
+        using var response = await httpClient.PutAsJsonAsync($"{BaseRoute}/borradores/{id}", body, cancellationToken);
         return await VentaApiRespuestas.ToResultAsync<NotaCreditoVentaBorradorResponse>(
             response, "Borrador de nota de crédito modificado.", BorradorNoEncontrado, Entidad, logger, cancellationToken);
     }
@@ -152,9 +158,11 @@ public sealed class NotaCreditoVentaApiClient(HttpClient httpClient, ILogger<Not
 
     // Cuerpos de red exactos de NotasCreditoVentaController (Blazor no referencia el proyecto Api).
     private sealed record CreateBorradorBody(
-        string FacturaVentaNumero, DateOnly? FechaRegistro, DateOnly? FechaDocumento, string? Descripcion, bool CopiarLineas, bool DevolverInventario);
+        string FacturaVentaNumero, DateOnly? FechaRegistro, DateOnly? FechaDocumento, string? Descripcion, bool CopiarLineas, bool DevolverInventario,
+        Guid? SerieBorradorId, Guid? SerieRegistroId);
 
-    private sealed record UpdateBorradorBody(long Xmin, DateOnly? FechaRegistro, DateOnly? FechaDocumento, string? Descripcion);
+    private sealed record UpdateBorradorBody(
+        long Xmin, DateOnly? FechaRegistro, DateOnly? FechaDocumento, string? Descripcion, Guid? SerieRegistroId);
 
     private sealed record CreateLineaBody(long LineaFacturaVentaId, decimal? Cantidad, bool DevolverInventario);
 

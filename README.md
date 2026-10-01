@@ -77,6 +77,15 @@ Actualmente el proyecto cuenta con:
   página propia y ajuste de inventario precargado desde un producto.
 - Entregable Parte 1 en `docs/entregable-parte-1/` (documento Word, presentación, diagramas, capturas y evidencias) y
   suite E2E Playwright en `tests/e2e/`.
+- Series de numeración configurables (`/series`): cada serie tiene tipo de documento, estado activo y líneas por fecha
+  con prefijo, ancho, rango, incremento, número de aviso y bloqueo; las series usadas no se borran y la serie asignada
+  a un tipo no se borra ni se desactiva. Configuración por tipo de documento (`/configuracion/numeracion`) con la
+  serie que usan facturas, notas, borradores, cobros, asientos, socios y diarios; numeración sin huecos intacta.
+- Borradores de factura y de nota de crédito con serie de borrador y serie de registro elegibles y "próximo número";
+  al postear se numera con la serie de registro y el borrador queda **Posteada** en solo lectura, enlazado a su
+  documento. Una factura posteada se puede copiar a un borrador nuevo con los datos actuales del cliente.
+- Documento en una sola página: cabecera editable, líneas con alta y edición en la fila y totales al pie en los
+  borradores de factura y de nota; factura, nota y borradores posteados con el mismo diseño en solo lectura.
 
 ## Entregable 3
 
@@ -437,6 +446,27 @@ tests/OpenSource1.SmokeTests
 ```
 
 ## Changelog
+
+### Versión 0.5 — Series de numeración y documento único
+
+Series de numeración configurables, flujo del borrador con series elegibles y documento en una sola página (rama
+`feat/no-series`).
+
+Incluye:
+
+- Serie con tipo de documento y estado activo; líneas por fecha con prefijo, ancho, rango, incremento, número de aviso
+  y bloqueo; sin solapes entre series del mismo tipo. Motor de numeración por tipo y por serie, sin códigos fijos en
+  los consumidores (facturas, notas, borradores, cobros, asientos, socios, diarios) y con el orden de bloqueos de
+  siempre; el libro contable se serializa con su propio bloqueo.
+- API y páginas de series (`/series`) y de configuración por tipo (`/configuracion/numeracion`), con escrituras solo
+  para `CanAdministrar`. La serie asignada a un tipo no se borra ni se desactiva; la usada no se borra.
+- Borradores de factura y de nota con serie de borrador y de registro y próximo número; el posteo usa la serie de
+  registro, devuelve el aviso de numeración y deja el borrador en estado Posteada de solo lectura enlazado al
+  documento (un segundo posteo recibe 409). Copia de una factura posteada a un borrador nuevo.
+- Documento en una sola página para los borradores de factura y de nota y para los documentos posteados.
+- Migraciones `SeriesNumeracionConfigurables`, `BorradoresConSeriesYPosteada` y `BorradoresEnlaceUnico` probadas
+  desde vacío y desde el final de Fix-Features con datos, con Down y vuelta.
+- Suite xUnit ampliada a 1969 tests (0 avisos) y E2E del documento en una sola página (`09-documento-unico`).
 
 ### Versión 0.4 — Fix-Features
 

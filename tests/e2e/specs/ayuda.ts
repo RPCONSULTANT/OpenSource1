@@ -64,8 +64,10 @@ export async function captura(page: Page, nombre: string, textoVisible: string |
   await page.screenshot({ path: path.join(CAPTURAS, `${nombre}.png`) });
 }
 
-// Prefijo reconocible para los datos que crea la suite ("E2E ..."), con sufijo único por ejecución.
-export const unico = (prefijo: string): string => `${prefijo}-${Date.now().toString(36).toUpperCase()}`;
+// Prefijo reconocible para los datos que crea la suite ("E2E ..."), con sufijo único por ejecución: marca de tiempo más cuatro
+// caracteres aleatorios (dos ejecuciones en el mismo milisegundo, p. ej. en paralelo, no chocan).
+export const unico = (prefijo: string): string =>
+  `${prefijo}-${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).slice(2, 6).toUpperCase().padEnd(4, '0')}`;
 
 // Desplaza al final los contenedores con scroll horizontal (tablas anchas) para que la columna ACCIONES quede a la vista.
 export async function mostrarColumnaFinal(page: Page): Promise<void> {

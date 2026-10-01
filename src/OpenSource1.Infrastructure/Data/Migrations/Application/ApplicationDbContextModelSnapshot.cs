@@ -348,6 +348,139 @@ namespace OpenSource1.Infrastructure.Data.Migrations.Application
                         });
                 });
 
+            modelBuilder.Entity("OpenSource1.Core.Entities.ConfiguracionNumeracion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTimeOffset?>("DeletedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<Guid>("SerieId")
+                        .HasColumnType("uuid");
+
+                    b.Property<short>("TipoDocumento")
+                        .HasColumnType("smallint");
+
+                    b.Property<DateTimeOffset?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SerieId");
+
+                    b.HasIndex("TipoDocumento")
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = false");
+
+                    b.ToTable("ConfiguracionesNumeracion", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ConfiguracionesNumeracion_TipoDocumento", "\"TipoDocumento\" BETWEEN 1 AND 8");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("e2000000-0000-0000-0000-000000000001"),
+                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 9, 24, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedBy = "system",
+                            IsDeleted = false,
+                            SerieId = new Guid("e1000000-0000-0000-0000-000000000005"),
+                            TipoDocumento = (short)1
+                        },
+                        new
+                        {
+                            Id = new Guid("e2000000-0000-0000-0000-000000000002"),
+                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 9, 24, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedBy = "system",
+                            IsDeleted = false,
+                            SerieId = new Guid("e1000000-0000-0000-0000-000000000007"),
+                            TipoDocumento = (short)2
+                        },
+                        new
+                        {
+                            Id = new Guid("e2000000-0000-0000-0000-000000000003"),
+                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 9, 24, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedBy = "system",
+                            IsDeleted = false,
+                            SerieId = new Guid("e1000000-0000-0000-0000-00000000000b"),
+                            TipoDocumento = (short)3
+                        },
+                        new
+                        {
+                            Id = new Guid("e2000000-0000-0000-0000-000000000004"),
+                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 9, 24, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedBy = "system",
+                            IsDeleted = false,
+                            SerieId = new Guid("e1000000-0000-0000-0000-00000000000d"),
+                            TipoDocumento = (short)4
+                        },
+                        new
+                        {
+                            Id = new Guid("e2000000-0000-0000-0000-000000000005"),
+                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 9, 24, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedBy = "system",
+                            IsDeleted = false,
+                            SerieId = new Guid("e1000000-0000-0000-0000-000000000009"),
+                            TipoDocumento = (short)5
+                        },
+                        new
+                        {
+                            Id = new Guid("e2000000-0000-0000-0000-000000000006"),
+                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 9, 24, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedBy = "system",
+                            IsDeleted = false,
+                            SerieId = new Guid("e1000000-0000-0000-0000-000000000003"),
+                            TipoDocumento = (short)6
+                        },
+                        new
+                        {
+                            Id = new Guid("e2000000-0000-0000-0000-000000000007"),
+                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 9, 24, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedBy = "system",
+                            IsDeleted = false,
+                            SerieId = new Guid("d1000000-0000-0000-0000-000000000001"),
+                            TipoDocumento = (short)7
+                        },
+                        new
+                        {
+                            Id = new Guid("e2000000-0000-0000-0000-000000000008"),
+                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 9, 24, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedBy = "system",
+                            IsDeleted = false,
+                            SerieId = new Guid("e1000000-0000-0000-0000-000000000001"),
+                            TipoDocumento = (short)8
+                        });
+                });
+
             modelBuilder.Entity("OpenSource1.Core.Entities.ConfiguracionRegistro", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2318,6 +2451,10 @@ namespace OpenSource1.Infrastructure.Data.Migrations.Application
                         .HasColumnType("boolean")
                         .HasDefaultValue(false);
 
+                    b.Property<string>("NumeroAviso")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
                     b.Property<string>("NumeroFinal")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -2356,6 +2493,11 @@ namespace OpenSource1.Infrastructure.Data.Migrations.Application
 
                     b.HasIndex("SerieId")
                         .HasDatabaseName("IX_LineasSerie_SerieId");
+
+                    b.HasIndex("SerieId", "FechaInicial")
+                        .IsUnique()
+                        .HasDatabaseName("IX_LineasSerie_SerieId_FechaInicial")
+                        .HasFilter("\"IsDeleted\" = false");
 
                     b.ToTable("LineasSerie", (string)null);
 
@@ -2577,6 +2719,9 @@ namespace OpenSource1.Infrastructure.Data.Migrations.Application
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<bool>("Activa")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("Codigo")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -2610,8 +2755,8 @@ namespace OpenSource1.Infrastructure.Data.Migrations.Application
                     b.Property<bool>("PermiteHuecos")
                         .HasColumnType("boolean");
 
-                    b.Property<bool>("PorDefecto")
-                        .HasColumnType("boolean");
+                    b.Property<short>("TipoDocumento")
+                        .HasColumnType("smallint");
 
                     b.Property<DateTimeOffset?>("UpdatedAtUtc")
                         .HasColumnType("timestamp with time zone");
@@ -2635,85 +2780,95 @@ namespace OpenSource1.Infrastructure.Data.Migrations.Application
                     b.HasIndex("CreatedAtUtc")
                         .HasDatabaseName("IX_Series_CreatedAtUtc");
 
-                    b.ToTable("Series", (string)null);
+                    b.ToTable("Series", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Series_TipoDocumento", "\"TipoDocumento\" BETWEEN 1 AND 8");
+                        });
 
                     b.HasData(
                         new
                         {
                             Id = new Guid("e1000000-0000-0000-0000-000000000001"),
+                            Activa = true,
                             Codigo = "DIARIO-INV",
                             CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 9, 24, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             CreatedBy = "system",
                             Descripcion = "Diarios de inventario",
                             IsDeleted = false,
                             PermiteHuecos = false,
-                            PorDefecto = false
+                            TipoDocumento = (short)8
                         },
                         new
                         {
                             Id = new Guid("e1000000-0000-0000-0000-000000000003"),
+                            Activa = true,
                             Codigo = "CONTAB",
                             CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 9, 24, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             CreatedBy = "system",
                             Descripcion = "Registros contables",
                             IsDeleted = false,
                             PermiteHuecos = false,
-                            PorDefecto = false
+                            TipoDocumento = (short)6
                         },
                         new
                         {
                             Id = new Guid("e1000000-0000-0000-0000-000000000005"),
+                            Activa = true,
                             Codigo = "FV-BORR",
                             CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 9, 24, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             CreatedBy = "system",
                             Descripcion = "Borradores de factura de venta",
                             IsDeleted = false,
                             PermiteHuecos = true,
-                            PorDefecto = false
+                            TipoDocumento = (short)1
                         },
                         new
                         {
                             Id = new Guid("e1000000-0000-0000-0000-000000000007"),
+                            Activa = true,
                             Codigo = "FV",
                             CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 9, 24, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             CreatedBy = "system",
                             Descripcion = "Facturas de venta",
                             IsDeleted = false,
                             PermiteHuecos = false,
-                            PorDefecto = false
+                            TipoDocumento = (short)2
                         },
                         new
                         {
                             Id = new Guid("e1000000-0000-0000-0000-00000000000b"),
+                            Activa = true,
                             Codigo = "NC-BORR",
                             CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 9, 24, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             CreatedBy = "system",
                             Descripcion = "Borradores de nota de crédito de venta",
                             IsDeleted = false,
                             PermiteHuecos = true,
-                            PorDefecto = false
+                            TipoDocumento = (short)3
                         },
                         new
                         {
                             Id = new Guid("e1000000-0000-0000-0000-00000000000d"),
+                            Activa = true,
                             Codigo = "NC",
                             CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 9, 24, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             CreatedBy = "system",
                             Descripcion = "Notas de crédito de venta",
                             IsDeleted = false,
                             PermiteHuecos = false,
-                            PorDefecto = false
+                            TipoDocumento = (short)4
                         },
                         new
                         {
                             Id = new Guid("e1000000-0000-0000-0000-000000000009"),
+                            Activa = true,
                             Codigo = "COBRO",
                             CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 9, 24, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             CreatedBy = "system",
                             Descripcion = "Cobros de clientes",
                             IsDeleted = false,
                             PermiteHuecos = false,
-                            PorDefecto = false
+                            TipoDocumento = (short)5
                         });
                 });
 
@@ -3372,6 +3527,10 @@ namespace OpenSource1.Infrastructure.Data.Migrations.Application
                     b.Property<short>("Estado")
                         .HasColumnType("smallint");
 
+                    b.Property<string>("FacturaVentaNumero")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
                     b.Property<DateOnly>("FechaDocumento")
                         .HasColumnType("date");
 
@@ -3422,6 +3581,12 @@ namespace OpenSource1.Infrastructure.Data.Migrations.Application
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<Guid>("SerieBorradorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("SerieRegistroId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("SocioNegocioFacturarAId")
                         .HasColumnType("uuid");
 
@@ -3454,6 +3619,10 @@ namespace OpenSource1.Infrastructure.Data.Migrations.Application
                     b.HasIndex("CreatedAtUtc")
                         .HasDatabaseName("IX_FacturasVentaBorrador_CreatedAtUtc");
 
+                    b.HasIndex("FacturaVentaNumero")
+                        .IsUnique()
+                        .HasFilter("\"FacturaVentaNumero\" IS NOT NULL AND \"IsDeleted\" = false");
+
                     b.HasIndex("GrupoClienteContableId");
 
                     b.HasIndex("GrupoIvaNegocioId");
@@ -3464,6 +3633,10 @@ namespace OpenSource1.Infrastructure.Data.Migrations.Application
                         .IsUnique()
                         .HasFilter("\"IsDeleted\" = false");
 
+                    b.HasIndex("SerieBorradorId");
+
+                    b.HasIndex("SerieRegistroId");
+
                     b.HasIndex("SocioNegocioFacturarAId");
 
                     b.HasIndex("SocioNegocioId");
@@ -3472,7 +3645,9 @@ namespace OpenSource1.Infrastructure.Data.Migrations.Application
 
                     b.ToTable("FacturasVentaBorrador", null, t =>
                         {
-                            t.HasCheckConstraint("CK_FacturasVentaBorrador_Estado", "\"Estado\" IN (1, 2)");
+                            t.HasCheckConstraint("CK_FacturasVentaBorrador_Estado", "\"Estado\" IN (1, 2, 3)");
+
+                            t.HasCheckConstraint("CK_FacturasVentaBorrador_Posteada", "(\"Estado\" = 3) = (\"FacturaVentaNumero\" IS NOT NULL)");
                         });
                 });
 
@@ -4277,6 +4452,9 @@ namespace OpenSource1.Infrastructure.Data.Migrations.Application
                         .HasMaxLength(300)
                         .HasColumnType("character varying(300)");
 
+                    b.Property<short>("Estado")
+                        .HasColumnType("smallint");
+
                     b.Property<string>("FacturaVentaNumero")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -4312,6 +4490,10 @@ namespace OpenSource1.Infrastructure.Data.Migrations.Application
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<string>("NotaCreditoVentaNumero")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
                     b.Property<string>("Numero")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -4328,6 +4510,12 @@ namespace OpenSource1.Infrastructure.Data.Migrations.Application
                     b.Property<string>("RazonSocialFacturacion")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("SerieBorradorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("SerieRegistroId")
+                        .HasColumnType("uuid");
 
                     b.Property<Guid>("SocioNegocioFacturarAId")
                         .HasColumnType("uuid");
@@ -4367,15 +4555,28 @@ namespace OpenSource1.Infrastructure.Data.Migrations.Application
 
                     b.HasIndex("GrupoNegocioId");
 
+                    b.HasIndex("NotaCreditoVentaNumero")
+                        .IsUnique()
+                        .HasFilter("\"NotaCreditoVentaNumero\" IS NOT NULL AND \"IsDeleted\" = false");
+
                     b.HasIndex("Numero")
                         .IsUnique()
                         .HasFilter("\"IsDeleted\" = false");
+
+                    b.HasIndex("SerieBorradorId");
+
+                    b.HasIndex("SerieRegistroId");
 
                     b.HasIndex("SocioNegocioFacturarAId");
 
                     b.HasIndex("SocioNegocioId");
 
-                    b.ToTable("NotasCreditoVentaBorrador", (string)null);
+                    b.ToTable("NotasCreditoVentaBorrador", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_NotasCreditoVentaBorrador_Estado", "\"Estado\" IN (1, 3)");
+
+                            t.HasCheckConstraint("CK_NotasCreditoVentaBorrador_Posteada", "(\"Estado\" = 3) = (\"NotaCreditoVentaNumero\" IS NOT NULL)");
+                        });
                 });
 
             modelBuilder.Entity("OpenSource1.Core.Entities.CategoriaProducto", b =>
@@ -4420,6 +4621,15 @@ namespace OpenSource1.Infrastructure.Data.Migrations.Application
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("FK_MovimientosClienteDetalle_MovimientosCliente_MovimientoCli~1");
+                });
+
+            modelBuilder.Entity("OpenSource1.Core.Entities.ConfiguracionNumeracion", b =>
+                {
+                    b.HasOne("OpenSource1.Core.Entities.Serie", null)
+                        .WithMany()
+                        .HasForeignKey("SerieId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("OpenSource1.Core.Entities.Contabilidad.GrupoClienteContable", b =>
@@ -4856,6 +5066,11 @@ namespace OpenSource1.Infrastructure.Data.Migrations.Application
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("OpenSource1.Core.Entities.Ventas.FacturaVenta", null)
+                        .WithMany()
+                        .HasForeignKey("FacturaVentaNumero")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("OpenSource1.Core.Entities.Contabilidad.GrupoClienteContable", null)
                         .WithMany()
                         .HasForeignKey("GrupoClienteContableId")
@@ -4871,6 +5086,18 @@ namespace OpenSource1.Infrastructure.Data.Migrations.Application
                     b.HasOne("OpenSource1.Core.Entities.Contabilidad.GrupoNegocio", null)
                         .WithMany()
                         .HasForeignKey("GrupoNegocioId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("OpenSource1.Core.Entities.Serie", null)
+                        .WithMany()
+                        .HasForeignKey("SerieBorradorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("OpenSource1.Core.Entities.Serie", null)
+                        .WithMany()
+                        .HasForeignKey("SerieRegistroId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
@@ -5197,6 +5424,23 @@ namespace OpenSource1.Infrastructure.Data.Migrations.Application
                     b.HasOne("OpenSource1.Core.Entities.Contabilidad.GrupoNegocio", null)
                         .WithMany()
                         .HasForeignKey("GrupoNegocioId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("OpenSource1.Core.Entities.Ventas.NotaCreditoVenta", null)
+                        .WithMany()
+                        .HasForeignKey("NotaCreditoVentaNumero")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("OpenSource1.Core.Entities.Serie", null)
+                        .WithMany()
+                        .HasForeignKey("SerieBorradorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("OpenSource1.Core.Entities.Serie", null)
+                        .WithMany()
+                        .HasForeignKey("SerieRegistroId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 

@@ -42,8 +42,8 @@ public class CreateSocioNegocioCommandHandlerTests
             UnitOfWork.Setup(u => u.Repository<GrupoClienteContable>()).Returns(new RepositorioEnMemoria<GrupoClienteContable>().Repo);
             UnitOfWork.Setup(u => u.BeginTransactionAsync(It.IsAny<CancellationToken>())).ReturnsAsync(Transaccion.Object);
 
-            Generador.Setup(g => g.SiguienteAsync("SOCIOS", It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()))
-                .ReturnsAsync(Result<string>.Exito(numero));
+            Generador.Setup(g => g.SiguientePorTipoAsync(TipoDocumentoSerie.Cliente, It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(Result<NumeroGenerado>.Exito(new NumeroGenerado(numero, null)));
         }
 
         public CreateSocioNegocioCommandHandler Handler() => new(UnitOfWork.Object, Generador.Object);
@@ -77,7 +77,7 @@ public class CreateSocioNegocioCommandHandlerTests
         Assert.Equal(ctx.Agregado.Id, result.Valor.Id);
 
         ctx.UnitOfWork.Verify(u => u.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        ctx.Generador.Verify(g => g.SiguienteAsync("SOCIOS", It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()), Times.Once);
+        ctx.Generador.Verify(g => g.SiguientePorTipoAsync(TipoDocumentoSerie.Cliente, It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()), Times.Once);
         ctx.UnitOfWork.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -135,7 +135,8 @@ public class CreateSocioNegocioCommandHandlerTests
         Assert.True(result.EsFallo);
         Assert.Contains(result.Errores, e => e.Campo == campo);
         ctx.UnitOfWork.Verify(u => u.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
-        ctx.Generador.Verify(g => g.SiguienteAsync(It.IsAny<string>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()), Times.Never);
+        ctx.Generador.Verify(g => g.SiguientePorTipoAsync(TipoDocumentoSerie.Cliente, It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()), Times.Never);
+        ctx.Generador.VerifyNoOtherCalls(); // ninguna otra numeración (otro tipo, por serie, vista previa)
         ctx.UnitOfWork.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
@@ -154,7 +155,7 @@ public class CreateSocioNegocioCommandHandlerTests
 
         // El número se reservó dentro de la transacción, pero no hubo commit: al salir del
         // await using la transacción se descarta (rollback) y el contador no se consume.
-        ctx.Generador.Verify(g => g.SiguienteAsync("SOCIOS", It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()), Times.Once);
+        ctx.Generador.Verify(g => g.SiguientePorTipoAsync(TipoDocumentoSerie.Cliente, It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()), Times.Once);
         ctx.UnitOfWork.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
         ctx.Socios.Verify(r => r.AddAsync(It.IsAny<SocioNegocio>(), It.IsAny<CancellationToken>()), Times.Never);
         ctx.Transaccion.Verify(t => t.DisposeAsync(), Times.Once);
@@ -196,8 +197,8 @@ public class CreateSocioNegocioCommandHandlerTests
     public async Task Handle_SiLaNumeracionFalla_PropagaElErrorSinInsertar()
     {
         var ctx = new Contexto();
-        ctx.Generador.Setup(g => g.SiguienteAsync("SOCIOS", It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result<string>.Fallo(new Error("numeracion.serie_agotada", "Agotada.")));
+        ctx.Generador.Setup(g => g.SiguientePorTipoAsync(TipoDocumentoSerie.Cliente, It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<NumeroGenerado>.Fallo(new Error("numeracion.serie_agotada", "Agotada.")));
 
         var result = await ctx.Handler().Handle(SocioNegocioTestData.Create(), default);
 

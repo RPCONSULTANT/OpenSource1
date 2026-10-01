@@ -64,10 +64,10 @@ public sealed record LineaNotaAPostear(
 public interface INotaCreditoVentaDatos
 {
     /// <summary>
-    /// <c>FOR UPDATE</c> del borrador vivo (serializa sus líneas, su modificación, su borrado y su posteo). <see langword="false"/>
-    /// si no existe o está borrado lógicamente.
+    /// <c>FOR UPDATE</c> del borrador vivo (serializa sus líneas, su modificación, su borrado y su posteo) y su estado;
+    /// <see langword="null"/> si no existe o está borrado lógicamente.
     /// </summary>
-    Task<bool> BloquearBorradorAsync(Guid notaCreditoVentaBorradorId, CancellationToken cancellationToken = default);
+    Task<EstadoNotaCreditoBorrador?> BloquearBorradorAsync(Guid notaCreditoVentaBorradorId, CancellationToken cancellationToken = default);
 
     /// <summary>Líneas vivas del borrador, por <c>NumeroLinea</c>, <c>FOR UPDATE</c> (con el borrador ya bloqueado).</summary>
     Task<IReadOnlyList<LineaNotaAPostear>> BloquearLineasAsync(Guid notaCreditoVentaBorradorId, CancellationToken cancellationToken = default);

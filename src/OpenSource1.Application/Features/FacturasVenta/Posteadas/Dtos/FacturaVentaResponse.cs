@@ -10,6 +10,9 @@ public sealed class FacturaVentaResponse
 {
     public string Numero { get; init; } = string.Empty;
     public string NumeroBorrador { get; init; } = string.Empty;
+
+    /// <summary>Borrador <c>Posteada</c> de origen; <see langword="null"/> en facturas anteriores a no-series (su borrador se borró).</summary>
+    public Guid? FacturaVentaBorradorId { get; init; }
     public Guid SocioNegocioId { get; init; }
     public string? SocioNegocioCodigo { get; init; }
     public string? SocioNegocioNombre { get; init; }

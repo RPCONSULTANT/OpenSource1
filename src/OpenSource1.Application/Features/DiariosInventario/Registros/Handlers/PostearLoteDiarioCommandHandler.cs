@@ -32,7 +32,7 @@ namespace OpenSource1.Application.Features.DiariosInventario.Registros.Handlers;
 /// </list>
 /// <para>
 /// Orden GLOBAL de locks (ver también el XML doc de <c>BloqueoInventarioProducto</c>/<c>BloqueoInventarioAlmacen</c>):
-/// lote -&gt; líneas -&gt; productos (ordenados) -&gt; línea de serie -&gt; almacenes (compartidos, uno por
+/// lote -&gt; líneas -&gt; productos (ordenados) -&gt; serie (<c>FOR SHARE</c>) y su línea -&gt; almacenes (compartidos, uno por
 /// <see cref="MovimientoInventarioSolicitud"/> dentro del paso 5). El <c>FOR UPDATE</c> de la línea de serie
 /// (<see cref="IGeneradorNumeroDocumento.SiguienteAsync"/>) serializa, además, GLOBALMENTE todos los registros que
 /// usan esa misma serie: por eso quitar el bloqueo de productos del paso 2 no haría fallar por interbloqueo dos
@@ -127,11 +127,14 @@ public sealed class PostearLoteDiarioCommandHandler(
             return Fallo(new Error("diario.serie_invalida", "La serie de numeración del lote no existe.", "SerieId"));
         }
 
-        var numero = await generadorNumero.SiguienteAsync(serie.Codigo, DateOnly.FromDateTime(DateTime.UtcNow), cancellationToken);
-        if (!numero.TryObtenerValor(out var numeroRegistro))
+        var numero = await generadorNumero.SiguienteAsync(
+            serie.Id, TipoDocumentoSerie.DiarioInventario, DateOnly.FromDateTime(DateTime.UtcNow), cancellationToken);
+        if (!numero.TryObtenerValor(out var generado))
         {
-            return Fallo(numero);
+            return Fallo([.. numero.Errores]);
         }
+
+        var numeroRegistro = generado.Numero;
 
         if (numeroRegistro.Length > LongitudNumeroRegistro)
         {

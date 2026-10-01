@@ -36,6 +36,21 @@ public sealed class NotaCreditoVentaBorradorResponse
     public string Moneda { get; init; } = string.Empty;
     public string? Descripcion { get; init; }
     public int NumeroLineas { get; init; }
+
+    /// <summary>Abierta (editable) o Posteada (solo lectura, enlazada a <see cref="NotaCreditoVentaNumero"/>).</summary>
+    public EstadoNotaCreditoBorrador Estado { get; init; }
+
+    /// <summary>Serie que dio <see cref="Numero"/> (tipo BorradorNotaCreditoVenta).</summary>
+    public Guid SerieBorradorId { get; init; }
+    public string? SerieBorradorCodigo { get; init; }
+
+    /// <summary>Serie con la que se numera la nota al postear (tipo NotaCreditoVenta).</summary>
+    public Guid SerieRegistroId { get; init; }
+    public string? SerieRegistroCodigo { get; init; }
+
+    /// <summary>Nota posteada desde este borrador (solo en Posteada).</summary>
+    public string? NotaCreditoVentaNumero { get; init; }
+
     public long Xmin { get; init; }
     public DateTime CreatedAtUtc { get; init; }
     public DateTime? UpdatedAtUtc { get; init; }

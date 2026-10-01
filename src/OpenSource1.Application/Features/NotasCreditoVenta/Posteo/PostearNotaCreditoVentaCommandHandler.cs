@@ -17,13 +17,13 @@ namespace OpenSource1.Application.Features.NotasCreditoVenta.Posteo;
 
 /// <summary>
 /// Motor de posteo de notas de crédito de venta (Task 8.6), mismo patrón que <c>PostearFacturaVentaCommandHandler</c>: UNA
-/// transacción de <see cref="IUnitOfWork"/> (un fallo o una excepción deshacen todo, incluido el número de la serie <c>NC</c>).
+/// transacción de <see cref="IUnitOfWork"/> (un fallo o una excepción deshacen todo, incluido el número de la serie de registro del borrador).
 /// <list type="number">
 /// <item>Bloqueos, en el orden global: borrador y sus líneas (<c>FOR UPDATE</c>) → FACTURA (<c>FOR UPDATE</c> de su fila, el
 /// punto de serialización de todas sus notas, también si es de total 0 y no tiene movimiento de cliente) → movimiento de cliente de
 /// la factura (<c>FOR UPDATE</c>, con su restante leído después del bloqueo) → socios (<c>FOR SHARE</c>) → productos con devolución
-/// (ordenados) → serie <c>NC</c> → almacenes (dentro de <see cref="IRegistroMovimientosInventario"/>) → cuentas y serie
-/// <c>CONTAB</c> (dentro de <see cref="IRegistroContable"/>).</item>
+/// (ordenados) → serie de registro del borrador (<c>FOR SHARE</c>) y su línea → almacenes (dentro de <see cref="IRegistroMovimientosInventario"/>) → cuentas,
+/// libro contable (advisory lock <c>libro-contable</c>) y serie de asientos (dentro de <see cref="IRegistroContable"/>).</item>
 /// <item>Revalidación contra el estado actual y BAJO EL BLOQUEO de la factura (Review Focus 1): fecha de registro permitida
 /// (Task 8.5) y no anterior a la factura; socios; por línea, cantidad ≤ facturada − acreditada por notas POSTEADAS (dos notas
 /// concurrentes sobre la misma línea se serializan en la factura y la segunda ve lo que acreditó la primera), exactitud de la
@@ -32,7 +32,7 @@ namespace OpenSource1.Application.Features.NotasCreditoVenta.Posteo;
 /// <item>Importes RECALCULADOS desde la línea de la factura (no los guardados en el borrador) y TOPADOS por lo que queda por
 /// acreditar bajo el bloqueo (Ruling FI, <see cref="TopesNotaCredito"/>): importe y descuento por línea, IVA por grupo y costo de
 /// la devolución; la nota que agota toma los remanentes exactos. IVA agrupado de la nota (<see cref="CalculadoraIvaFactura"/>) sobre
-/// los importes topados, número <c>NC</c>, asiento en memoria con los importes topados.</item>
+/// los importes topados, número de la serie de notas, asiento en memoria con los importes topados.</item>
 /// <item>Devolución (Review Focus 2): por línea con <c>DevolverInventario</c>, entrada <c>Venta</c> con cantidad POSITIVA en el
 /// almacén de la línea original, en unidad base (convertida con el factor congelado de la factura), al costo unitario EXACTO de la
 /// salida original: <c>−ImporteCosto / CantidadBase</c> de su movimiento de producto, con <c>ImporteCosto</c> = Σ de sus movimientos
@@ -42,7 +42,8 @@ namespace OpenSource1.Application.Features.NotasCreditoVenta.Posteo;
 /// factura); si la factura ya estaba pagada del todo, la nota queda sin aplicar (saldo a favor).</item>
 /// <item>Asiento inverso (<see cref="AsientoFacturaVenta"/> con <see cref="AsientoFacturaVenta.Signo.Inverso"/>): débito Ventas por
 /// grupo con el mismo ajuste de redondeo, débito de las cuentas de las líneas CuentaContable, débito IVA por grupo, crédito CxC.</item>
-/// <item>Documento posteado y borrado lógico del borrador.</item>
+/// <item>Documento posteado y borrador Posteada (enlazado a la nota, de solo lectura; re-postearlo -&gt; 409
+/// <c>nota_credito_borrador.posteada.conflicto</c>).</item>
 /// <item>Total 0 (Ruling FE): solo si TODAS las líneas devuelven inventario (devolución de un obsequio): documento y entradas,
 /// sin movimiento de cliente, sin aplicación y sin asiento; en otro caso <c>nota_credito.importe_cero</c>.</item>
 /// </list>
@@ -75,9 +76,16 @@ public sealed class PostearNotaCreditoVentaCommandHandler(
         await using var transaccion = await unitOfWork.BeginTransactionAsync(cancellationToken);
 
         // 1. Borrador y líneas (FOR UPDATE).
-        if (!await datos.BloquearBorradorAsync(request.NotaCreditoVentaBorradorId, cancellationToken))
+        var estado = await datos.BloquearBorradorAsync(request.NotaCreditoVentaBorradorId, cancellationToken);
+        if (estado is null)
         {
             return Fallo(NotaCreditoVentaErrores.BorradorNoEncontrado());
+        }
+
+        // Ya posteado (también el perdedor de un doble posteo concurrente, que espera el FOR UPDATE y lee el estado confirmado): 409.
+        if (estado == EstadoNotaCreditoBorrador.Posteada)
+        {
+            return Fallo(NotaCreditoVentaErrores.Posteada());
         }
 
         var repositorio = unitOfWork.Repository<NotaCreditoVentaBorrador>();
@@ -199,13 +207,16 @@ public sealed class PostearNotaCreditoVentaCommandHandler(
             cuentasAsiento = cuentas with { CuentaCxCId = movimientoFactura.CuentaCxCId };
         }
 
-        // 6. Número de la nota (FOR UPDATE de la línea de la serie NC, sin huecos: se deshace con todo lo demás).
+        // 6. Número con la serie de registro del borrador (FOR SHARE serie, FOR UPDATE línea; mismo punto del orden de locks). Sin
+        // huecos: se deshace con todo lo demás. Serie eliminada, inactiva o de otro tipo -> 400 en SerieRegistroId (Review Focus 2).
         var numeroResultado = await generadorNumero.SiguienteAsync(
-            SerieNotaCreditoVentaIds.CodigoPosteada, DateOnly.FromDateTime(DateTime.UtcNow), cancellationToken);
-        if (!numeroResultado.TryObtenerValor(out var numero))
+            borrador.SerieRegistroId, TipoDocumentoSerie.NotaCreditoVenta, DateOnly.FromDateTime(DateTime.UtcNow), cancellationToken);
+        if (!numeroResultado.TryObtenerValor(out var generado))
         {
-            return Result<ResultadoPosteoNotaCredito>.Fallo(numeroResultado);
+            return Fallo([.. numeroResultado.Errores.Select(e => e.Campo == "SerieId" ? e with { Campo = "SerieRegistroId" } : e)]);
         }
+
+        var numero = generado.Numero;
 
         if (numero.Length > LongitudNumero)
         {
@@ -322,19 +333,15 @@ public sealed class PostearNotaCreditoVentaCommandHandler(
             })],
             cancellationToken);
 
-        // 11. Borrado lógico del borrador y de todas sus líneas.
-        var borradas = await datos.BorrarLineasAsync(borrador.Id, creadoPor, cancellationToken);
-        if (borradas != lineas.Count)
-        {
-            throw new InvalidOperationException(
-                $"Se esperaba borrar {lineas.Count} líneas del borrador {borrador.Numero} y se borraron {borradas}.");
-        }
-
-        repositorio.Remove(borrador);
+        // 11. El borrador queda Posteada, enlazado a la nota y de solo lectura (spec no-series).
+        borrador.Estado = EstadoNotaCreditoBorrador.Posteada;
+        borrador.NotaCreditoVentaNumero = numero;
+        repositorio.Update(borrador);
         await unitOfWork.CommitAsync(cancellationToken);
 
         return Result<ResultadoPosteoNotaCredito>.Exito(
-            new ResultadoPosteoNotaCredito(numero, totales.ImporteTotal, aplicado, asientoRegistrado?.NumeroRegistro));
+            new ResultadoPosteoNotaCredito(
+                numero, totales.ImporteTotal, aplicado, asientoRegistrado?.NumeroRegistro, AvisoNumeracion: generado.Aviso));
     }
 
     /// <summary>Fecha permitida y no anterior a la factura; socios existentes y no bloqueados (mismo criterio que la factura).</summary>
